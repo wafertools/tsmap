@@ -255,7 +255,7 @@ change — noted per item.
       JSON parser/mapping overlay/modal chrome almost entirely; main risk is a refactor of
       `main.ts`'s shared file-load path. Not started — full design, cost breakdown, and researched
       tradeoffs (incl. why `tauri-plugin-http` was rejected in favor of a hand-rolled `reqwest`
-      command) are in [docs/plans/open-from-url-ingestion.md](docs/plans/open-from-url-ingestion.md).
+      command) are in [plans/open-from-url-ingestion.md](plans/open-from-url-ingestion.md).
 
 ## Smaller polish items
 

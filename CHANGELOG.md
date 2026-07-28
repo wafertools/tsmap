@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.1.22] — 2026-07-28
+
+### Added
+
+- **Help menu feedback** — the "tsmap guide" row is marked with an external-link icon (it's the one row that leaves the app for your browser), and both rows show a brief confirmation toast on click. On desktop the guide can reopen into an already-running but minimized browser window, where nothing visibly happens; the toast confirms the click registered so it doesn't get retried. Only one toast is shown at a time, and it's announced to screen readers (`role="status"`).
+- **Marketing pages for the docs site** — a [Features](docs/features.md) tour and a [Use cases](docs/use-cases.md) page, both illustrated with real captured screenshots, plus a "Why tsmap"/"See it in action" section on the docs home page.
+
+### Changed
+
+- **wmap bumped to 0.20.8** (from 0.20.3, the last released pin — 0.20.4 was picked up but never shipped). Drop-in for tsmap, no code changes needed. Brings: viewport clamping for the Test Value submenu and Insights tooltips, expand-modal reparent/close fixes and correct printing of an expanded modal (0.20.4); no more double SI-prefixing when a test's unit is already prefixed, e.g. `MHz`/`nA` rendering as "1.50 kMHz" (0.20.5); a `'metadata'` plot mode and several reticle placement/labelling correctness fixes (0.20.6/0.20.7); and a geometry rewrite onto a single affine transform pipeline that fixes a backwards +X/+Y axis indicator under a data-axis flip, overlapping die rectangles when a non-square die pitch meets a baked wafer orientation, and axis tick labels naming the wrong die coordinate when orientation, data flip and interactive rotation are combined (0.20.8). See WMAP_ISSUES.md's version table.
+- **Documented parser throughput now names the machine it was measured on** — the public figures were quoting a benchmark that predated the testdata-parser 0.4.0 rewrite. Re-measured: ~3.5 s / ~96 MB/s for a 341 MB, 266k-die STDF lot on a 2021 ThinkPad, against ~2.3 s / ~148 MB/s on a small desktop; both are now quoted with their hardware rather than a single context-free number.
+
+### Fixed
+
+- **Screenshot captures fail loudly again.** The capture steps that drive wmap's Insights tab locate their targets by its user-visible heading/tab text (its DOM exposes no stable class/id/aria hooks — WMAP_ISSUES.md #36), and every one of them silently did nothing when a match failed, producing a valid-looking screenshot of the wrong state under the right filename — the same defect that shipped six wrong images in July. All four now throw. Also fixed the drilldown capture baking wmap's cursor-following chart tooltip over the data it was meant to show.
+
 ## [0.1.21] — 2026-07-20
 
 ### Added

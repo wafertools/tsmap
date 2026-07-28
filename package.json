@@ -1,7 +1,7 @@
 {
   "name": "tsmap",
   "private": true,
-  "version": "0.1.21",
+  "version": "0.1.22",
   "type": "module",
   "scripts": {
     "build:guide": "node scripts/build-user-guide.mjs",
@@ -13,6 +13,7 @@
     "build": "tsc && vite build",
     "build:web": "tsc && vite build",
     "build:site": "npm run build:web && ${ZENSICAL:-zensical} build --clean && cp -r dist site/app",
+    "build:site:dev": "npm run predev && tsc && vite build && ${ZENSICAL:-zensical} build --clean && cp -r dist site/app",
     "check": "tsc --noEmit",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
     "lint": "eslint src",
@@ -33,7 +34,7 @@
   },
   "dependencies": {
     "@paulrobins/testdata-parser": "^0.5.0",
-    "@paulrobins/wafermap": "^0.20.3",
+    "@paulrobins/wafermap": "^0.20.8",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",

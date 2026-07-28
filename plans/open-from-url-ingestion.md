@@ -2,7 +2,7 @@
 
 **Status: not implemented.** Filed as a reference design for a possible future feature —
 demand isn't confirmed yet (see cost/complexity below). Referenced from a short entry in
-[IDEAS.md](../../IDEAS.md) so a future session has the full design ready without re-deriving it.
+[IDEAS.md](../IDEAS.md) so a future session has the full design ready without re-deriving it.
 
 ## Estimated cost (for future reference)
 

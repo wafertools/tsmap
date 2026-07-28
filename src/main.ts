@@ -15,6 +15,7 @@ import type { CsvMapping } from './mappingUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
 import type { ParsedFile, WaferData, TestDef, TestOverride } from './types';
 import { attachTooltip, upgradeTitleTooltips } from './tooltip';
+import { ICONS } from './icons';
 import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme } from './theme';
 import { makeMenuSelect } from './menuSelect';
 import { showSplitsModal } from './splitsUI';
@@ -1317,6 +1318,74 @@ splitsBtn.addEventListener('click', openSplitsDialog);
 let closeHelpMenu: (() => void) | null = null;
 
 /**
+ * Brief, self-dismissing "Opening…" confirmation shown near `anchor` — gives
+ * immediate in-app feedback the instant a guide-opening row is clicked,
+ * regardless of what happens to the external/popup/floating destination
+ * afterward. Exists because tsmap's own guide (a real OS-opened browser
+ * window on desktop) can silently reopen into an already-open but minimized
+ * browser on some desktop window managers — nothing visibly changes, so
+ * without this the user has no way to tell the click registered and may
+ * click repeatedly. This toast lives in the main app window, which can never
+ * itself end up minimized or missed.
+ *
+ * Repeat clicks are therefore the *expected* input, not an edge case: only one
+ * toast exists at a time (a second click replaces the first rather than
+ * stacking an identically-positioned copy on top of it, which just rendered as
+ * a subtly darker, un-dismissing box). `role="status"` + `aria-live="polite"`
+ * announce it, since a confirmation no screen reader reports doesn't confirm
+ * anything for the users most likely to miss the external window.
+ */
+let activeToast: { el: HTMLElement; hideTimer: number; removeTimer: number } | null = null;
+
+function showToast(anchor: HTMLElement, text: string) {
+  if (activeToast) {
+    clearTimeout(activeToast.hideTimer);
+    clearTimeout(activeToast.removeTimer);
+    activeToast.el.remove();
+    activeToast = null;
+  }
+  const toast = document.createElement('div');
+  toast.textContent = text;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  toast.style.cssText = [
+    'position:fixed', 'z-index:var(--z-tooltip)',
+    'background:var(--bg-overlay)', 'color:var(--text-secondary)',
+    'border:1px solid var(--border-mid)', 'border-radius:6px',
+    'box-shadow:0 6px 20px rgba(0,0,0,0.35)',
+    'padding:6px 10px', 'font-size:13px', 'font-family:system-ui,sans-serif',
+    'white-space:nowrap', 'opacity:0', 'transition:opacity 0.2s ease', 'pointer-events:none',
+  ].join(';');
+  document.body.appendChild(toast);
+  const r = anchor.getBoundingClientRect();
+  const margin = 8;
+  toast.style.top = `${r.bottom + 4}px`;
+  toast.style.left = `${r.left}px`;
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    // Same edge-aware clamp as openHelpMenu's own popup below — the Help
+    // button sits at the far right of the toolbar, so a naive left-aligned
+    // toast clips off the viewport edge.
+    const tw = toast.offsetWidth;
+    let left = r.left;
+    if (left + tw + margin > window.innerWidth) left = window.innerWidth - tw - margin;
+    toast.style.left = `${Math.max(margin, left)}px`;
+  });
+  const entry: { el: HTMLElement; hideTimer: number; removeTimer: number } = {
+    el: toast,
+    hideTimer: window.setTimeout(() => {
+      toast.style.opacity = '0';
+      entry.removeTimer = window.setTimeout(() => {
+        toast.remove();
+        if (activeToast === entry) activeToast = null;
+      }, 250);
+    }, 1600),
+    removeTimer: 0,
+  };
+  activeToast = entry;
+}
+
+/**
  * A single Help entry point with two destinations: tsmap's own guide (always
  * available) and wmap's built-in wafer-map reference (only reachable once a
  * map/gallery is rendered, via mainViewController.openUserGuide() — wmap's
@@ -1324,6 +1393,15 @@ let closeHelpMenu: (() => void) | null = null;
  * menu is now the only entry point; see WMAP_ISSUES.md #32, resolved in wmap
  * v0.18.1+ by exporting openUserGuide() on both controllers). Mirrors
  * openRecentMenu's anchored-popup pattern.
+ *
+ * The two rows open in genuinely different ways (see CLAUDE.md's "How it's
+ * opened" note) — "tsmap guide" always leaves the app for an external
+ * browser, "Wafer map reference" tries a popup and falls back in-app. Rather
+ * than unify the mechanics (both are deliberate, for good reasons), the
+ * difference is made legible: an external-link icon marks the row that
+ * leaves the app, and both rows show a brief `showToast` confirmation on
+ * click so a minimized/backgrounded destination never reads as "nothing
+ * happened."
  */
 function openHelpMenu(anchor: HTMLElement) {
   if (closeHelpMenu) { closeHelpMenu(); return; }
@@ -1339,14 +1417,23 @@ function openHelpMenu(anchor: HTMLElement) {
     'display:flex', 'flex-direction:column', 'gap:2px',
   ].join(';');
 
-  const makeRow = (label: string, hint: string, enabled: boolean, onClick: () => void) => {
+  const makeRow = (label: string, hint: string, enabled: boolean, onClick: () => void, icon?: string) => {
     const row = document.createElement('button');
     row.type = 'button';
-    row.textContent = label;
     row.disabled = !enabled;
-    row.style.cssText = 'text-align:left;background:none;border:none;border-radius:4px;' +
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;text-align:left;background:none;border:none;border-radius:4px;' +
       `padding:6px 10px;font-size:13px;color:${enabled ? 'var(--text-secondary)' : 'var(--text-veryfaint)'};` +
       `cursor:${enabled ? 'pointer' : 'default'};`;
+    const text = document.createElement('span');
+    text.textContent = label;
+    text.style.flex = '1';
+    row.appendChild(text);
+    if (icon) {
+      const iconSpan = document.createElement('span');
+      iconSpan.innerHTML = icon;
+      iconSpan.style.cssText = 'display:inline-flex;opacity:0.6;flex-shrink:0;';
+      row.appendChild(iconSpan);
+    }
     if (enabled) {
       row.addEventListener('mouseenter', () => { row.style.background = 'var(--bg-hover-row)'; });
       row.addEventListener('mouseleave', () => { row.style.background = 'none'; });
@@ -1356,13 +1443,19 @@ function openHelpMenu(anchor: HTMLElement) {
     popup.appendChild(row);
   };
 
-  makeRow('tsmap guide', 'File loading, mapping, splits, test selector, and more', true, () => platform.openGuide());
+  makeRow(
+    'tsmap guide',
+    'File loading, mapping, splits, test selector, and more — opens in your browser',
+    true,
+    () => { showToast(anchor, 'Opening in browser…'); platform.openGuide(); },
+    ICONS.externalLink,
+  );
 
   makeRow(
     'Wafer map reference',
     mainViewController ? 'Wafer map/gallery controls, Findings/Insights panels, and more (wmap’s own guide)' : 'Load a file first to access the wafer map reference',
     !!mainViewController,
-    () => mainViewController?.openUserGuide(),
+    () => { showToast(anchor, 'Opening guide…'); mainViewController?.openUserGuide(); },
   );
 
   document.body.appendChild(popup);

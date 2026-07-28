@@ -53,8 +53,23 @@
  *     where the rename overlay appears before anything renders (see
  *     multiFileUI.ts's needsRename: entries.length > 1).
  *
- *   ['openCharts']
- *     Click the "Charts" toolbar button; waits for chart panels to render.
+ *   ['openInsights']
+ *     Click the wafer map/gallery's "Insights" button (wmap's own built-in
+ *     chart suite — tsmap's old bespoke Charts view was removed and folded
+ *     into wmap, see WMAP_ISSUES.md). Waits for the Overview sub-tab to render.
+ *
+ *   ['selectInsightsTab', 'Distributions']
+ *     Click an Insights sub-tab by exact label — 'Overview', 'Distributions',
+ *     or 'Correlation'.
+ *
+ *   NOTE on the four Insights steps (selectInsightsTab, expandChartByTitle,
+ *   setInsightsGroupBy, clickChartRowByTitle): they locate their target by
+ *   wmap's own user-visible copy, because its Insights DOM carries no stable
+ *   class/id/aria hooks (WMAP_ISSUES.md #36). A wmap rename therefore breaks
+ *   them — so every one of them THROWS when its match fails. Never soften one
+ *   back into an `if (found) …` no-op: a step that silently does nothing still
+ *   produces a screenshot, just of the wrong state under the right filename,
+ *   which has shipped wrong images twice already (see expandChartByTitle).
  *
  *   ['hoverMap']
  *     Hover the wafer map canvas to pin the wmap toolbar visible.
@@ -77,9 +92,10 @@
  *   ['clickFindingByText', 'edge']
  *     Click the first finding whose text contains the given string.
  *
- *   ['expandChartCard', N]
- *     Click the Expand icon button on the Nth .chart-card (0-based index).
- *     Leaves the modal open for screenshotting.
+ *   ['expandChartByTitle', 'Test scatter']
+ *     Inside the open Insights tab, find the chart card whose heading text
+ *     starts with the given string and click its Expand button. Leaves the
+ *     modal open for screenshotting.
  *
  *   ['expandLogPanel']
  *     Click the log toggle button to open the log panel.
@@ -94,13 +110,15 @@
  *     Click "Load splits…" in the splits dialog and pick the given file via
  *     Playwright's filechooser interception.
  *
- *   ['setGroupBy', 'Split']
- *     Select an option (by visible-label prefix) in the charts view's
- *     "Group by" dropdown.
+ *   ['setInsightsGroupBy', 'Split']
+ *     Select an option (by visible-label prefix) in the Insights tab's
+ *     "Group by:" dropdown.
  *
- *   ['clickChartRow', cardIdx, rowIdx]
- *     Click a specific row (0-based) inside the Nth .chart-card's canvas —
- *     for the yield/boxplot in-place group drilldown.
+ *   ['clickChartRowByTitle', 'Yield by wafer', rowIdx]
+ *     Click a specific row (0-based) inside the canvas of the chart card
+ *     whose heading starts with the given string — for the yield/boxplot
+ *     in-place group drilldown. Parks the pointer off-canvas afterwards so
+ *     wmap's cursor-following chart tooltip isn't baked into the screenshot.
  *
  *   ['showCursorOn', '#selector', offsetX, offsetY]
  *     Inject a fake SVG cursor centred on the element (optional pixel nudge).
@@ -469,33 +487,62 @@ async function runSetup(page, steps, baseUrl) {
         break;
       }
 
-      case 'openCharts': {
-        await page.evaluate(() => {
-          const btn = document.getElementById('charts-btn');
-          if (btn) btn.click();
-        });
-        // Wait for chart panels to render
+      case 'openInsights': {
+        // wmap's own Insights button — tsmap's bespoke Charts view (#charts-btn,
+        // .chart-card) was removed and folded into wmap (see WMAP_ISSUES.md).
+        // Insights/Expand/Help live in sceneControlsEl, unwrapped from the
+        // hover-to-reveal toolbar, so no pinning is needed before clicking.
+        await page.click('button[aria-label="Insights"]');
         await page.waitForTimeout(1200);
         break;
       }
 
-      case 'expandChartCard': {
-        // Click the Expand icon button on the Nth .chart-card (0-based). The
-        // button is an SVG icon (chartShell.ts makeIconBtn), not a text glyph —
-        // it carries no textContent, so match on its aria-label instead (set to
-        // the tooltip title, "Expand (E)"). A previous version of this matched
-        // on textContent === '⛶', which never matched post-SVG-icon-refactor and
-        // silently no-opped every capture using this step (chart-yield.png,
-        // chart-pareto.png, boxplot.png, histogram.png, correlation.png,
-        // scatter.png were all byte-identical screenshots of the unexpanded grid
-        // as a result — found and fixed 2026-07-08).
-        const idx = args[0] ?? 0;
-        await page.evaluate((n) => {
-          const cards = [...document.querySelectorAll('.chart-card')];
-          if (!cards[n]) return;
-          const btn = cards[n].querySelector('button[aria-label^="Expand"]');
-          if (btn) btn.click();
-        }, idx);
+      case 'selectInsightsTab': {
+        // Insights tab-bar buttons (Overview/Distributions/Correlation) have no
+        // class/id — wmap's insightsTab.ts sets only textContent — so match on
+        // exact label text. Text matching against another package's user-visible
+        // copy is brittle by construction (WMAP_ISSUES.md #36), so a miss must
+        // throw: a silent no-op here screenshots the wrong sub-tab under the
+        // right filename, which is exactly how six wrong images shipped in
+        // 2026-07 (see expandChartByTitle's history note below).
+        const label = args[0];
+        const tabbed = await page.evaluate((lbl) => {
+          const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === lbl);
+          if (!btn) return false;
+          btn.click();
+          return true;
+        }, label);
+        if (!tabbed) throw new Error(`Insights sub-tab not found: "${label}" (renamed in wmap?)`);
+        await page.waitForTimeout(500);
+        break;
+      }
+
+      case 'expandChartByTitle': {
+        // wmap's chart cards (chartShell.ts cardShell) carry no class/id either
+        // on the card or the Expand button (it's `title = 'Expand'`, not
+        // aria-label) — match the card by its heading text instead, then find
+        // the Expand button among that heading's siblings.
+        //
+        // A miss throws rather than no-opping. The predecessor of this step
+        // matched the Expand button on textContent === '⛶', which stopped
+        // matching after wmap's SVG-icon refactor and silently no-opped every
+        // capture using it — chart-yield/chart-pareto/boxplot/histogram/
+        // correlation/scatter.png were all byte-identical shots of the
+        // unexpanded grid (found and fixed 2026-07-08). Matching on wmap's
+        // heading copy has the same failure mode on any future rename, so the
+        // only safe form is a loud one.
+        const wanted = args[0];
+        const expanded = await page.evaluate((titleText) => {
+          const headings = [...document.querySelectorAll('div')]
+            .filter(d => d.children.length === 0 && d.textContent?.trim().startsWith(titleText));
+          for (const h of headings) {
+            const headingRow = h.parentElement;
+            const btn = headingRow && [...headingRow.querySelectorAll('button')].find(b => b.title === 'Expand');
+            if (btn) { btn.click(); return true; }
+          }
+          return false;
+        }, wanted);
+        if (!expanded) throw new Error(`Chart card / Expand button not found for title: "${wanted}" (renamed in wmap?)`);
         // Wait for modal backdrop to appear
         await page.waitForTimeout(800);
         break;
@@ -580,40 +627,62 @@ async function runSetup(page, steps, baseUrl) {
         break;
       }
 
-      case 'setGroupBy': {
-        // The "Group by" <select> has no id/aria-label (main.ts makeSelect) —
-        // find it via its preceding "Group by:" label span, a stable sibling
-        // relationship set up at construction (groupByControls.push(label, select)).
+      case 'setInsightsGroupBy': {
+        // The Insights "Group by:" <select> is a child of its own <label>
+        // (chartShell.ts makeLabeledSelect), not a sibling of a label span —
+        // find the label whose text starts with "Group by:" and read its
+        // nested select.
         const label = args[0];
-        await page.evaluate((optionLabel) => {
-          const spans = [...document.querySelectorAll('span')];
-          const groupBySpan = spans.find(s => s.textContent?.trim() === 'Group by:');
-          if (!groupBySpan) return;
-          const select = groupBySpan.nextElementSibling;
-          if (!select || select.tagName !== 'SELECT') return;
+        const grouped = await page.evaluate((optionLabel) => {
+          const labels = [...document.querySelectorAll('label')];
+          const groupByLabel = labels.find(l => l.querySelector('select') && l.textContent?.trim().startsWith('Group by:'));
+          const select = groupByLabel?.querySelector('select');
+          if (!select) return 'no-select';
           const opt = [...select.options].find(o => o.textContent?.trim().startsWith(optionLabel));
-          if (opt) { select.value = opt.value; select.dispatchEvent(new Event('change', { bubbles: true })); }
+          if (!opt) return 'no-option';
+          select.value = opt.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          return 'ok';
         }, label);
+        // Loud on a miss: an ungrouped chart still screenshots fine, so a silent
+        // no-op here ships a "grouped by Split" image that isn't grouped at all.
+        if (grouped === 'no-select') throw new Error('Insights "Group by:" select not found (renamed/restructured in wmap?)');
+        if (grouped === 'no-option') throw new Error(`Insights "Group by:" option not found: "${label}"`);
         await page.waitForTimeout(600);
         break;
       }
 
-      case 'clickChartRow': {
-        // Click a specific row inside the Nth .chart-card's canvas — used for
-        // the yield/boxplot in-place group drilldown (row geometry matches
-        // chartShell.ts PADDING=12 and render.ts ROW_HEIGHT=24/ROW_GAP=5).
-        const cardIdx = args[0] ?? 0;
+      case 'clickChartRowByTitle': {
+        // Click a specific row inside the canvas of the chart card whose
+        // heading starts with the given title — used for the yield/boxplot
+        // in-place group drilldown (row geometry matches chartShell.ts
+        // PADDING=12 and barPanel.ts ROW_HEIGHT=24/ROW_GAP=5).
+        const wanted = args[0];
         const rowIdx = args[1] ?? 0;
-        const cards = await page.$$('.chart-card');
-        if (!cards[cardIdx]) break;
-        const canvas = await cards[cardIdx].$('canvas');
-        if (!canvas) break;
-        const box = await canvas.boundingBox();
-        if (!box) break;
+        const box = await page.evaluate((titleText) => {
+          const headings = [...document.querySelectorAll('div')]
+            .filter(d => d.children.length === 0 && d.textContent?.trim().startsWith(titleText));
+          for (const h of headings) {
+            const card = h.parentElement?.parentElement;
+            const canvas = card?.querySelector('canvas');
+            if (canvas) {
+              const r = canvas.getBoundingClientRect();
+              return { x: r.x, y: r.y, width: r.width, height: r.height };
+            }
+          }
+          return null;
+        }, wanted);
+        if (!box) throw new Error(`Chart card canvas not found for title: "${wanted}" (renamed in wmap?)`);
         const PADDING = 12, ROW_HEIGHT = 24, ROW_GAP = 5;
         const y = box.y + PADDING + rowIdx * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
         const x = box.x + box.width / 2;
         await page.mouse.click(x, y);
+        // Park the pointer off the canvas afterwards: wmap's charts show a hover
+        // tooltip that follows the cursor, and it stays pinned over the data for
+        // as long as the pointer sits there — it was baked into
+        // yield-group-drilldown.png, obscuring the very bars the image exists to
+        // show. Any step that clicks *into* a canvas needs this.
+        await page.mouse.move(2, 2);
         await page.waitForTimeout(500);
         break;
       }

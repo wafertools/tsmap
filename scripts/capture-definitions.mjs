@@ -267,23 +267,25 @@ export const CAPTURES = [
     ],
   },
 
-  // ── §7 Charts overview — all 6 panels visible ─────────────────────────────
+  // ── §7 Insights — Overview sub-tab (yield + bin pareto + ring/quadrant) ───
+  // wmap's own Insights tab replaced tsmap's former bespoke Charts view (see
+  // WMAP_ISSUES.md) — Overview/Distributions/Correlation sub-tabs, opened via
+  // the map/gallery's "Insights" button rather than a tsmap #charts-btn.
   {
     file: 'charts-overview',
     group: 'charts',
-    description: 'Charts view — correlated.stdf, full 6-panel grid',
-    // #map-container.charts scrolls internally (overflow-y: auto), not the
-    // document — Playwright's fullPage:true only extends a real document
-    // scroll, so it silently no-ops here. Use a fixed viewport tall enough to
-    // fit all 6 panels without scrolling instead (found empirically: a taller
-    // wafer count needs more — see the splits-group definitions below, which
-    // use 2300 for a 13-wafer lot).
+    description: 'Insights tab, Overview sub-tab — correlated.stdf',
+    // The Insights tab is auto-height inside #map-container's own
+    // overflow-y:auto wrapper, not the document — use a fixed viewport tall
+    // enough to fit the Overview sub-tab without scrolling (found
+    // empirically: a taller wafer count needs more — see the splits-group
+    // definitions below, which use 2300 for a 13-wafer lot).
     viewport: { width: 1600, height: 2000 },
     setup: [
       ['loadFile', TD('correlated.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
-      ['openCharts'],
+      ['openInsights'],
       ['scroll', 0, 0],
     ],
   },
@@ -298,8 +300,8 @@ export const CAPTURES = [
       ['loadFile', TD('correlated.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
-      ['openCharts'],
-      ['expandChartCard', 0],
+      ['openInsights'],
+      ['expandChartByTitle', 'Yield by wafer'],
     ],
   },
 
@@ -313,8 +315,8 @@ export const CAPTURES = [
       ['loadFile', TD('correlated.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
-      ['openCharts'],
-      ['expandChartCard', 1],
+      ['openInsights'],
+      ['expandChartByTitle', 'Hard bin pareto'],
     ],
   },
 
@@ -328,8 +330,9 @@ export const CAPTURES = [
       ['loadFile', TD('correlated.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
-      ['openCharts'],
-      ['expandChartCard', 2],
+      ['openInsights'],
+      ['selectInsightsTab', 'Distributions'],
+      ['expandChartByTitle', 'Test value distribution'],
     ],
   },
 
@@ -343,8 +346,9 @@ export const CAPTURES = [
       ['loadFile', TD('correlated.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
-      ['openCharts'],
-      ['expandChartCard', 3],
+      ['openInsights'],
+      ['selectInsightsTab', 'Distributions'],
+      ['expandChartByTitle', 'Value histogram'],
     ],
   },
 
@@ -358,8 +362,9 @@ export const CAPTURES = [
       ['loadFile', TD('correlated.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
-      ['openCharts'],
-      ['expandChartCard', 4],
+      ['openInsights'],
+      ['selectInsightsTab', 'Correlation'],
+      ['expandChartByTitle', 'Test correlation matrix'],
     ],
   },
 
@@ -373,8 +378,9 @@ export const CAPTURES = [
       ['loadFile', TD('correlated.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
-      ['openCharts'],
-      ['expandChartCard', 5],
+      ['openInsights'],
+      ['selectInsightsTab', 'Correlation'],
+      ['expandChartByTitle', 'Test scatter'],
     ],
   },
 
@@ -432,7 +438,7 @@ export const CAPTURES = [
   {
     file: 'charts-grouped-by-split',
     group: 'splits',
-    description: 'Charts view grouped by Split — all 6 panels, TT/FF/SS/FS/SF corners',
+    description: 'Insights Overview grouped by Split — yield + bin pareto, TT/FF/SS/FS/SF corners',
     viewport: { width: 1600, height: 2300 },
     setup: [
       ['loadFile', SD('PVT-LOT-05.stdf')],
@@ -441,8 +447,8 @@ export const CAPTURES = [
       ['openSplitsDialog'],
       ['loadSplitsFile', SD('PVT-LOT-05_splits.csv')],
       ['closeSplitsDialog'],
-      ['openCharts'],
-      ['setGroupBy', 'Split'],
+      ['openInsights'],
+      ['setInsightsGroupBy', 'Split'],
       ['scroll', 0, 0],
     ],
   },
@@ -459,9 +465,9 @@ export const CAPTURES = [
       ['openSplitsDialog'],
       ['loadSplitsFile', SD('PVT-LOT-05_splits.csv')],
       ['closeSplitsDialog'],
-      ['openCharts'],
-      ['setGroupBy', 'Split'],
-      ['clickChartRow', 0, 0],
+      ['openInsights'],
+      ['setInsightsGroupBy', 'Split'],
+      ['clickChartRowByTitle', 'Yield by Split', 0],
     ],
   },
 

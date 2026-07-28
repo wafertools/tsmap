@@ -9,7 +9,21 @@ hide:
 A desktop and browser application for loading and visualising semiconductor wafer map data.
 Open STDF, ATDF, CSV, and JSON lot files and get interactive yield maps, parametric heat
 maps, bin pareto charts, per-test boxplots and histograms, and a cross-test correlation
-matrix — all without uploading your data anywhere.
+matrix — all without uploading your data anywhere. Wafer rendering and analysis are built
+on [wmap](https://telecasterer.github.io/wafermap/), our own purpose-built wafer-map engine.
+
+## Why tsmap
+
+- **Fast.** The parser is native Rust on both platforms — a 341 MB / 266,000-die STDF lot
+  parses in about 3.5 seconds (~96 MB/s) on a 2021 ThinkPad laptop, or about 2.3 seconds
+  (~148 MB/s) on a small desktop.
+- **One engine, two platforms.** The desktop app and the browser build share the same Rust
+  parsing core (compiled to WebAssembly for the browser) and the same rendering — what you
+  see in one, you see in the other.
+- **Nothing leaves your machine.** Parsing happens entirely locally, on both desktop and
+  browser. There is no upload step.
+- **Lean.** Seven runtime dependencies, total. No bundled UI framework, no third-party
+  charting library.
 
 ## Try it in the browser
 
@@ -27,6 +41,25 @@ The desktop version adds native file dialogs, drag-and-drop from the OS, and wor
 without a browser. Builds for Linux, macOS, and Windows are attached to each
 [GitHub release](https://github.com/telecasterer/tsmap/releases).
 
+## See it in action
+
+<div style="display:flex; gap:16px; flex-wrap:wrap;">
+<a href="features.md#interactive-wafer-maps" style="flex:1; min-width:200px;">
+<img src="images/wafer-map-testvalue.png" alt="Wafer map in test-value mode" style="width:100%; border:1px solid var(--md-default-fg-color--lightest); border-radius:4px;"><br>
+Interactive wafer maps
+</a>
+<a href="features.md#wafer-splits-compare-process-corners" style="flex:1; min-width:200px;">
+<img src="images/gallery-splits.png" alt="Gallery with wafer splits shown on each card" style="width:100%; border:1px solid var(--md-default-fg-color--lightest); border-radius:4px;"><br>
+Compare process corners with splits
+</a>
+<a href="features.md#charts-insights" style="flex:1; min-width:200px;">
+<img src="images/chart-yield.png" alt="Yield by wafer chart" style="width:100%; border:1px solid var(--md-default-fg-color--lightest); border-radius:4px;"><br>
+Charts &amp; Insights
+</a>
+</div>
+
+See the full [Features](features.md) tour, or read through a few [Use cases](use-cases.md).
+
 ## Supported formats
 
 | Format | Notes |
@@ -41,6 +74,8 @@ without a browser. Builds for Linux, macOS, and Windows are attached to each
 ## Links
 
 - [Web app](app/index.html)
+- [Features](features.md)
+- [Use cases](use-cases.md)
 - [User guide](user-guide.md)
 - [GitHub](https://github.com/telecasterer/tsmap)
 - [Releases](https://github.com/telecasterer/tsmap/releases)
