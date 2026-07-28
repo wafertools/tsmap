@@ -1157,7 +1157,13 @@ filterTestsBtn.addEventListener('click', async () => {
   // For STDF/ATDF we use currentTestNames from the first-pass scan (may re-parse if user adds tests).
   const selectorTestDefs: StdfTestNames = currentTestNames ?? currentTestDefs;
 
-  let filterTestOverrides: Map<number, TestOverride> = new Map();
+  // Both of these are assigned exactly once, on the single 'confirm' path that
+  // breaks out of filterLoop below — the 'cancel' path returns and 'scanAll'
+  // loops again, so there is no route past the loop that leaves them unset.
+  // Declared without initializers so that stays true by construction rather
+  // than being masked by a placeholder value nothing ever reads.
+  let filterTestOverrides: Map<number, TestOverride>;
+  let testSelection: number[];
   let scopedDefs = selectorTestDefs;
   let carrySelection: number[] = Object.keys(currentTestDefs).map(Number);
   // Seed with any overrides already baked into currentTestDefs (from the
@@ -1172,7 +1178,6 @@ filterTestsBtn.addEventListener('click', async () => {
       if (diff) carryOverrides.set(Number(key), diff);
     }
   }
-  let testSelection: number[] | null = null;
 
   filterLoop: for (;;) {
     // Offer "scan all" only if this is a multi-file binary load not already widened.
@@ -1219,8 +1224,6 @@ filterTestsBtn.addEventListener('click', async () => {
     testSelection = result.selection;
     break;
   }
-
-  if (testSelection === null) return;
 
   // If the new selection is a subset of already-loaded tests, filter in memory —
   // no re-parse needed. CSV/JSON always use in-memory path (no re-parse available).
