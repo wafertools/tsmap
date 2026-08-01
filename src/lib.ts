@@ -2,9 +2,9 @@
 
 import type { LotMeta, MetaField, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 import type { RustParsedFile, StdfTestNames } from './platform';
-import type { TestDef as WmapTestDef } from '@paulrobins/wafermap';
-import type { PlotMode } from '@paulrobins/wafermap';
-import type { WaferMetadata } from '@paulrobins/wafermap/renderer';
+import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
+import type { PlotMode } from '@wafertools/wafermap';
+import type { WaferMetadata } from '@wafertools/wafermap/renderer';
 
 export function basename(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;

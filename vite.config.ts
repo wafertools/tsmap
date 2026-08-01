@@ -10,7 +10,7 @@ const isTauriBuild = !!process.env.TAURI_ENV_PLATFORM;
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'));
 
-// When @paulrobins/wafermap is npm-linked to a local checkout (`npm run
+// When @wafertools/wafermap is npm-linked to a local checkout (`npm run
 // wmap:link`), its files live OUTSIDE this project root, so Vite's dev server
 // blocks them ("outside of Vite serving allow list") and the linked wmap never
 // loads. Detect the symlink and, only then, allow serving its real directory.
@@ -19,9 +19,9 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 // clean install is never linked. See CLAUDE.md "Developing wmap alongside tsmap".
 function linkedWmapDir(): string | null {
   try {
-    const entry = fileURLToPath(new URL('./node_modules/@paulrobins/wafermap', import.meta.url));
+    const entry = fileURLToPath(new URL('./node_modules/@wafertools/wafermap', import.meta.url));
     if (!lstatSync(entry).isSymbolicLink()) return null;
-    return realpathSync(entry); // the ../wmap checkout the symlink points to
+    return realpathSync(entry); // the ../wafermap checkout the symlink points to
   } catch {
     return null;
   }

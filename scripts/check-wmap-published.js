@@ -6,7 +6,7 @@
 // "works on my machine" build that npm ci can't reproduce.
 //
 // Fails (exit 1) if either:
-//   1. wmap is currently LINKED (node_modules/@paulrobins/wafermap is a symlink) —
+//   1. wmap is currently LINKED (node_modules/@wafertools/wafermap is a symlink) —
 //      the build would embed local, unpublished code; or
 //   2. the wmap version range in package.json does not resolve to a version that
 //      is actually published on npm.
@@ -21,7 +21,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PACKAGE = '@paulrobins/wafermap';
+const PACKAGE = '@wafertools/wafermap';
 
 function fail(msg) {
   console.error(`\n  ✗ wmap publish check failed\n\n${msg}\n`);
@@ -32,7 +32,7 @@ function fail(msg) {
 try {
   if (lstatSync(join(ROOT, 'node_modules', PACKAGE)).isSymbolicLink()) {
     fail(
-      `  ${PACKAGE} is LINKED to a local checkout (../wmap).\n\n` +
+      `  ${PACKAGE} is LINKED to a local checkout (../wafermap).\n\n` +
       `  A release must build against the published package. Run:\n\n` +
       `    npm run wmap:unlink\n\n` +
       `  (publish wmap first if this build needs unreleased changes), then rebuild.`,
@@ -76,7 +76,7 @@ if (!resolved) {
   fail(
     `  package.json requires ${PACKAGE}@${range}, but no PUBLISHED version\n` +
     `  on npm satisfies that range.\n\n` +
-    `  Publish wmap (bump + npm publish in ../wmap), then set package.json to the\n` +
+    `  Publish wmap (bump + npm publish in ../wafermap), then set package.json to the\n` +
     `  published version before releasing tsmap.`,
   );
 }

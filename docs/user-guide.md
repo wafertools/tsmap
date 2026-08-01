@@ -17,12 +17,12 @@ title: User Guide
 tsmap loads semiconductor wafer map data from STDF, ATDF, CSV, and JSON files and renders
 interactive yield maps, parametric heat maps, and statistical charts. It runs as a native
 desktop application on Linux, macOS, and Windows, and as a browser app at
-[telecasterer.github.io/tsmap/app/](https://telecasterer.github.io/tsmap/app/).
+[wafertools.github.io/tsmap/app/](https://wafertools.github.io/tsmap/app/).
 
 This guide covers tsmap's own side of the workflow: opening files, column mapping, test
 filtering, splits, and the command line. The wafer map itself, its toolbar, and every
 Insights tab panel (yield, bin pareto, process capability, boxplot, histogram, correlation,
-scatter) are a separate library, [wmap](https://github.com/telecasterer/wafermap), with its
+scatter) are a separate library, [wmap](https://github.com/wafertools/wafermap), with its
 own built-in guide covering all of that in full — open it any time via the toolbar's **?**
 menu → **Wafer map reference** (enabled once a file is loaded). This guide doesn't repeat
 that material.
@@ -52,7 +52,7 @@ tsmap's installers are not code-signed, so your operating system may warn that t
 from an unknown or unidentified developer the first time you run it. This is expected — it
 reflects the absence of a paid signing certificate, not a problem with the app. The steps
 below let you install anyway. If you would rather not install at all, the
-[browser version](https://telecasterer.github.io/tsmap/app/) runs with no download.
+[browser version](https://wafertools.github.io/tsmap/app/) runs with no download.
 
 **Windows** — SmartScreen shows a blue "Windows protected your PC" dialog when you run
 `tsmap-<version>-windows-x64.msi` (or the `-setup.exe` installer). Click **More info**, then

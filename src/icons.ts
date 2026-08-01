@@ -2,8 +2,8 @@
 // selector), aligned with the wmap library so the two
 // UIs (tsmap chrome + embedded wmap wafer maps) read as one. These are Lucide
 // SVGs copied verbatim from wmap's generated icon module
-// (`../wmap/packages/canvas-adapter/icons.ts`, source SVGs in
-// `../wmap/docs/images/icons/`): `download` (camera), `expand` (corner arrows),
+// (`../wafermap/packages/canvas-adapter/icons.ts`, source SVGs in
+// `../wafermap/docs/images/icons/`): `download` (camera), `expand` (corner arrows),
 // `maximize`/`minimize` (fullscreen enter/exit), `close` (x), `help`.
 //
 // They are COPIED, not imported: wmap marks its icon module internal and does

@@ -159,7 +159,7 @@ change — noted per item.
       Implemented 2026-07-10 as a new toolbar **Report…** button (shown once wafers are
       loaded, same visibility rule as Splits…). Major mid-implementation pivot: while
       researching a from-scratch design (tables + embedded chart-image PNGs), found that
-      `@paulrobins/wafermap/stats` (the currently-linked wmap 0.18.0) already ships a complete,
+      `@wafertools/wafermap/stats` (the currently-linked wmap 0.18.0) already ships a complete,
       unused, undocumented-in-tsmap `renderLotSummaryReportHtml` + `openHtmlReport` — a
       standalone-HTML lot report generator (per-wafer yield, bin breakdown, **ring/quadrant
       regional yield** — a bonus not in the original design, per-test min/mean/max, findings

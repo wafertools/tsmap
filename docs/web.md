@@ -1,7 +1,7 @@
 # tsmap in the browser
 
 The browser version of tsmap is available at
-**[telecasterer.github.io/tsmap/app/](https://telecasterer.github.io/tsmap/app/)**.
+**[wafertools.github.io/tsmap/app/](https://wafertools.github.io/tsmap/app/)**.
 
 It uses a WebAssembly build of the same Rust parser as the desktop app. Files are parsed
 entirely in your browser — nothing is sent to a server. Parsing runs in a background Web
@@ -64,7 +64,7 @@ Firefox 113+, Safari 16.4+, Edge 80+.
 ## Running locally
 
 ```bash
-git clone https://github.com/telecasterer/tsmap
+git clone https://github.com/wafertools/tsmap
 cd tsmap
 npm install
 npm run dev:web   # opens at http://localhost:5301

@@ -10,7 +10,7 @@ A desktop and browser application for loading and visualising semiconductor wafe
 Open STDF, ATDF, CSV, and JSON lot files and get interactive yield maps, parametric heat
 maps, bin pareto charts, per-test boxplots and histograms, and a cross-test correlation
 matrix — all without uploading your data anywhere. Wafer rendering and analysis are built
-on [wmap](https://telecasterer.github.io/wafermap/), our own purpose-built wafer-map engine.
+on [wmap](https://wafertools.github.io/wafermap/), our own purpose-built wafer-map engine.
 
 ## Why tsmap
 
@@ -39,7 +39,7 @@ it straight away.
 
 The desktop version adds native file dialogs, drag-and-drop from the OS, and works offline
 without a browser. Builds for Linux, macOS, and Windows are attached to each
-[GitHub release](https://github.com/telecasterer/tsmap/releases).
+[GitHub release](https://github.com/wafertools/tsmap/releases).
 
 ## See it in action
 
@@ -77,6 +77,6 @@ See the full [Features](features.md) tour, or read through a few [Use cases](use
 - [Features](features.md)
 - [Use cases](use-cases.md)
 - [User guide](user-guide.md)
-- [GitHub](https://github.com/telecasterer/tsmap)
-- [Releases](https://github.com/telecasterer/tsmap/releases)
-- [wafermap library](https://telecasterer.github.io/wafermap/)
+- [GitHub](https://github.com/wafertools/tsmap)
+- [Releases](https://github.com/wafertools/tsmap/releases)
+- [wafermap library](https://wafertools.github.io/wafermap/)

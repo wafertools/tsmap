@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Release guard: catches the exact failure mode that let `packages/parsers`
-// (the shared Rust/WASM parser crate, published as `@paulrobins/testdata-parser`)
+// (the shared Rust/WASM parser crate, published as `@wafertools/testdata-parser`)
 // drift silently for a month — real source changes shipped in tsmap v0.1.20 via
 // the native build's Cargo path dependency (which always compiles the crate from
 // source, regardless of npm state), while the browser/WASM build kept running
@@ -14,7 +14,7 @@
 //      Cargo.toml was last bumped — the crate's source has drifted ahead of
 //      its own version number, so a bump + publish is needed before release.
 //   2. packages/parsers/Cargo.toml's version doesn't match the range pinned
-//      in package.json's @paulrobins/testdata-parser dependency — the crate
+//      in package.json's @wafertools/testdata-parser dependency — the crate
 //      was bumped locally but package.json was never updated to point at it.
 //   3. package.json's pinned range doesn't resolve to a version actually
 //      published on npm — bumped and pinned, but never `npm publish`ed.
@@ -30,7 +30,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PACKAGE = '@paulrobins/testdata-parser';
+const PACKAGE = '@wafertools/testdata-parser';
 const CRATE_TOML = 'packages/parsers/Cargo.toml';
 const CRATE_SRC = 'packages/parsers/src';
 

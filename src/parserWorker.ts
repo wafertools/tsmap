@@ -10,7 +10,7 @@
 
 import type { CsvMapping } from './mappingUI';
 
-type WasmModule = typeof import('@paulrobins/testdata-parser');
+type WasmModule = typeof import('@wafertools/testdata-parser');
 
 export type ParserOp =
   | 'parseStdf'
@@ -44,10 +44,10 @@ function loadWasm(): Promise<WasmModule> {
       // import.meta.url inside a module worker, so this resolves next to the
       // bundled worker chunk. Mirrors loadWasm() in platform.ts.
       const wasmUrl = new URL(
-        '@paulrobins/testdata-parser/testdata_parser_bg.wasm',
+        '@wafertools/testdata-parser/testdata_parser_bg.wasm',
         import.meta.url,
       );
-      const mod = await import('@paulrobins/testdata-parser');
+      const mod = await import('@wafertools/testdata-parser');
       // Pass { module_or_path } — the bare-URL form is deprecated in wasm-bindgen.
       await (mod.default as (opts: { module_or_path: URL }) => Promise<unknown>)({
         module_or_path: wasmUrl,

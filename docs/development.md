@@ -73,14 +73,14 @@ src-tauri/src/commands/  — thin Tauri async wrappers over packages/parsers
 
 ## Building and publishing the WASM parser
 
-The parsers compile to `@paulrobins/testdata-parser` on npm. The package is consumed by
+The parsers compile to `@wafertools/testdata-parser` on npm. The package is consumed by
 both the tsmap web version and can be used independently.
 
 ```bash
 cd packages/parsers
 
 # Build
-wasm-pack build --target web -s paulrobins --no-default-features --features wasm
+wasm-pack build --target web -s wafertools --no-default-features --features wasm
 
 # Publish
 cd pkg
@@ -91,7 +91,7 @@ After publishing a new version:
 
 ```bash
 # from repo root
-npm install @paulrobins/testdata-parser@latest
+npm install @wafertools/testdata-parser@latest
 npx tsc --noEmit
 ```
 

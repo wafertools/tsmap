@@ -43,7 +43,7 @@ jobs:
           | **Linux — Ubuntu / Debian** (installer) | `tsmap-VERSION-linux-x86_64.deb` |
           | **Linux — Fedora** (installer) | `tsmap-VERSION-linux-x86_64.rpm` |
           | **Linux — other / portable** (no install) | `tsmap-VERSION-linux-x86_64.AppImage` |
-          | **Linux — RHEL / Rocky / Alma 8 or 9** | [browser version](https://telecasterer.github.io/tsmap/app/) — no install |
+          | **Linux — RHEL / Rocky / Alma 8 or 9** | [browser version](https://wafertools.github.io/tsmap/app/) — no install |
 
           **Not sure on Mac?**  Apple menu → About This Mac. "Apple M…" = Apple Silicon; "Intel" = Intel.
 
@@ -51,7 +51,7 @@ jobs:
           current distributions (glibc 2.35+ / Ubuntu 22.04 and newer).
 
           **On RHEL / Rocky / Alma?** The desktop app's webview needs newer system libraries
-          than those releases ship — run the [browser version](https://telecasterer.github.io/tsmap/app/)
+          than those releases ship — run the [browser version](https://wafertools.github.io/tsmap/app/)
           instead. It works in any modern browser, with no install.
           EOF
           sed -i "s/VERSION/${GITHUB_REF_NAME#v}/g" notes.md

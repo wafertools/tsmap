@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate sample STDF and ATDF files from the wmap demo CSV data.
 
-Reads the four scenario CSVs from ../wmap/docs/examples/data/ and produces:
+Reads the four scenario CSVs from ../wafermap/docs/examples/data/ and produces:
   - One multi-wafer STDF and ATDF per scenario (all wafers in one file)
   - One single-wafer STDF and ATDF per wafer (named <LOT>_<WAFER>.stdf/.atdf)
 
@@ -216,7 +216,7 @@ SCENARIOS = [
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    csv_dir = Path(__file__).parent.parent.parent / 'wmap' / 'docs' / 'examples' / 'data'
+    csv_dir = Path(__file__).parent.parent.parent / 'wafermap' / 'docs' / 'examples' / 'data'
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent.parent / 'sample_data'
     out_dir.mkdir(parents=True, exist_ok=True)
 

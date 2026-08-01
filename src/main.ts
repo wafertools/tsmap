@@ -1,9 +1,9 @@
 declare const __APP_VERSION__: string;
 declare const __BUILD_DATE__: string;
 
-import { buildWaferMap } from '@paulrobins/wafermap';
-import { renderWaferMap, renderWaferGallery } from '@paulrobins/wafermap/render';
-import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@paulrobins/wafermap/stats';
+import { buildWaferMap } from '@wafertools/wafermap';
+import { renderWaferMap, renderWaferGallery } from '@wafertools/wafermap/render';
+import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs } from './platform';
 import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, errMsg } from './lib';
@@ -190,6 +190,26 @@ if (isTauri) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
+/**
+ * Surface wmap's own per-wafer advisories (`WaferMapResult.warnings`) in the log
+ * panel — the counterpart to `logWarnings` for parser warnings, and subject to
+ * the same rule: never build a wafer map without reporting what wmap said about
+ * it. These cover inferred geometry and (since wmap 0.20.9) structured
+ * geometry-conflict / inferred-pitch codes, i.e. exactly the cases where what's
+ * drawn rests on a guess rather than on data.
+ *
+ * Must be called from **every** `buildWaferMap` call site. The gallery path had
+ * this inline while the single-wafer path silently dropped the warnings, so a
+ * one-wafer load — the case where a geometry advisory is easiest to act on —
+ * was the one that never showed it.
+ */
+function logWmapWarnings(waferId: string, waferMap: { warnings: readonly { message: string; confidence?: number }[] }) {
+  for (const warning of waferMap.warnings) {
+    const conf = warning.confidence !== undefined ? ` (confidence ${(warning.confidence * 100).toFixed(0)}%)` : '';
+    log('warn', `Wafer ${waferId}: ${warning.message}${conf}`);
+  }
+}
+
 // Return type is inferred (not annotated) so `items[i].label`/`.statsSummary`
 // stay visible to TS — they're real fields (spread from `waferMap` plus both
 // added below), but an explicit `{ items: ReturnType<typeof buildWaferMap>[] }`
@@ -201,10 +221,7 @@ function buildLotStatsSummary(wafers: WaferData[]) {
   const items = wafers.map(w => {
     const displayId = waferDisplayLabel(w, showSplitSuffix);
     const waferMap = buildWaferMap({ results: w.results, testDefs, waferConfig: { metadata: toWmapWaferMeta(w.source, displayId, w.fields) } });
-    for (const warning of waferMap.warnings) {
-      const conf = warning.confidence !== undefined ? ` (confidence ${(warning.confidence * 100).toFixed(0)}%)` : '';
-      log('warn', `Wafer ${w.waferId}: ${warning.message}${conf}`);
-    }
+    logWmapWarnings(w.waferId, waferMap);
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     return { ...waferMap, label: displayId, statsSummary };
   });
@@ -349,6 +366,7 @@ function renderWaferView(wafers: WaferData[], label: string) {
   if (wafers.length === 1) {
     container.classList.remove('gallery');
     const waferMap = buildWaferMap({ results: wafers[0].results, testDefs: wmapTestDefs, waferConfig: { metadata: toWmapWaferMeta(wafers[0].source, waferDisplayLabel(wafers[0], showSplitSuffix), wafers[0].fields) } });
+    logWmapWarnings(wafers[0].waferId, waferMap);
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     mainViewController = renderWaferMap(container, waferMap, {
       statsSummary,

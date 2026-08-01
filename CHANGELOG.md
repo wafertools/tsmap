@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Dependencies renamed to the `wafertools` npm scope** — `@paulrobins/wafermap` → `@wafertools/wafermap` (pin bumped `^0.20.9` → `^0.21.1` in the same change) and `@paulrobins/testdata-parser` → `@wafertools/testdata-parser`. No functional change; both are scope moves. The GitHub org for both `tsmap` and `wmap` also moved from `telecasterer` to `wafertools`.
+
+### Fixed
+
+- **Yield was being overstated — real probed dies at the wafer edge were silently discarded (wmap 0.20.9).** wmap derived each die's "partial" flag by testing it against the wafer circle, but for data loaded from a file that circle is *inferred*, and an undersized guess marked real tested sites as edge-straddling — greying them out and dropping them from every yield and statistic. A die carrying test results is by definition a site the prober stepped to, so it can never straddle the edge. On the bundled `correlated.stdf` (9865 dies) the effect was 160 dies: stats counted 9705 of them, lot yield read 66.6% instead of **65.5%**, and ring 4 (edge) yield read 20.8% instead of **17.6%**. Every recovered die was a *failing* edge die, so displayed yields drop slightly and are now correct. The toolbar die count and the Insights/summary N also agree again (they differed by exactly the phantom dies). All user-guide screenshots recaptured.
+- **wmap's per-wafer advisories now reach the log on single-wafer loads too** — `buildWaferMap`'s warnings (inferred geometry, and 0.20.9's new `geometry-conflict`/`inferred-pitch` codes) were logged for gallery loads but silently dropped when a file contained one wafer, which is the case where a geometry warning is easiest to act on.
+
 ## [0.1.22] — 2026-07-28
 
 ### Added

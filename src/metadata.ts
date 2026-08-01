@@ -2,7 +2,7 @@
 // honest, full-dataset answer to "what can I group / compare / split by?".
 // Pure and DOM-free for testability.
 //
-// The parser (`@paulrobins/testdata-parser`) emits ALL non-empty metadata
+// The parser (`@wafertools/testdata-parser`) emits ALL non-empty metadata
 // fields generically as { key, value } (raw STDF/ATDF keys + CSV/JSON column
 // names). This module owns the *curation*: friendly labels, which fields to
 // surface as facets, and which are dates (grouped by day). Adding, relabelling,

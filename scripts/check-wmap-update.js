@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Checks if a newer @paulrobins/wafermap is on npm and installs it if so.
+// Checks if a newer @wafertools/wafermap is on npm and installs it if so.
 // Skips the network call if already checked within the last 24 hours.
 
 import { execSync } from 'child_process';
@@ -9,11 +9,11 @@ import { fileURLToPath } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const STAMP_FILE = join(ROOT, 'node_modules/.wmap-update-check');
-const PACKAGE = '@paulrobins/wafermap';
+const PACKAGE = '@wafertools/wafermap';
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
 // When wmap is linked to a local checkout (`npm run wmap:link`), the installed
-// package is a symlink to ../wmap. In that mode we are DELIBERATELY developing
+// package is a symlink to ../wafermap. In that mode we are DELIBERATELY developing
 // tsmap against an unpublished wmap — auto-installing npm's "latest" would
 // silently clobber the link and undo the whole batch workflow. So stand down.
 // See CLAUDE.md "Updating wmap" for the link → iterate → publish → unlink loop.
@@ -26,7 +26,7 @@ function isLinked() {
 }
 
 if (isLinked()) {
-  console.log(`wmap: linked to ../wmap (local dev) — skipping npm update check`);
+  console.log(`wmap: linked to ../wafermap (local dev) — skipping npm update check`);
   process.exit(0);
 }
 

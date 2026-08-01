@@ -4,8 +4,8 @@
  * enableTestValueAnalysis: true.
  */
 import { describe, it, expect } from 'vitest';
-import { buildWaferMap } from '@paulrobins/wafermap';
-import { analyzeWaferMap, analyzeWaferLot } from '@paulrobins/wafermap/stats';
+import { buildWaferMap } from '@wafertools/wafermap';
+import { analyzeWaferMap, analyzeWaferLot } from '@wafertools/wafermap/stats';
 
 function makeDie(x: number, y: number, testValues: Record<number, number>) {
   return { x, y, hbin: 1, testValues };
@@ -95,7 +95,7 @@ describe('functional (F) tests end-to-end through the tsmap→wmap mapping', () 
 
   it('renders the functional test as test pass/fail and produces functionalYield', async () => {
     const { toWmapTestDefs } = await import('./lib');
-    const { buildView } = await import('@paulrobins/wafermap/renderer');
+    const { buildView } = await import('@wafertools/wafermap/renderer');
     const testDefs = toWmapTestDefs(PARSER_TEST_DEFS);
     const waferMap = buildWaferMap({ results, testDefs });
 

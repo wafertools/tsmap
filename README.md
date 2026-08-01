@@ -1,8 +1,8 @@
 # tsmap
 
-A desktop and web application for loading and visualising semiconductor wafer map data. Built with [Tauri v2](https://tauri.app/) (Rust backend), a WASM parser for the browser, and [wmap](https://github.com/telecasterer/wafermap) (canvas rendering).
+A desktop and web application for loading and visualising semiconductor wafer map data. Built with [Tauri v2](https://tauri.app/) (Rust backend), a WASM parser for the browser, and [wmap](https://github.com/wafertools/wafermap) (canvas rendering).
 
-**[Documentation & web app →](https://telecasterer.github.io/tsmap/)**
+**[Documentation & web app →](https://wafertools.github.io/tsmap/)**
 
 ## Features
 
@@ -25,7 +25,7 @@ A desktop and web application for loading and visualising semiconductor wafer ma
 
 ## Installing past security warnings
 
-tsmap is free and open source, but its installers are **not code-signed** — signing certificates cost money and grant no extra safety, only a vendor's stamp. As a result, your OS may warn that the app is from an "unknown publisher" or is "possibly dangerous." This is expected. The steps below let you install anyway. If you'd rather avoid installing at all, the [web version](https://telecasterer.github.io/tsmap/) runs entirely in your browser with no download.
+tsmap is free and open source, but its installers are **not code-signed** — signing certificates cost money and grant no extra safety, only a vendor's stamp. As a result, your OS may warn that the app is from an "unknown publisher" or is "possibly dangerous." This is expected. The steps below let you install anyway. If you'd rather avoid installing at all, the [web version](https://wafertools.github.io/tsmap/) runs entirely in your browser with no download.
 
 ### Windows
 
@@ -61,7 +61,7 @@ chmod +x tsmap-*-linux-x86_64.AppImage
 ./tsmap-*-linux-x86_64.AppImage
 ```
 
-To verify a download is intact, compare its checksum against the one published on the [releases page](https://github.com/telecasterer/tsmap/releases).
+To verify a download is intact, compare its checksum against the one published on the [releases page](https://github.com/wafertools/tsmap/releases).
 
 ## Development
 
@@ -84,7 +84,7 @@ python3 scripts/generate_atdf.py /tmp/test.atdf         # synthetic ATDF — sam
 
 ### Building and publishing the WASM parser package
 
-The parsers compile to a shared crate (`packages/parsers`) that targets both native Tauri and WASM. The published npm package is [`@paulrobins/testdata-parser`](https://www.npmjs.com/package/@paulrobins/testdata-parser).
+The parsers compile to a shared crate (`packages/parsers`) that targets both native Tauri and WASM. The published npm package is [`@wafertools/testdata-parser`](https://www.npmjs.com/package/@wafertools/testdata-parser).
 
 Prerequisites: `wasm-pack` (`cargo install wasm-pack`) and the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
 
@@ -92,7 +92,7 @@ Prerequisites: `wasm-pack` (`cargo install wasm-pack`) and the `wasm32-unknown-u
 cd packages/parsers
 
 # Build
-wasm-pack build --target web -s paulrobins --no-default-features --features wasm
+wasm-pack build --target web -s wafertools --no-default-features --features wasm
 
 # Publish
 cd pkg
@@ -103,7 +103,7 @@ After publishing a new version, update tsmap to use it:
 
 ```bash
 # from repo root
-npm install @paulrobins/testdata-parser@latest
+npm install @wafertools/testdata-parser@latest
 npx tsc --noEmit   # verify types still resolve
 ```
 
@@ -148,7 +148,7 @@ scripts/
 
 ## Dependencies
 
-- [`@paulrobins/wafermap`](https://www.npmjs.com/package/@paulrobins/wafermap) — wafer map rendering and analysis
+- [`@wafertools/wafermap`](https://www.npmjs.com/package/@wafertools/wafermap) — wafer map rendering and analysis
 - [`@tauri-apps/api`](https://www.npmjs.com/package/@tauri-apps/api) — Tauri IPC
 - [`rust-stdf`](https://crates.io/crates/rust-stdf) — STDF V4 binary parser (Rust)
 - [`tauri-plugin-dialog`](https://crates.io/crates/tauri-plugin-dialog) — native file open/save dialogs (all platforms). On Linux its `rfd` backend uses the XDG desktop portal, falling back to `zenity` if present.

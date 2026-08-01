@@ -1,8 +1,8 @@
 [project]
 site_name   = "tsmap"
-site_url    = "https://telecasterer.github.io/tsmap/"
+site_url    = "https://wafertools.github.io/tsmap/"
 site_author = "Paul Robins"
-repo_url    = "https://github.com/telecasterer/tsmap"
+repo_url    = "https://github.com/wafertools/tsmap"
 
 nav = [
   { "Home"        = "index.md"       },

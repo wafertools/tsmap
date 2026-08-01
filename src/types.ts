@@ -1,4 +1,4 @@
-import type { DieResult } from '@paulrobins/wafermap';
+import type { DieResult } from '@wafertools/wafermap';
 
 export interface TestDef {
   name: string;
@@ -24,7 +24,7 @@ export interface TestOverride {
 
 /**
  * One metadata field as a raw key/value pair, as emitted by the parser
- * (`@paulrobins/testdata-parser`). `key` is the source field name (camelCase
+ * (`@wafertools/testdata-parser`). `key` is the source field name (camelCase
  * STDF key like `lotId`, `testTemp`, `startT`, or a CSV/JSON column name).
  * Friendly labels + which fields to surface as facets live in `metadata.ts` —
  * adding/relabelling a field never touches the parser.

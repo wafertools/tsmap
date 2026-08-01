@@ -1,13 +1,13 @@
-# @paulrobins/testdata-parser
+# @wafertools/testdata-parser
 
-Rust/WASM parsers for semiconductor test data formats: **STDF**, **ATDF**, **CSV**, and **JSON**. Compiled to a single WASM module via `wasm-bindgen`; the same Rust source also builds natively (used by [tsmap](https://github.com/paulrobins/tsmap)'s Tauri backend).
+Rust/WASM parsers for semiconductor test data formats: **STDF**, **ATDF**, **CSV**, and **JSON**. Compiled to a single WASM module via `wasm-bindgen`; the same Rust source also builds natively (used by [tsmap](https://github.com/wafertools/tsmap)'s Tauri backend).
 
 All formats parse to one shared shape (`ParsedStdf` / `ScanResult`) — there is no format-specific output type on the JS side.
 
 ## Install
 
 ```bash
-npm install @paulrobins/testdata-parser
+npm install @wafertools/testdata-parser
 ```
 
 ## Usage
@@ -15,7 +15,7 @@ npm install @paulrobins/testdata-parser
 The module must be initialized once before calling any parse function — it loads and instantiates the WASM binary.
 
 ```js
-import init, { parse_stdf } from '@paulrobins/testdata-parser';
+import init, { parse_stdf } from '@wafertools/testdata-parser';
 
 await init(); // fetches testdata_parser_bg.wasm relative to the module URL
 const bytes = new Uint8Array(await file.arrayBuffer());
