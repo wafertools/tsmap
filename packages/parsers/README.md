@@ -1,5 +1,7 @@
 # @wafertools/testdata-parser
 
+<img src="./testdata-parser-readme-header-256.png" width="64" height="64" alt="testdata-parser icon">
+
 Rust/WASM parsers for semiconductor test data formats: **STDF**, **ATDF**, **CSV**, and **JSON**. Compiled to a single WASM module via `wasm-bindgen`; the same Rust source also builds natively (used by [tsmap](https://github.com/wafertools/tsmap)'s Tauri backend).
 
 All formats parse to one shared shape (`ParsedStdf` / `ScanResult`) — there is no format-specific output type on the JS side.
