@@ -8,7 +8,9 @@ packages/parsers/pkg/
 src-tauri/gen/schemas/
 .vscode/
 scratch/
+.venv/
 .claude/
+.mcp.json
 CLAUDE.md
 
 # Test data files — these can be large or proprietary

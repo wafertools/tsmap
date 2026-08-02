@@ -43,7 +43,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install Zensical
-        run: pip install zensical
+        run: pip install -r requirements.txt
 
       - name: Install dependencies
         run: npm ci

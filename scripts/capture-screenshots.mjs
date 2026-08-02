@@ -1,6 +1,14 @@
 /**
  * Captures screenshots of the tsmap web app for use in the user guide.
  *
+ * FORKED — ../wafermap/scripts/capture-screenshots.mjs is the same harness
+ * (static server + headless Chromium + a setup-step vocabulary) pointed at a
+ * different app. This is the one pair of scripts here that is genuinely
+ * duplicated rather than coincidentally same-named, and extracting the shared
+ * harness is a real (unstarted) job — see IDEAS.md. Until then, a fix to the
+ * harness half of one usually belongs in the other too; the capture
+ * *definitions* never do.
+ *
  * Usage:
  *   node scripts/capture-screenshots.mjs
  *   node scripts/capture-screenshots.mjs --only loading     # run a named group

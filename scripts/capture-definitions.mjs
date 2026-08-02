@@ -1,6 +1,11 @@
 /**
  * Capture definitions for the tsmap user guide screenshots.
  *
+ * NOT shared with ../wafermap/scripts/capture-definitions.mjs, and never should
+ * be: this file is data, not logic — the list of overlays and UI states to shoot
+ * for *this* app. The same-named file over there describes wmap's demo pages.
+ * Only their harness (capture-screenshots.mjs) has anything in common.
+ *
  * All demo data files live in testdata/ — no generation needed.
  *
  * File → what it's used for:

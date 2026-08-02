@@ -1,3 +1,9 @@
+// FORKED BY DESIGN — ../wafermap/scripts/build-user-guide.mjs shares this name
+// but is a different program and must not be reconciled with it: that one emits
+// a TS module embedded in wmap's published bundle, this one emits a standalone
+// offline HTML page. Same input format, deliberately different output. Do not
+// "sync" them.
+//
 // Compiles docs/user-guide.md → guide-dist/index.html + guide-dist/images/*
 // — a single, self-contained, offline-capable HTML page. This is now the ONLY
 // rendering of the guide: it's opened directly (via platform.openGuide(), see
