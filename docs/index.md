@@ -10,7 +10,7 @@ A desktop and browser application for loading and visualising semiconductor wafe
 Open STDF, ATDF, CSV, and JSON lot files and get interactive yield maps, parametric heat
 maps, bin pareto charts, per-test boxplots and histograms, and a cross-test correlation
 matrix — all without uploading your data anywhere. Wafer rendering and analysis are built
-on [wmap](https://wafertools.github.io/wafermap/), our own purpose-built wafer-map engine.
+on [wafermap](https://wafertools.github.io/wafermap/), our own purpose-built wafer-map engine.
 
 ## Why tsmap
 
@@ -70,6 +70,10 @@ See the full [Features](features.md) tour, or read through a few [Use cases](use
 | JSON (`.json`) | Flat array or nested `[{ wafer, results: [{die}] }]` |
 | Gzip (`.gz`) | Transparent decompression — e.g. `lot.stdf.gz` |
 | Zip (`.zip`) | All contained files extracted and loaded as a batch |
+
+## Community
+
+Questions, ideas, or want to show off a wafer map you built? Use [GitHub Discussions](https://github.com/wafertools/.github/discussions).
 
 ## Links
 

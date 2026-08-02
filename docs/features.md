@@ -53,7 +53,7 @@ See [Wafer splits](user-guide.md#6-wafer-splits) in the user guide.
 
 ## Charts & Insights
 
-The Insights tab (wmap's own built-in chart suite) covers yield, bin pareto, process
+The Insights tab (wafermap's own built-in chart suite) covers yield, bin pareto, process
 capability, boxplot, histogram, correlation matrix, and scatter — organized into Overview,
 Distributions, and Correlation sub-tabs, with a shared **Group by** control (lot, program,
 tester, node, part type, or any wafer split) and click-through drilldown.

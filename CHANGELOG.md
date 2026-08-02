@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.23] — 2026-08-02
+
 ### Changed
 
 - **Dependencies renamed to the `wafertools` npm scope** — `@paulrobins/wafermap` → `@wafertools/wafermap` (pin bumped `^0.20.9` → `^0.21.1` in the same change) and `@paulrobins/testdata-parser` → `@wafertools/testdata-parser`. No functional change; both are scope moves. The GitHub org for both `tsmap` and `wmap` also moved from `telecasterer` to `wafertools`.

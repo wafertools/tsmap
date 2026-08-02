@@ -22,7 +22,7 @@ desktop application on Linux, macOS, and Windows, and as a browser app at
 This guide covers tsmap's own side of the workflow: opening files, column mapping, test
 filtering, splits, and the command line. The wafer map itself, its toolbar, and every
 Insights tab panel (yield, bin pareto, process capability, boxplot, histogram, correlation,
-scatter) are a separate library, [wmap](https://github.com/wafertools/wafermap), with its
+scatter) are a separate library, [wafermap](https://github.com/wafertools/wafermap), with its
 own built-in guide covering all of that in full — open it any time via the toolbar's **?**
 menu → **Wafer map reference** (enabled once a file is loaded). This guide doesn't repeat
 that material.
@@ -382,9 +382,9 @@ toggle if you didn't widen the scan at load time.
 After parsing, tsmap renders the wafer map. A single-wafer file shows one full-screen map
 with the summary panel open by default; a multi-wafer lot shows a side-by-side gallery.
 
-The map is delivered by the wmap rendering engine. For a full walkthrough of toolbar
+The map is delivered by the wafermap rendering engine. For a full walkthrough of toolbar
 controls, plot modes, overlays, zoom and pan, die hover tooltips, findings panel, summary
-panel, and gallery controls, click the **?** help button in the map toolbar.
+panel, and gallery controls, open tsmap's **?** Help menu → **Wafer map reference**.
 
 ### Value findings
 
@@ -490,12 +490,12 @@ rather than silently changing chart groupings and map labels behind your back.
 ## 7. Insights tab
 
 The **Insights** button in the map toolbar (both the single-wafer view and the gallery have
-their own) switches to wmap's own grid of statistical panels — yield, bin pareto, process
+their own) switches to wafermap's own grid of statistical panels — yield, bin pareto, process
 capability, boxplot, histogram, correlation, and scatter — sharing the same parsed,
 in-memory data as the map, so switching never re-parses.
 
-**This is entirely a wmap feature.** Every panel, its controls, and its grouping/drill-down
-behaviour are documented in full in wmap's own built-in guide — see the note at the top of
+**This is entirely a wafermap feature.** Every panel, its controls, and its grouping/drill-down
+behaviour are documented in full in wafermap's own built-in guide — see the note at the top of
 this document for how to open it. This section covers only the two things that are
 tsmap-specific:
 
@@ -523,8 +523,8 @@ export. The live card UI is unchanged — the header appears only in the saved f
 On the desktop, PNG saves open a native save dialog. In the browser, the file goes to your
 downloads folder.
 
-For map PNG export, use the **camera** button in the map toolbar — see the wmap help for
-details.
+For map PNG export, use the **camera** button in the map toolbar — see **Wafer map reference**
+(tsmap's **?** Help menu) for details.
 
 ---
 

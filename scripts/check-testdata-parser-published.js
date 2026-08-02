@@ -53,6 +53,11 @@ function cargoVersion() {
 // ── 1. Has the crate's source drifted since its version was last bumped? ────
 // Find the most recent commit that changed the `version = "..."` line in
 // Cargo.toml, then check whether any LATER commit touched the crate's source.
+// A commit that renames the published npm scope (`[package.metadata.npm]`'s
+// `name = "@scope/..."`) also counts as a baseline: that's a fresh publish
+// identity even when the version number itself doesn't move (e.g. the
+// @paulrobins -> @wafertools org move republished the same 0.5.0 content
+// under a new scoped name — see 240a3f0 — which isn't source drift).
 // Tolerant of shallow clones — if no version-bump commit is found in the
 // available history, warn and skip rather than guess.
 try {
@@ -61,7 +66,7 @@ try {
   let bumpCommit = null;
   for (const commit of commits) {
     const diff = git(`show ${commit} -- ${CRATE_TOML}`);
-    if (/^\+version = "/m.test(diff)) { bumpCommit = commit; break; }
+    if (/^\+version = "/m.test(diff) || /^\+name = "@/m.test(diff)) { bumpCommit = commit; break; }
   }
   if (!bumpCommit) {
     const why = isShallow ? 'shallow git history' : `no version-bump commit found for ${CRATE_TOML}`;

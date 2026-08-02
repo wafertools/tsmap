@@ -1474,7 +1474,7 @@ function openHelpMenu(anchor: HTMLElement) {
 
   makeRow(
     'Wafer map reference',
-    mainViewController ? 'Wafer map/gallery controls, Findings/Insights panels, and more (wmap’s own guide)' : 'Load a file first to access the wafer map reference',
+    mainViewController ? 'Wafer map/gallery controls, Findings/Insights panels, and more (wafermap’s own guide)' : 'Load a file first to access the wafer map reference',
     !!mainViewController,
     () => { showToast(anchor, 'Opening guide…'); mainViewController?.openUserGuide(); },
   );
