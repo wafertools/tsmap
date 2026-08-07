@@ -120,6 +120,7 @@ cat files.txt | tsmap                      # or piped via stdin
 tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
 tsmap --help                               # full usage
+tsmap --version                            # print the version and exit
 ```
 
 `--tests` takes the same file a test selector's **Save list** button produces — selection,

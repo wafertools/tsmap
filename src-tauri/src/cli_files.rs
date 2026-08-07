@@ -52,6 +52,7 @@ Options:
   --new-instance         Open a new, independent window even if tsmap is
                          already running.
   -h, --help             Show this help and exit.
+  -V, --version          Print the version and exit.
 
 With no FILE/--list given, tsmap reads a newline-delimited list of data-file
 paths from stdin, but only if stdin is piped (never when run interactively).
@@ -61,6 +62,22 @@ paths from stdin, but only if stdin is piped (never when run interactively).
 /// other parsing, so `--help` always wins even alongside other/bad flags.
 pub fn wants_help(args: &[String]) -> bool {
     args.iter().any(|a| a == "--help" || a == "-h")
+}
+
+/// True if `args` (raw, unfiltered) requests the version. Checked alongside
+/// `wants_help`, before any other parsing, for the same reason: without it the
+/// unrecognized-flag rule below would reject `--version` outright, which is
+/// what it did until v0.1.24.
+pub fn wants_version(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--version" || a == "-V")
+}
+
+/// The string printed by `--version`. `CARGO_PKG_VERSION` comes from
+/// `src-tauri/Cargo.toml`, which `scripts/check-version-sync.js` already keeps
+/// in step with `package.json` and `Cargo.lock` — so this cannot drift from the
+/// version shown in the app's own banner.
+pub fn version_string() -> String {
+    format!("tsmap {}", env!("CARGO_PKG_VERSION"))
 }
 
 fn resolve_path(raw: &str, cwd: &Path) -> String {
@@ -89,9 +106,10 @@ struct RawArgs {
 /// Recognized flags that take a value — `--list`/`--tests`/`--splits`.
 const VALUE_FLAGS: &[&str] = &["--list", "--tests", "--splits"];
 /// Recognized flags that take no value — handled elsewhere (`--new-instance`
-/// before this point, `--help`/`-h` via `wants_help` before this point too)
-/// but still accepted here so they're never misreported as unrecognized.
-const BARE_FLAGS: &[&str] = &["--new-instance", "--help", "-h"];
+/// before this point, `--help`/`-h` and `--version`/`-V` via `wants_help`/
+/// `wants_version` before this point too) but still accepted here so they're
+/// never misreported as unrecognized.
+const BARE_FLAGS: &[&str] = &["--new-instance", "--help", "-h", "--version", "-V"];
 
 /// Splits raw argv (already excluding argv[0]) into its parts. A token
 /// starting with `-` that isn't one of the flags above is a hard error
@@ -207,6 +225,32 @@ mod tests {
         let cwd = Path::new("/cwd");
         let resolved = resolve(&args(&["--new-instance", "a.stdf"]), cwd).unwrap();
         assert_eq!(resolved.files, vec!["/cwd/a.stdf".to_string()]);
+    }
+
+    #[test]
+    fn version_flag_is_recognized_in_both_spellings() {
+        assert!(wants_version(&args(&["--version"])));
+        assert!(wants_version(&args(&["-V"])));
+        assert!(!wants_version(&args(&["a.stdf"])));
+        // Lowercase -v is NOT the version flag; it must stay an unrecognized
+        // option rather than quietly becoming an alias.
+        assert!(!wants_version(&args(&["-v"])));
+    }
+
+    #[test]
+    fn version_flag_does_not_error_as_unrecognized() {
+        // The regression this guards: --version used to hit the
+        // unrecognized-option rule and exit(1) with usage text.
+        let cwd = Path::new("/cwd");
+        assert!(resolve(&args(&["--version"]), cwd).is_ok());
+        assert!(resolve(&args(&["-V"]), cwd).is_ok());
+        assert!(resolve(&args(&["-v"]), cwd).is_err());
+    }
+
+    #[test]
+    fn version_string_matches_the_crate_version() {
+        assert_eq!(version_string(), format!("tsmap {}", env!("CARGO_PKG_VERSION")));
+        assert!(version_string().starts_with("tsmap "));
     }
 
     #[test]

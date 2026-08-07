@@ -1,7 +1,7 @@
 {
   "name": "tsmap",
   "private": true,
-  "version": "0.1.23",
+  "version": "0.1.24",
   "type": "module",
   "scripts": {
     "build:guide": "node scripts/build-user-guide.mjs",
@@ -20,8 +20,8 @@
     "lint": "eslint src",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:rust": "cargo test --manifest-path packages/parsers/Cargo.toml",
-    "test:all": "vitest run && cargo test --manifest-path packages/parsers/Cargo.toml",
+    "test:rust": "cargo test --workspace",
+    "test:all": "vitest run && cargo test --workspace",
     "release": "npm run tauri build -- --no-bundle && npm run install-bin",
     "preview": "vite preview",
     "tauri": "env -u GTK_PATH -u GTK_EXE_PREFIX -u GDK_PIXBUF_MODULE_FILE -u GDK_PIXBUF_MODULEDIR -u GIO_MODULE_DIR -u GTK_IM_MODULE_FILE -u LOCPATH tauri",
@@ -39,7 +39,7 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
     "@wafertools/testdata-parser": "^0.5.0",
-    "@wafertools/wafermap": "^0.21.1",
+    "@wafertools/wafermap": "^0.22.0",
     "fflate": "^0.8.3"
   },
   "devDependencies": {

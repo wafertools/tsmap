@@ -110,15 +110,20 @@ pub fn run() {
     // a documented escape hatch for anyone who wants two tsmap windows on
     // purpose) skips single-instance registration entirely for this launch.
     //
-    // `--help`/an invalid flag is handled here, unconditionally, before any
-    // Tauri/GTK/single-instance machinery runs — so it always prints to *this*
-    // process's own terminal and exits immediately, regardless of whether it
-    // ends up being the primary instance or forwarded to one. A syntax error
-    // here (unrecognized flag, missing value) is never silently dropped or
-    // misread as a data-file path — see cli_files.rs's module doc.
+    // `--help`/`--version`/an invalid flag is handled here, unconditionally,
+    // before any Tauri/GTK/single-instance machinery runs — so it always prints
+    // to *this* process's own terminal and exits immediately, regardless of
+    // whether it ends up being the primary instance or forwarded to one. A
+    // syntax error here (unrecognized flag, missing value) is never silently
+    // dropped or misread as a data-file path — see cli_files.rs's module doc.
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
     if cli_files::wants_help(&raw_args) {
         print!("{}", cli_files::USAGE);
+        std::process::exit(0);
+    }
+    // After help, so `--help --version` prints the fuller of the two.
+    if cli_files::wants_version(&raw_args) {
+        println!("{}", cli_files::version_string());
         std::process::exit(0);
     }
     let skip_singleton = raw_args.iter().any(|a| a == "--new-instance");

@@ -2,8 +2,10 @@ declare const __APP_VERSION__: string;
 declare const __BUILD_DATE__: string;
 
 import { buildWaferMap } from '@wafertools/wafermap';
-import { renderWaferMap, renderWaferGallery } from '@wafertools/wafermap/render';
+import type { WaferMapResult } from '@wafertools/wafermap';
+import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf } from '@wafertools/wafermap/render';
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
+import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs } from './platform';
 import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, errMsg } from './lib';
@@ -190,23 +192,45 @@ if (isTauri) {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
+/** wmap grades every advisory; map its scale onto the log panel's three levels. */
+const WMAP_WARNING_LOG_LEVEL: Record<ReturnType<typeof severityOf>, LogLevel> = {
+  error: 'error',
+  warning: 'warn',
+  info: 'info',
+};
+
 /**
- * Surface wmap's own per-wafer advisories (`WaferMapResult.warnings`) in the log
- * panel — the counterpart to `logWarnings` for parser warnings, and subject to
- * the same rule: never build a wafer map without reporting what wmap said about
- * it. These cover inferred geometry and (since wmap 0.20.9) structured
- * geometry-conflict / inferred-pitch codes, i.e. exactly the cases where what's
- * drawn rests on a guess rather than on data.
+ * Surface wmap's own per-wafer advisories in the log panel — the counterpart to
+ * `logWarnings` for parser warnings, and subject to the same rule: never build a
+ * wafer map without reporting what wmap said about it.
+ *
+ * Goes through wmap's own `collectWarnings` rather than reading
+ * `waferMap.warnings` directly, because since wmap 0.22.0 the advisories come
+ * from **two** places and reading either one alone under-reports:
+ *
+ * - the build — inferred geometry (`partial-coverage`, `geometry-conflict`,
+ *   `inferred-pitch`), i.e. what's drawn rests on a guess rather than on data;
+ * - the analysis — `test-count-capped`, meaning test-value analysis was skipped
+ *   entirely and **no** test findings were produced.
+ *
+ * That second source is why `statsSummary` is a parameter and why this must be
+ * called **after** `analyzeWaferMap`, not before it. `collectWarnings` also
+ * de-duplicates and severity-orders, so this stays in step with what wmap's own
+ * toolbar indicator shows instead of re-deriving a second, different set.
+ *
+ * Severity maps to log level (`WMAP_WARNING_LOG_LEVEL`) rather than everything
+ * logging as 'warn': wmap grades geometry advisories 'error' because dies may be
+ * drawn in the wrong place, which is worth opening the log panel for.
  *
  * Must be called from **every** `buildWaferMap` call site. The gallery path had
  * this inline while the single-wafer path silently dropped the warnings, so a
  * one-wafer load — the case where a geometry advisory is easiest to act on —
  * was the one that never showed it.
  */
-function logWmapWarnings(waferId: string, waferMap: { warnings: readonly { message: string; confidence?: number }[] }) {
-  for (const warning of waferMap.warnings) {
+function logWmapWarnings(waferId: string, waferMap: WaferMapResult, statsSummary?: StatsSummary | null) {
+  for (const warning of collectWarnings({ result: waferMap, statsSummary })) {
     const conf = warning.confidence !== undefined ? ` (confidence ${(warning.confidence * 100).toFixed(0)}%)` : '';
-    log('warn', `Wafer ${waferId}: ${warning.message}${conf}`);
+    log(WMAP_WARNING_LOG_LEVEL[severityOf(warning)], `Wafer ${waferId} [${warning.code}]: ${warning.message}${conf}`);
   }
 }
 
@@ -221,8 +245,8 @@ function buildLotStatsSummary(wafers: WaferData[]) {
   const items = wafers.map(w => {
     const displayId = waferDisplayLabel(w, showSplitSuffix);
     const waferMap = buildWaferMap({ results: w.results, testDefs, waferConfig: { metadata: toWmapWaferMeta(w.source, displayId, w.fields) } });
-    logWmapWarnings(w.waferId, waferMap);
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
+    logWmapWarnings(w.waferId, waferMap, statsSummary);
     return { ...waferMap, label: displayId, statsSummary };
   });
   const perWaferSummaries = items.map(i => i.statsSummary);
@@ -366,8 +390,8 @@ function renderWaferView(wafers: WaferData[], label: string) {
   if (wafers.length === 1) {
     container.classList.remove('gallery');
     const waferMap = buildWaferMap({ results: wafers[0].results, testDefs: wmapTestDefs, waferConfig: { metadata: toWmapWaferMeta(wafers[0].source, waferDisplayLabel(wafers[0], showSplitSuffix), wafers[0].fields) } });
-    logWmapWarnings(wafers[0].waferId, waferMap);
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
+    logWmapWarnings(wafers[0].waferId, waferMap, statsSummary);
     mainViewController = renderWaferMap(container, waferMap, {
       statsSummary,
       summaryPanel: { placement: 'right', defaultOpen: true },
@@ -379,6 +403,12 @@ function renderWaferView(wafers: WaferData[], label: string) {
       onSaveImage,
       onSaveText,
       viewOptions: { plotMode },
+      // wmap's own warning indicator is left ON (the `warnings` option's
+      // default). It and tsmap's log deliberately show the same advisories:
+      // the toolbar indicator is discoverable and persists with the map, the
+      // log is the per-wafer history. Don't "de-duplicate" by passing
+      // { display: false } — that hides the geometry advisory from anyone who
+      // never opens the log panel, which is the gap wmap 0.22.0 closed.
       // Single-wafer counterpart to the gallery's insights below — closes
       // the gap that blocked removing tsmap's own Charts page (see
       // WMAP_ISSUES.md): single-wafer loads had no chart access at all
@@ -400,6 +430,10 @@ function renderWaferView(wafers: WaferData[], label: string) {
       onSaveImage,
       onSaveText,
       viewOptions: { plotMode },
+      // wmap's own warning indicator is left ON (the `warnings` option's
+      // default) — see the note on the single-wafer call above. The gallery
+      // collects across every card and de-duplicates, so a lot-wide geometry
+      // advisory is stated once there; tsmap's log keeps the per-wafer detail.
       // wmap-owned Insights tab (see WMAP_ISSUES.md #31) — the only chart
       // access now that tsmap's own Charts page has been removed.
       insights: { enabled: true },

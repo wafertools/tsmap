@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.1.24] — 2026-08-07
+
+### Added
+
+- **`tsmap --version` / `tsmap -V`** prints the version and exits. It previously hit the CLI's unrecognized-flag rule and failed with usage text and exit 1 — despite the project's own docs describing it as the way to read the binary's version. The string comes from `src-tauri/Cargo.toml`, which the existing version-sync guard already pins to `package.json`, so it cannot drift from the version shown in the app. Lowercase `-v` is deliberately not an alias and remains an unrecognized option.
+
+### Changed
+
+- **wmap bumped to 0.22.0** (from 0.21.1), published and pinned at `^0.22.0`. Brings the library's own warning surfacing (a ⚠ toolbar indicator and Summary-panel banner, on by default) and a redundancy collapse in findings, so one edge failure no longer produces a hard-bin row, its identical soft-bin twin, a pass-bin row and a yield row all restating the same fact. Its one breaking change — `StatsSummary.stats.warnings` becoming `WaferWarning[]` rather than `string[]` — does not affect tsmap, which never read that field. 0.22.0 also withdrew four undocumented view-pipeline helpers (`findTestDef`, `resolveTestNumber`, `getUniqueTestNumbers`, `generateTextOverlay`); tsmap uses none of them.
+
+### Fixed
+
+- **wmap advisories about skipped analysis never reached the log panel.** Since wmap 0.22.0 the library raises advisories from two places — the map build (inferred geometry: `partial-coverage`, `geometry-conflict`, `inferred-pitch`) and the analysis (`test-count-capped`). tsmap read only the first, so `test-count-capped` — whose entire meaning is "test-value analysis was skipped and **no** test findings were produced" — was silently dropped, in the case where a user is most likely to wonder why the Insights and Findings panels are empty. `logWmapWarnings` now goes through wmap's own `collectWarnings`, which unions both sources and de-duplicates, and so runs after `analyzeWaferMap` rather than before it.
+
+### Changed
+
+- **Log entries for wmap advisories now carry their severity and code.** A geometry advisory is graded `error` by wmap (dies may be drawn in the wrong place) and now logs as an error — which opens the log panel — rather than as one more `warn` scrolling past; `test-count-capped` stays a warning. Each line names the stable advisory code, e.g. `Wafer W03 [partial-coverage]: …`.
+- wmap's own warning indicator (new in 0.22.0, on by default) is deliberately left on alongside the log: the toolbar indicator is discoverable and persists with the map, the log keeps the per-wafer history.
+- `eslint.config.js` now ignores the workspace-root `target/` and `.venv/`. Both are generated, and the config already claimed to ignore build output — but this is a Cargo workspace, so Rust/Tauri output lands at the root rather than under the already-ignored `src-tauri/`. `npm run lint` was unaffected (it is scoped to `src`); a bare `eslint .` reported over a thousand parse errors from generated assets.
+
 ## [0.1.23] — 2026-08-02
 
 ### Changed

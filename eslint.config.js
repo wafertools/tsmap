@@ -13,6 +13,13 @@ export default tseslint.config(
       'node_modules/',
       'packages/parsers/pkg/',
       'src-tauri/',
+      // Cargo/Tauri build output. This is a Cargo workspace, so it lands at the
+      // repo root, NOT under src-tauri/ — ignoring src-tauri/ alone leaves
+      // thousands of generated .js assets (tauri-codegen-assets) in scope, which
+      // `npm run lint` only escapes because it is scoped to src/.
+      'target/',
+      // The docs-site Python virtualenv (zensical) — vendored JS assets.
+      '.venv/',
       '**/*.bench.ts',
     ],
   },
