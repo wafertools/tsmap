@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tokenize, detectRole } from './mappingUI';
+import { tokenize, detectRole, validateRoleAssignments } from './mappingUI';
 
 const noSample: Record<string, string>[] = [];
 const numericSample = (col: string, val = '1.5'): Record<string, string>[] => [{ [col]: val }];
@@ -56,6 +56,23 @@ describe('detectRole — limits / units', () => {
   });
 });
 
+describe('detectRole — long-format identity/value columns', () => {
+  // `test_val` is the real-world regression: correlated_long.csv (a bundled
+  // fixture) uses this exact header, which matched no EXACT_ROLES pattern
+  // (only `test_value`/`val`/`meas_val` were listed, not this compound) and
+  // fell through to the numeric-fallback heuristic, classifying it as a
+  // single WIDE-format "Test value" column. With testvalueCol then unset, the
+  // whole file parsed as one bogus wide test instead of ~30 long-format ones
+  // — no error, no warning, just silently wrong.
+  it.each(['test_val', 'test_value', 'testval', 'testvalue', 'result_val', 'meas_val'])(
+    'detects testvalue: %s', col => {
+      expect(detectRole(col, numericSample(col))).toBe('testvalue');
+    });
+  it.each(['test_name', 'testname', 'param', 'test_item'])('detects testname: %s', col => {
+    expect(detectRole(col, noSample)).toBe('testname');
+  });
+});
+
 describe('detectRole — test vs metadata fallback', () => {
   it('classifies numeric column as test', () => {
     expect(detectRole('leakage_current', numericSample('leakage_current'))).toBe('test');
@@ -75,5 +92,78 @@ describe('detectRole — test vs metadata fallback', () => {
   it('classifies empty-sample numeric-looking column as metadata', () => {
     // No sample data — cannot confirm numeric
     expect(detectRole('mystery', noSample)).toBe('metadata');
+  });
+});
+
+// ── validateRoleAssignments ───────────────────────────────────────────────────
+// readMapping fills the single-valued roles by plain overwrite in DOM order, so
+// without this guard a second column claiming the same role silently discards
+// the first — and the resulting map looks perfectly plausible, just built from
+// the wrong column.
+
+describe('validateRoleAssignments', () => {
+  it('accepts a well-formed assignment', () => {
+    expect(validateRoleAssignments([
+      { col: 'x', role: 'x' },
+      { col: 'y', role: 'y' },
+      { col: 'hbin', role: 'hbin' },
+      { col: 'wafer_id', role: 'wafer' },
+    ])).toBeNull();
+  });
+
+  it('accepts many columns in the genuinely repeatable roles', () => {
+    expect(validateRoleAssignments([
+      { col: 'x', role: 'x' },
+      { col: 'y', role: 'y' },
+      { col: 't1', role: 'test' },
+      { col: 't2', role: 'test' },
+      { col: 't3', role: 'test' },
+      { col: 'operator', role: 'metadata' },
+      { col: 'tester', role: 'metadata' },
+      { col: 'spare1', role: '' },
+      { col: 'spare2', role: '' },
+    ])).toBeNull();
+  });
+
+  it('rejects two columns claiming the same single-valued role', () => {
+    const msg = validateRoleAssignments([
+      { col: 'wafer_id', role: 'wafer' },
+      { col: 'wafer_num', role: 'wafer' },
+    ]);
+    expect(msg).toContain('Wafer ID');
+    expect(msg).toContain('wafer_id');
+    expect(msg).toContain('wafer_num');
+  });
+
+  it('names every clash, not just the first', () => {
+    const msg = validateRoleAssignments([
+      { col: 'x1', role: 'x' },
+      { col: 'x2', role: 'x' },
+      { col: 'b1', role: 'hbin' },
+      { col: 'b2', role: 'hbin' },
+    ])!;
+    expect(msg).toContain('X position');
+    expect(msg).toContain('Hard bin');
+  });
+
+  it('lists all offending columns when three share a role', () => {
+    const msg = validateRoleAssignments([
+      { col: 'a', role: 'y' },
+      { col: 'b', role: 'y' },
+      { col: 'c', role: 'y' },
+    ])!;
+    for (const col of ['a', 'b', 'c']) expect(msg).toContain(col);
+  });
+
+  it('uses the label the picker shows, not the internal role key', () => {
+    const msg = validateRoleAssignments([
+      { col: 'p', role: 'loLimit' },
+      { col: 'q', role: 'loLimit' },
+    ])!;
+    expect(msg).toContain('Low limit (long format)');
+  });
+
+  it('accepts an empty assignment list', () => {
+    expect(validateRoleAssignments([])).toBeNull();
   });
 });

@@ -29,7 +29,15 @@ const platform = createPlatform();
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 
+// Tells index.html's module-error handler that the module got far enough to
+// run — after this point a window error is a runtime problem the log panel can
+// report, not a failed module load, so the handler must stop retitling the
+// window. (It used to retitle on ANY error, including the benign ResizeObserver
+// notice fired by an ordinary window resize.)
+(window as unknown as { __tsmapBooted?: boolean }).__tsmapBooted = true;
+
 const container       = document.getElementById('map-container')!;
+const dropZone        = document.getElementById('drop-zone')!;
 const openBtn         = document.getElementById('open-btn')!;
 const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
 const recentBtn       = document.getElementById('recent-btn') as HTMLButtonElement;
@@ -128,6 +136,39 @@ logToggle.addEventListener('click', () => {
 
 log('info', `tsmap v${__APP_VERSION__} (${__BUILD_DATE__})`);
 
+// ── Drop-zone affordance ──────────────────────────────────────────────────────
+// The dashed frame around "Open file" advertised two things it didn't do: it
+// had `cursor:pointer` and a hover highlight but no click handler of its own
+// (only the nested button responded, so the frame itself was dead), and
+// `.drag-over` was styled in index.html but never applied by any code, so it
+// never reacted to a drag. Both are wired here.
+
+/** Clicking the frame — not just the button inside it — opens the picker.
+ *  Forwarding via `openBtn.click()` rather than duplicating the open logic
+ *  keeps this inside the synchronous user-gesture chain, which the web build's
+ *  file input depends on (see the `#file-input` note further down). */
+dropZone.addEventListener('click', (e) => {
+  if (e.target === dropZone) openBtn.click();
+});
+
+let dragActiveTimer: number | undefined;
+/** Highlight the frame while a file is being dragged. Deliberately triggered by
+ *  a drag anywhere over the window, not just over the frame — dropping anywhere
+ *  works, and the toolbar hint says so, so the frame is standing in as the
+ *  indicator for the whole window. */
+function setDragActive(on: boolean): void {
+  window.clearTimeout(dragActiveTimer);
+  if (on) {
+    dropZone.classList.add('drag-over');
+    // dragover fires continuously while the pointer moves; a short idle timeout
+    // is far more reliable than dragleave, which also fires every time the
+    // cursor crosses a child element's boundary.
+    dragActiveTimer = window.setTimeout(() => dropZone.classList.remove('drag-over'), 200);
+  } else {
+    dropZone.classList.remove('drag-over');
+  }
+}
+
 // ── Platform intercepts ───────────────────────────────────────────────────────
 
 if (isTauri) {
@@ -136,7 +177,13 @@ if (isTauri) {
 
   // File drop
   import('@tauri-apps/api/event').then(({ listen }) => {
+    // Tauri emits its own drag lifecycle rather than DOM drag events.
+    listen('tauri://drag-enter', () => setDragActive(true)).catch(() => {});
+    listen('tauri://drag-over',  () => setDragActive(true)).catch(() => {});
+    listen('tauri://drag-leave', () => setDragActive(false)).catch(() => {});
+
     listen<{ paths: string[] }>('tauri://drag-drop', event => {
+      setDragActive(false);
       const paths = event.payload.paths ?? [];
       if (paths.length > 0) {
         const files: FileHandle[] = paths.map(p => ({
@@ -176,9 +223,11 @@ if (isTauri) {
   platform.getStartupFiles().then(args => { if (args) applyCliArgs(args); });
 } else {
   // Web drag-drop
-  document.body.addEventListener('dragover', e => { e.preventDefault(); });
+  document.body.addEventListener('dragover', e => { e.preventDefault(); setDragActive(true); });
+  document.body.addEventListener('dragleave', () => { setDragActive(false); });
   document.body.addEventListener('drop', async e => {
     e.preventDefault();
+    setDragActive(false);
     if (busy) return;
     const items = Array.from(e.dataTransfer?.files ?? []);
     if (items.length === 0) return;
@@ -1203,6 +1252,22 @@ resetBtn.addEventListener('click', () => {
   showEmptyState();
 });
 
+/**
+ * Capacity figures for the "Filter tests…" selector's memory advisory, derived
+ * from what's already loaded rather than from a fresh scan. `dieCount` is the
+ * real total across the current wafers; `totalTests` is the widest test list we
+ * know about (the first-pass scan if there was one, else the loaded defs), so
+ * the "n of N" framing matches the list the selector is actually showing.
+ * Returns undefined when there are no dies, which suppresses the advisory
+ * rather than showing a meaningless zero.
+ */
+function filterCapacity(): { dieCount: number; totalTests: number } | undefined {
+  const dieCount = currentWafers.reduce((n, w) => n + w.results.length, 0);
+  if (dieCount === 0) return undefined;
+  const totalTests = Object.keys(currentTestNames ?? currentTestDefs).length;
+  return { dieCount, totalTests };
+}
+
 filterTestsBtn.addEventListener('click', async () => {
   if (busy || Object.keys(currentTestDefs).length === 0) return;
   // For CSV/JSON (no binary files), we only support in-memory filtering — no re-parse available.
@@ -1247,11 +1312,21 @@ filterTestsBtn.addEventListener('click', async () => {
           onScanAll: canScanAll ? (sel, overrides) => resolve({ kind: 'scanAll', selection: sel, overrides }) : undefined,
           initialSelection: carrySelection,
           testOverrides: carryOverrides,
+          // `capacity` and `onAsk` were previously passed only on the initial
+          // load, which had it exactly backwards: this path is the one that can
+          // WIDEN a selection and force a full re-parse, so it's the only one
+          // where the memory advisory can warn about something the user is
+          // about to do. Die count comes from what's already in memory — no
+          // rescan needed. `onAsk` keeps the "very large selection" prompt on
+          // the themed platform dialog instead of falling back to a bare
+          // window.confirm on one path and not the other.
+          capacity: filterCapacity(),
           onSave: async (entries: TestListEntry[]) => {
             await platform.saveTextFile(formatTestListCsv(entries), 'test-list.csv');
           },
           onLoad: async () => (await platform.pickTextFile())?.content ?? null,
           onLog: log,
+          onAsk: (msg) => platform.confirm(msg),
         },
       );
     });

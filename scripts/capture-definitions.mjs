@@ -135,7 +135,11 @@ export const CAPTURES = [
       ['dismissSelector'],
       ['waitForOverlay', '.tsmap-modal-backdrop'],
     ],
-    selector: '.tsmap-modal',
+    // The whole modal box, not just the `.tsmap-modal` content block: this
+    // dialog was rehomed onto the shared openModal (Aug 2026) and now carries
+    // openModal's title bar, which the old `.tsmap-modal` selector would crop
+    // out of the guide image.
+    selector: '.tsmap-modal-box',
   },
 
   // ── §2.1 Wafer rename overlay ──────────────────────────────────────────────

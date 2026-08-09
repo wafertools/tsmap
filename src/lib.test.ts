@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData } from './lib';
+import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, stableTestNumber } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -394,5 +394,71 @@ describe('toWmapWaferMeta', () => {
     expect(m).toBeDefined();
     expect(m.waferId).toBe('W1');
     expect(m.split).toBe('FF');
+  });
+});
+
+// ── stableTestNumber ─────────────────────────────────────────────────────────
+// Mirrors testdata-parser's Rust test_identity.rs — same algorithm (FNV-1a,
+// reserved-band floor, collision-probe), independent implementation. See that
+// file's doc comment for why: CSV/JSON test numbers used to be assigned by
+// column/encounter order, which silently renumbered every test whenever a
+// file was reordered or a column added/removed.
+
+describe('stableTestNumber', () => {
+  it('is deterministic across separate calls', () => {
+    expect(stableTestNumber('GAIN_DB', new Set())).toBe(stableTestNumber('GAIN_DB', new Set()));
+  });
+
+  it('gives different identities different numbers (usually)', () => {
+    const used = new Set<number>();
+    const a = stableTestNumber('GAIN_DB', used);
+    const b = stableTestNumber('NF_DB', used);
+    expect(a).not.toBe(b);
+  });
+
+  it('never lands below the reserved band', () => {
+    const used = new Set<number>();
+    for (const name of ['', 'a', '1001', '1002', 'test_000', 'x']) {
+      expect(stableTestNumber(name, used)).toBeGreaterThanOrEqual(1_000_000);
+    }
+  });
+
+  it('probes forward on collision rather than reusing the slot', () => {
+    const natural = stableTestNumber('collide-me', new Set());
+    const used = new Set<number>([natural]);
+    const bumped = stableTestNumber('collide-me', used);
+    expect(bumped).not.toBe(natural);
+    expect(used.has(bumped)).toBe(true);
+  });
+
+  it('never collides across many distinct identities in one call sequence', () => {
+    const used = new Set<number>();
+    const seen = new Set<number>();
+    for (let i = 0; i < 2000; i++) {
+      const n = stableTestNumber(`test_${i}`, used);
+      expect(seen.has(n)).toBe(false);
+      seen.add(n);
+    }
+  });
+
+  it('respects numbers pre-seeded by the caller', () => {
+    // Simulates wide-format numbers reserving slots before a long-format pass
+    // (a different call site entirely) computes any of its own.
+    const used = new Set<number>([1_000_042]);
+    const n = stableTestNumber('a name that happens to hash there', used);
+    expect(n).not.toBe(1_000_042);
+  });
+
+  it('is stable regardless of what else has already been hashed into the same set', () => {
+    // Same identity, empty set both times -> same result, independent of history.
+    const usedA = new Set<number>();
+    stableTestNumber('unrelated_1', usedA);
+    stableTestNumber('unrelated_2', usedA);
+    const a = stableTestNumber('GAIN_DB', usedA);
+
+    const usedB = new Set<number>();
+    const b = stableTestNumber('GAIN_DB', usedB);
+
+    expect(a).toBe(b);
   });
 });

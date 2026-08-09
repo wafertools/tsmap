@@ -61,10 +61,16 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
     let pass_bin_set: std::collections::HashSet<u32> =
         mapping.pass_bins.iter().copied().collect();
 
+    // `t.test_number` is assigned upstream in TS (mappingUI.ts's readMapping,
+    // hashed from the column's own key) — Rust just uses it as given. `order`
+    // is the one thing only Rust can supply here: the column's position in
+    // this array, i.e. the file's own column order, independent of whatever
+    // number the hash produced.
     let mut test_defs: HashMap<String, TestDef> = mapping
         .tests
         .iter()
-        .map(|t| {
+        .enumerate()
+        .map(|(i, t)| {
             (
                 t.test_number.to_string(),
                 TestDef {
@@ -73,6 +79,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
                     lo_limit: None,
                     hi_limit: None,
                     units: None,
+                    order: Some(i as u32),
                 },
             )
         })
@@ -80,7 +87,14 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
 
     let active_rows: Vec<HashMap<String, String>>;
     let mut long_fmt_test_numbers: HashMap<String, u32> = HashMap::new();
-    let mut next_test_num: u32 = 1001;
+    // Seeded with the wide-format numbers already assigned above, so a wide
+    // test column and a long-format test name in the same file can never
+    // collide on the same number — see the matching comment in parse_csv.rs,
+    // which this mirrors (JSON has its own copy of the long-format pivot
+    // rather than sharing CSV's, hence the duplicated fix).
+    let mut used_test_numbers: std::collections::HashSet<u32> =
+        mapping.tests.iter().map(|t| t.test_number).collect();
+    let mut next_order: u32 = 0;
 
     if is_long_format {
         let name_col = mapping.testname_col.as_deref().unwrap();
@@ -114,8 +128,13 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
             if test_name.is_empty() || test_val.is_empty() { continue; }
 
             let tnum = *long_fmt_test_numbers.entry(test_name.to_string()).or_insert_with(|| {
-                let n = next_test_num;
-                next_test_num += 1;
+                // See the matching comment in parse_csv.rs: hashing the name
+                // (the test's real identity here) rather than numbering by
+                // first-encounter order means the number survives a re-export
+                // of the same data in a different row order.
+                let n = crate::test_identity::stable_test_number(test_name, &mut used_test_numbers);
+                let order = next_order;
+                next_order += 1;
                 let lo_limit = mapping.lo_limit_col.as_deref()
                     .and_then(|c| row.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let hi_limit = mapping.hi_limit_col.as_deref()
@@ -126,6 +145,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
                     name: test_name.to_string(),
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
+                    order: Some(order),
                 });
                 n
             });
@@ -590,6 +610,34 @@ mod tests {
         let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
         assert_eq!(result.wafers[0].results.len(), 2);
         assert_eq!(result.test_defs.len(), 2);
+    }
+
+    #[test]
+    fn long_format_test_numbers_survive_row_reorder() {
+        // Same guard as parse_csv.rs's equivalent test — JSON has its own
+        // copy of the long-format pivot rather than sharing CSV's, so the
+        // fix (and the regression risk) is duplicated too.
+        let forward = r#"[
+            {"x":0,"y":0,"test":"Vt","val":1.1},
+            {"x":0,"y":0,"test":"Idsat","val":2.2}
+        ]"#;
+        let reversed = r#"[
+            {"x":0,"y":0,"test":"Idsat","val":2.2},
+            {"x":0,"y":0,"test":"Vt","val":1.1}
+        ]"#;
+
+        let run = |json: &str| {
+            let path = tmp(json);
+            let mut m = basic_mapping("x", "y");
+            m.testname_col = Some("test".to_string());
+            m.testvalue_col = Some("val".to_string());
+            let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
+            let vt_num = result.test_defs.iter().find(|(_, d)| d.name == "Vt").unwrap().0.clone();
+            let idsat_num = result.test_defs.iter().find(|(_, d)| d.name == "Idsat").unwrap().0.clone();
+            (vt_num, idsat_num)
+        };
+
+        assert_eq!(run(forward), run(reversed));
     }
 
     #[test]

@@ -1,6 +1,8 @@
 // Column mapping overlay — shown after csv_headers, before parse_csv.
 // Mirrors the wmap showcase mapping phase.
 
+import { escapeHtml as esc, stableTestNumber } from './lib';
+
 export interface CsvTestCol {
   col: string;
   testNumber: number;
@@ -68,6 +70,16 @@ const REGEX_ROLES: { role: ColRole; re: RegExp }[] = [
   { role: 'loLimit', re: /^(?:lo(?:w(?:er)?)?[_\s-]?(?:lim(?:it)?|spec|bound|thresh(?:old)?)|l[_\s-]?lim(?:it)?|min[_\s-]?(?:lim(?:it)?|spec)|spec[_\s-]?lo(?:w)?|lsl)$/ },
   { role: 'hiLimit', re: /^(?:hi(?:gh(?:er)?)?[_\s-]?(?:lim(?:it)?|spec|bound|thresh(?:old)?)|h[_\s-]?lim(?:it)?|max[_\s-]?(?:lim(?:it)?|spec)|spec[_\s-]?hi(?:gh)?|usl)$/ },
   { role: 'units',   re: /^(?:unit(?:s)?|u[_\s-]?o[_\s-]?m|test[_\s-]?unit(?:s)?|meas[_\s-]?unit(?:s)?)$/ },
+  // Compound long-format identity/value columns the exact list above doesn't
+  // enumerate — e.g. `test_val` (real-world fixture: correlated_long.csv) fell
+  // through every EXACT_ROLES pattern (only `test_value`/`val`/`meas_val` etc.
+  // are listed, not this compound) and the numeric fallback below then silently
+  // classified it as a single WIDE-format "Test value" column. With
+  // `testvalueCol` unset, the parser falls back to wide-format parsing of that
+  // one bogus column — every other test in the file disappears with no error,
+  // since nothing here was actually wrong, just unrecognized.
+  { role: 'testname',  re: /^(?:test[_\s-]?name|param(?:eter)?(?:[_\s-]?name)?|test[_\s-]?item|test[_\s-]?num(?:ber)?|t[_\s-]?num)$/ },
+  { role: 'testvalue', re: /^(?:test[_\s-]?(?:val(?:ue)?|result)|result[_\s-]?val(?:ue)?|meas(?:ured)?[_\s-]?(?:val(?:ue)?|result))$/ },
 ];
 
 const STRUCTURAL_DISQUALIFIERS = new Set(['id','idx','index','count','total','num','number','no','diameter','radius','pitch','size','width','height','mm','um','nm','time','sec','ms','us','date','ts','timestamp']);
@@ -119,6 +131,19 @@ function saveMapping(headers: string[], mapping: CsvMapping) {
   } catch { /* quota exceeded — silently skip */ }
 }
 
+/** Drop the remembered mapping for this header set, so the next load of the
+ *  same file auto-detects again. Backs the overlay's "Reset to auto-detected"
+ *  button — without it, resetting the on-screen roles would be undone the next
+ *  time the file was opened, and there was no in-app route back to detection
+ *  at all once a mapping had been saved. */
+function forgetMapping(headers: string[]) {
+  try {
+    const store = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}');
+    delete store[fingerprintHeaders(headers)];
+    localStorage.setItem(LS_KEY, JSON.stringify(store));
+  } catch { /* unavailable — nothing to forget */ }
+}
+
 // ── Role options (matches showcase) ──────────────────────────────────────────
 
 const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
@@ -139,7 +164,57 @@ const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
   { value: '',          label: '— ignore —' },
 ];
 
+// ── Role assignment validation ───────────────────────────────────────────────
+
+/**
+ * Roles that can only ever be filled by ONE column, with the label the picker
+ * shows for each. `test`, `metadata` and `''` are excluded — those are the
+ * genuinely many-per-file roles.
+ */
+const SINGLE_VALUE_ROLES: ReadonlyArray<ColRole> =
+  ['x', 'y', 'hbin', 'sbin', 'wafer', 'lot', 'site', 'testname', 'testvalue', 'loLimit', 'hiLimit', 'units'];
+
+function roleLabel(role: ColRole): string {
+  return ROLE_OPTIONS.find(o => o.value === role)?.label ?? role;
+}
+
+/**
+ * Reject an assignment that puts two columns in the same single-valued role.
+ *
+ * `readMapping` fills those roles by plain overwrite in DOM order, so without
+ * this the second column silently wins and the first is discarded with no
+ * feedback — easy to do by accident in a wide file, and invisible afterwards
+ * because the resulting wafer map looks perfectly plausible, just built from
+ * the wrong column. Pure and exported so the rule is unit-testable without a
+ * DOM.
+ *
+ * Returns a message naming every clash (not just the first), or null if valid.
+ */
+export function validateRoleAssignments(
+  assignments: ReadonlyArray<{ col: string; role: ColRole }>,
+): string | null {
+  const byRole = new Map<ColRole, string[]>();
+  for (const { col, role } of assignments) {
+    if (!SINGLE_VALUE_ROLES.includes(role)) continue;
+    const cols = byRole.get(role);
+    if (cols) cols.push(col); else byRole.set(role, [col]);
+  }
+  const clashes = [...byRole].filter(([, cols]) => cols.length > 1);
+  if (clashes.length === 0) return null;
+  const parts = clashes.map(([role, cols]) => `“${roleLabel(role)}” on ${cols.join(', ')}`);
+  return `Each of these roles takes a single column — ${parts.join('; ')}. Change all but one to “Test value” or “— ignore —”.`;
+}
+
 // ── Read mapping from the overlay DOM ────────────────────────────────────────
+
+/** Every row's current column→role pairing, in DOM order. Shared by
+ *  `readMapping` and `validateRoleAssignments` so the two can't drift. */
+function readRoleAssignments(overlay: HTMLElement): Array<{ col: string; role: ColRole }> {
+  return [...overlay.querySelectorAll<HTMLTableRowElement>('tr[data-col]')].map(tr => ({
+    col: tr.dataset.col!,
+    role: (tr.querySelector<HTMLSelectElement>('select')?.value ?? '') as ColRole,
+  }));
+}
 
 function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvMapping {
   const rows = overlay.querySelectorAll<HTMLTableRowElement>('tr[data-col]');
@@ -151,7 +226,14 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
   const tests: CsvTestCol[] = [];
   const meta: string[] = [];
   const splitBy: string[] = [];
-  let nextTestNum = 1001;
+  // Hashed from the column's own key (`col`), not its user-editable display
+  // name — `col` is guaranteed unique per file (it's the real header text),
+  // while two rows can end up with the same typed-in name. Deterministic and
+  // order-independent: the same column gets the same number whether it's the
+  // 3rd column or the 30th, so a saved test list / override survives a column
+  // reorder or an added/removed column. `usedTestNumbers` guarantees no two
+  // columns in this one mapping ever collide, however the hash lands.
+  const usedTestNumbers = new Set<number>();
 
   for (const tr of rows) {
     const col = tr.dataset.col!;
@@ -171,7 +253,7 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
     else if (role === 'test') {
       const nameInput = tr.querySelector<HTMLInputElement>('input[type="text"]');
       const name = nameInput?.value.trim() || col;
-      tests.push({ col, testNumber: nextTestNum++, name });
+      tests.push({ col, testNumber: stableTestNumber(col, usedTestNumbers), name });
     } else if (role === 'metadata') {
       meta.push(col);
       const splitCheck = tr.querySelector<HTMLInputElement>('input[type="checkbox"]');
@@ -202,6 +284,11 @@ function detectLongFormat(mapping: CsvMapping, sample: Record<string, string>[])
 function showLongFormatModal(): Promise<boolean> {
   return new Promise(resolve => {
     const modal = document.createElement('div');
+    // The id, not just the class, is what the parent overlay's Escape guard
+    // looks for — `.tsmap-modal-backdrop` is now shared with every openModal
+    // dialog, so matching on the class alone would suppress the mapping
+    // overlay's Escape whenever any app modal happened to be open.
+    modal.id = 'tsmap-longformat-backdrop';
     modal.className = 'tsmap-modal-backdrop';
     modal.innerHTML = `
       <div class="tsmap-modal" role="dialog" aria-modal="true" aria-labelledby="lf-title">
@@ -310,6 +397,13 @@ export async function showMappingOverlay(
         <span class="mapping-title" id="mapping-title">Column mapping</span>
         <span class="mapping-file-info">${rowCount.toLocaleString()} rows · ${headers.length} columns</span>
       </div>
+      <div class="mapping-tools">
+        <input id="map-filter" type="search" placeholder="Filter columns…" aria-label="Filter columns by name">
+        <button id="map-bulk-test" class="tool-btn" type="button">Shown → Test value</button>
+        <button id="map-bulk-ignore" class="tool-btn" type="button">Shown → Ignore</button>
+        <button id="map-redetect" class="tool-btn tool-sep" type="button">Reset to auto-detected</button>
+        <span id="map-count" class="tool-count"></span>
+      </div>
       <div class="mapping-scroll">
         <table class="mapping-table">
           <thead><tr>
@@ -333,12 +427,25 @@ export async function showMappingOverlay(
     </div>`;
 
   document.body.appendChild(overlay);
-  document.body.classList.add('overlay-open');
-  document.getElementById('map-container')!.innerHTML = '';
+  // NOTE: this overlay must NOT clear #map-container. It used to, on the
+  // assumption it only ever ran before anything was rendered — but handleFiles()
+  // is the shared path for "Open file" AND "Add files", so appending a CSV to an
+  // existing gallery opened this overlay over a live map, wiped it, and left the
+  // user on a permanently blank view if they then cancelled (the app still held
+  // the wafers, so nothing re-rendered and no empty state appeared). It also
+  // bypassed destroyMainView(), leaking wmap's controller and observers —
+  // see WMAP_ISSUES.md #21. Clearing the view is handleFiles' own job, which it
+  // does via showLoadingState() only AFTER the cancellable gates have resolved.
   overlay.querySelector<HTMLElement>('.mapping-panel')?.focus(); // focus the dialog for Esc/SR
 
+  const rowEls = [...overlay.querySelectorAll<HTMLTableRowElement>('tr[data-col]')];
+  // Declared here (not at its use site further down) because the role-change
+  // handler below clears it — a `const` declared after this loop would be in the
+  // temporal dead zone for anything that read it eagerly.
+  const validationEl = overlay.querySelector<HTMLElement>('#map-validation')!;
+
   // Wire up role change → show/hide test name input and split checkbox
-  for (const tr of overlay.querySelectorAll<HTMLTableRowElement>('tr[data-col]')) {
+  for (const tr of rowEls) {
     const sel = tr.querySelector<HTMLSelectElement>('select')!;
     const nameInput = tr.querySelector<HTMLInputElement>('input[type="text"]')!;
     const splitCell = tr.querySelector<HTMLElement>('.split-cell')!;
@@ -348,15 +455,63 @@ export async function showMappingOverlay(
       nameInput.style.display = sel.value === 'test' ? 'inline-block' : 'none';
       splitCell.style.visibility = sel.value === 'metadata' ? 'visible' : 'hidden';
       if (sel.value !== 'metadata') splitCheck.checked = false;
+      validationEl.textContent = ''; // stale clash message — re-checked on Continue
     });
   }
+
+  // ── Filter / bulk-assign / re-detect ───────────────────────────────────────
+  // A wide CSV can carry 100+ columns; without these the only way to change a
+  // hundred roles is a hundred dropdowns, and a saved mapping could never be
+  // returned to auto-detection from inside the app at all.
+
+  const filterInput = overlay.querySelector<HTMLInputElement>('#map-filter')!;
+  const countEl = overlay.querySelector<HTMLElement>('#map-count')!;
+
+  /** Rows currently passing the filter. Bulk actions apply to exactly these,
+   *  so "Shown → …" always means what's on screen. */
+  const shownRows = (): HTMLTableRowElement[] => rowEls.filter(tr => !tr.hidden);
+
+  function applyFilter(): void {
+    const q = filterInput.value.trim().toLowerCase();
+    for (const tr of rowEls) tr.hidden = q !== '' && !tr.dataset.col!.toLowerCase().includes(q);
+    const shown = shownRows().length;
+    countEl.textContent = shown === rowEls.length
+      ? `${rowEls.length} columns`
+      : `${shown} of ${rowEls.length} columns`;
+  }
+  filterInput.addEventListener('input', applyFilter);
+  applyFilter();
+
+  /** Set every currently-shown row to `role`, firing the same `change` handler a
+   *  manual edit would so the test-name/split cells stay in step. */
+  function bulkAssign(role: ColRole): void {
+    for (const tr of shownRows()) {
+      const sel = tr.querySelector<HTMLSelectElement>('select')!;
+      if (sel.value === role) continue;
+      sel.value = role;
+      sel.dispatchEvent(new Event('change'));
+    }
+  }
+  overlay.querySelector('#map-bulk-test')!.addEventListener('click', () => bulkAssign('test'));
+  overlay.querySelector('#map-bulk-ignore')!.addEventListener('click', () => bulkAssign(''));
+
+  // Re-detect discards the saved mapping for this header set as well as the
+  // on-screen state — otherwise the next load of the same file would silently
+  // restore what the user just reset.
+  overlay.querySelector('#map-redetect')!.addEventListener('click', () => {
+    for (const tr of rowEls) {
+      const sel = tr.querySelector<HTMLSelectElement>('select')!;
+      sel.value = detectedRoles[tr.dataset.col!] ?? '';
+      sel.dispatchEvent(new Event('change'));
+    }
+    forgetMapping(headers);
+  });
 
   const passBinInput = overlay.querySelector<HTMLInputElement>('#pass-bin-input')!;
 
   const closeOverlay = () => {
     document.removeEventListener('keydown', onKeyDown);
     overlay.remove();
-    document.body.classList.remove('overlay-open');
   };
 
   // Escape cancels the mapping overlay — same path as the Cancel button. Bail
@@ -364,7 +519,7 @@ export async function showMappingOverlay(
   // don't want Escape there to also tear down the parent mapping overlay.
   function onKeyDown(e: KeyboardEvent): void {
     if (e.key !== 'Escape') return;
-    if (document.querySelector('.tsmap-modal-backdrop')) return;
+    if (document.getElementById('tsmap-longformat-backdrop')) return;
     closeOverlay();
     onCancel();
   }
@@ -375,9 +530,15 @@ export async function showMappingOverlay(
     onCancel();
   });
 
-  const validationEl = overlay.querySelector<HTMLElement>('#map-validation')!;
-
   overlay.querySelector('#map-render')!.addEventListener('click', async () => {
+    // Duplicate single-valued roles must be caught BEFORE readMapping, which
+    // resolves them by silent last-one-wins overwrite.
+    const clash = validateRoleAssignments(readRoleAssignments(overlay));
+    if (clash) {
+      validationEl.textContent = clash;
+      return;
+    }
+
     const mapping = readMapping(overlay, passBinInput);
 
     if (!mapping.x || !mapping.y) {
@@ -397,8 +558,4 @@ export async function showMappingOverlay(
     closeOverlay();
     onConfirm(mapping);
   });
-}
-
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

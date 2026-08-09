@@ -259,7 +259,7 @@ change — noted per item.
 
 ## Smaller polish items
 
-- [ ] **Toolbar overflow.** Already busy (Open, Add, Charts, Filter tests, Splits, Value
+- [x] **Toolbar overflow.** Already busy (Open, Add, Charts, Filter tests, Splits, Value
       findings, Clear, theme picker, help). Watch whether it needs an overflow/"more" menu as
       more features land — re-check the z-index lesson (see CLAUDE.md "Stacking order") if any
       new overflow menu is itself an overlay.
@@ -269,6 +269,19 @@ change — noted per item.
       Current buttons: Open, Add, Recent, Filter tests, Splits, Value findings, Clear, theme
       picker, help. Net roughly the same count as originally described, but the immediate
       pressure that motivated this idea is lower now that Charts is gone. Still unimplemented.
+      **Superseded 2026-08-09** — the "watch whether it needs" framing was already out of date
+      when written: the bar *was* clipping. Measured on the web build, `scrollWidth` reached
+      913px against a 900px viewport, and because the row had neither `flex-wrap` nor
+      `overflow-x`, the theme picker and Help button were pushed past the right edge with no
+      way to scroll to them — gone, not clipped. On desktop with Recent shown, that starts
+      nearer 985px, i.e. an ordinary half-screen window. Fixed without a "more" menu, so the
+      z-index caveat above never came into play: `#drop-hint` (decorative, 141px) drops out at
+      ≤1100px and `#toolbar-title` at ≤700px, `#theme-select`/`#help-btn` are pinned
+      `flex-shrink:0` so they're never the thing that yields, and `overflow-x:auto` is the hard
+      floor below that. Deliberately *not* `flex-wrap`: a second toolbar row would resize
+      `#map-container` and force wmap to re-lay-out the canvas. Verified reachable at 1100,
+      900, 780 and 640px. A real overflow menu is still the answer if the button count grows
+      again — this buys headroom, it doesn't remove the ceiling.
 - [ ] **Accessibility for canvas charts.** Charts are canvas-only with no text/table
       alternative. Not urgent for this audience but worth tracking.
       Note (2026-07-11): tsmap has no canvas chart code of its own left (moved into wmap's

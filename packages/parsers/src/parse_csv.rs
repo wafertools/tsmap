@@ -142,10 +142,16 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
 
     let is_long_format = mapping.testname_col.is_some() && mapping.testvalue_col.is_some();
 
+    // `t.test_number` is assigned upstream in TS (mappingUI.ts's readMapping,
+    // hashed from the column's own key) — Rust just uses it as given. `order`
+    // is the one thing only Rust can supply here: the column's position in
+    // this array, i.e. the file's own column order, independent of whatever
+    // number the hash produced.
     let mut test_defs: HashMap<String, TestDef> = mapping
         .tests
         .iter()
-        .map(|t| {
+        .enumerate()
+        .map(|(i, t)| {
             (
                 t.test_number.to_string(),
                 TestDef {
@@ -154,6 +160,7 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                     lo_limit: None,
                     hi_limit: None,
                     units: None,
+                    order: Some(i as u32),
                 },
             )
         })
@@ -177,7 +184,15 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
     // and pivot into a wide per-die HashMap; the structure below is unchanged.
     let active_rows: Vec<HashMap<String, String>>;
     let mut long_fmt_test_numbers: HashMap<String, u32> = HashMap::new();
-    let mut next_test_num: u32 = 1001;
+    // Seeded with the wide-format numbers already assigned above (from
+    // `mapping.tests`, hashed upstream in TS) so a wide test column and a
+    // long-format test name in the SAME file can never collide on the same
+    // number — `stable_test_number` treats every number in this set as taken.
+    // A single mapping can carry both: the mapping UI lets one column be
+    // "Test value" (wide) while others are "Test name"/"Test result" (long).
+    let mut used_test_numbers: HashSet<u32> =
+        mapping.tests.iter().map(|t| t.test_number).collect();
+    let mut next_order: u32 = 0;
 
     {
         let name_col = mapping.testname_col.as_deref().unwrap();
@@ -212,8 +227,15 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
             if test_name.is_empty() || test_val.is_empty() { continue; }
 
             let tnum = *long_fmt_test_numbers.entry(test_name.clone()).or_insert_with(|| {
-                let n = next_test_num;
-                next_test_num += 1;
+                // The test's identity IS its name here (there's no column to
+                // key off, unlike wide format) — hashing it, rather than
+                // numbering by first-encounter order, means the number no
+                // longer depends on which row order the file happens to be
+                // in. `order` still records that encounter order, purely for
+                // display — it's independent of the number now.
+                let n = crate::test_identity::stable_test_number(&test_name, &mut used_test_numbers);
+                let order = next_order;
+                next_order += 1;
                 let lo_limit = mapping.lo_limit_col.as_deref()
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let hi_limit = mapping.hi_limit_col.as_deref()
@@ -224,6 +246,7 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                     name: test_name.clone(),
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
+                    order: Some(order),
                 });
                 n
             });
@@ -713,6 +736,66 @@ mod tests {
         let names: Vec<_> = result.test_defs.values().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"Vt"));
         assert!(names.contains(&"Idsat"));
+    }
+
+    #[test]
+    fn long_format_test_numbers_survive_row_reorder() {
+        // The whole point of hashing the test name instead of numbering by
+        // first-encounter order: the same logical test set, re-exported in a
+        // different row order, must land on the same numbers — otherwise a
+        // saved test-list file (or an override keyed by number) goes stale
+        // just from a harmless re-export.
+        let forward = "x,y,test_name,test_val\n0,0,Vt,1.1\n0,0,Idsat,2.2\n1,0,Vt,1.3\n1,0,Idsat,2.4\n";
+        let reversed = "x,y,test_name,test_val\n0,0,Idsat,2.2\n0,0,Vt,1.1\n1,0,Idsat,2.4\n1,0,Vt,1.3\n";
+
+        let run = |csv: &str| {
+            let path = tmp(csv);
+            let mut m = basic_mapping("x", "y");
+            m.testname_col = Some("test_name".to_string());
+            m.testvalue_col = Some("test_val".to_string());
+            let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+            let vt_num = result.test_defs.iter().find(|(_, d)| d.name == "Vt").unwrap().0.clone();
+            let idsat_num = result.test_defs.iter().find(|(_, d)| d.name == "Idsat").unwrap().0.clone();
+            (vt_num, idsat_num)
+        };
+
+        assert_eq!(run(forward), run(reversed));
+    }
+
+    #[test]
+    fn long_format_order_field_reflects_first_encounter() {
+        let csv = "x,y,test_name,test_val\n0,0,Idsat,2.2\n0,0,Vt,1.1\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test_name".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        let idsat = result.test_defs.values().find(|d| d.name == "Idsat").unwrap();
+        let vt = result.test_defs.values().find(|d| d.name == "Vt").unwrap();
+        // Idsat appears first in the file, so it must sort before Vt by
+        // order even though its (hashed) number bears no relation to that.
+        assert!(idsat.order < vt.order, "expected Idsat's order before Vt's");
+        assert_eq!(idsat.order, Some(0));
+        assert_eq!(vt.order, Some(1));
+    }
+
+    #[test]
+    fn wide_and_long_format_numbers_never_collide_in_one_file() {
+        // A single mapping can legitimately have both: some columns fixed as
+        // "Test value" (wide) and others as the long-format name/value pair.
+        // The wide numbers are assigned upstream (simulated here) and must
+        // reserve their slots before the long-format hash runs.
+        let csv = "x,y,fixed_test,test_name,test_val\n0,0,9.9,Vt,1.1\n0,0,9.9,Idsat,2.2\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.tests = vec![CsvTestCol { col: "fixed_test".to_string(), test_number: 1_500_000, name: "Fixed".to_string() }];
+        m.testname_col = Some("test_name".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        assert_eq!(result.test_defs.len(), 3); // Fixed + Vt + Idsat
+        let numbers: std::collections::HashSet<_> = result.test_defs.keys().collect();
+        assert_eq!(numbers.len(), 3, "expected 3 distinct test numbers, got a collision");
+        assert!(result.test_defs.contains_key("1500000"));
     }
 
     #[test]

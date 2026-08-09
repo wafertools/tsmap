@@ -552,6 +552,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
                         lo_limit: lo,
                         hi_limit: hi,
                         units,
+                        ..Default::default()
                     });
                     let idx = test_index.get_or_insert(ptr.test_num);
                     while index_keys.len() <= idx {
@@ -600,6 +601,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
                         lo_limit: None,
                         hi_limit: None,
                         units: None,
+                        ..Default::default()
                     });
                     let idx = test_index.get_or_insert(test_num);
                     while index_keys.len() <= idx {
@@ -764,6 +766,7 @@ pub fn parse_stdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, S
                         lo_limit: lo,
                         hi_limit: hi,
                         units,
+                        ..Default::default()
                     });
                     test_num_to_key.insert(test_num, key_str);
                 } else if !limits_resolved.contains(&test_num) {
@@ -791,6 +794,7 @@ pub fn parse_stdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, S
                         lo_limit: None,
                         hi_limit: None,
                         units: None,
+                        ..Default::default()
                     });
                     test_num_to_key.insert(test_num, key_str);
                 }
@@ -847,6 +851,7 @@ pub fn parse_stdf_from_bytes_filtered(
                         lo_limit: lo,
                         hi_limit: hi,
                         units,
+                        ..Default::default()
                     });
                     test_num_to_key.insert(ptr.test_num, key_str.clone());
                     // Only add to the accumulation index if this test is selected
@@ -893,6 +898,7 @@ pub fn parse_stdf_from_bytes_filtered(
                         lo_limit: None,
                         hi_limit: None,
                         units: None,
+                        ..Default::default()
                     });
                     test_num_to_key.insert(test_num, key_str.clone());
                     // Only add to the accumulation index if this test is selected
@@ -1069,6 +1075,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                     test_defs.insert(key_str.clone(), TestDef {
                         name: test_txt, test_type: "P".to_string(),
                         lo_limit: lo, hi_limit: hi, units,
+                        ..Default::default()
                     });
                     let idx = test_index.get_or_insert(ptr.test_num);
                     while index_keys.len() <= idx { index_keys.push(String::new()); }
@@ -1103,6 +1110,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                     test_defs.insert(key_str.clone(), TestDef {
                         name: test_txt, test_type: "F".to_string(),
                         lo_limit: None, hi_limit: None, units: None,
+                        ..Default::default()
                     });
                     let idx = test_index.get_or_insert(test_num);
                     while index_keys.len() <= idx { index_keys.push(String::new()); }

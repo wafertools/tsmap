@@ -337,8 +337,16 @@ The saved format is one test per line, with a header naming the columns:
 - A field tsmap can't parse (garbage numeric value, invalid test type, an unrecognized header
   column) is dropped with a log warning — the rest of that row, and the rest of the file, still
   load normally.
-- Tests in the file that are not present in the current scan are silently skipped
-  (the log panel shows a count of skipped tests).
+- A row whose saved test number isn't in the current scan is not immediately given up on:
+  tsmap tries to recognise it by name instead, and if exactly one current test has that
+  name, recovers it under its current number. This is what lets a saved list keep working
+  across a CSV/JSON reload even though those two formats' test numbers are internal IDs,
+  not identities from the file — reordering or adding columns can change them. (STDF/ATDF
+  test numbers are real and don't change, so this mainly matters for CSV/JSON.) The log
+  panel reports all three outcomes separately: matched by number, recovered by name (worth
+  re-saving the list so it's back to matching by number directly), and genuinely not found.
+  A name matching more than one current test is never guessed — it's reported as
+  unresolved rather than silently picked.
 
 You can hand-edit a list file to rename tests, or add/adjust limits, without changing anything
 in the original data file — e.g. `1000,Threshold Voltage,0.2,1.2,mA,P`. Those names, limits,

@@ -195,16 +195,114 @@ export function formatTestListCsv(entries: TestListEntry[]): string {
   return lines.join('\n');
 }
 
+export interface ResolveLoadedTestListResult {
+  /** Overrides to merge into the live testOverrides map (num -> override). */
+  overrides: Map<number, TestOverride>;
+  /** Test numbers to select — already resolved to CURRENT numbers, i.e. a
+   *  row recovered by name reports the current test's number, not the file's
+   *  stale one. */
+  selectedNums: number[];
+  /** Row's number wasn't in the current scan, and no unique name match either. */
+  unknownCount: number;
+  /** Row's number wasn't in the current scan, but its name matched exactly
+   *  one current test — recovered using that test's current number. */
+  recoveredByNameCount: number;
+  /** Row's number wasn't in the current scan, and its name matched more than
+   *  one current test — never guessed, counted separately from unknown so
+   *  the user can tell "not found" apart from "found more than once". */
+  ambiguousCount: number;
+  limitOnFunctionalCount: number;
+}
+
+/**
+ * Resolve a parsed test-list file's rows against the currently loaded tests,
+ * recovering rows whose saved NUMBER no longer matches the current scan by
+ * falling back to an exact match on NAME — this is what lets a saved list
+ * survive a test-numbering scheme change, a hand edit, a column reorder, or
+ * any other renumbering, without needing to know which of those happened.
+ *
+ * Pure and exported so this can be tested directly rather than only through
+ * the DOM-driven `applyLoadedList`, which is a thin wrapper around this that
+ * additionally mutates `selected`/`testOverrides` and posts log messages.
+ *
+ * `currentNames` is the number -> effective display name for every test in
+ * the current scan (i.e. testOverrides-aware — the caller passes
+ * `displayName(num, def)` for each, since only it knows the live override
+ * state). `existingOverrides` seeds each resolved override from whatever was
+ * already recorded for that number, same merge behaviour as before this was
+ * extracted into its own function.
+ */
+export function resolveLoadedTestList(
+  parsed: TestListEntry[],
+  currentTestDefs: Record<string, TestDef>,
+  currentNames: Map<number, string>,
+  existingOverrides: Map<number, TestOverride>,
+): ResolveLoadedTestListResult {
+  const nameToNums = new Map<string, number[]>();
+  for (const [num, label] of currentNames) {
+    const list = nameToNums.get(label);
+    if (list) list.push(num); else nameToNums.set(label, [num]);
+  }
+
+  const overrides = new Map<number, TestOverride>();
+  const selectedNums: number[] = [];
+  let unknownCount = 0, recoveredByNameCount = 0, ambiguousCount = 0, limitOnFunctionalCount = 0;
+
+  for (const row of parsed) {
+    let num = row.num;
+    if (!currentNames.has(num)) {
+      const candidates = row.name !== undefined ? nameToNums.get(row.name) : undefined;
+      if (candidates?.length === 1) {
+        num = candidates[0];
+        recoveredByNameCount++;
+      } else if (candidates && candidates.length > 1) {
+        ambiguousCount++;
+        continue;
+      } else {
+        unknownCount++;
+        continue;
+      }
+    }
+    selectedNums.push(num);
+    const existing = existingOverrides.get(num) ?? {};
+    const ov: TestOverride = { ...existing };
+    if (row.name !== undefined) ov.name = row.name;
+    // Functional tests have no numeric value to check a spec limit against —
+    // a row that specifies limits for one (whether the row's own type column
+    // says F, or the test's real parsed type is F and the row doesn't
+    // override type) is a likely data-entry mistake, so drop the limits and
+    // count it rather than carry dead data (applyTestOverrides in lib.ts
+    // enforces the same rule as a final safety net).
+    const effectiveType = row.testType ?? currentTestDefs[String(num)]?.testType;
+    if (effectiveType === 'F' && (row.loLimit !== undefined || row.hiLimit !== undefined)) {
+      limitOnFunctionalCount++;
+    } else {
+      if (row.loLimit !== undefined) ov.loLimit = row.loLimit;
+      if (row.hiLimit !== undefined) ov.hiLimit = row.hiLimit;
+    }
+    if (row.units !== undefined) ov.units = row.units;
+    if (row.testType !== undefined) ov.testType = row.testType;
+    if (Object.keys(ov).length) overrides.set(num, ov);
+  }
+
+  return { overrides, selectedNums, unknownCount, recoveredByNameCount, ambiguousCount, limitOnFunctionalCount };
+}
+
 export function showTestSelectorOverlay(
   testDefs: Record<string, TestDef>,
   onConfirm: (selected: number[], testOverrides: Map<number, TestOverride>) => void,
   onCancel: () => void,
   options: TestSelectorOptions = {},
 ): void {
+  // Sort by `order` (the file's own column/encounter order), not by `num` —
+  // CSV/JSON test numbers are now a hash of the test's identity (see
+  // lib.ts's stableTestNumber), so sorting by number would show tests in an
+  // arbitrary-looking order. `order` is absent for STDF/ATDF, where the real
+  // test number IS a meaningful order, hence the `?? a.num` fallback.
   const entries: Array<{ num: number; def: TestDef }> = Object.entries(testDefs)
     .map(([k, def]) => ({ num: parseInt(k, 10), def }))
     .filter(e => !isNaN(e.num))
-    .sort((a, b) => a.num - b.num);
+    .sort((a, b) => (a.def.order ?? a.num) - (b.def.order ?? b.num));
 
   const allNums = entries.map(e => e.num);
 
@@ -308,14 +406,18 @@ export function showTestSelectorOverlay(
     btn.style.cssText = [
       'padding:4px 10px;border-radius:4px;border:1px solid var(--border-mid)',
       'cursor:pointer;font-size:12px',
-      val === 'all' ? 'background:var(--accent,#4a9eff);color:#fff' : 'background:none;color:var(--text-secondary)',
+      // Filled when active: --btn-primary-bg / --btn-primary-text are the
+      // tokens paired for a filled control (each theme guarantees they pass
+      // AA together); --accent is a text/border colour and white is not safe
+      // on it in every theme. Previously both were hardcoded hex fallbacks.
+      val === 'all' ? 'background:var(--btn-primary-bg);color:var(--btn-primary-text)' : 'background:none;color:var(--text-secondary)',
     ].join(';');
     btn.addEventListener('click', () => {
       activeType = val;
       typeBtns.forEach(b => {
         const active = b.dataset.type === val;
-        b.style.background = active ? 'var(--accent,#4a9eff)' : 'none';
-        b.style.color = active ? '#fff' : 'var(--text-secondary)';
+        b.style.background = active ? 'var(--btn-primary-bg)' : 'none';
+        b.style.color = active ? 'var(--btn-primary-text)' : 'var(--text-secondary)';
       });
       renderList();
     });
@@ -556,7 +658,7 @@ export function showTestSelectorOverlay(
         if (document.activeElement !== nameInput) nameInput.style.borderColor = 'transparent';
       });
       nameInput.addEventListener('focus', () => {
-        nameInput.style.borderColor = 'var(--accent,#4a9eff)';
+        nameInput.style.borderColor = 'var(--accent)';
         nameInput.style.background = 'var(--bg-input)';
       });
       nameInput.addEventListener('blur', () => {
@@ -644,7 +746,7 @@ export function showTestSelectorOverlay(
       scanAllBtn.textContent = `Scan all ${fileCount} files`;
       scanAllBtn.style.cssText = [
         'padding:3px 10px;border-radius:4px;border:1px solid var(--border-mid)',
-        'background:none;color:var(--accent,#4a9eff);cursor:pointer;font-size:12px',
+        'background:none;color:var(--accent);cursor:pointer;font-size:12px',
       ].join(';');
       attachTooltip(scanAllBtn, 'Re-scan every file and merge the full test list (use when a test only appears in a smaller file). Your current selection is kept.');
       scanAllBtn.addEventListener('click', () => {
@@ -683,10 +785,13 @@ export function showTestSelectorOverlay(
     saveBtn.textContent = 'Save list';
     saveBtn.style.cssText = secondaryBtnCss;
     saveBtn.addEventListener('click', async () => {
-      const saveEntries: TestListEntry[] = Array.from(selected)
-        .sort((a, b) => a - b)
-        .map(num => {
-          const def = entries.find(e => e.num === num)!.def;
+      // Iterate `entries` (already sorted by order, see above) rather than
+      // `Array.from(selected).sort by number` — a saved list a user might
+      // hand-edit should read in the file's own column order, not in the
+      // order of a now-hashed, not-particularly-meaningful number.
+      const saveEntries: TestListEntry[] = entries
+        .filter(e => selected.has(e.num))
+        .map(({ num, def }) => {
           const eff = effectiveLimits(num, def);
           return {
             num,
@@ -718,41 +823,35 @@ export function showTestSelectorOverlay(
       options.onLog?.('warn', 'Test list file contained no valid entries');
       return;
     }
-    const allNumsSet = new Set(allNums);
-    let unknownCount = 0;
-    let limitOnFunctionalCount = 0;
+    const currentNames = new Map(entries.map(e => [e.num, displayName(e.num, e.def)]));
+    const result = resolveLoadedTestList(parsed, testDefs, currentNames, testOverrides);
+
     selected.clear();
-    for (const { num, name, loLimit, hiLimit, units, testType } of parsed) {
-      if (!allNumsSet.has(num)) { unknownCount++; continue; }
-      selected.add(num);
-      const existing = testOverrides.get(num) ?? {};
-      const ov: TestOverride = { ...existing };
-      if (name !== undefined) ov.name = name;
-      // Functional tests have no numeric value to check a spec limit
-      // against — a row that specifies limits for one (whether the row's
-      // own type column says F, or the test's real parsed type is F and the
-      // row doesn't override type) is a likely data-entry mistake, so drop
-      // the limits and warn rather than carry dead data (applyTestOverrides
-      // in lib.ts enforces the same rule as a final safety net).
-      const effectiveType = testType ?? testDefs[String(num)]?.testType;
-      if (effectiveType === 'F' && (loLimit !== undefined || hiLimit !== undefined)) {
-        limitOnFunctionalCount++;
-      } else {
-        if (loLimit !== undefined) ov.loLimit = loLimit;
-        if (hiLimit !== undefined) ov.hiLimit = hiLimit;
-      }
-      if (units !== undefined) ov.units = units;
-      if (testType !== undefined) ov.testType = testType;
-      if (Object.keys(ov).length) testOverrides.set(num, ov);
-    }
+    for (const num of result.selectedNums) selected.add(num);
+    for (const [num, ov] of result.overrides) testOverrides.set(num, ov);
+
     const notes: string[] = [];
-    if (unknownCount > 0) {
-      const msg = `${unknownCount} test${unknownCount !== 1 ? 's' : ''} in file not found in current scan and were ignored`;
+    if (result.unknownCount > 0) {
+      const msg = `${result.unknownCount} test${result.unknownCount !== 1 ? 's' : ''} in file not found in current scan and were ignored`;
       options.onLog?.('warn', msg);
       notes.push(`${msg}.`);
     }
-    if (limitOnFunctionalCount > 0) {
-      const msg = `${limitOnFunctionalCount} functional test${limitOnFunctionalCount !== 1 ? 's' : ''} had limit values ignored (limits only apply to parametric tests)`;
+    if (result.recoveredByNameCount > 0) {
+      // Not a warning — the reconciliation worked, nothing was lost. Still
+      // worth surfacing: it means this file's numbers are stale (a scheme
+      // change, a hand edit, anything), and re-saving now would clear that up.
+      const n = result.recoveredByNameCount;
+      const msg = `${n} test${n !== 1 ? 's' : ''} matched by name instead of test number (the saved number${n !== 1 ? 's' : ''} no longer match${n !== 1 ? '' : 'es'} this scan) — consider re-saving this list`;
+      options.onLog?.('info', msg);
+      notes.push(`${msg}.`);
+    }
+    if (result.ambiguousCount > 0) {
+      const msg = `${result.ambiguousCount} test${result.ambiguousCount !== 1 ? 's' : ''} in file had a name matching more than one current test and could not be resolved`;
+      options.onLog?.('warn', msg);
+      notes.push(`${msg}.`);
+    }
+    if (result.limitOnFunctionalCount > 0) {
+      const msg = `${result.limitOnFunctionalCount} functional test${result.limitOnFunctionalCount !== 1 ? 's' : ''} had limit values ignored (limits only apply to parametric tests)`;
       options.onLog?.('warn', msg);
       notes.push(`${msg}.`);
     }
@@ -794,7 +893,7 @@ export function showTestSelectorOverlay(
   const confirmBtn = document.createElement('button');
   confirmBtn.style.cssText = [
     'padding:6px 16px;border-radius:4px;border:none',
-    'background:var(--accent,#4a9eff);color:#fff;cursor:pointer;font-size:13px;font-weight:600',
+    'background:var(--btn-primary-bg);color:var(--btn-primary-text);cursor:pointer;font-size:13px;font-weight:600',
   ].join(';');
 
   // ── Memory advisory ────────────────────────────────────────────────────────
@@ -822,11 +921,17 @@ export function showTestSelectorOverlay(
       return;
     }
     memAdvisory.style.display = '';
+    // --error-text / --warn-text, NOT --error / --warn: those two tokens have
+    // never existed in any theme block, so the old `var(--error,#f87171)` and
+    // `var(--warn,#fbbf24)` fell through to their hardcoded fallbacks in all
+    // eight themes. That made the advisory the one piece of chrome that never
+    // followed the theme, and put #fbbf24 amber on High contrast's pure-white
+    // ground at roughly 1.9:1 — well under AA for text this small.
     if (pairs >= DANGER_PAIRS) {
-      memAdvisory.style.color = 'var(--error,#f87171)';
+      memAdvisory.style.color = 'var(--error-text)';
       memAdvisory.textContent = 'Very large selection — risk of running out of memory';
     } else {
-      memAdvisory.style.color = 'var(--warn,#fbbf24)';
+      memAdvisory.style.color = 'var(--warn-text)';
       memAdvisory.textContent = 'Large selection — may be slow to load';
     }
   }

@@ -4,8 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tsmap</title>
+    <link rel="icon" href="/tsmap-favicon.svg" type="image/svg+xml" />
     <script type="module" src="/src/main.ts" defer></script>
-    <script>window.addEventListener('error', e => { document.title = 'ERR: ' + e.message; console.error('module error', e); });</script>
+    <script>
+      // Last-resort visibility for a module that fails to load/parse — at that
+      // point main.ts never runs, so the log panel doesn't exist and the window
+      // is the only surface left to report on.
+      //
+      // Deliberately narrow. An earlier version rewrote the title on ANY window
+      // error event, which meant wmap's ResizeObserver emitting the benign
+      // "ResizeObserver loop completed with undelivered notifications" notice
+      // during an ordinary window resize permanently retitled the app (browser
+      // tab on web, OS window title + taskbar entry on desktop) to
+      // "ERR: …" — reading, to a user, as a crash. Two guards now:
+      //   - `e.filename` must be set: script errors carry a source URL,
+      //     ResizeObserver notices and resource-load failures do not.
+      //   - only fires before main.ts has signalled it booted.
+      window.addEventListener('error', e => {
+        console.error('module error', e);
+        if (!e.filename || window.__tsmapBooted) return;
+        document.title = 'ERR: ' + e.message;
+      });
+    </script>
     <style>
       /* ── THEMING ──────────────────────────────────────────────────────────
          Colours are chosen by a `data-theme` attribute on <html> (set by
@@ -70,6 +90,8 @@
         --info-border:     #1a3a4a;
         --ok-text:         #4a8;
         --error-text:      #f87;
+        --error-bg:        #2a1212;
+        --error-border:    #3a1f1f;
       }
 
       /* Colour token set — LIGHT. Shared by explicit light mode and, via the
@@ -119,6 +141,8 @@
         --info-border:     #bfdbfe;
         --ok-text:         #166534;
         --error-text:      #b91c1c;
+        --error-bg:        #fef2f2;
+        --error-border:    #fecaca;
       }
 
       /* Colour token set — LIGHT GREEN. Light surfaces with a subtle green
@@ -168,6 +192,8 @@
         --info-border:     #cfe0b5;
         --ok-text:         #4d7a1f;
         --error-text:      #b91c1c;
+        --error-bg:        #fef2f2;
+        --error-border:    #fecaca;
       }
 
       /* Colour token set — NORD (dark). Cool arctic blue-grey (Polar Night
@@ -215,7 +241,17 @@
         --info-text:       #88c0d0;
         --info-border:     #3b4a58;
         --ok-text:         #a3be8c;
-        --error-text:      #bf616a;
+        /* Nord's own aurora red (nord11, #bf616a) measures only 3.05:1 against
+           this theme's own app background — below WCAG AA's 4.5:1 for text,
+           and it's used as bare text (log-error, mapping-validation, the
+           reset-button hover state), not only inside a coloured banner where a
+           lower bar might be excusable. Lightened along the same hue toward
+           white until it clears AA against every surface it's actually shown
+           on (app 4.54:1, toolbar 4.80:1) — still legibly "Nord red", not a
+           different colour. */
+        --error-text:      #cf898f;
+        --error-bg:        #3a2a2c;
+        --error-border:    #4a3236;
       }
 
       /* Colour token set — SOLARIZED DARK (Ethan Schoonover). Warm teal-dark
@@ -263,7 +299,17 @@
         --info-text:       #268bd2;
         --info-border:     #0e4653;
         --ok-text:         #859900;
-        --error-text:      #dc322f;
+        /* Solarized's published red (dc322f) is tuned to Solarized's own
+           perceptual-lightness spec, not WCAG contrast — it measures 3.25:1
+           against base03 (this theme's app background), under the 4.5:1 AA
+           floor for the bare text this token is used as (log-error,
+           mapping-validation, reset-button hover). Lightened toward base3
+           along the same hue until it clears AA everywhere it's shown
+           (app 4.82:1, toolbar 5.17:1) while staying recognisably Solarized
+           red rather than switching families. */
+        --error-text:      #e66d65;
+        --error-bg:        #331d1c;
+        --error-border:    #4a2624;
       }
 
       /* Colour token set — SOLARIZED LIGHT. Cream base (#fdf6e3 / #eee8d5),
@@ -311,6 +357,8 @@
         --info-border:     #c4dbec;
         --ok-text:         #5a7300;
         --error-text:      #cb2b28;
+        --error-bg:        #fbeae6;
+        --error-border:    #f0c4ba;
       }
 
       /* Colour token set — HIGH CONTRAST (light). Pure white surfaces, near-black
@@ -359,6 +407,8 @@
         --info-border:     #9cc0ff;
         --ok-text:         #0a6b1e;
         --error-text:      #c50000;
+        --error-bg:        #ffe8e8;
+        --error-border:    #f5b8b8;
       }
 
       /* AUTO mode on a light OS: only when no explicit theme is set. Mirrors the
@@ -407,6 +457,8 @@
           --info-border:     #bfdbfe;
           --ok-text:         #166534;
           --error-text:      #b91c1c;
+          --error-bg:        #fef2f2;
+          --error-border:    #fecaca;
         }
       }
 
@@ -430,16 +482,36 @@
         --z-tooltip:  7100;
 
         /* wmap chrome theming (WMAP_ISSUES #25): wmap reads its toolbar / panel /
-           canvas colours from these --wmap-* tokens. Mapping them to tsmap's own
-           --var tokens makes the embedded wafer map follow whatever theme is
-           active — the values below resolve against the active colour block
-           above, so no per-theme --wmap-* duplication is needed. */
+           canvas colours from these --wmap-* tokens (the full list is wmap's own
+           `WMAP_TOKEN_NAMES`, packages/canvas-adapter/toolbar.ts). Mapping them
+           to tsmap's own --var tokens makes the embedded wafer map follow
+           whatever theme is active — the values below resolve against the
+           active colour block above, so no per-theme --wmap-* duplication is
+           needed.
+
+           This list previously mapped 20 of wmap's 26 tokens and silently
+           dropped the rest — a real bug, not a deliberate scope cut: a token
+           wmap reads but tsmap never sets doesn't go unstyled, it falls back to
+           wmap's OWN hardcoded light-theme default (canvasTheme.ts's `read(name,
+           fallback)`), because that's what makes wmap usable in a host that sets
+           no theme at all. The missing one that actually bit: `--wmap-text-strong`
+           (wmap's `CLR.value`, used for the Summary panel's headings and big
+           stat numbers — summaryPanel.ts's `VALUE_COLOR`) fell back to wmap's
+           near-black `#1f2f43` on every dark theme, landing near-black text on
+           near-black panel backgrounds — under 1.1:1 contrast, functionally
+           invisible. `--wmap-err-*` and `--wmap-finding-indicator` had the same
+           gap, just not yet exercised by anything the dark-theme testing here
+           happened to trigger. `--wmap-z` is the one token deliberately still
+           left unmapped: it's wmap's own toolbar-overlay z-index band (default
+           6000), and tsmap's --z-modal/--z-tooltip scale is defined ABOVE it on
+           purpose (see the block below) rather than substituted for it. */
         --wmap-canvas-bg:   var(--bg-app);
         --wmap-surface:     var(--bg-overlay);
         --wmap-panel-bg:    var(--bg-app);
         --wmap-border:      var(--border-mid);
         --wmap-text:        var(--text-secondary);
         --wmap-text-muted:  var(--text-muted);
+        --wmap-text-strong: var(--text-primary);
         --wmap-icon:        var(--text-tertiary);
         /* Hover + active affordances use the theme ACCENT (green in Light green,
            blue in dark/light), matching tsmap's own toolbar buttons — this is
@@ -455,14 +527,48 @@
         --wmap-warn-bg:     var(--warn-bg);
         --wmap-warn-border: var(--warn-border);
         --wmap-warn-text:   var(--warn-text);
+        --wmap-err-bg:      var(--error-bg);
+        --wmap-err-border:  var(--error-border);
+        --wmap-err-text:    var(--error-text);
         --wmap-info-bg:     var(--info-bg);
         --wmap-info-text:   var(--info-text);
         /* Selected-card outline follows the theme accent (was a fixed orange
            that fought the green/Solarized palettes). */
         --wmap-selected:    var(--accent);
+        /* The toolbar-button "this wafer/lot has notable findings" text
+           indicator — an attention cue, not an error state, so it takes the
+           warning token rather than the error one. */
+        --wmap-finding-indicator: var(--warn-text);
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      /* ── Keyboard focus ─────────────────────────────────────────────────
+         One global rule, deliberately not scoped to a class. Most of tsmap's
+         controls are built in JS with inline `style` (help-menu rows, recent
+         rows, every button in the Splits dialog and test selector) — none of
+         them set `outline`, so a bare element rule reaches all of them without
+         each having to opt in. Before this the app defined NO focus styling at
+         all and fell back to the UA ring, which on the dark themes renders a
+         near-black outline against near-black chrome. UI_STANDARDS.md (WCAG
+         2.4.7) requires a visible focus indicator on exactly these hand-rolled
+         widget classes.
+
+         :focus-visible, not :focus — mouse clicks shouldn't leave a ring.
+         The outer box-shadow gives a light "halo" so the accent stays visible
+         against surfaces that happen to be close to it in tone. */
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 3px;
+        box-shadow: 0 0 0 4px var(--bg-accent-hover);
+      }
+      /* Overlay panels take focus programmatically so Esc and screen-reader
+         navigation land inside them; that's a scripted move, not a keyboard
+         journey, so it shouldn't paint a ring around the whole dialog. */
+      .mapping-panel:focus-visible, [role="dialog"]:focus-visible {
+        outline: none; box-shadow: none;
+      }
 
       /* Checkbox/radio fill follows the theme accent (otherwise the browser
          renders its default blue regardless of theme). The `color-scheme` on the
@@ -480,19 +586,42 @@
       }
       #app { display: flex; flex-direction: column; height: 100%; }
 
+      /* Toolbar overflow policy. The right-hand group (theme picker, Help) used
+         to be pushed clean off the viewport below ~900px — not clipped-with-a-
+         scrollbar but unreachable, because the row had neither wrap nor
+         overflow. Three graduated defences, cheapest first:
+           1. the decorative bits (#drop-hint, then #toolbar-title) drop out at
+              breakpoints — they carry no function the rest of the bar doesn't;
+           2. #file-label already shrinks to nothing (flex-shrink:1;min-width:0);
+           3. overflow-x:auto is the hard floor — at any width too narrow for
+              even the buttons alone, the bar scrolls rather than hiding
+              controls. Deliberately NOT flex-wrap: a second toolbar row would
+              resize #map-container and force wmap to re-layout the canvas. */
       #toolbar {
         display: flex; align-items: center; gap: 12px;
         padding: 6px 12px; background: var(--bg-toolbar); border-bottom: 1px solid var(--border-strong);
         font-size: 13px; flex-shrink: 0;
+        overflow-x: auto; scrollbar-width: thin;
       }
+      /* The right-hand group must never be the thing that scrolls out of view,
+         so it can't shrink; everything to its left yields first. */
+      #theme-select, #help-btn { flex-shrink: 0; }
       #toolbar-title { font-weight: 600; color: var(--text-secondary); margin-right: 4px; }
+      @media (max-width: 1100px) { #drop-hint { display: none; } }
+      @media (max-width: 700px)  { #toolbar-title { display: none; } }
 
+      /* The dashed frame doubles as a drop target hint. Both of its promises are
+         now actually wired in main.ts: clicking the frame (not just the button
+         inside it) opens the picker, and `.drag-over` is applied on dragenter —
+         previously the class was styled here but never added by any code, and
+         the cursor:pointer margin was inert. */
       #drop-zone {
         display: flex; align-items: center; gap: 8px;
         padding: 4px 10px; border: 1px dashed var(--border-muted); border-radius: 4px;
         cursor: pointer; transition: border-color 0.15s, background 0.15s;
       }
       #drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: var(--bg-accent-hover); }
+      #drop-zone.drag-over { border-style: solid; }
       #open-btn {
         display: inline-block;
         background: none; border: 1px solid var(--accent); border-radius: 4px;
@@ -556,26 +685,65 @@
       }
       .mapping-title { font-weight: 600; font-size: 14px; color: var(--text-light); }
       .mapping-file-info { font-size: 12px; color: var(--text-dim); }
+      /* Filter + bulk-assign strip. A wide CSV can carry a hundred-plus columns
+         (105 in the bundled fixture), which previously meant a hundred-plus
+         individual dropdowns with no search and no way back to auto-detection
+         once a mapping had been saved for that header set. Mirrors the controls
+         the test selector — the sibling overlay in the same flow — already had. */
+      .mapping-tools {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding: 8px 16px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0;
+      }
+      .mapping-tools input[type="search"] {
+        flex: 1; min-width: 160px; max-width: 320px;
+        background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
+        padding: 4px 8px; border-radius: 4px; font-size: 12px;
+      }
+      .mapping-tools .tool-btn {
+        background: none; border: 1px solid var(--border-mid); border-radius: 4px;
+        color: var(--text-secondary); font-size: 12px; padding: 4px 10px; cursor: pointer;
+        white-space: nowrap;
+      }
+      .mapping-tools .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .mapping-tools .tool-sep { margin-left: auto; }
+      .mapping-tools .tool-count { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
       .mapping-scroll { flex: 1; overflow-y: auto; padding: 0 8px; }
+      /* Rows hidden by the filter — display:none rather than removal so
+         readMapping() still sees every row's select and nothing a filtered-out
+         column was assigned is silently dropped on Continue. */
+      .mapping-table tr[hidden] { display: none; }
       .mapping-table { width: 100%; border-collapse: collapse; }
       .mapping-table th { text-align: left; padding: 6px 8px; font-size: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; background: var(--bg-overlay); }
       .mapping-table td { padding: 4px 8px; border-bottom: 1px solid var(--bg-row-border); vertical-align: middle; }
       .mapping-table tr:hover td { background: var(--bg-hover-row); }
       .col-name { font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace; color: var(--text-tertiary); white-space: nowrap; }
       .col-arrow { color: var(--text-veryfaint); text-align: center; }
+      /* `appearance:none` strips the native dropdown arrow, which left the Role
+         selects rendering as plain bordered boxes — pixel-identical to the
+         real text inputs in the adjacent "Test name" column, so nothing told
+         the user which column was a dropdown. The caret is drawn with two
+         linear-gradients rather than an SVG data URI specifically so it can
+         take `var(--text-muted)` and follow the theme; a data-URI SVG can't
+         read a CSS custom property. `padding-right` keeps long option labels
+         from running underneath it. */
       .mapping-table select {
-        background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
-        padding: 2px 4px; border-radius: 3px; font-size: 12px; width: 100%;
+        background-color: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
+        padding: 2px 22px 2px 4px; border-radius: 3px; font-size: 12px; width: 100%;
         -webkit-appearance: none; appearance: none;
-       
+        background-image:
+          linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+          linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+        background-position: calc(100% - 13px) center, calc(100% - 9px) center;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
       }
+      .mapping-table select:hover { border-color: var(--border-dim); }
       .mapping-table select option {
         background: var(--bg-input); color: var(--text-secondary);
       }
       .test-name-input {
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
         padding: 2px 6px; border-radius: 3px; font-size: 12px; width: 180px;
-       
       }
       .split-cell { white-space: nowrap; }
       .split-label { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-muted); font-size: 12px; }
@@ -585,7 +753,10 @@
         border-top: 1px solid var(--border-strong); flex-shrink: 0; background: var(--bg-toolbar);
         justify-content: flex-end;
       }
-      .mapping-validation { font-size: 12px; color: var(--error-text); }
+      /* Sized to hold the duplicate-role message, which names every clashing
+         column and so can run long — it must wrap rather than squeeze the
+         footer's buttons off the row. */
+      .mapping-validation { font-size: 12px; color: var(--error-text); max-width: 46ch; line-height: 1.4; }
       .mapping-validation:empty { display: none; }
       .pass-bin-group { display: flex; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; color: var(--text-muted); }
       .pass-bin-group input { background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary); padding: 2px 6px; border-radius: 3px; font-size: 12px; width: 80px; }
@@ -605,7 +776,6 @@
       .rename-input {
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
         padding: 3px 8px; border-radius: 3px; font-size: 13px; width: 200px;
-       
       }
       .rename-count { color: var(--text-faint); font-size: 12px; padding-left: 12px; }
 
@@ -634,6 +804,20 @@
       .tsmap-modal p  { margin-bottom: 20px; font-size: 13px; color: var(--text-subdued); line-height: 1.5; }
       .tsmap-modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
       .muted { color: var(--text-faint); font-size: 12px; }
+
+      /* The append confirmation renders INSIDE openModal's box, which already
+         draws the surface, border, radius and title bar — so the .tsmap-modal
+         chrome it shares with the standalone dialogs has to be stripped back to
+         padding alone, or it paints a second card inside the first.
+         Written as `.tsmap-modal.append-modal` deliberately: a bare
+         `.append-modal` ties on specificity with `.tsmap-modal` above and would
+         lose on source order, which is exactly how the double card appeared. */
+      .tsmap-modal.append-modal {
+        background: none; border: none; border-radius: 0;
+        max-width: none; width: 100%; padding: 16px 18px 18px;
+      }
+      .tsmap-modal.append-modal .append-warnings { margin-bottom: 16px; }
+      .tsmap-modal.append-modal .append-summary { margin-bottom: 12px; }
 
       /* ── Help button + modal ───────────────────────────────────────── */
       #help-btn {

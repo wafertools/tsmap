@@ -1,5 +1,6 @@
 pub mod types;
 pub mod read_file;
+pub mod test_identity;
 pub mod parse_stdf;
 pub mod parse_atdf;
 pub mod parse_csv;

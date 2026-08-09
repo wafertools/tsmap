@@ -10,6 +10,7 @@ nav = [
   { "Use cases"   = "use-cases.md"   },
   { "User guide"  = "user-guide.md"  },
   { "Web app"     = "web.md"         },
+  { "Parser API"  = "parser-api.md"  },
   { "Development" = "development.md" },
 ]
 

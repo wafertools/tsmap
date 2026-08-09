@@ -154,3 +154,66 @@ describe('buildRenameRows', () => {
     expect(lotOf(rows[1].source)).toBe('B');
   });
 });
+
+// ── detectMismatches: gaps found in the Aug 2026 review ───────────────────────
+
+describe('detectMismatches — optional hbin', () => {
+  // hbin is optional on DieResult. A CSV mapped without a hard-bin column
+  // yields undefined for every die, which used to land in the bin Set and then
+  // print literally as the string "undefined" in the user-facing warning.
+  const noBins = (id: string, n: number): RenamedWafer => ({
+    waferId: id,
+    results: Array.from({ length: n }, (_, i) => ({ x: i, y: 0 })),
+  });
+  const noBinsExisting = (n: number): WaferData => ({
+    waferId: 'E1',
+    results: Array.from({ length: n }, (_, i) => ({ x: i, y: 0 })),
+  });
+
+  it('never puts "undefined" in a warning message', () => {
+    const warnings = detectMismatches([noBins('W1', 50)], [makeExisting(50, [1, 2])]);
+    for (const w of warnings) expect(w.message).not.toContain('undefined');
+  });
+
+  it('reports no bin mismatch when neither side has bins', () => {
+    const warnings = detectMismatches([noBins('W1', 50)], [noBinsExisting(50)]);
+    expect(warnings.filter(w => w.message.includes('Hard bin'))).toHaveLength(0);
+  });
+
+  it('still reports a genuine bin difference', () => {
+    const warnings = detectMismatches([makeIncoming('W1', 50, [1, 7])], [makeExisting(50, [1, 2])]);
+    const bin = warnings.find(w => w.message.includes('Hard bin'));
+    expect(bin?.message).toContain('2');
+    expect(bin?.message).toContain('7');
+  });
+});
+
+describe('detectMismatches — Y span', () => {
+  // The warning says "Wafer grid size differs", but only the X span was ever
+  // compared, so a lot whose columns matched and whose rows didn't passed
+  // silently under a check that claimed to cover the grid.
+  const grid = (w: number, h: number) =>
+    Array.from({ length: w * h }, (_, i) => ({ x: i % w, y: Math.floor(i / w), hbin: 1 }));
+
+  it('flags a differing row count even when columns match', () => {
+    const existing: WaferData[] = [{ waferId: 'E1', results: grid(20, 20) }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W1', results: grid(20, 40) }];
+    const grids = detectMismatches(incoming, existing).filter(w => w.message.includes('grid size'));
+    expect(grids).toHaveLength(1);
+    expect(grids[0].message).toContain('rows');
+  });
+
+  it('reports both axes when both differ', () => {
+    const existing: WaferData[] = [{ waferId: 'E1', results: grid(20, 20) }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W1', results: grid(40, 40) }];
+    const msg = detectMismatches(incoming, existing).find(w => w.message.includes('grid size'))!.message;
+    expect(msg).toContain('columns');
+    expect(msg).toContain('rows');
+  });
+
+  it('stays quiet when both spans match', () => {
+    const existing: WaferData[] = [{ waferId: 'E1', results: grid(20, 20) }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W1', results: grid(20, 20) }];
+    expect(detectMismatches(incoming, existing).filter(w => w.message.includes('grid size'))).toHaveLength(0);
+  });
+});

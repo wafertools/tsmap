@@ -269,6 +269,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                         lo_limit: lo,
                         hi_limit: hi,
                         units: nonempty(at(&raw_fields, PTR_UNITS)),
+                        ..Default::default()
                     });
                 }
                 if want(test_num) {
@@ -296,6 +297,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                         lo_limit: None,
                         hi_limit: None,
                         units: None,
+                        ..Default::default()
                     });
                 }
                 if want(test_num) {
@@ -425,6 +427,7 @@ fn parse_atdf_test_names_str(raw: &str) -> Result<crate::types::ScanResult, Stri
                         lo_limit: lo,
                         hi_limit: hi,
                         units: nonempty(get(&f, "UNITS")),
+                        ..Default::default()
                     }
                 });
             }
@@ -437,6 +440,7 @@ fn parse_atdf_test_names_str(raw: &str) -> Result<crate::types::ScanResult, Stri
                     lo_limit: None,
                     hi_limit: None,
                     units: None,
+                    ..Default::default()
                 });
             }
             _ => {}

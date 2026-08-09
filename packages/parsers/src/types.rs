@@ -32,7 +32,7 @@ pub struct DieResult {
     pub test_pass: HashMap<String, bool>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct TestDef {
     pub name: String,
@@ -43,6 +43,13 @@ pub struct TestDef {
     pub hi_limit: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub units: Option<String>,
+    /// Position to display this test in, independent of its (possibly
+    /// hashed, see `test_identity`) number — CSV/JSON wide format sets this to
+    /// the column's position, long format to first-encounter-in-file order.
+    /// `None` for STDF/ATDF, where the real test number IS a meaningful order
+    /// and the frontend falls back to sorting by number when this is absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<u32>,
 }
 
 #[derive(Serialize)]

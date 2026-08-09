@@ -6,6 +6,18 @@ export interface TestDef {
   loLimit?: number;
   hiLimit?: number;
   units?: string;
+  /**
+   * Position to display this test in, independent of its number — CSV/JSON
+   * test numbers are now a deterministic hash of the test's identity (the
+   * source column for wide format, the test name for long format), chosen so
+   * a saved test list / override survives a column reorder or a re-export in
+   * a different row order. That makes the number itself meaningless as a
+   * sort key, unlike STDF/ATDF's real test numbers, where it still is —
+   * `order` is only ever set by the CSV/JSON parser paths (see
+   * `testdata-parser`'s `parse_csv.rs`/`parse_json.rs`); absent for
+   * STDF/ATDF, where sorting by `num` remains correct and is the fallback.
+   */
+  order?: number;
 }
 
 /**

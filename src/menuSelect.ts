@@ -71,12 +71,30 @@ export function makeMenuSelect(
 
   function isOpen(): boolean { return popup !== null; }
 
+  /**
+   * Mark the keyboard-active option.
+   *
+   * The rows are `<div role="option">` and never take DOM focus, so this styling
+   * IS the focus indicator — there is no browser ring behind it to fall back on.
+   * A background swap alone isn't enough: on the Dark theme `--bg-hover-row`
+   * (#343438) against the popup's `--bg-overlay` (#2a2a2d) is roughly 1.2:1,
+   * far below the 3:1 WCAG 1.4.11 needs for a non-text indicator. The accent
+   * left-marker and text colour carry the contrast; the background stays as the
+   * softer secondary cue.
+   */
   function setActive(idx: number): void {
     if (idx < 0 || idx >= rowEls.length) return;
-    if (activeIdx >= 0) rowEls[activeIdx].style.background = '';
+    if (activeIdx >= 0) {
+      const prev = rowEls[activeIdx];
+      prev.style.background = '';
+      prev.style.boxShadow = '';
+      prev.style.color = prev.dataset.selected === 'true' ? cssVar('--accent') : '';
+    }
     activeIdx = idx;
     const el = rowEls[idx];
     el.style.background = cssVar('--bg-hover-row');
+    el.style.boxShadow = `inset 3px 0 0 ${cssVar('--accent')}`;
+    el.style.color = cssVar('--accent');
     el.scrollIntoView({ block: 'nearest' });
     popup?.setAttribute('aria-activedescendant', el.id);
   }
@@ -121,6 +139,10 @@ export function makeMenuSelect(
         row.setAttribute('aria-selected', String(o.value === selected));
         row.textContent = o.label;
         row.style.cssText = 'padding:5px 10px;border-radius:4px;cursor:pointer;white-space:nowrap;';
+        // Recorded on the element so setActive() can restore the right colour
+        // when the active option moves off this row — the selected row keeps
+        // its accent text, an ordinary row goes back to inheriting.
+        row.dataset.selected = String(o.value === selected);
         if (o.value === selected) row.style.color = cssVar('--accent');
         row.addEventListener('mouseenter', () => setActive(idx));
         row.addEventListener('click', () => choose(o.value));
@@ -188,13 +210,23 @@ export function makeMenuSelect(
   function onKeyDown(e: KeyboardEvent): void {
     if (!isOpen()) return;
     switch (e.key) {
-      case 'Escape':    e.preventDefault(); close(); break;
+      // stopPropagation, not just preventDefault: this listener is on document
+      // in the CAPTURE phase, so without it the event carries on to whatever is
+      // listening in the bubble phase underneath — and modal.ts listens for
+      // Escape on document. Put one of these menus inside a modal (which the
+      // column-mapping migration does) and a single Escape would close both the
+      // dropdown and the dialog. mappingUI and testSelectorUI each already
+      // solved this at their own call sites; fixing it here means the rule
+      // lives once, in the widget that owns the key.
+      case 'Escape':    e.preventDefault(); e.stopPropagation(); close(); break;
       case 'ArrowDown': e.preventDefault(); setActive(Math.min(activeIdx + 1, rowEls.length - 1)); break;
       case 'ArrowUp':   e.preventDefault(); setActive(Math.max(activeIdx - 1, 0)); break;
       case 'Home':      e.preventDefault(); setActive(0); break;
       case 'End':       e.preventDefault(); setActive(rowEls.length - 1); break;
+      // Also stopped: an Enter that picks an option must not additionally reach
+      // a host form/dialog and be read as "confirm and continue".
       case 'Enter':
-      case ' ':         e.preventDefault(); if (activeIdx >= 0) choose(flat[activeIdx].value); break;
+      case ' ':         e.preventDefault(); e.stopPropagation(); if (activeIdx >= 0) choose(flat[activeIdx].value); break;
       case 'Tab':       close(); break; // let focus move naturally after closing
       default:
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {

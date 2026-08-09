@@ -102,12 +102,17 @@ html = html.replace(
 );
 
 // ── Light theme tokens ─────────────────────────────────────────────────────────
-// This is now a standalone page (no host app :root to inherit from), so it
-// carries its own fixed light-theme values — the same ones src/printTheme.ts's
-// LIGHT_TOKENS used for the old print-only page. Kept as a plain literal here
-// (this script runs under plain Node, not the app's TS build) rather than
-// importing printTheme.ts; printTheme.ts itself is still used at runtime for
-// the lot summary report, a separate concern.
+// This is a standalone page (no host app :root to inherit from), so it carries
+// its own fixed light-theme values, sourced from index.html's light block.
+// Deliberately a plain literal: this script runs under plain Node, not the
+// app's TS build, so it can't import from src/.
+//
+// These were once shared with src/printTheme.ts, which served the old
+// print-only guide page. That module was deleted in Aug 2026 — nothing had
+// imported it since the print page was removed, and the note that used to sit
+// here claiming it was "still used at runtime for the lot summary report" was
+// wrong: the lot report is wmap's own HTML, passed straight through
+// platform.openReport without tsmap adding any tokens to it.
 const LIGHT_TOKENS = `
   --accent: #1a6bbf;
   --bg-input: #fff;

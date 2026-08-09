@@ -107,6 +107,12 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   document.body.style.overflow = 'hidden';
 
   const backdrop = document.createElement('div');
+  // Styling stays inline (below) — the class is a stable hook for anything that
+  // needs to find an open app modal from outside: the guide's screenshot
+  // captures drive the UI by selector, and this is the one dialog surface that
+  // had none. Shares the name with index.html's hand-rolled backdrops so
+  // "is an app modal open?" is a single query.
+  backdrop.className = 'tsmap-modal-backdrop';
   Object.assign(backdrop.style, {
     position: 'fixed', inset: '0',
     background: 'rgba(0,0,0,0.65)',
@@ -125,7 +131,10 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   // `wmap-modal-box`: wmap's toolbar reparents its plot-mode dropdown into the
   // nearest `.wmap-modal-box` ancestor, so a map rendered into this body lands
   // its menus inside the box. Harmless for non-map modals. See WMAP_ISSUES #22.
-  box.className = 'wmap-modal-box';
+  // `tsmap-modal-box`: tsmap's own stable handle on the dialog box (used by the
+  // guide screenshot captures, which need to frame the box including its title
+  // bar rather than just the content the caller mounted).
+  box.className = 'wmap-modal-box tsmap-modal-box';
   Object.assign(box.style, {
     background: cssVar('--bg-overlay'),
     border: `1px solid ${cssVar('--border-subtle')}`,
@@ -206,6 +215,13 @@ export function openModal(options: OpenModalOptions): ModalHandle {
 
   box.append(header, body);
   backdrop.appendChild(box);
+
+  // Captured BEFORE the modal takes focus, so close() can hand it back to
+  // whatever opened the dialog (the Splits toolbar button, a chart's expand
+  // icon). Without this, closing dropped focus to <body> and a keyboard user
+  // had to Tab in from the top of the page to get back to where they were.
+  const previouslyFocused = document.activeElement as HTMLElement | null;
+
   document.body.appendChild(backdrop);
   box.focus();
 
@@ -217,6 +233,41 @@ export function openModal(options: OpenModalOptions): ModalHandle {
     document.body.style.overflow = savedOverflow;
     onClose?.();
     backdrop.remove();
+    // Only restore if focus is still somewhere inside the (now-removed) modal;
+    // if something else has legitimately taken focus in the meantime, stealing
+    // it back would be the more surprising behaviour.
+    if (previouslyFocused?.isConnected && !document.activeElement?.isConnected) {
+      previouslyFocused.focus();
+    }
+  }
+
+  /**
+   * Keep Tab inside the dialog. `aria-modal="true"` tells assistive tech the
+   * rest of the page is inert, but it does nothing to the tab ring — without
+   * this, Tab walked straight out into the still-interactive page behind the
+   * backdrop, which is the WAI-ARIA APG dialog pattern's central requirement
+   * (and UI_STANDARDS.md's, which this repo treats as binding).
+   *
+   * Queried live on each Tab rather than cached at open: modal bodies here are
+   * filled by `mount` and then keep changing — the Splits dialog rebuilds its
+   * wafer rows on every filter keystroke, so a snapshot taken at open would go
+   * stale immediately.
+   */
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function trapTab(e: KeyboardEvent): void {
+    const items = [...box.querySelectorAll<HTMLElement>(FOCUSABLE)]
+      .filter(el => el.offsetParent !== null || el === document.activeElement);
+    if (items.length === 0) { e.preventDefault(); box.focus(); return; }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || active === box)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   const applyMaximize = () => {
@@ -238,7 +289,18 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   function onKeyDown(e: KeyboardEvent) {
     const active = document.activeElement;
     const inInput = !!active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA');
-    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'Tab') { trapTab(e); return; }
+    if (e.key === 'Escape') {
+      // Escape gets the same in-input guard 'F' already had. Inside a text
+      // field Escape conventionally means "abandon what I'm typing", not
+      // "close the window" — in the Splits dialog, hitting it while typing a
+      // split name used to tear the whole dialog down. Blur instead, which
+      // reverts to the field's committed state and leaves a second Escape to
+      // close the dialog as before.
+      if (inInput) { (active as HTMLElement).blur(); return; }
+      close();
+      return;
+    }
     if ((e.key === 'f' || e.key === 'F') && !inInput) toggleMaximize();
   }
 

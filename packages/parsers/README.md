@@ -1,6 +1,6 @@
 # @wafertools/testdata-parser
 
-<img src="./testdata-parser-readme-header-256.png" width="64" height="64" alt="testdata-parser icon">
+<img src="https://raw.githubusercontent.com/wafertools/tsmap/main/packages/parsers/testdata-parser-readme-header-256.png" width="64" height="64" alt="testdata-parser icon">
 
 Rust/WASM parsers for semiconductor test data formats: **STDF**, **ATDF**, **CSV**, and **JSON**. Compiled to a single WASM module via `wasm-bindgen`; the same Rust source also builds natively (used by [tsmap](https://github.com/wafertools/tsmap)'s Tauri backend).
 
@@ -122,6 +122,7 @@ interface TestDef {
   loLimit?: number;
   hiLimit?: number;
   units?: string;
+  order?: number; // display order, independent of the key — see below
 }
 
 interface LotMeta {
@@ -152,25 +153,58 @@ interface ScanResult {
 }
 ```
 
+### Column headers are not a WASM export
+
+There is no `csv_headers`/`json_headers` in the WASM API — a browser caller that needs to show the user a column-mapping UI before parsing has to read the header row itself in JS (this is what tsmap's web build does; the desktop build calls the native functions below). The byte-based Rust functions exist (`csv_headers_from_bytes`, and `json_headers_sync`'s logic), they are simply not wired through `wasm-bindgen` yet.
+
 ## Native (non-WASM) usage
 
-The crate also builds as a native Rust library (used directly by tsmap's Tauri commands, bypassing WASM entirely). Native-only entry points read from a file path instead of a byte buffer and are synchronous:
+The crate also builds as a native Rust library (used directly by tsmap's Tauri commands, bypassing WASM entirely). Enable the `native` feature (the default); the `wasm` feature gates the `wasm-bindgen` exports above. See `Cargo.toml` for the full feature list, including `bench` (enables `parse_stdf_from_bytes_timed`, a timed parse variant used by the perf benchmarks).
+
+**Path-based** — `native` feature only, synchronous, read from a file path rather than a byte buffer:
 
 | Function | Module |
 | --- | --- |
 | `parse_stdf_sync(path: String) -> Result<ParsedStdf, String>` | `parse_stdf` |
 | `parse_atdf_sync(path: String) -> Result<ParsedStdf, String>` | `parse_atdf` |
-| `csv_headers_inner(path) -> Result<CsvHeadersResult, String>` | `parse_csv` |
-| `parse_csv_inner(path, mapping) -> Result<ParsedStdf, String>` | `parse_csv` |
-| `json_headers_sync(path) -> Result<Vec<String>, String>` | `parse_json` |
+| `csv_headers_inner(path: String) -> Result<CsvHeadersResult, String>` | `parse_csv` |
+| `parse_csv_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_csv` |
+| `json_headers_sync(path: String) -> Result<JsonHeadersResult, String>` | `parse_json` |
+| `parse_json_sync(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_json` |
+| `read_bytes(path: &str) -> Result<Vec<u8>, String>` | `read_file` |
+| `read_text(path: &str) -> Result<String, String>` | `read_file` |
 
-Enable the `native` feature (default) for these; the `wasm` feature gates the `wasm-bindgen` exports above. See `Cargo.toml` for the full feature list, including `bench` (enables a timed parse variant used by the perf benchmarks).
+**Byte-based** — available on every target, and what the WASM exports wrap. Use these from Rust when you already hold the bytes:
+
+| Function | Module |
+| --- | --- |
+| `parse_stdf_from_bytes(&[u8]) -> Result<ParsedStdf, String>` | `parse_stdf` |
+| `parse_atdf_from_bytes(&[u8]) -> Result<ParsedStdf, String>` | `parse_atdf` |
+| `parse_stdf_test_names(&[u8]) -> Result<ScanResult, String>` | `parse_stdf` |
+| `parse_atdf_test_names(&[u8]) -> Result<ScanResult, String>` | `parse_atdf` |
+| `parse_stdf_from_bytes_filtered(&[u8], &HashSet<u32>) -> Result<ParsedStdf, String>` | `parse_stdf` |
+| `parse_atdf_from_bytes_filtered(&[u8], &HashSet<u32>) -> Result<ParsedStdf, String>` | `parse_atdf` |
+| `csv_headers_from_bytes(&[u8]) -> Result<CsvHeadersResult, String>` | `parse_csv` |
+| `parse_csv_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_csv` |
+| `parse_json_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_json` |
+| `decompress_if_gzip(Vec<u8>) -> Result<Vec<u8>, String>` | `read_file` |
+
+`CsvHeadersResult` and `JsonHeadersResult` are the same shape — the header row plus enough of the file to preview a mapping:
+
+```rust
+pub struct CsvHeadersResult {
+    pub headers: Vec<String>,
+    pub sample: Vec<HashMap<String, String>>, // first few rows, for a preview UI
+    pub row_count: usize,
+}
+```
 
 ## Design notes
 
 - **Byte readers are panic-free.** STDF/ATDF field readers are bounds-checked and return `Option`/`Result` rather than panicking on truncated input — a panic inside WASM aborts the whole module with no recovery, so this is a hard requirement, not a style preference.
 - **Big-endian and little-endian STDF** are both supported (detected from the FAR record's `CPU_TYPE`).
 - **Gzip is transparent** — every entry point decompresses `.gz` input automatically by sniffing the magic bytes; callers don't need to branch on compression.
+- **CSV/JSON test numbers are a deterministic hash, not a real STDF test number.** STDF/ATDF have a real test number in the file; CSV/JSON don't, so one is synthesized — from the source column for wide format, from the test name for long format (`test_identity::stable_test_number`, FNV-1a with a fixed seed and a reserved floor, collision-probed so two tests in one file can never collide). Deliberately not sequential/encounter-order: a hash means the number for a given test doesn't change if the file is reordered or a column is added — the number is otherwise meaningless and callers should never rely on its value, only on it being stable and unique within one parse. `order` (see `TestDef` above) carries the file's own display order instead.
 
 ## Versioning
 

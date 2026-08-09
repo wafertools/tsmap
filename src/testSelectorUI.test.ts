@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { parseTestListFile, formatTestListCsv } from './testSelectorUI';
+import { parseTestListFile, formatTestListCsv, resolveLoadedTestList } from './testSelectorUI';
+import type { TestListEntry } from './testSelectorUI';
+import type { TestDef } from './types';
 
 describe('parseTestListFile', () => {
   it('parses comma-separated number and name', () => {
@@ -230,5 +232,111 @@ describe('formatTestListCsv / parseTestListFile round-trip', () => {
   it('writes the canonical header', () => {
     const csv = formatTestListCsv([{ num: 1001, name: 'Vdd' }]);
     expect(csv).toContain('num,name,loLimit,hiLimit,units,testType');
+  });
+});
+
+// ── resolveLoadedTestList ──────────────────────────────────────────────────────
+// The mechanism that lets a saved test list survive a stale test number:
+// match by number first, fall back to an exact name match when the number
+// isn't in the current scan, and never silently guess when a name matches
+// more than one current test.
+
+function defs(pairs: Array<[number, string]>): Record<string, TestDef> {
+  const out: Record<string, TestDef> = {};
+  for (const [num, name] of pairs) out[String(num)] = { name, testType: 'P' };
+  return out;
+}
+
+function names(pairs: Array<[number, string]>): Map<number, string> {
+  return new Map(pairs);
+}
+
+describe('resolveLoadedTestList', () => {
+  it('matches a row whose number is still current', () => {
+    const parsed: TestListEntry[] = [{ num: 5, name: 'Vt' }];
+    const result = resolveLoadedTestList(parsed, defs([[5, 'Vt']]), names([[5, 'Vt']]), new Map());
+    expect(result.selectedNums).toEqual([5]);
+    expect(result.unknownCount).toBe(0);
+    expect(result.recoveredByNameCount).toBe(0);
+  });
+
+  it('recovers a stale number by exact name match', () => {
+    // Row was saved under the OLD number (5); the current scan now has the
+    // same test named "Vt" under a different number (3182004981-ish).
+    const parsed: TestListEntry[] = [{ num: 5, name: 'Vt' }];
+    const current = names([[1_500_001, 'Vt']]);
+    const result = resolveLoadedTestList(parsed, defs([[1_500_001, 'Vt']]), current, new Map());
+    expect(result.selectedNums).toEqual([1_500_001]);
+    expect(result.recoveredByNameCount).toBe(1);
+    expect(result.unknownCount).toBe(0);
+  });
+
+  it('does not guess when a name matches more than one current test', () => {
+    const parsed: TestListEntry[] = [{ num: 5, name: 'Vt' }];
+    const current = names([[10, 'Vt'], [20, 'Vt']]); // two different tests, same display name
+    const result = resolveLoadedTestList(parsed, defs([[10, 'Vt'], [20, 'Vt']]), current, new Map());
+    expect(result.selectedNums).toEqual([]);
+    expect(result.ambiguousCount).toBe(1);
+    expect(result.unknownCount).toBe(0);
+  });
+
+  it('reports unknown when neither number nor name matches', () => {
+    const parsed: TestListEntry[] = [{ num: 5, name: 'Gone' }];
+    const result = resolveLoadedTestList(parsed, defs([[10, 'Vt']]), names([[10, 'Vt']]), new Map());
+    expect(result.selectedNums).toEqual([]);
+    expect(result.unknownCount).toBe(1);
+    expect(result.recoveredByNameCount).toBe(0);
+  });
+
+  it('reports unknown (not a crash) when a stale row carries no name to fall back on', () => {
+    const parsed: TestListEntry[] = [{ num: 5 }]; // legacy num-only file
+    const result = resolveLoadedTestList(parsed, defs([[10, 'Vt']]), names([[10, 'Vt']]), new Map());
+    expect(result.unknownCount).toBe(1);
+  });
+
+  it('stores the recovered override under the CURRENT number, not the stale one', () => {
+    // The row's name is both the fallback lookup key and the override value,
+    // so recovery only works when it matches the test's current display name
+    // — the ordinary case when a list is saved, then reloaded unchanged.
+    const parsed: TestListEntry[] = [{ num: 5, name: 'Vt' }];
+    const current = names([[1_500_001, 'Vt']]);
+    const result = resolveLoadedTestList(parsed, defs([[1_500_001, 'Vt']]), current, new Map());
+    expect(result.overrides.get(1_500_001)?.name).toBe('Vt');
+    expect(result.overrides.has(5)).toBe(false);
+  });
+
+  it('carries a non-name override (e.g. a limit) through a name-based recovery', () => {
+    const parsed: TestListEntry[] = [{ num: 5, name: 'Vt', loLimit: -3.3 }];
+    const current = names([[1_500_001, 'Vt']]);
+    const result = resolveLoadedTestList(parsed, defs([[1_500_001, 'Vt']]), current, new Map());
+    expect(result.overrides.get(1_500_001)?.loLimit).toBe(-3.3);
+  });
+
+  it('preserves an existing override not touched by the loaded row', () => {
+    const parsed: TestListEntry[] = [{ num: 5, loLimit: -1 }];
+    const existing = new Map([[5, { units: 'mA' }]]);
+    const result = resolveLoadedTestList(parsed, defs([[5, 'Vt']]), names([[5, 'Vt']]), existing);
+    expect(result.overrides.get(5)).toEqual({ units: 'mA', loLimit: -1 });
+  });
+
+  it('drops limits on a row whose effective type is functional', () => {
+    const parsed: TestListEntry[] = [{ num: 5, loLimit: 1, hiLimit: 2 }];
+    const functionalDefs: Record<string, TestDef> = { '5': { name: 'scan', testType: 'F' } };
+    const result = resolveLoadedTestList(parsed, functionalDefs, names([[5, 'scan']]), new Map());
+    expect(result.limitOnFunctionalCount).toBe(1);
+    expect(result.overrides.get(5)?.loLimit).toBeUndefined();
+  });
+
+  it('resolves multiple rows independently in one call', () => {
+    const parsed: TestListEntry[] = [
+      { num: 1, name: 'A' },   // still current
+      { num: 2, name: 'B' },   // stale, recoverable by name
+      { num: 3, name: 'Gone' }, // unknown
+    ];
+    const current = names([[1, 'A'], [99, 'B']]);
+    const result = resolveLoadedTestList(parsed, defs([[1, 'A'], [99, 'B']]), current, new Map());
+    expect(result.selectedNums.sort((a, b) => a - b)).toEqual([1, 99]);
+    expect(result.recoveredByNameCount).toBe(1);
+    expect(result.unknownCount).toBe(1);
   });
 });

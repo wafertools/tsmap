@@ -11,6 +11,21 @@ export function basename(p: string): string {
 }
 
 /**
+ * Escape a string for interpolation into an HTML template literal. Every value
+ * that reaches an `innerHTML` template in this app is untrusted — column names,
+ * wafer IDs and file names all come straight from user data — so anything
+ * interpolated into markup must go through this.
+ *
+ * Lives here rather than in the two overlays that build markup that way
+ * (`mappingUI`, `multiFileUI`) because it was previously defined, identically,
+ * in both: two copies of an escaping rule is exactly the shape of bug where one
+ * copy later gains a case the other doesn't.
+ */
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
  * Extracts a displayable message from a caught error. Tauri's `invoke()`
  * rejects with whatever the Rust command's `Err` serialises to — for
  * `Result<T, String>` that's a plain string, not an `Error` instance — so
@@ -26,6 +41,47 @@ export function errMsg(e: unknown): string {
 
 export function rustToLocal(r: RustParsedFile, fileName: string): ParsedFile {
   return { fileName, meta: r.meta, wafers: r.wafers, testDefs: r.testDefs, warnings: r.warnings };
+}
+
+// ── Stable, collision-safe test numbers for CSV/JSON wide-format mapping ──────
+// Mirrors testdata-parser's `test_identity.rs` (Rust, used for CSV/JSON
+// long-format numbering) — same algorithm, independent implementation. The two
+// don't need to agree numerically: wide-format numbers are assigned here, in
+// TS, before the mapping ever reaches Rust; long-format numbers are computed
+// entirely on the Rust side from data Rust alone sees. See that file's doc
+// comment for the full rationale (numbering used to be assigned by column/
+// encounter order, which silently renumbered every test on a reorder).
+
+/** Kept out of this range on purpose — see test_identity.rs's matching
+ *  constant: real STDF test numbers and the app's old sequential CSV/JSON
+ *  scheme (1001, 1002, …) both live well under this. */
+const RESERVED_BELOW = 1_000_000;
+
+function fnv1a32(s: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    hash ^= s.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0; // unsigned 32-bit
+}
+
+/**
+ * Deterministic number for `identity`, guaranteed not to collide with any
+ * value already in `used` (which is updated with the result) — so hashing
+ * every test in one mapping through the same `used` set guarantees none of
+ * them collide with each other, regardless of how unlikely a raw hash
+ * collision would have been anyway.
+ */
+export function stableTestNumber(identity: string, used: Set<number>): number {
+  let n = fnv1a32(identity);
+  if (n < RESERVED_BELOW) n += RESERVED_BELOW;
+  while (used.has(n)) {
+    n = (n + 1) >>> 0;
+    if (n < RESERVED_BELOW) n = RESERVED_BELOW;
+  }
+  used.add(n);
+  return n;
 }
 
 /**

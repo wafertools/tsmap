@@ -60,7 +60,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       statusBannerLoadBtn.textContent = 'Load splits…';
       statusBannerLoadBtn.style.cssText = [
         'padding:3px 10px;border-radius:4px;border:1px solid var(--border-mid)',
-        'background:none;color:var(--accent,#4a9eff);cursor:pointer;font-size:12px;flex-shrink:0',
+        'background:none;color:var(--accent);cursor:pointer;font-size:12px;flex-shrink:0',
       ].join(';');
       statusBannerLoadBtn.addEventListener('click', () => { void loadSplits(); });
       statusBanner.append(statusBannerText, statusBannerLoadBtn);
@@ -182,17 +182,40 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
         'background:var(--bg-input);color:var(--text-secondary);font-size:13px',
       ].join(';');
 
+      // Quick-fill chips for split names already in use. Sits directly under the
+      // name field it fills — it used to be appended after the selection hint,
+      // several rows below, which read as an unrelated list rather than as
+      // suggestions for the input.
       const existingRow = document.createElement('div');
-      existingRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap';
-      for (const v of listSplitValues(wafers)) {
-        const chip = document.createElement('button');
-        chip.textContent = v;
-        chip.style.cssText = [
-          'padding:2px 8px;border-radius:10px;border:1px solid var(--border-mid)',
-          'background:none;color:var(--text-secondary);cursor:pointer;font-size:11px',
-        ].join(';');
-        chip.addEventListener('click', () => { splitInput.value = v; });
-        existingRow.appendChild(chip);
+      existingRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;align-items:center';
+
+      /** (Re)build the chip row from the wafers' current split values. Single
+       *  implementation — the initial build and the post-change rebuild were
+       *  two verbatim copies of this loop, so a change to chip styling or
+       *  behaviour had to be made twice to take effect everywhere. */
+      function rebuildChips(): void {
+        existingRow.innerHTML = '';
+        const values = listSplitValues(wafers);
+        if (values.length === 0) { existingRow.style.display = 'none'; return; }
+        existingRow.style.display = '';
+
+        const caption = document.createElement('span');
+        caption.textContent = 'In use:';
+        caption.style.cssText = 'font-size:11px;color:var(--text-dim)';
+        existingRow.appendChild(caption);
+
+        for (const v of values) {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.textContent = v;
+          chip.title = `Use “${v}” as the split name`;
+          chip.style.cssText = [
+            'padding:2px 8px;border-radius:10px;border:1px solid var(--border-mid)',
+            'background:none;color:var(--text-secondary);cursor:pointer;font-size:11px',
+          ].join(';');
+          chip.addEventListener('click', () => { splitInput.value = v; splitInput.focus(); });
+          existingRow.appendChild(chip);
+        }
       }
 
       // Both action buttons are disabled while nothing is selected (see
@@ -202,7 +225,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       const assignBtn = document.createElement('button');
       assignBtn.textContent = 'Assign to selected';
       assignBtn.style.cssText = secondaryBtnCss;
-      assignBtn.addEventListener('click', () => {
+      const doAssign = () => {
         const label = splitInput.value.trim();
         if (!label || selected.size === 0) return;
         for (const i of selected) setSplitLabel(wafers[i], label);
@@ -211,6 +234,15 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
         renderList();
         rebuildChips();
         options.onChange();
+      };
+      assignBtn.addEventListener('click', doAssign);
+      // Enter in the name field commits, the ordinary gesture after typing a
+      // label. Without it the field silently swallowed Enter and the only way
+      // to apply was to reach for the mouse.
+      splitInput.addEventListener('keydown', (evt) => {
+        if (evt.key !== 'Enter') return;
+        evt.preventDefault();
+        doAssign();
       });
 
       const clearBtn = document.createElement('button');
@@ -218,7 +250,12 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       clearBtn.style.cssText = secondaryBtnCss;
       clearBtn.addEventListener('click', () => {
         if (selected.size === 0) return;
+        // Logged like every other mutating action here (assign, clear all,
+        // load) — this was the one that changed data silently, so the log gave
+        // an incomplete account of what had happened to the lot.
+        const n = selected.size;
         for (const i of selected) setSplitLabel(wafers[i], undefined);
+        options.onLog('info', `Cleared the split from ${n} wafer${n !== 1 ? 's' : ''}`);
         selected.clear();
         renderList();
         rebuildChips();
@@ -247,20 +284,6 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
         options.onLog('info', `Cleared split assignment from ${assignedCount} wafer${assignedCount !== 1 ? 's' : ''}`);
         options.onChange();
       });
-
-      function rebuildChips() {
-        existingRow.innerHTML = '';
-        for (const v of listSplitValues(wafers)) {
-          const chip = document.createElement('button');
-          chip.textContent = v;
-          chip.style.cssText = [
-            'padding:2px 8px;border-radius:10px;border:1px solid var(--border-mid)',
-            'background:none;color:var(--text-secondary);cursor:pointer;font-size:11px',
-          ].join(';');
-          chip.addEventListener('click', () => { splitInput.value = v; });
-          existingRow.appendChild(chip);
-        }
-      }
 
       assignRow.append(splitInput, assignBtn, clearBtn, clearAllBtn);
 
@@ -352,13 +375,17 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       doneBtn.textContent = 'Done';
       doneBtn.style.cssText = [
         'padding:6px 16px;border-radius:4px;border:none',
-        'background:var(--accent,#4a9eff);color:#fff;cursor:pointer;font-size:13px;font-weight:600',
+        'background:var(--btn-primary-bg);color:var(--btn-primary-text);cursor:pointer;font-size:13px;font-weight:600',
       ].join(';');
       doneBtn.addEventListener('click', () => modalHandle.close());
 
       footerRow.append(footerNote, doneBtn);
 
-      body.append(statusBanner, searchInput, suffixLabel, bulkRow, listContainer, assignRow, selectionHint, existingRow, ioRow, footerRow);
+      // Order matters: the quick-fill chips go immediately under the assign row
+      // whose input they populate, before the selection hint — they were
+      // previously after it, which detached them from the field they serve.
+      body.append(statusBanner, searchInput, suffixLabel, bulkRow, listContainer, assignRow, existingRow, selectionHint, ioRow, footerRow);
+      rebuildChips();
       renderList();
     },
   });
