@@ -31,7 +31,7 @@
 // get wrong.
 
 use futures_util::StreamExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
@@ -201,7 +201,17 @@ async fn fetch_impl(url: String, format: String, headers: Vec<(String, String)>)
 /// the "Filter tests…" re-scan on a fetched STDF/ATDF file).
 #[tauri::command]
 pub fn cleanup_url_fetch() {
-    let _ = std::fs::remove_dir_all(temp_dir());
+    cleanup_url_fetch_at(&temp_dir());
+}
+
+/// `temp_dir()` is a single OS-wide directory shared by every test in this
+/// module (they rely on it *staying alive* while other tests concurrently
+/// write/read their own uniquely-named files under it) — a test that wants
+/// to exercise this deletion must point it at an isolated directory instead,
+/// or it races `remove_dir_all` against every other test in the suite under
+/// `cargo test`'s default parallel execution.
+fn cleanup_url_fetch_at(dir: &Path) {
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[cfg(test)]
@@ -371,10 +381,14 @@ mod tests {
 
     #[test]
     fn cleanup_removes_the_temp_dir() {
-        std::fs::create_dir_all(temp_dir()).unwrap();
-        std::fs::write(temp_dir().join("leftover.json"), b"{}").unwrap();
-        cleanup_url_fetch();
-        assert!(!temp_dir().exists());
+        // Isolated directory, not the shared temp_dir() every other test in
+        // this file writes into — see cleanup_url_fetch_at's doc comment.
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("tsmap_url_fetch");
+        std::fs::create_dir_all(&target).unwrap();
+        std::fs::write(target.join("leftover.json"), b"{}").unwrap();
+        cleanup_url_fetch_at(&target);
+        assert!(!target.exists());
     }
 
     #[test]
