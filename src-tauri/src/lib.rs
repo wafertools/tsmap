@@ -1,6 +1,6 @@
 mod cli_files;
 mod commands;
-use commands::{atdf_test_names, cleanup_extract, csv_headers, extract_archive, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_last_dir, stdf_test_names, write_temp_html};
+use commands::{atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_test_names, write_temp_html};
 use commands::get_startup_files::set_startup_args;
 use tauri::{Emitter, Manager, WindowEvent};
 
@@ -137,6 +137,22 @@ pub fn run() {
             std::process::exit(1);
         }
     };
+
+    // Wipe stale temp files left over from a previous run — `extract_archive`'s
+    // own `cleanup_extract` command has always been registered but never
+    // actually invoked from anywhere, so its temp dir accumulated silently
+    // forever; doing both here at startup fixes that gap for zip extraction
+    // too, not just the new URL-fetch temp dir this command adds. Must run
+    // *before* `resolve_cli_url` below, which writes this session's own
+    // fetched file into that same directory — reversing the order wipes the
+    // file this launch just created, not just stale ones from before it.
+    cleanup_extract();
+    cleanup_url_fetch();
+
+    // Resolves --url/--url-format to a real local file (or an error) here,
+    // synchronously, before the webview exists — see fetch_url.rs's module
+    // doc for why this can't be left to a frontend-triggered IPC call.
+    commands::resolve_cli_url(&mut initial_args);
     if initial_args.is_empty() && !skip_singleton && cli_files::stdin_is_piped() {
         initial_args.files = cli_files::read_stdin_paths(&cwd);
     }
@@ -153,7 +169,7 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd_str| {
             let args: Vec<String> = argv.into_iter().skip(1).collect();
             let cwd = std::path::PathBuf::from(cwd_str);
-            let resolved = match cli_files::resolve(&args, &cwd) {
+            let mut resolved = match cli_files::resolve(&args, &cwd) {
                 Ok(r) if !r.is_empty() => r,
                 Ok(_) => return,
                 Err(e) => {
@@ -161,6 +177,10 @@ pub fn run() {
                     return;
                 }
             };
+            // Runs on a background thread per the single-instance plugin's
+            // own docs, not the webview's — safe to block here for the same
+            // reason as the initial-launch path above.
+            commands::resolve_cli_url(&mut resolved);
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.set_focus();
@@ -170,10 +190,27 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            // Self-registers the tsmap:// scheme at every startup, mirroring
+            // file_associations.rs's own "self-heal a dev/unpacked binary"
+            // approach — a packaged .deb/.msi install gets this for free from
+            // tauri.conf.json's bundle config, but a raw `cargo build`/dev
+            // binary never went through that packaging step, so nothing
+            // would register it otherwise. `register()` is a documented no-op
+            // (returns Err) on macOS/mobile — logged and ignored, same
+            // "best-effort, never block startup" treatment as any other
+            // optional OS integration here.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(e) = app.deep_link().register("tsmap") {
+                    eprintln!("tsmap: failed to register tsmap:// URL scheme: {e}");
+                }
+            }
+
             if let Some(window) = app.get_webview_window("main") {
                 size_and_show_main_window(&window);
 
@@ -192,7 +229,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![atdf_test_names, cleanup_extract, csv_headers, extract_archive, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_last_dir, stdf_test_names, write_temp_html])
+        .invoke_handler(tauri::generate_handler![atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_test_names, write_temp_html])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

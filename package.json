@@ -1,7 +1,7 @@
 {
   "name": "tsmap",
   "private": true,
-  "version": "0.1.25",
+  "version": "0.1.26",
   "type": "module",
   "scripts": {
     "build:guide": "node scripts/build-user-guide.mjs",
@@ -29,6 +29,9 @@
     "install-bin": "ln -sf $PWD/target/release/tsmap ~/.local/bin/tsmap",
     "wmap:link": "rm -rf node_modules/@wafertools/wafermap && ln -s ../../../wafermap node_modules/@wafertools/wafermap && echo '\\n  ✓ linked to ../wafermap — run `npm run build` in ../wafermap after each change so dist/ refreshes. Unlink before releasing: npm run wmap:unlink'",
     "wmap:unlink": "npm unlink @wafertools/wafermap && npm install @wafertools/wafermap && echo '\\n  ✓ unlinked — restored published wmap from npm'",
+    "parser:build": "wasm-pack build -t web -s wafertools --dev packages/parsers --no-default-features --features wasm",
+    "parser:link": "npm run parser:build && rm -rf node_modules/@wafertools/testdata-parser && ln -s ../../packages/parsers/pkg node_modules/@wafertools/testdata-parser && echo '\\n  ✓ linked to packages/parsers/pkg — run `npm run parser:build` after each Rust change so the wasm bundle refreshes. Unlink before releasing: npm run parser:unlink'",
+    "parser:unlink": "npm unlink @wafertools/testdata-parser && npm install @wafertools/testdata-parser && echo '\\n  ✓ unlinked — restored published testdata-parser from npm'",
     "screenshots:data": "python3 scripts/generate_test_suite.py",
     "screenshots": "node scripts/capture-screenshots.mjs",
     "screenshots:only": "node scripts/capture-screenshots.mjs --only"
@@ -38,7 +41,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
-    "@wafertools/testdata-parser": "^0.6.0",
+    "@wafertools/testdata-parser": "^0.7.0",
     "@wafertools/wafermap": "^0.22.0",
     "fflate": "^0.8.3"
   },

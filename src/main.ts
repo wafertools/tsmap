@@ -8,7 +8,7 @@ import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/w
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, errMsg } from './lib';
+import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, errMsg, deriveFileName, isUrlImportFormat } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv } from './testSelectorUI';
@@ -21,6 +21,7 @@ import { ICONS } from './icons';
 import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme } from './theme';
 import { makeMenuSelect } from './menuSelect';
 import { showSplitsModal } from './splitsUI';
+import { showFileAssociationsModal } from './fileAssociationsUI';
 import { getSplitLabel, setSplitLabel, waferDisplayLabel, splitsFingerprint, parseSplitsCsv } from './splits';
 import { getRecentFiles, addRecentFiles, removeRecentFile, formatRecentTime } from './recentFiles';
 
@@ -222,6 +223,65 @@ if (isTauri) {
   // Files/tests/splits resolved from this process's own CLI args/stdin at launch.
   platform.getStartupFiles().then(args => { if (args) applyCliArgs(args); });
 } else {
+  // Caller-supplied data URL (e.g. `?dataUrl=https://.../lot.json&dataFormat=json`)
+  // — the web build's headless/programmatic counterpart to desktop's
+  // `--url`/`--url-format`. No auth is sent; the URL must be
+  // self-authenticating (e.g. a presigned link) since a web URL sitting in
+  // browser history/logs isn't a secure channel for a separately-issued
+  // secret. Consumed once at startup; the params are stripped from the URL
+  // immediately after (success or failure) so a refresh doesn't silently
+  // re-fetch — wasteful at best, broken outright if the URL was one-time.
+  const startupParams = new URLSearchParams(window.location.search);
+  const dataUrl = startupParams.get('dataUrl');
+  const dataFormat = startupParams.get('dataFormat');
+  if (dataUrl || dataFormat) {
+    startupParams.delete('dataUrl');
+    startupParams.delete('dataFormat');
+    const rest = startupParams.toString();
+    history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+
+    if (!dataUrl || !dataFormat) {
+      log('error', 'dataUrl and dataFormat query params must both be given together');
+    } else if (!isUrlImportFormat(dataFormat)) {
+      log('error', `Unsupported dataFormat "${dataFormat}"`);
+    } else {
+      // Deferred to the `load` event rather than fired immediately: a
+      // `fetch()` issued during the earliest tick of this top-level module's
+      // own execution (still `document.readyState === 'interactive'`)
+      // reproducibly never settled — neither the `.then` nor the `.catch`
+      // ever ran, confirmed by direct logging around the call. The exact
+      // same `fetch()`, issued any time after the page finished loading,
+      // always resolved immediately and normally.
+      const runFetch = () => {
+        setBusy(`Fetching ${dataUrl}…`);
+        fetch(dataUrl)
+          .then(async res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const bytes = new Uint8Array(await res.arrayBuffer());
+            // handleFiles() has its own re-entrancy guard (`if (busy) return`,
+            // main.ts) — setBusy() above set that flag for the fetch itself,
+            // so it must be cleared before calling in, or handleFiles silently
+            // no-ops (the fetch appears to succeed — bytes obtained — but
+            // nothing after it ever happens: no parse, no error, no render).
+            setIdle();
+            handleFiles([{ name: deriveFileName(dataUrl, dataFormat), bytes }], false);
+          })
+          .catch(e => {
+            // A CORS rejection surfaces to JS as an opaque network TypeError —
+            // called out explicitly since it would otherwise look inscrutable
+            // to whoever configured the caller's endpoint.
+            log('error', `Failed to fetch "${dataUrl}": ${errMsg(e)} — if this is a cross-origin URL, the server must send CORS headers allowing this origin`);
+            setIdle();
+          });
+      };
+      if (document.readyState === 'complete') {
+        runFetch();
+      } else {
+        window.addEventListener('load', runFetch, { once: true });
+      }
+    }
+  }
+
   // Web drag-drop
   document.body.addEventListener('dragover', e => { e.preventDefault(); setDragActive(true); });
   document.body.addEventListener('dragleave', () => { setDragActive(false); });
@@ -539,7 +599,7 @@ function showEmptyState() {
         <line x1="54" y1="32" x2="60" y2="32" stroke="var(--border-mid)" stroke-width="2" stroke-linecap="round"/>
       </svg>
       <div style="font-size:15px;color:var(--text-dim);">Open a file to get started</div>
-      <div style="font-size:12px;color:var(--text-veryfaint);">Supports STDF, ATDF, CSV and JSON</div>
+      <div style="font-size:12px;color:var(--text-veryfaint);">Supports STDF, ATDF, CSV, JSON and Parquet</div>
     </div>`;
 
   const column = container.firstElementChild as HTMLElement;
@@ -822,8 +882,8 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     return;
   }
 
-  // For CSV/JSON: show mapping overlay once for the first such file, apply to all
-  const needsMapping = (e: string) => e === 'csv' || e === 'txt' || e === 'dat' || e === 'json';
+  // For CSV/JSON/Parquet: show mapping overlay once for the first such file, apply to all
+  const needsMapping = (e: string) => e === 'csv' || e === 'txt' || e === 'dat' || e === 'json' || e === 'parquet';
   const firstMappable = files.find(f => needsMapping(effectiveExt(f.name)));
 
   let mappingPromise: Promise<CsvMapping | null> = Promise.resolve(null);
@@ -831,8 +891,8 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   if (firstMappable) {
     const firstExt = effectiveExt(firstMappable.name);
     setBusy(`Reading ${firstMappable.name}…`);
-    const headersResult = await (firstExt === 'json'
-      ? platform.jsonHeaders(firstMappable)
+    const headersResult = await (firstExt === 'json' ? platform.jsonHeaders(firstMappable)
+      : firstExt === 'parquet' ? platform.parquetHeaders(firstMappable)
       : platform.csvHeaders(firstMappable)
     ).catch(e => { log('error', `Failed to read headers: ${e}`); return null; });
 
@@ -843,7 +903,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     }
 
     const mappableFiles = files.filter(f => needsMapping(effectiveExt(f.name)));
-    const note = mappableFiles.length > 1 ? ` — mapping applied to all ${mappableFiles.length} CSV/JSON files` : '';
+    const note = mappableFiles.length > 1 ? ` — mapping applied to all ${mappableFiles.length} CSV/JSON/Parquet files` : '';
     log('info', `${firstMappable.name}: ${headersResult.rowCount} rows, ${headersResult.headers.length} columns${note}`);
 
     mappingPromise = new Promise(resolve => {
@@ -861,7 +921,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
 
   // ── Parse phase ──────────────────────────────────────────────────────────
   // For STDF/ATDF: first-pass scan to get testDefs cheaply, then filtered parse.
-  // For CSV/JSON: parse fully now (fast), use parsed testDefs for the selector.
+  // For CSV/JSON/Parquet: parse fully now (fast), use parsed testDefs for the selector.
   const isBinaryExt = (e: string) => e === 'stdf' || e === 'std' || e === 'atdf' || e === 'atd';
   const binaryFiles = files.filter(f => isBinaryExt(effectiveExt(f.name)));
 
@@ -901,8 +961,8 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     const fileExt = effectiveExt(file.name);
     setBusy(`Parsing ${file.name}…`);
     try {
-      const parsed: ParsedFile = fileExt === 'json'
-        ? rustToLocal(await platform.parseJson(file, mapping!), file.name)
+      const parsed: ParsedFile = fileExt === 'json' ? rustToLocal(await platform.parseJson(file, mapping!), file.name)
+        : fileExt === 'parquet' ? rustToLocal(await platform.parseParquet(file, mapping!), file.name)
         : rustToLocal(await platform.parseCsv(file, mapping!), file.name);
       preParsed.set(file.name, parsed);
       log('info', `Parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''}`);
@@ -1131,8 +1191,19 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
  * below). `--splits`/`--tests` reuse the exact seed/preload mechanisms the
  * "Load sample data" flow and the test selector's own "Load list" button
  * already use — nothing here is a new, silent code path.
+ *
+ * `--url`/`--url-format` never reach here as such: the Rust side resolves
+ * the URL to a real local file *before* the frontend ever runs (see
+ * fetch_url.rs's module doc), so a successful fetch is already an ordinary
+ * entry in `args.files`, indistinguishable from a path the user typed
+ * directly. `args.urlError` is the one trace of it — set only when that
+ * resolution failed, surfaced the same non-fatal way a bad `--splits`/
+ * `--tests` file already is.
  */
 async function applyCliArgs(args: CliStartupArgs): Promise<void> {
+  if (args.urlError) {
+    log('error', `Failed to fetch --url: ${args.urlError}`);
+  }
   if (args.splits) {
     try {
       pendingSampleSplitSeed = parseSplitsCsv(await platform.readTextFile(args.splits));
@@ -1587,6 +1658,22 @@ function openHelpMenu(anchor: HTMLElement) {
     !!mainViewController,
     () => { showToast(anchor, 'Opening guide…'); mainViewController?.openUserGuide(); },
   );
+
+  // No such concept in a browser (there's no OS-level "default app for a file
+  // type" a web page can register), so this row only exists on desktop.
+  if (isTauri) {
+    makeRow(
+      'File associations…',
+      'Open .stdf/.atdf/.parquet files in tsmap automatically from your file manager',
+      true,
+      () => {
+        showFileAssociationsModal({
+          getStatus: () => platform.getFileAssociationStatus(),
+          setAssociation: (extension, associate) => platform.setFileAssociation(extension, associate),
+        });
+      },
+    );
+  }
 
   document.body.appendChild(popup);
   const r = anchor.getBoundingClientRect();

@@ -19,15 +19,40 @@ use std::io::{BufRead, IsTerminal};
 use std::path::Path;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CliArgs {
     pub files: Vec<String>,
     pub tests: Option<String>,
     pub splits: Option<String>,
+    pub url: Option<String>,
+    pub url_format: Option<String>,
+    /// Path to a `Header-Name: value` per line file (blank lines/`#` comments
+    /// skipped) — headers to send with the `--url` fetch, e.g. an
+    /// `Authorization` bearer token. Optional; only meaningful paired with
+    /// `--url`. Kept out of argv/process-list/shell-history on purpose,
+    /// mirroring `--tests`/`--splits` rather than accepting the header value
+    /// directly as a flag argument.
+    pub url_headers: Option<String>,
+    /// Set instead of consuming `url`/`url_format`/`url_headers` into `files`
+    /// when `commands::fetch_url::resolve_cli_url` (`lib.rs`) fails to fetch
+    /// the URL — surfaced by the frontend via `log('error', ...)`, the same
+    /// non-fatal treatment a bad `--splits`/`--tests` file already gets.
+    pub url_error: Option<String>,
 }
 
 impl CliArgs {
+    /// `--url` is a file source in its own right — used *without* any
+    /// positional FILE args by design, since the URL supplies the data. If
+    /// this only checked `files` (as it used to, back when `url` didn't
+    /// exist), a `--url`-only launch would be misreported as empty and
+    /// silently dropped by `set_startup_args` before the frontend ever saw
+    /// it — and the same for `url_error`: a failed fetch with no other files
+    /// given must still reach the frontend so the failure is visible, not
+    /// silently dropped. `tests`/`splits` are deliberately not checked here
+    /// — they're modifiers applied to files/url, not a data source on their
+    /// own, and have no defined meaning in isolation.
     pub fn is_empty(&self) -> bool {
-        self.files.is_empty()
+        self.files.is_empty() && self.url.is_none() && self.url_error.is_none()
     }
 }
 
@@ -49,6 +74,17 @@ Options:
                          selector; it is still always shown for confirmation.
   --splits <FILE>       A wafer-splits CSV (same format the Splits… dialog
                          saves/loads) — applied automatically once loaded.
+  --url <URL>           A data URL to fetch and open, in place of (or
+                         alongside) FILE/--list. Must be paired with
+                         --url-format. Without --url-headers, the URL must be
+                         self-authenticating (e.g. a presigned link) — tsmap
+                         sends no auth of its own by default.
+  --url-format <FORMAT> The format of --url's data: one of stdf, atdf, csv,
+                         json, parquet. Required whenever --url is given.
+  --url-headers <FILE>  Headers to send with the --url fetch, one
+                         'Header-Name: value' per line (blank lines and '#'
+                         comments skipped) — e.g. an Authorization bearer
+                         token. Optional; only meaningful with --url.
   --new-instance         Open a new, independent window even if tsmap is
                          already running.
   -h, --help             Show this help and exit.
@@ -56,6 +92,11 @@ Options:
 
 With no FILE/--list given, tsmap reads a newline-delimited list of data-file
 paths from stdin, but only if stdin is piped (never when run interactively).
+
+A tsmap://open?url=<URL>&format=<FORMAT> link, registered as this app's URL
+scheme handler, is equivalent to --url/--url-format together (e.g. a link on
+a web page can launch tsmap this way) — cannot be combined with --url,
+--url-format, or another tsmap:// link.
 ";
 
 /// True if `args` (raw, unfiltered) requests help — checked first, before any
@@ -89,6 +130,37 @@ fn is_content_line(line: &str) -> bool {
     !line.is_empty() && !line.starts_with('#')
 }
 
+/// A `tsmap://...?url=<data url>&format=<format>` deep-link URI, as
+/// registered via `tauri-plugin-deep-link` (`lib.rs`'s `.setup()` and
+/// `tauri.conf.json`'s `plugins.deep-link.desktop.schemes`). On Linux and
+/// Windows — the platforms this app targets — clicking such a link makes the
+/// OS launch tsmap with the *whole URI* as a single plain argv entry, no
+/// different in kind from a file path; this is the one place that recognizes
+/// that shape and turns it into the same `url`/`format` pair `--url`/
+/// `--url-format` would set, so everything downstream (`resolve_cli_url` and
+/// the entire single-instance-forwarding path) needs no separate handling for
+/// it at all. Deliberately carries no header/auth parameter — a deep-link URI
+/// has nowhere safe to carry a credential, the same reasoning that already
+/// rules out headers on the web `?dataUrl=` path (see `fetch_url.rs`'s module
+/// doc); `--url-headers` remains a *local file* the launcher already has.
+fn parse_deep_link(uri: &str) -> Result<(String, String), String> {
+    let parsed = reqwest::Url::parse(uri).map_err(|e| format!("Malformed tsmap:// link \"{uri}\": {e}"))?;
+    let mut url = None;
+    let mut format = None;
+    for (key, value) in parsed.query_pairs() {
+        match key.as_ref() {
+            "url" => url = Some(value.into_owned()),
+            "format" => format = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+    match (url, format) {
+        (Some(url), Some(format)) => Ok((url, format)),
+        (None, _) => Err(format!("tsmap:// link \"{uri}\" is missing its \"url\" parameter")),
+        (_, None) => Err(format!("tsmap:// link \"{uri}\" is missing its \"format\" parameter")),
+    }
+}
+
 fn read_list_lines(path: &str, cwd: &Path) -> Result<Vec<String>, String> {
     let list_path = resolve_path(path, cwd);
     let text = std::fs::read_to_string(&list_path)
@@ -101,10 +173,15 @@ struct RawArgs {
     list: Option<String>,
     tests: Option<String>,
     splits: Option<String>,
+    url: Option<String>,
+    url_format: Option<String>,
+    url_headers: Option<String>,
 }
 
-/// Recognized flags that take a value — `--list`/`--tests`/`--splits`.
-const VALUE_FLAGS: &[&str] = &["--list", "--tests", "--splits"];
+/// Recognized flags that take a value — `--list`/`--tests`/`--splits`/`--url`/
+/// `--url-format`/`--url-headers`.
+const VALUE_FLAGS: &[&str] =
+    &["--list", "--tests", "--splits", "--url", "--url-format", "--url-headers"];
 /// Recognized flags that take no value — handled elsewhere (`--new-instance`
 /// before this point, `--help`/`-h` and `--version`/`-V` via `wants_help`/
 /// `wants_version` before this point too) but still accepted here so they're
@@ -122,16 +199,22 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
     let mut list = None;
     let mut tests = None;
     let mut splits = None;
+    let mut url = None;
+    let mut url_format = None;
+    let mut url_headers = None;
     let mut iter = args.iter().peekable();
     while let Some(arg) = iter.next() {
         if let Some(pos) = VALUE_FLAGS.iter().position(|&f| f == arg.as_str()) {
             let looks_like_flag = iter.peek().is_some_and(|v| v.starts_with('-') && v.len() > 1);
             let value = if looks_like_flag { None } else { iter.next() };
-            let value = value.ok_or_else(|| format!("{arg} requires a file path argument"))?;
+            let value = value.ok_or_else(|| format!("{arg} requires a value"))?;
             match pos {
                 0 => list = Some(value.clone()),
                 1 => tests = Some(value.clone()),
-                _ => splits = Some(value.clone()),
+                2 => splits = Some(value.clone()),
+                3 => url = Some(value.clone()),
+                4 => url_format = Some(value.clone()),
+                _ => url_headers = Some(value.clone()),
             }
         } else if BARE_FLAGS.contains(&arg.as_str()) {
             // No-op here — handled earlier (`--help`/`-h`) or by the caller
@@ -140,11 +223,25 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
             return Err(format!(
                 "unrecognized option '{arg}'\n\nRun 'tsmap --help' for usage."
             ));
+        } else if arg.starts_with("tsmap://") {
+            // Checks both fields, not just `url` — otherwise `--url-format
+            // json tsmap://...&format=stdf` would silently let the link
+            // overwrite an explicitly-given --url-format with no error at all.
+            if url.is_some() || url_format.is_some() {
+                return Err(
+                    "a tsmap:// link cannot be combined with --url/--url-format or another \
+                     tsmap:// link — only one URL fetch is supported per launch"
+                        .to_string(),
+                );
+            }
+            let (link_url, link_format) = parse_deep_link(arg)?;
+            url = Some(link_url);
+            url_format = Some(link_format);
         } else {
             files.push(arg.clone());
         }
     }
-    Ok(RawArgs { files, list, tests, splits })
+    Ok(RawArgs { files, list, tests, splits, url, url_format, url_headers })
 }
 
 /// Parses and resolves `args` against `cwd`: `--list`'s lines are folded into
@@ -159,10 +256,28 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
     if let Some(list_path) = raw.list {
         files.extend(read_list_lines(&list_path, cwd)?);
     }
+    // --url/--url-format must be given together — each is meaningless alone
+    // (a URL with no declared format, or a format hint with nothing to fetch).
+    match (&raw.url, &raw.url_format) {
+        (Some(_), None) => return Err("--url requires --url-format".to_string()),
+        (None, Some(_)) => return Err("--url-format requires --url".to_string()),
+        _ => {}
+    }
+    // --url-headers modifies a --url fetch — meaningless without one.
+    if raw.url_headers.is_some() && raw.url.is_none() {
+        return Err("--url-headers requires --url".to_string());
+    }
     Ok(CliArgs {
         files,
         tests: raw.tests.map(|t| resolve_path(&t, cwd)),
         splits: raw.splits.map(|s| resolve_path(&s, cwd)),
+        // Not resolved against cwd like the file-path flags above — a URL
+        // (and its format tag) is not a local path.
+        url: raw.url,
+        url_format: raw.url_format,
+        // A local file path like tests/splits, so it *is* resolved against cwd.
+        url_headers: raw.url_headers.map(|h| resolve_path(&h, cwd)),
+        url_error: None,
     })
 }
 
@@ -318,5 +433,202 @@ mod tests {
         let cwd = Path::new("/cwd");
         let err = resolve(&args(&["--list", "/no/such/file.txt"]), cwd).unwrap_err();
         assert!(err.contains("/no/such/file.txt"));
+    }
+
+    #[test]
+    fn url_and_url_format_together_are_kept_as_is_not_resolved_against_cwd() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(
+            &args(&["--url", "https://example.com/lot.stdf?sig=abc", "--url-format", "stdf"]),
+            cwd,
+        )
+        .unwrap();
+        assert_eq!(resolved.url.as_deref(), Some("https://example.com/lot.stdf?sig=abc"));
+        assert_eq!(resolved.url_format.as_deref(), Some("stdf"));
+        assert!(resolved.files.is_empty());
+    }
+
+    #[test]
+    fn url_without_url_format_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--url", "https://example.com/lot.stdf"]), cwd).unwrap_err();
+        assert!(err.contains("--url-format"), "error was: {err}");
+    }
+
+    #[test]
+    fn url_format_without_url_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--url-format", "stdf"]), cwd).unwrap_err();
+        assert!(err.contains("--url"), "error was: {err}");
+    }
+
+    #[test]
+    fn serializes_as_camel_case_for_the_frontend() {
+        // Regression test: CliArgs used to have no `rename_all`, invisible
+        // for `tests`/`splits` (single words, unaffected by casing) until
+        // `url_format` — it serialized to the literal key "url_format",
+        // silently mismatching the frontend's `CliStartupArgs.urlFormat`
+        // (platform.ts), so a `--url`-only launch reached get_startup_files
+        // with `url` set but `urlFormat` always undefined and did nothing,
+        // with no error anywhere in the chain.
+        let args = CliArgs {
+            url: Some("https://example.com/lot.stdf".to_string()),
+            url_format: Some("stdf".to_string()),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&args).unwrap();
+        assert_eq!(json["url"], "https://example.com/lot.stdf");
+        assert_eq!(json["urlFormat"], "stdf");
+        assert!(json.get("url_format").is_none(), "must not also emit the snake_case key");
+    }
+
+    #[test]
+    fn url_only_launch_is_not_reported_empty() {
+        // Regression test: `set_startup_args` (get_startup_files.rs) only
+        // stores args when `!is_empty()` — a `--url`-only launch (the normal
+        // way it's used, with no positional FILE args) must not be
+        // misreported as empty, or the frontend never sees it at all.
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(
+            &args(&["--url", "https://example.com/lot.stdf", "--url-format", "stdf"]),
+            cwd,
+        )
+        .unwrap();
+        assert!(!resolved.is_empty());
+    }
+
+    #[test]
+    fn url_error_with_no_files_is_not_reported_empty() {
+        // Sibling regression to url_only_launch_is_not_reported_empty: once
+        // commands::fetch_url::resolve_cli_url consumes url/url_format and a
+        // fetch fails, only url_error is left set (files stays empty) — that
+        // must still reach the frontend so the failure is visible.
+        let mut args = CliArgs { url_error: Some("boom".to_string()), ..CliArgs::default() };
+        assert!(!args.is_empty());
+        args.url_error = None;
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn url_combines_with_positional_files() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(
+            &args(&["a.stdf", "--url", "https://example.com/b.stdf", "--url-format", "stdf"]),
+            cwd,
+        )
+        .unwrap();
+        assert_eq!(resolved.files, vec!["/cwd/a.stdf".to_string()]);
+        assert_eq!(resolved.url.as_deref(), Some("https://example.com/b.stdf"));
+    }
+
+    #[test]
+    fn deep_link_sets_url_and_url_format() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(
+            &args(&["tsmap://open?url=https%3A%2F%2Fexample.com%2Flot.stdf&format=stdf"]),
+            cwd,
+        )
+        .unwrap();
+        assert_eq!(resolved.url.as_deref(), Some("https://example.com/lot.stdf"));
+        assert_eq!(resolved.url_format.as_deref(), Some("stdf"));
+        assert!(resolved.files.is_empty());
+        assert!(!resolved.is_empty());
+    }
+
+    #[test]
+    fn deep_link_combines_with_positional_files() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(
+            &args(&["a.stdf", "tsmap://open?url=https%3A%2F%2Fexample.com%2Fb.stdf&format=stdf"]),
+            cwd,
+        )
+        .unwrap();
+        assert_eq!(resolved.files, vec!["/cwd/a.stdf".to_string()]);
+        assert_eq!(resolved.url.as_deref(), Some("https://example.com/b.stdf"));
+    }
+
+    #[test]
+    fn deep_link_missing_url_param_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["tsmap://open?format=stdf"]), cwd).unwrap_err();
+        assert!(err.contains("\"url\""), "error was: {err}");
+    }
+
+    #[test]
+    fn deep_link_missing_format_param_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["tsmap://open?url=https%3A%2F%2Fexample.com%2Flot.stdf"]), cwd).unwrap_err();
+        assert!(err.contains("\"format\""), "error was: {err}");
+    }
+
+    #[test]
+    fn malformed_deep_link_is_a_clean_error_not_a_panic() {
+        let cwd = Path::new("/cwd");
+        // No scheme-appropriate structure after "tsmap://" for url::Url to parse.
+        let err = resolve(&args(&["tsmap://"]), cwd).unwrap_err();
+        assert!(err.contains("tsmap://"), "error was: {err}");
+    }
+
+    #[test]
+    fn deep_link_cannot_combine_with_explicit_url_flag() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(
+            &args(&[
+                "--url", "https://example.com/a.stdf", "--url-format", "stdf",
+                "tsmap://open?url=https%3A%2F%2Fexample.com%2Fb.stdf&format=stdf",
+            ]),
+            cwd,
+        )
+        .unwrap_err();
+        assert!(err.contains("tsmap://"), "error was: {err}");
+    }
+
+    #[test]
+    fn deep_link_cannot_combine_with_explicit_url_format_flag_alone() {
+        // Regression test: the conflict check used to only look at `url`, so
+        // a lone --url-format (no --url) before a tsmap:// link would let the
+        // link silently overwrite the explicitly-given format with no error.
+        let cwd = Path::new("/cwd");
+        let err = resolve(
+            &args(&["--url-format", "json", "tsmap://open?url=https%3A%2F%2Fexample.com%2Fb.stdf&format=stdf"]),
+            cwd,
+        )
+        .unwrap_err();
+        assert!(err.contains("tsmap://"), "error was: {err}");
+    }
+
+    #[test]
+    fn two_deep_links_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(
+            &args(&[
+                "tsmap://open?url=https%3A%2F%2Fexample.com%2Fa.stdf&format=stdf",
+                "tsmap://open?url=https%3A%2F%2Fexample.com%2Fb.stdf&format=stdf",
+            ]),
+            cwd,
+        )
+        .unwrap_err();
+        assert!(err.contains("tsmap://"), "error was: {err}");
+    }
+
+    #[test]
+    fn url_headers_is_resolved_against_cwd_like_tests_and_splits() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(
+            &args(&[
+                "--url", "https://example.com/lot.stdf", "--url-format", "stdf",
+                "--url-headers", "headers.txt",
+            ]),
+            cwd,
+        )
+        .unwrap();
+        assert_eq!(resolved.url_headers.as_deref(), Some("/cwd/headers.txt"));
+    }
+
+    #[test]
+    fn url_headers_without_url_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--url-headers", "headers.txt"]), cwd).unwrap_err();
+        assert!(err.contains("--url"), "error was: {err}");
     }
 }

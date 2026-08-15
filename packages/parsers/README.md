@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/wafertools/tsmap/main/packages/parsers/testdata-parser-readme-header-256.png" width="64" height="64" alt="testdata-parser icon">
 
-Rust/WASM parsers for semiconductor test data formats: **STDF**, **ATDF**, **CSV**, and **JSON**. Compiled to a single WASM module via `wasm-bindgen`; the same Rust source also builds natively (used by [tsmap](https://github.com/wafertools/tsmap)'s Tauri backend).
+Rust/WASM parsers for semiconductor test data formats: **STDF**, **ATDF**, **CSV**, **JSON**, and **Parquet**. Compiled to a single WASM module via `wasm-bindgen`; the same Rust source also builds natively (used by [tsmap](https://github.com/wafertools/tsmap)'s Tauri backend).
 
 All formats parse to one shared shape (`ParsedStdf` / `ScanResult`) — there is no format-specific output type on the JS side.
 
@@ -38,6 +38,8 @@ Every parse function takes raw file bytes (`Uint8Array`) and returns a plain JS 
 | `parse_atdf` | `(bytes: Uint8Array) => ParsedStdf` | Full parse of an ATDF file |
 | `parse_csv` | `(bytes: Uint8Array, mapping: CsvMapping) => ParsedStdf` | Full parse of a CSV, using an explicit column mapping |
 | `parse_json` | `(bytes: Uint8Array, mapping: CsvMapping) => ParsedStdf` | Full parse of a JSON array-of-records file, using the same mapping shape as CSV |
+| `parquet_headers` | `(bytes: Uint8Array) => ParquetHeadersResult` | Schema + a sample of rows, for a column-mapping UI (see below — unlike CSV/JSON, this one *is* a WASM export) |
+| `parse_parquet` | `(bytes: Uint8Array, mapping: CsvMapping) => ParsedStdf` | Full parse of a Parquet file, using the same mapping shape as CSV/JSON |
 | `stdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Fast first-pass scan: test definitions + die count, no die accumulation |
 | `atdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Same first-pass scan for ATDF |
 | `parse_stdf_filtered` | `(bytes: Uint8Array, selected: number[]) => ParsedStdf` | Full parse, skipping per-site accumulation for test numbers not in `selected` |
@@ -55,7 +57,7 @@ STDF and ATDF files can be large and contain far more tests than a caller wants 
 
 ### CsvMapping
 
-`parse_csv` and `parse_json` require an explicit mapping — there's no header auto-detection. Column mapping fields (all are source column names, matched against the file's header row):
+`parse_csv`, `parse_json`, and `parse_parquet` all require an explicit mapping — there's no header auto-detection. Column mapping fields (all are source column names, matched against the file's header row):
 
 ```ts
 interface CsvMapping {
@@ -70,6 +72,7 @@ interface CsvMapping {
   meta: string[];             // extra columns to surface as generic per-row metadata
   splitBy: string[];          // columns to additionally facet wafers by (beyond `wafer`)
   testnameCol?: string;       // for "tall" CSVs: column holding the test name per row
+  testnumberCol?: string;     // for "tall" CSVs: column holding the test's real number per row
   testvalueCol?: string;      // for "tall" CSVs: column holding the test value per row
   loLimitCol?: string;
   hiLimitCol?: string;
@@ -84,7 +87,12 @@ interface CsvTestCol {
 }
 ```
 
-Two ways to describe test columns are supported: a **fixed set** of `tests` (one column per test, "wide" format), or a **tall** layout (`testnameCol`/`testvalueCol` — one row per die×test, with the test identity read from a column rather than the header).
+Two ways to describe test columns are supported: a **fixed set** of `tests` (one column per test, "wide" format), or a **tall** layout (`testnameCol`/`testnumberCol`/`testvalueCol` — one row per die×test, with the test identity read from a column rather than the header).
+
+**Test identity — real number vs. synthesized one.** Neither format has a mandatory real STDF-style test number, so one gets synthesized by default (see "Design notes" below) — but a caller that *does* have real numbers in the source data shouldn't lose them:
+
+- **Tall layout**: `testnameCol` and `testnumberCol` are independent — set either alone, or both together. Number alone is a legitimate, fully-supported case (some exports carry only a numeric test ID, no descriptive name) — the test's display name then falls back to the number itself, stringified. Name alone keeps the pre-existing hash-based behavior. Both together: the real number from `testnumberCol` is used as the key (not hashed), paired with the given name — this is the common "I have both and want them both honoured" case. Whichever columns are set, at least one of `testnameCol`/`testnumberCol` plus `testvalueCol` is required to trigger tall-layout parsing at all.
+- **Wide layout** (`tests: CsvTestCol[]`): `testNumber` is assigned by the caller building the mapping (tsmap's `mappingUI.ts` does this before calling in), not by this crate — but the same principle applies there: if a column's own header is itself a bare number (a real-world convention — columns literally named `1001`, `1002`), that number should be used directly rather than hashed. `test_identity`'s reserved band (below) exists specifically so a real number like this can never collide with a hashed one.
 
 ### Return shape — `ParsedStdf`
 
@@ -153,9 +161,20 @@ interface ScanResult {
 }
 ```
 
-### Column headers are not a WASM export
+### Column headers: CSV/JSON vs Parquet
 
-There is no `csv_headers`/`json_headers` in the WASM API — a browser caller that needs to show the user a column-mapping UI before parsing has to read the header row itself in JS (this is what tsmap's web build does; the desktop build calls the native functions below). The byte-based Rust functions exist (`csv_headers_from_bytes`, and `json_headers_sync`'s logic), they are simply not wired through `wasm-bindgen` yet.
+There is no `csv_headers`/`json_headers` in the WASM API — a browser caller that needs to show the user a column-mapping UI before parsing a CSV/JSON file can just read the header row itself in plain JS (this is what tsmap's web build does; the desktop build calls the native functions below instead). The byte-based Rust functions exist (`csv_headers_from_bytes`, and `json_headers_sync`'s logic), they are simply not wired through `wasm-bindgen` for these two formats.
+
+**Parquet is different: `parquet_headers` *is* a WASM export.** Its binary, footer-based schema has no equivalent plain-JS shortcut — a caller genuinely needs the parser to read it. `ParquetHeadersResult` extends the same headers/sample/rowCount shape with `columnTypes` (coarse `"number" | "bool" | "string"` per column, inferred from the first sampled row), since Parquet's columns are natively typed unlike CSV/JSON's all-text cells:
+
+```ts
+interface ParquetHeadersResult {
+  headers: string[];
+  sample: Record<string, string>[];
+  rowCount: number;
+  columnTypes: Record<string, 'number' | 'bool' | 'string'>;
+}
+```
 
 ## Native (non-WASM) usage
 
@@ -171,6 +190,8 @@ The crate also builds as a native Rust library (used directly by tsmap's Tauri c
 | `parse_csv_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_csv` |
 | `json_headers_sync(path: String) -> Result<JsonHeadersResult, String>` | `parse_json` |
 | `parse_json_sync(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_json` |
+| `parquet_headers_inner(path: String) -> Result<ParquetHeadersResult, String>` | `parse_parquet` |
+| `parse_parquet_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_parquet` |
 | `read_bytes(path: &str) -> Result<Vec<u8>, String>` | `read_file` |
 | `read_text(path: &str) -> Result<String, String>` | `read_file` |
 
@@ -187,6 +208,8 @@ The crate also builds as a native Rust library (used directly by tsmap's Tauri c
 | `csv_headers_from_bytes(&[u8]) -> Result<CsvHeadersResult, String>` | `parse_csv` |
 | `parse_csv_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_csv` |
 | `parse_json_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_json` |
+| `parquet_headers_from_bytes(&[u8]) -> Result<ParquetHeadersResult, String>` | `parse_parquet` |
+| `parse_parquet_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_parquet` |
 | `decompress_if_gzip(Vec<u8>) -> Result<Vec<u8>, String>` | `read_file` |
 
 `CsvHeadersResult` and `JsonHeadersResult` are the same shape — the header row plus enough of the file to preview a mapping:
@@ -204,7 +227,9 @@ pub struct CsvHeadersResult {
 - **Byte readers are panic-free.** STDF/ATDF field readers are bounds-checked and return `Option`/`Result` rather than panicking on truncated input — a panic inside WASM aborts the whole module with no recovery, so this is a hard requirement, not a style preference.
 - **Big-endian and little-endian STDF** are both supported (detected from the FAR record's `CPU_TYPE`).
 - **Gzip is transparent** — every entry point decompresses `.gz` input automatically by sniffing the magic bytes; callers don't need to branch on compression.
-- **CSV/JSON test numbers are a deterministic hash, not a real STDF test number.** STDF/ATDF have a real test number in the file; CSV/JSON don't, so one is synthesized — from the source column for wide format, from the test name for long format (`test_identity::stable_test_number`, FNV-1a with a fixed seed and a reserved floor, collision-probed so two tests in one file can never collide). Deliberately not sequential/encounter-order: a hash means the number for a given test doesn't change if the file is reordered or a column is added — the number is otherwise meaningless and callers should never rely on its value, only on it being stable and unique within one parse. `order` (see `TestDef` above) carries the file's own display order instead.
+- **CSV/JSON/Parquet test numbers are a deterministic hash, not a real STDF test number.** STDF/ATDF have a real test number in the file; the other three don't, so one is synthesized — from the source column for wide format, from the test name for long format (`test_identity::stable_test_number`, FNV-1a with a fixed seed and a reserved floor, collision-probed so two tests in one file can never collide). Deliberately not sequential/encounter-order: a hash means the number for a given test doesn't change if the file is reordered or a column is added — the number is otherwise meaningless and callers should never rely on its value, only on it being stable and unique within one parse. `order` (see `TestDef` above) carries the file's own display order instead.
+- **Parquet reads through a row-oriented API, not Arrow.** `parquet::record::Row`/`Field` rather than the `arrow` feature — a closer fit for this crate's row-based `DieResult` model, and a smaller WASM bundle (no Arrow array machinery pulled in). A typed Parquet cell is coerced to `f64` for numeric roles and to a plain string otherwise; a value that fails to coerce (e.g. a numeric role mapped to a genuinely string-typed column) is skipped and surfaced as one summarised entry in `warnings`, not a panic or a silent zero.
+- **Parquet's `zstd` codec is native-only.** `snappy`, `gzip`, `lz4`, and `brotli` build for `wasm32-unknown-unknown` with no extra toolchain; `zstd`'s C library needs a real C cross-compiler targeting wasm32, which a plain `wasm-pack build` doesn't assume is available. A `zstd`-compressed Parquet file parses natively but fails clearly on the WASM build.
 
 ## Versioning
 

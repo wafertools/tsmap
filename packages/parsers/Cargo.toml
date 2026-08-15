@@ -1,8 +1,8 @@
 [package]
 name = "testdata-parser"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
-description = "Rust/WASM parsers for semiconductor test data formats (STDF, ATDF, CSV, JSON)"
+description = "Rust/WASM parsers for semiconductor test data formats (STDF, ATDF, CSV, JSON, Parquet)"
 repository = "https://github.com/wafertools/tsmap"
 license = "MIT"
 
@@ -27,11 +27,24 @@ serde_json = "1"
 csv = "1"
 indexmap = "2"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+bytes = "1"
 tokio = { version = "1", features = ["rt", "rt-multi-thread"], optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 js-sys = { version = "0.3", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
+
+# Split by target: zstd (native only) needs a C toolchain that isn't assumed to
+# be available for the wasm32 web build (see WMAP_ISSUES.md-style reasoning in
+# CLAUDE.md's parquet section) — the other codecs are pure Rust and build fine
+# on both. No `arrow` feature: the row-oriented `parquet::record` API is a much
+# closer fit to this crate's row-based DieResult model, and keeps the wasm
+# bundle small.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+parquet = { version = "59", default-features = false, features = ["snap", "brotli", "flate2-zlib-rs", "lz4", "zstd", "base64"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+parquet = { version = "59", default-features = false, features = ["snap", "brotli", "flate2-zlib-rs", "lz4", "base64"] }
 
 [dev-dependencies]
 tempfile = "3"

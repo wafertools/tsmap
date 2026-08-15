@@ -38,6 +38,17 @@ pub struct CsvMapping {
     pub meta: Vec<String>,
     pub split_by: Vec<String>,
     pub testname_col: Option<String>,
+    /// Long-format only: a column holding each row's real test number. Optional
+    /// alongside `testname_col` — either may be set alone, or both together.
+    /// When present and a row's value parses, the real number is used as that
+    /// test's identity instead of a hashed one (see `test_identity`); when
+    /// `testname_col` is absent, the display name falls back to the number
+    /// itself. Long format triggers on `testname_col` OR this being set, plus
+    /// `testvalue_col` — a file with only a number column and no name column
+    /// is a legitimate case, not just a name-only one. `#[serde(default)]` so
+    /// older saved mapping payloads without the field still deserialize.
+    #[serde(default)]
+    pub testnumber_col: Option<String>,
     pub testvalue_col: Option<String>,
     pub lo_limit_col: Option<String>,
     pub hi_limit_col: Option<String>,
@@ -140,7 +151,8 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
             .to_string()
     };
 
-    let is_long_format = mapping.testname_col.is_some() && mapping.testvalue_col.is_some();
+    let is_long_format = (mapping.testname_col.is_some() || mapping.testnumber_col.is_some())
+        && mapping.testvalue_col.is_some();
 
     // `t.test_number` is assigned upstream in TS (mappingUI.ts's readMapping,
     // hashed from the column's own key) — Rust just uses it as given. `order`
@@ -195,7 +207,8 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
     let mut next_order: u32 = 0;
 
     {
-        let name_col = mapping.testname_col.as_deref().unwrap();
+        let name_col = mapping.testname_col.as_deref();
+        let num_col = mapping.testnumber_col.as_deref();
         let val_col = mapping.testvalue_col.as_deref().unwrap();
         let mut die_map: indexmap::IndexMap<String, HashMap<String, String>> =
             indexmap::IndexMap::new();
@@ -222,18 +235,38 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                 m
             });
 
-            let test_name = get(rec, name_col);
+            let test_name = name_col.map(|c| get(rec, c)).unwrap_or_default();
             let test_val  = get(rec, val_col);
-            if test_name.is_empty() || test_val.is_empty() { continue; }
+            if test_val.is_empty() { continue; }
+            // A row's own number, when the column is mapped and this row's value
+            // parses — takes priority over the name as the test's real identity.
+            let real_number: Option<u32> = num_col
+                .map(|c| get(rec, c))
+                .filter(|s| !s.is_empty())
+                .and_then(|s| s.trim().parse::<u32>().ok());
+            if test_name.is_empty() && real_number.is_none() { continue; }
 
-            let tnum = *long_fmt_test_numbers.entry(test_name.clone()).or_insert_with(|| {
-                // The test's identity IS its name here (there's no column to
-                // key off, unlike wide format) — hashing it, rather than
-                // numbering by first-encounter order, means the number no
-                // longer depends on which row order the file happens to be
-                // in. `order` still records that encounter order, purely for
-                // display — it's independent of the number now.
-                let n = crate::test_identity::stable_test_number(&test_name, &mut used_test_numbers);
+            // Keyed by the number when we have one (stable regardless of what
+            // the name column says, or whether there even is one), else by name.
+            let identity_key = match real_number {
+                Some(n) => format!("#{n}"),
+                None => test_name.clone(),
+            };
+
+            let tnum = *long_fmt_test_numbers.entry(identity_key).or_insert_with(|| {
+                // The test's identity is its own number when a number column is
+                // mapped and this row's value parsed — a real number, not hashed,
+                // so it matches whatever the source system already calls this
+                // test. Otherwise (no number column, or an unparseable cell)
+                // fall back to hashing the name, as before: hashing rather than
+                // numbering by first-encounter order means the number doesn't
+                // depend on which row order the file happens to be in. `order`
+                // still records encounter order, purely for display — it's
+                // independent of the number either way.
+                let n = match real_number {
+                    Some(n) => { used_test_numbers.insert(n); n }
+                    None => crate::test_identity::stable_test_number(&test_name, &mut used_test_numbers),
+                };
                 let order = next_order;
                 next_order += 1;
                 let lo_limit = mapping.lo_limit_col.as_deref()
@@ -242,8 +275,11 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let units = mapping.units_col.as_deref()
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty());
+                // No name column (or this row's name cell was empty): the
+                // number is all we have, so it doubles as the display name.
+                let display_name = if test_name.is_empty() { n.to_string() } else { test_name.clone() };
                 test_defs.insert(n.to_string(), TestDef {
-                    name: test_name.clone(),
+                    name: display_name,
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
                     order: Some(order),
@@ -550,6 +586,7 @@ mod tests {
             meta: vec![],
             split_by: vec![],
             testname_col: None,
+            testnumber_col: None,
             testvalue_col: None,
             lo_limit_col: None,
             hi_limit_col: None,
@@ -736,6 +773,63 @@ mod tests {
         let names: Vec<_> = result.test_defs.values().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"Vt"));
         assert!(names.contains(&"Idsat"));
+    }
+
+    #[test]
+    fn long_format_number_only_uses_real_number_and_copies_name_from_it() {
+        // No test-name column at all — only a number. The real number (not a
+        // hash) becomes the key, and since there's nothing to name it, the
+        // number doubles as the display name.
+        let csv = "x,y,test_num,test_val\n\
+                   0,0,1001,1.1\n\
+                   0,0,1002,2.2\n\
+                   1,0,1001,1.3\n\
+                   1,0,1002,2.4\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.testnumber_col = Some("test_num".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        assert_eq!(result.wafers[0].results.len(), 2);
+        assert_eq!(result.test_defs.len(), 2);
+        assert_eq!(result.test_defs.get("1001").map(|d| d.name.as_str()), Some("1001"));
+        assert_eq!(result.test_defs.get("1002").map(|d| d.name.as_str()), Some("1002"));
+        let d0 = result.wafers[0].results.iter().find(|d| d.x == 0 && d.y == 0).unwrap();
+        assert!((d0.test_values["1001"] - 1.1).abs() < 1e-9);
+        assert!((d0.test_values["1002"] - 2.2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn long_format_name_and_number_uses_real_number_with_given_name() {
+        let csv = "x,y,test_name,test_num,test_val\n\
+                   0,0,Vt,2001,1.1\n\
+                   1,0,Vt,2001,1.3\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test_name".to_string());
+        m.testnumber_col = Some("test_num".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        assert_eq!(result.test_defs.len(), 1);
+        assert_eq!(result.test_defs.get("2001").map(|d| d.name.as_str()), Some("Vt"));
+    }
+
+    #[test]
+    fn long_format_row_with_neither_name_nor_number_is_skipped() {
+        let csv = "x,y,test_name,test_num,test_val\n\
+                   0,0,,,1.1\n\
+                   1,0,Vt,2001,1.3\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test_name".to_string());
+        m.testnumber_col = Some("test_num".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        // Only the identifiable row contributes a test value; the die at
+        // (0,0) still exists (x/y always survive) but with no test data.
+        assert_eq!(result.test_defs.len(), 1);
+        let d0 = result.wafers[0].results.iter().find(|d| d.x == 0 && d.y == 0).unwrap();
+        assert!(d0.test_values.is_empty());
     }
 
     #[test]

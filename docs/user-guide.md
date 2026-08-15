@@ -14,7 +14,7 @@ title: User Guide
 
 # tsmap User Guide
 
-tsmap loads semiconductor wafer map data from STDF, ATDF, CSV, and JSON files and renders
+tsmap loads semiconductor wafer map data from STDF, ATDF, CSV, JSON, and Parquet files and renders
 interactive yield maps, parametric heat maps, and statistical charts. It runs as a native
 desktop application on Linux, macOS, and Windows, and as a browser app at
 [wafertools.github.io/tsmap/app/](https://wafertools.github.io/tsmap/app/).
@@ -35,11 +35,12 @@ that material.
 | ATDF | `.atdf`, `.atd` | ASCII equivalent of STDF; same data, same features |
 | CSV | `.csv`, `.txt`, `.dat` | Tab, semicolon, and comma auto-detected; wide and long (pivot) formats |
 | JSON | `.json` | Flat array of die objects or nested `[{ wafer, results: [{die}] }]` |
+| Parquet | `.parquet` | Columnar, typed; wide and long (pivot) formats, same as CSV/JSON. `snappy`, `gzip`, `lz4`, and `brotli` compression on both desktop and web; `zstd` on desktop only |
 | Gzip | `.gz` | Transparent decompression — e.g. `lot.stdf.gz` |
 | Zip | `.zip` | All contained files extracted and loaded as a batch |
 
 STDF and ATDF are always parsed natively — never attempt to open them in a text editor
-or spreadsheet. CSV and JSON require a [column mapping step](#3-column-mapping-csv-and-json)
+or spreadsheet. CSV, JSON, and Parquet require a [column mapping step](#3-column-mapping-csv-json-and-parquet)
 before the data is parsed.
 
 ---
@@ -119,6 +120,7 @@ tsmap --list files.txt                     # a text file of paths, one per line
 cat files.txt | tsmap                      # or piped via stdin
 tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
+tsmap --url https://.../lot.stdf --url-format stdf   # fetch and open a URL — see below
 tsmap --help                               # full usage
 tsmap --version                            # print the version and exit
 ```
@@ -135,6 +137,151 @@ If tsmap is already running, launching it again with files hands them to the run
 instead of opening a second blank one: with nothing currently loaded they open right away;
 with data already loaded, a dialog asks whether to replace it. Decline and the new files open
 in a separate, independent tsmap window instead, so nothing is lost either way.
+
+### Opening data from a URL
+
+Another application can hand tsmap a data URL directly, so it can fetch and load the file
+itself with no one retyping anything. This is aimed at a caller application that already
+knows where the data lives (its own database or API) — not at typing a URL in by hand. On
+desktop, the fetched response is briefly materialised as a temporary local file while it's
+loading (so it can flow through the same load pipeline as any other file); no data is
+uploaded to a tsmap service either way. In the browser build there's no local filesystem to
+write to, so the fetched bytes stay in memory.
+
+On desktop, pass it on the command line, paired with the format:
+
+```bash
+tsmap --url https://example.com/lot.stdf?sig=... --url-format stdf
+```
+
+In the browser, encode it in the page URL instead:
+
+```
+https://your-tsmap-deployment/?dataUrl=https%3A%2F%2Fexample.com%2Flot.json&dataFormat=json
+```
+
+Or, to launch the **desktop** app directly from a web page (rather than requiring a script or
+terminal to run the command above), a `tsmap://` link works the same way once the desktop app
+has been run at least once on that machine (which registers it as the link's handler):
+
+```html
+<a href="tsmap://open?url=https%3A%2F%2Fexample.com%2Flot.stdf%3Fsig%3D...&format=stdf">
+  Open in tsmap
+</a>
+```
+
+All three forms need the format spelled out explicitly (`stdf`, `atdf`, `csv`, `json`, or
+`parquet`) — tsmap doesn't guess it from the URL. Once fetched, the file goes through the
+exact same load as opening it locally: column mapping for CSV/JSON/Parquet, the test
+selector for STDF/ATDF.
+
+The `dataUrl`/`dataFormat` params are removed from the address bar right after the fetch is
+attempted, so reloading the page won't re-trigger it.
+
+#### Authentication
+
+**Browser build: no credentials are ever sent.** tsmap does a plain, unauthenticated fetch —
+the URL itself must be self-authenticating (a presigned/signed link with the token already
+embedded), since there's no secure way for tsmap to accept a separate secret here — the page
+URL can end up in browser history, bookmarks, or a server's access log.
+
+**Desktop: `--url-headers <FILE>`** sends custom headers with the fetch — e.g. an
+`Authorization` bearer token for a data API that expects header-based auth rather than a
+presigned link. Point it at a small text file, one header per line:
+
+```bash
+tsmap --url https://internal-api.example.com/lot123 --url-format json --url-headers auth.txt
+```
+
+```
+# auth.txt — blank lines and '#' comments are skipped
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+X-Api-Key: abc123
+```
+
+The header *value* never appears on the command line itself (so it won't sit in shell
+history or a process list the way a `--header "Authorization: ..."` flag would) — only the
+file path does. The file itself is still plain text on disk, exactly like the `--tests`/
+`--splits` files already are; tsmap doesn't encrypt it or integrate with an OS credential
+store. `--url-headers` requires `--url`; a malformed line (missing the `:` separator) or an
+unreadable file fails the fetch immediately with a clear error rather than silently sending
+an unauthenticated request. There's no browser-build equivalent — see the CORS section below
+for why a header-based secret can't safely travel through a page URL.
+
+**The `tsmap://` link has the same constraint as the browser build, not the same option as
+`--url-headers`.** A link URL — page URL or deep link — has nowhere safe to carry a header
+value either, so `tsmap://` links only work with a self-authenticating URL, the same as
+`?dataUrl=`. `--url-headers` remains a *local file* the launching machine already has; there's
+no way to pass its content through the link itself.
+
+#### Browser build: the data server must allow cross-origin requests (CORS)
+
+This only applies to the **browser build's** `?dataUrl=` — the desktop app's `--url` never
+hits this, see below.
+
+Every browser enforces a rule called CORS (Cross-Origin Resource Sharing): a web page can
+only read the response from a *different* website's server if that server explicitly says
+it's OK. "Different website" is decided purely by the address — scheme, hostname, and port —
+never by network location. **Being on the same office network, the same VPN, or even the
+same machine on a different port does not help** — tsmap's page and the data server are still
+two different "origins" as far as the browser is concerned, and the browser blocks the read
+by default regardless of how reachable the server actually is.
+
+Concretely: if tsmap is served from `https://tsmap.example-corp.internal/` and the data URL is
+`https://wafer-data-api.example-corp.internal/lot123`, the browser will refuse to hand the
+response back to tsmap's JavaScript **unless** the data API's response includes a header like:
+
+```
+Access-Control-Allow-Origin: https://tsmap.example-corp.internal
+```
+
+(or `Access-Control-Allow-Origin: *` to allow any site — simpler, but only appropriate if the
+data behind that URL isn't sensitive to being fetched by *any* web page that knows the link).
+
+Whether this is easy depends entirely on whether you control the data API:
+
+- **If you (or your team) run the API**: this is normally a small, one-time config change —
+  a line of middleware (e.g. Express's `cors()` package, Flask-CORS), or a header directive
+  in the reverse proxy / API gateway in front of it (nginx's `add_header`, an API gateway's
+  CORS setting). tsmap only ever sends a plain `GET` with no custom headers, which keeps this
+  to the simplest CORS case — no separate preflight request to also allow.
+- **If it's a third-party or legacy API you can't change**: the browser build's `dataUrl` path
+  won't work against it, full stop — there is no per-request workaround, and tsmap cannot
+  disable or bypass this check (it's enforced by the browser itself, not by tsmap). Use the
+  **desktop app's `--url`/`--url-format` instead** — the fetch happens inside the desktop
+  app's own Rust process, never inside a browser page, so CORS simply doesn't apply there.
+
+If a `dataUrl` fetch fails, the log panel names CORS explicitly as a likely cause — that's the
+first thing to check with whoever owns the data API.
+
+### File associations (desktop)
+
+**Help → File associations…** lets you open `.stdf`, `.atdf`, and `.parquet` files in tsmap
+automatically by double-clicking them in a file manager (Windows Explorer, GNOME Files,
+Dolphin, etc.). CSV and JSON aren't offered here on purpose — those extensions are already
+claimed by dozens of unrelated apps, and quietly becoming their default handler would be an
+unwelcome surprise even behind a checkbox.
+
+Each file type is a separate checkbox, and nothing is associated until you turn one on — this
+is never set automatically. It's a setting, not an installer choice, so you can change your
+mind at any time without reinstalling; toggling a checkbox off removes the association
+immediately.
+
+**If a checkbox fails to turn on**, the dialog shows the reason inline rather than silently
+reverting. The most common cause on a managed/corporate machine: registry write access
+(Windows) or the relevant config directory (Linux) is restricted by IT policy — in that case
+file-type association simply isn't available on that machine, and there's no in-app
+workaround. This has nothing to do with tsmap's own permissions; it's the same restriction
+that would block any application from registering a default handler there.
+
+Each row also shows the executable path currently registered for that file type — or, when
+unchecked, the path that would be registered if you turned it on. This is what the OS will
+actually launch on a cold double-click, which can silently drift from the tsmap you're running
+right now (for example, if the association was last turned on while running a development
+build) — a mismatch is flagged inline rather than left to be discovered as a launch failure.
+
+Not available in the browser build — there's no equivalent to "the OS's default app for a
+file type" a web page can register.
 
 ### Adding files to an existing lot
 
@@ -161,7 +308,7 @@ After selecting files, what happens depends on the format:
 | Format | Next step |
 |--------|-----------|
 | STDF / ATDF | [Test selector overlay](#4-test-selector-stdf-and-atdf) always appears first |
-| CSV / JSON | [Column mapping overlay](#3-column-mapping-csv-and-json) appears first |
+| CSV / JSON / Parquet | [Column mapping overlay](#3-column-mapping-csv-json-and-parquet) appears first |
 | Multiple files | [Wafer rename overlay](#21-wafer-rename-overlay) appears before rendering |
 
 ### 2.1 Wafer rename overlay
@@ -178,14 +325,22 @@ changing, then click **Continue →**.
 
 ---
 
-## 3. Column mapping (CSV and JSON)
+## 3. Column mapping (CSV, JSON, and Parquet)
 
 ![Column mapping overlay, long-format CSV](images/column-mapping.png)
 
-CSV and JSON files don't have a fixed schema, so tsmap shows a column mapping overlay
-before parsing. It lists every column in the file with a dropdown to assign its role.
-Common column names (`x`, `hbin`, `result`, `lo_limit`, etc.) are detected automatically
-and pre-filled.
+CSV and JSON files don't have a fixed schema, and Parquet files carry an arbitrary schema
+of their own, so tsmap shows a column mapping overlay before parsing any of the three. It
+lists every column in the file with a dropdown to assign its role. Common column names
+(`x`, `hbin`, `result`, `lo_limit`, etc.) are detected automatically and pre-filled.
+
+Parquet columns are typed (numbers, text, booleans) rather than plain text like CSV/JSON
+cells, so the overlay adds one thing on top: a **⚠** next to a column's role dropdown if
+you assign a numeric-only role (X position, Y position, Hard bin, Test value, etc.) to a
+column whose values are actually text. This is a hint, not a hard stop — a numeric-looking
+text column (e.g. `"42"`) still parses fine — but it catches an obvious mismatch (e.g.
+mapping a wafer-ID text column to X position) before a full parse silently produces empty
+or wrong results.
 
 ### Role reference
 
@@ -198,8 +353,9 @@ and pre-filled.
 | **Wafer ID** | Identifies which wafer each row belongs to; splits rows into separate wafer maps |
 | **Lot ID** | Lot identifier shown in the summary panel |
 | **Test site** | Parallel-test site number for each die (the STDF `site_num` equivalent). Dies from all sites share one wafer map; the site appears in the die hover tooltip and can be used as a chart grouping/colour dimension. Numeric values only. |
-| **Test value** | Numeric test result (wide format — one column per test); the **Test name** field to the right sets the display name for that test |
-| **Test name (long format)** | Column containing the test name in a long/pivot layout |
+| **Test value** | Numeric test result (wide format — one column per test); the **Test name** field to the right sets the display name for that test. If the column's own header is itself a bare number (e.g. `1001`), that real number is used as the test's identity instead of a generated one |
+| **Test name (long format)** | Column containing the test name in a long/pivot layout. Optional if **Test number** is set instead — a file with only real test numbers and no descriptive names is fully supported; the number is used as the display name in that case |
+| **Test number (long format)** | Column containing the test's real number in a long/pivot layout. Optional alongside **Test name** — set alone (no name column at all) or together (real number, given name). At least one of **Test name**/**Test number** is required, along with **Test result** |
 | **Test result (long format)** | Column containing the numeric result in a long/pivot layout |
 | **Low limit (long format)** | LSL in a long-format file |
 | **High limit (long format)** | USL in a long-format file |
@@ -212,10 +368,13 @@ and pre-filled.
 **Wide format** has one column per test (the most common layout from prober exports). Assign
 each test column the **Test value** role and fill in the test name.
 
-**Long format** has one row per die per test (each row includes a test name column and a
-result column). Assign the **Test name (long format)** and **Test result (long format)**
-roles; optionally assign the limit and units columns too. tsmap detects likely long-format
-files automatically and shows a prompt if multiple rows share the same X/Y coordinates.
+**Long format** has one row per die per test (each row includes a test identity column and a
+result column). Assign **Test result (long format)**, plus **Test name (long format)**,
+**Test number (long format)**, or both — a file that only has real test numbers and no
+descriptive names works just as well as one with only names; assigning both uses the real
+number as the test's identity paired with the given name. Optionally assign the limit and
+units columns too. tsmap detects likely long-format files automatically and shows a prompt
+if multiple rows share the same X/Y coordinates.
 
 Examples:
 
@@ -568,6 +727,7 @@ applied. If soft bin data is not meaningful for your product, this warning can b
 | PNG save | Native save dialog | Browser download folder |
 | Zip extraction | Native Rust | In-browser (fflate) |
 | Offline use | Yes | Yes (once page loaded) |
+| Opening data from a URL | `--url`/`--url-format` CLI flags | `?dataUrl=&dataFormat=` query params (subject to the target server's CORS policy) |
 
 The browser version is functionally identical to the desktop app. Files are parsed entirely
 in your browser — nothing is sent to a server.

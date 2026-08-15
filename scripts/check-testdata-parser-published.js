@@ -10,6 +10,9 @@
 // current" is exactly what let the web build's staleness go unnoticed.
 //
 // Fails (exit 1) if any of:
+//   0. @wafertools/testdata-parser is currently LINKED (`npm run parser:link`,
+//      node_modules/@wafertools/testdata-parser is a symlink) — the build
+//      would embed a local, unpublished wasm bundle.
 //   1. packages/parsers/src (or Cargo.toml) has changed since the version in
 //      Cargo.toml was last bumped — the crate's source has drifted ahead of
 //      its own version number, so a bump + publish is needed before release.
@@ -25,7 +28,7 @@
 // it can't actually verify (e.g. CI's default shallow checkout).
 
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, lstatSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -41,6 +44,20 @@ function fail(msg) {
 
 function git(args) {
   return execSync(`git ${args}`, { cwd: ROOT, encoding: 'utf8' }).trim();
+}
+
+// ── 0. Reject a linked package — a release must not embed local wasm. ───────
+try {
+  if (lstatSync(join(ROOT, 'node_modules', PACKAGE)).isSymbolicLink()) {
+    fail(
+      `  ${PACKAGE} is LINKED to a local build (packages/parsers/pkg).\n\n` +
+      `  A release must build against the published package. Run:\n\n` +
+      `    npm run parser:unlink\n\n` +
+      `  (publish the crate first if this build needs unreleased changes), then rebuild.`,
+    );
+  }
+} catch {
+  // Not installed at all — npm ci will handle it; nothing to guard here.
 }
 
 function cargoVersion() {

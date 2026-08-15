@@ -5,6 +5,7 @@ pub mod parse_stdf;
 pub mod parse_atdf;
 pub mod parse_csv;
 pub mod parse_json;
+pub mod parse_parquet;
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
@@ -63,6 +64,26 @@ mod wasm {
         let mapping: CsvMapping = serde_json::from_str(&json_str)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
         crate::parse_json::parse_json_from_bytes(bytes, mapping)
+            .map(|r| to_js(&r))
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen]
+    pub fn parquet_headers(bytes: &[u8]) -> Result<JsValue, JsValue> {
+        crate::parse_parquet::parquet_headers_from_bytes(bytes)
+            .map(|r| to_js(&r))
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen]
+    pub fn parse_parquet(bytes: &[u8], mapping: JsValue) -> Result<JsValue, JsValue> {
+        // Same JSON round-trip as parse_csv/parse_json — see the comment there.
+        let json = js_sys::JSON::stringify(&mapping)
+            .map_err(|e| JsValue::from_str(&format!("mapping stringify failed: {:?}", e)))?;
+        let json_str: String = json.into();
+        let mapping: CsvMapping = serde_json::from_str(&json_str)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        crate::parse_parquet::parse_parquet_from_bytes(bytes, mapping)
             .map(|r| to_js(&r))
             .map_err(|e| JsValue::from_str(&e))
     }

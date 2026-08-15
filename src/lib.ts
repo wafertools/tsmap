@@ -10,6 +10,38 @@ export function basename(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;
 }
 
+/** Formats tsmap can dispatch a URL-sourced import to — mirrors
+ *  `SUPPORTED_FORMATS` in `src-tauri/src/commands/fetch_url.rs`, and the set
+ *  `effectiveExt`-based dispatch in `handleFiles` (main.ts) already handles.
+ *  Backs both `--url-format` (desktop CLI) and `dataFormat` (web query param)
+ *  — an explicit hint is required in both cases, never sniffed. */
+export const URL_IMPORT_FORMATS = ['stdf', 'atdf', 'csv', 'json', 'parquet'] as const;
+export type UrlImportFormat = typeof URL_IMPORT_FORMATS[number];
+
+export function isUrlImportFormat(format: string): format is UrlImportFormat {
+  return (URL_IMPORT_FORMATS as readonly string[]).includes(format.toLowerCase());
+}
+
+/**
+ * Derives a display/dispatch filename for a URL-sourced import: the URL's
+ * last non-empty path segment if there is one, else a generic fallback —
+ * always forced to end in `.<format>` so `effectiveExt`-based dispatch in
+ * `handleFiles` works regardless of what the URL itself looks like (a
+ * presigned URL's path segment is often an opaque token, not a filename with
+ * a real extension).
+ */
+export function deriveFileName(url: string, format: string): string {
+  const fmt = format.toLowerCase();
+  let stem = 'url-import';
+  try {
+    const last = new URL(url).pathname.split('/').filter(Boolean).pop();
+    if (last) stem = last.replace(/\.[^./]+$/, '') || last;
+  } catch {
+    // Malformed URL — fall back to the generic stem.
+  }
+  return `${stem}.${fmt}`;
+}
+
 /**
  * Escape a string for interpolation into an HTML template literal. Every value
  * that reaches an `innerHTML` template in this app is untrusted — column names,
@@ -82,6 +114,30 @@ export function stableTestNumber(identity: string, used: Set<number>): number {
   }
   used.add(n);
   return n;
+}
+
+/**
+ * Wide-format test number for a column: if the column's own header is
+ * itself a bare number (a common raw-export convention — e.g. columns
+ * literally named "1001", "1002" with no descriptive name), that real
+ * number is used as-is rather than hashing it away. A hashed number always
+ * lands >= RESERVED_BELOW, so a genuine small number here can never collide
+ * with one — the only possible collision is two columns both literally
+ * named the same number, which falls back to hashing (rare; a real
+ * ambiguity in the source file, not something to paper over silently).
+ */
+export function testNumberForColumn(col: string, used: Set<number>): number {
+  const trimmed = col.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const n = Number(trimmed);
+    // Must fit the Rust side's u32 (test_number) — a column literally named
+    // a too-large number falls back to hashing rather than failing to parse.
+    if (n <= 0xFFFFFFFF && !used.has(n)) {
+      used.add(n);
+      return n;
+    }
+  }
+  return stableTestNumber(col, used);
 }
 
 /**

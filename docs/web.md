@@ -27,19 +27,26 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
   column-mapping overlay.
 - [tsmap-sample.json](samples/tsmap-sample.json) — JSON: the same dataset as per-die
   `testValues`.
+- [tsmap-sample.parquet](samples/tsmap-sample.parquet) — Parquet: the same shape (3 wafers,
+  ~500 dies each, 20 tests), snappy-compressed; opening it shows the same column-mapping
+  overlay as CSV/JSON.
 - [tsmap-correlated.stdf](samples/tsmap-correlated.stdf) — STDF: 5 wafers, ~200 dies each, 30
   tests with *designed* correlations spanning a full range of Pearson r. Open **Charts** to
   see the correlation matrix and scatter plots come to life.
+- [tsmap-correlated.parquet](samples/tsmap-correlated.parquet) — Parquet: the same designed
+  correlation dataset.
 
-All five contain no real device data — they are generated for demonstration.
+All seven contain no real device data — they are generated for demonstration.
 
 ## Supported formats
 
-All four formats are supported in the browser:
+All five formats are supported in the browser:
 
 - **STDF** / **ATDF** — parsed directly from binary/text bytes via WASM
-- **CSV** / **JSON** — column mapping overlay appears before rendering; the mapping is
-  saved per column layout and restored automatically next time
+- **CSV** / **JSON** / **Parquet** — column mapping overlay appears before rendering; the
+  mapping is saved per column layout and restored automatically next time. Parquet's
+  `zstd` codec is desktop-only — every other codec (`snappy`, `gzip`, `lz4`, `brotli`) works
+  in the browser too
 - **Gzip** (`.gz`) — decompressed in-browser using the native `DecompressionStream` API
 - **Zip** (`.zip`) — extracted in-browser using [fflate](https://github.com/101arrowz/fflate)
 
@@ -55,6 +62,8 @@ All four formats are supported in the browser:
 | HTML reports | Opens in new tab | Writes to temp file |
 | Zip extraction | In-browser (fflate) | Rust (native) |
 | Offline use | Yes (once loaded) | Yes |
+| Opening data from a URL | `?dataUrl=&dataFormat=` query param, subject to the target server's CORS policy | `--url`/`--url-format` CLI flags, a `tsmap://open?url=...&format=...` link, or both — plus optional header-based auth via `--url-headers` |
+| File associations (open `.stdf`/`.atdf`/`.parquet` by double-click) | Not available | **Help → File associations…** |
 
 ## Browser requirements
 

@@ -5,8 +5,9 @@ A tour of what tsmap does. For step-by-step instructions on any of this, see the
 
 ## Open any format
 
-STDF, ATDF, CSV, and JSON — all multi-wafer by default, and all mergeable into one gallery
-from several files at once. Gzip (`.gz`) and Zip (`.zip`) archives are handled transparently.
+STDF, ATDF, CSV, JSON, and Parquet — all multi-wafer by default, and all mergeable into one
+gallery from several files at once. Gzip (`.gz`) and Zip (`.zip`) archives are handled
+transparently.
 
 ![Multi-wafer gallery](images/gallery.png)
 
@@ -91,3 +92,22 @@ usable offline once loaded.
 
 See [Exporting charts](user-guide.md#8-exporting-charts) and the full
 [desktop vs browser comparison](web.md#differences-from-the-desktop-app) in the web app page.
+
+## Open directly from your own systems
+
+A caller application — your own data-selection page, a script, a scheduled task — can hand
+tsmap a URL and have it fetch and load the data itself, no manual download/upload step for the
+user. On desktop: `tsmap --url <url> --url-format <format>`, or a `tsmap://open?url=...&format=...`
+link that launches the installed app straight from a web page click. In the browser:
+`?dataUrl=&dataFormat=` as a query param on the app's own URL. Desktop also supports
+`--url-headers <file>` for data APIs that authenticate via a header rather than a
+self-authenticating link.
+
+Once a file is associated with tsmap (**Help → File associations…**, desktop only), double-clicking
+a `.stdf`/`.atdf`/`.parquet` file in a file manager opens it in tsmap directly — an in-app setting,
+changeable anytime, rather than something locked in at install.
+
+See [Opening data from a URL](user-guide.md#opening-data-from-a-url) and
+[File associations](user-guide.md#file-associations-desktop) in the user guide, and the full
+[integration guide](integrating-data-selection.md) for architecture options (presigned URLs,
+a download proxy, same-origin SSO) if you're wiring this up against your own data API.

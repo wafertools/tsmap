@@ -11,7 +11,7 @@ Discussions](https://github.com/wafertools/.github/discussions).
 
 ## Features
 
-- **Open** CSV, JSON, ATDF, and STDF wafer map files
+- **Open** CSV, JSON, Parquet, ATDF, and STDF wafer map files
 - **Multi-wafer** — all formats support multiple wafers; renders as a gallery automatically
 - **Stats & findings** — yield, bin breakdown, ring/quadrant analysis, and spatial findings
 - **Charts** — yield by wafer, bin pareto, per-test box plots and histograms
@@ -27,6 +27,7 @@ Discussions](https://github.com/wafertools/.github/discussions).
 | ATDF | Rust | ASCII V4; MIR (lot meta), WIR/WRR (wafer), PIR/PRR (die — hbin, sbin, x, y), PTR/FTR (parametric/functional test values) |
 | CSV | Rust | Column mapping step before render; supports wide and long (pivot) formats |
 | JSON | Rust | Flat array or nested `[{ wafer fields, results: [{die}] }]`; same mapping step as CSV |
+| Parquet | Rust | Typed, columnar; same mapping step as CSV/JSON with a type-mismatch hint. `snappy`/`gzip`/`lz4`/`brotli` on desktop and web; `zstd` desktop-only |
 
 ## Installing past security warnings
 

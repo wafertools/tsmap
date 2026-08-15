@@ -181,6 +181,9 @@
         --accent:          #6fa62e;   /* #8DC63F darkened for AA contrast on light */
         --btn-primary-bg:  #7ab52f;
         --btn-primary-hover: #6fa62e;
+        /* White-on-#7ab52f measures only 2.48:1 (see CLAUDE.md's Theming
+           section) — this theme's own dark text passes at 6.47:1 instead. */
+        --btn-primary-text: #1c2412;
 
         --warn-bg:         #fff8e1;
         --warn-text:       #92400e;
@@ -231,6 +234,9 @@
         --accent:          #88c0d0;
         --btn-primary-bg:  #5e81ac;
         --btn-primary-hover: #81a1c1;
+        /* White-on-#5e81ac measures only 4.03:1, below AA's 4.5:1 — black
+           passes at 5.21:1 instead. */
+        --btn-primary-text: #000;
 
         --warn-bg:         #3b352a;
         --warn-text:       #ebcb8b;
@@ -289,6 +295,9 @@
         --accent:          #268bd2;
         --btn-primary-bg:  #268bd2;
         --btn-primary-hover: #2aa198;
+        /* White-on-#268bd2 measures only 3.68:1, below AA's 4.5:1 — black
+           passes at 5.71:1 instead. */
+        --btn-primary-text: #000;
 
         --warn-bg:         #33321a;
         --warn-text:       #b58900;
@@ -346,6 +355,9 @@
         --accent:          #268bd2;
         --btn-primary-bg:  #268bd2;
         --btn-primary-hover: #2076b5;
+        /* White-on-#268bd2 measures only 3.68:1, below AA's 4.5:1 — black
+           passes at 5.71:1 instead. */
+        --btn-primary-text: #000;
 
         --warn-bg:         #faf3d8;
         --warn-text:       #93700a;
@@ -480,6 +492,14 @@
            WMAP_ISSUES.md #22/#23. */
         --z-modal:    7000;
         --z-tooltip:  7100;
+
+        /* Filled-button text colour, paired with --btn-primary-bg (see the
+           Theming section of CLAUDE.md). Defaults to white, since that's
+           correct for most themes' button ground; a theme whose
+           --btn-primary-bg is too light for white to clear AA overrides this
+           inside its own :root[data-theme="…"] block (light-green, nord,
+           solarized-dark, solarized-light all do). */
+        --btn-primary-text: var(--text-white);
 
         /* wmap chrome theming (WMAP_ISSUES #25): wmap reads its toolbar / panel /
            canvas colours from these --wmap-* tokens (the full list is wmap's own
@@ -741,6 +761,12 @@
       .mapping-table select option {
         background: var(--bg-input); color: var(--text-secondary);
       }
+      /* Role cell holds the select plus an optional numeric/string
+         type-mismatch hint (Parquet's typed columns only — CSV/JSON never set
+         it) — flex so the fixed-width icon doesn't force the select to wrap. */
+      .role-cell { display: flex; align-items: center; gap: 4px; }
+      .role-cell select { flex: 1; width: auto; min-width: 0; }
+      .type-mismatch-hint { color: var(--warn-text); font-size: 13px; flex-shrink: 0; cursor: help; }
       .test-name-input {
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
         padding: 2px 6px; border-radius: 3px; font-size: 12px; width: 180px;
@@ -760,7 +786,7 @@
       .mapping-validation:empty { display: none; }
       .pass-bin-group { display: flex; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; color: var(--text-muted); }
       .pass-bin-group input { background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary); padding: 2px 6px; border-radius: 3px; font-size: 12px; width: 80px; }
-      .btn-primary { background: var(--btn-primary-bg); border: none; color: var(--text-white); padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+      .btn-primary { background: var(--btn-primary-bg); border: none; color: var(--btn-primary-text); padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
       .btn-primary:hover { background: var(--btn-primary-hover); }
       .btn-secondary { background: none; border: 1px solid var(--border-muted); color: var(--text-muted); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
       .btn-secondary:hover { border-color: var(--border-dim); color: var(--text-lighter); }
@@ -869,7 +895,7 @@
         <div id="drop-zone" title="Open wafer-map files — or drop them anywhere">
           <button id="open-btn" title="Open wafer-map files — or drop them anywhere">Open file</button>
           <input id="file-input" type="file" multiple
-            accept=".stdf,.std,.atdf,.atd,.csv,.json,.gz,.zip,.txt,.dat"
+            accept=".stdf,.std,.atdf,.atd,.csv,.json,.parquet,.gz,.zip,.txt,.dat"
             style="display:none" />
         </div>
         <button id="add-btn" disabled title="Append more files to the current view">Add files</button>

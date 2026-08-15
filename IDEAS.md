@@ -244,18 +244,45 @@ change — noted per item.
 
 ## Data ingestion (needs validated demand before scoping)
 
-- [ ] **"Open from URL" — REST-pull JSON ingestion.** Today tsmap only ingests local files; many
-      companies keep test data behind a database or internal data-analysis app instead, reachable
-      as a REST/HTTP endpoint. Explored 2026-07-19: a "tsmap pulls" design where the user enters an
-      endpoint (+ optional Bearer/API-key auth) and tsmap fetches JSON via a new Rust command
-      (never the webview, to avoid CORS/credential exposure), reusing the *existing* column-mapping
-      overlay unchanged — a generic bring-your-own-JSON-API connector, not a named-vendor
-      integration (no public REST API found for KLA Klarity, Synopsys YieldManager/SiliconDash, or
-      PDF Solutions Exensio). Estimated ~700-900 lines touched, medium-small since it reuses the
-      JSON parser/mapping overlay/modal chrome almost entirely; main risk is a refactor of
-      `main.ts`'s shared file-load path. Not started — full design, cost breakdown, and researched
-      tradeoffs (incl. why `tauri-plugin-http` was rejected in favor of a hand-rolled `reqwest`
-      command) are in [plans/open-from-url-ingestion.md](plans/open-from-url-ingestion.md).
+- [x] **"Open from URL" — programmatic REST-pull ingestion.** ~~Today tsmap only ingests local
+      files~~ Implemented 2026-08-15 as `--url <url> --url-format <stdf|atdf|csv|json|parquet>`
+      (desktop) / `?dataUrl=&dataFormat=` (web query param) — a caller application (its own data
+      selection UI, a script) hands tsmap a URL to fetch and load, no human retyping anything. On
+      desktop the fetch happens entirely in Rust *before the window opens*, resolving to a real
+      local temp file the frontend sees as an ordinary CLI file path — no IPC command, no
+      mapping-overlay changes needed. Desktop also supports `--url-headers <file>` for
+      header-authenticated data APIs (a `Header-Name: value`-per-line file, mirroring
+      `--tests`/`--splits`, so the secret never sits on the command line). The original design
+      doc's specific shape (an interactive "type a URL in" modal, JSON-only,
+      `tauri-plugin-http`-vs-`reqwest` research) is superseded by what shipped, kept at
+      [plans/open-from-url-ingestion.md](plans/open-from-url-ingestion.md) for its still-relevant
+      research (the CORS/credential-exposure reasoning, the `tauri-plugin-http` rejection).
+- [ ] **Multiple URLs per launch.** `--url`/`dataUrl` are singular today — one URL, one fetch, per
+      launch. If a caller's data API can bundle a multi-lot selection into a single combined
+      multi-wafer response for one URL, that's already fully supported (tsmap is multi-wafer-native
+      per file/response already) — no work needed, and this is the currently-recommended
+      integration shape (see the integration proposal doc shared 2026-08-15). But if a caller's
+      selection UI naturally maps to *several separate* URLs (discrete per-lot endpoints, not one
+      combinable call), there's no way to hand tsmap more than one today. Would need a
+      `--url-list <file>`-style mechanism (and a web equivalent) mirroring how `--list` already
+      works for local file paths, fetching N URLs and merging the results. Not started — no
+      validated demand yet, logged here in case a caller's API can't be reshaped to the single
+      combined-response pattern.
+- [x] **`tsmap://` URL scheme / deep link.** ~~A registered custom protocol handler~~ Implemented
+      2026-08-15 via `tauri-plugin-deep-link` — `tsmap://open?url=...&format=...`, so a web page
+      can launch the desktop app directly (`<a href="tsmap://open?...">`) rather than requiring
+      something already running as a process to invoke `tsmap --url ...`. On Linux/Windows the OS
+      just relaunches tsmap with the whole URI as a plain argv entry (confirmed via direct
+      `xdg-open` reproduction) — `cli_files.rs` recognizes a `tsmap://`-prefixed positional arg and
+      parses it into the same `url`/`url_format` fields `--url`/`--url-format` set, so the entire
+      existing single-instance-forwarding and `resolve_cli_url` path needed zero new code beyond
+      that recognition. The app self-registers the scheme at every startup (mirrors the file
+      associations feature's own "self-heal a dev/unpacked binary" approach). As expected, doesn't
+      solve header-based auth on its own — a deep-link URL has nowhere safe to carry a credential,
+      same constraint as a page URL — only presigned/self-authenticating URLs work cleanly through
+      it. Complements the file associations feature (Help → File associations…, 2026-08-15) — a
+      deep link launches from a URL a caller supplies, file associations launch from a local file
+      the user already has.
 
 ## Smaller polish items
 

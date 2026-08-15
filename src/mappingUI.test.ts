@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tokenize, detectRole, validateRoleAssignments } from './mappingUI';
+import { tokenize, detectRole, validateRoleAssignments, isTypeMismatch } from './mappingUI';
 
 const noSample: Record<string, string>[] = [];
 const numericSample = (col: string, val = '1.5'): Record<string, string>[] => [{ [col]: val }];
@@ -71,6 +71,14 @@ describe('detectRole — long-format identity/value columns', () => {
   it.each(['test_name', 'testname', 'param', 'test_item'])('detects testname: %s', col => {
     expect(detectRole(col, noSample)).toBe('testname');
   });
+  // A column literally holding the test's real number (not its name) — e.g.
+  // "testno"/"test number" — used to fall through to the testname pattern
+  // (test_num/tnum were listed there), silently discarding the real number in
+  // favour of a hashed one. Own role now, own patterns.
+  it.each(['test_num', 'testnum', 'tnum', 'test_number', 'testnumber', 'testno', 'test_no'])(
+    'detects testnumber: %s', col => {
+      expect(detectRole(col, noSample)).toBe('testnumber');
+    });
 });
 
 describe('detectRole — test vs metadata fallback', () => {
@@ -165,5 +173,26 @@ describe('validateRoleAssignments', () => {
 
   it('accepts an empty assignment list', () => {
     expect(validateRoleAssignments([])).toBeNull();
+  });
+});
+
+// ── isTypeMismatch ────────────────────────────────────────────────────────────
+
+describe('isTypeMismatch', () => {
+  it('flags a numeric-only role mapped to a string-typed column', () => {
+    expect(isTypeMismatch('x', 'string')).toBe(true);
+    expect(isTypeMismatch('testvalue', 'string')).toBe(true);
+    expect(isTypeMismatch('testnumber', 'string')).toBe(true);
+  });
+  it('does not flag a numeric-only role mapped to a number/bool column', () => {
+    expect(isTypeMismatch('x', 'number')).toBe(false);
+    expect(isTypeMismatch('x', 'bool')).toBe(false);
+  });
+  it('does not flag when colType is undefined (CSV/JSON — untyped)', () => {
+    expect(isTypeMismatch('x', undefined)).toBe(false);
+  });
+  it('does not flag a non-numeric role regardless of type', () => {
+    expect(isTypeMismatch('wafer', 'string')).toBe(false);
+    expect(isTypeMismatch('metadata', 'string')).toBe(false);
   });
 });

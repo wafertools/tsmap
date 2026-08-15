@@ -1,6 +1,6 @@
 [package]
 name = "tsmap"
-version = "0.1.25"
+version = "0.1.26"
 description = "Desktop application for loading and visualising semiconductor wafer map data"
 authors = ["Paul Robins"]
 edition = "2024"
@@ -26,10 +26,21 @@ serde_json = "1"
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-single-instance = "2"
-tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread"] }
+tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "fs", "io-util"] }
 libc = "0.2.186"
 zip = "8.6.0"
 testdata-parser = { path = "../packages/parsers", features = ["native"] }
+# Hand-rolled fetch command rather than tauri-plugin-http: the plugin's scope
+# system requires pre-configured glob-pattern allow-lists, which doesn't fit
+# "fetch whatever URL the caller supplies" (see plans/open-from-url-ingestion.md
+# for the researched rejection). rustls-tls avoids an OpenSSL system dependency.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tauri-plugin-deep-link = "2.4.9"
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1.52.3", features = ["macros"] }
+
+[target."cfg(windows)".dependencies]
+winreg = "0.56.0"

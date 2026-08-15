@@ -36,6 +36,7 @@ cargo test           # parser tests (run from packages/parsers/)
 python3 scripts/generate_stdf.py /tmp/test.stdf         # synthetic STDF — 3 wafers, 4 tests
 python3 scripts/generate_stdf_large.py /tmp/large.stdf  # large STDF — 25 wafers, 50 tests, ~10k dies/wafer
 python3 scripts/generate_atdf.py /tmp/test.atdf         # synthetic ATDF — same structure
+python3 scripts/generate_parquet.py /tmp/test.parquet   # synthetic Parquet (requires pyarrow) — 3 wafers, 10 tests; --large, --correlated, --codec also available
 ```
 
 ## Architecture
@@ -45,7 +46,7 @@ src/
   main.ts          — app entry: file open, two-pass test selector, renderWafers, map/gallery view
   platform.ts      — platform adapter: Tauri IPC (desktop) or WASM-in-a-Worker (browser)
   parserWorker.ts  — web-only module worker running the WASM parsers off the UI thread
-  mappingUI.ts     — CSV/JSON column mapping overlay
+  mappingUI.ts     — CSV/JSON/Parquet column mapping overlay
   multiFileUI.ts   — multi-file rename and append confirmation
   testSelectorUI.ts — test selector overlay for large STDF/ATDF files
   types.ts         — shared types: ParsedFile, WaferData, TestDef, LotMeta
@@ -56,6 +57,7 @@ packages/parsers/  — shared Rust crate, compiles for native Tauri and WASM
   src/parse_atdf.rs — ATDF ASCII parser; includes first-pass scan and filtered parse
   src/parse_csv.rs  — CSV/TSV parser with column mapping
   src/parse_json.rs — JSON array parser with column mapping
+  src/parse_parquet.rs — Parquet parser (row-oriented, no arrow dep) with the same column mapping
   src/read_file.rs  — read_bytes / read_text with transparent .gz decompression
 
 src-tauri/src/commands/  — thin Tauri async wrappers over packages/parsers
@@ -63,6 +65,7 @@ src-tauri/src/commands/  — thin Tauri async wrappers over packages/parsers
   parse_atdf.rs      — parse_atdf(path)
   parse_csv.rs       — csv_headers(path), parse_csv(path, mapping)
   parse_json.rs      — json_headers(path), parse_json(path, mapping)
+  parse_parquet.rs   — parquet_headers(path), parse_parquet(path, mapping)
   stdf_test_names.rs — stdf_test_names(path) — first-pass test name scan
   atdf_test_names.rs — atdf_test_names(path) — first-pass test name scan
   parse_stdf_filtered.rs — parse_stdf_filtered(path, selected) — filtered parse
@@ -75,6 +78,19 @@ src-tauri/src/commands/  — thin Tauri async wrappers over packages/parsers
 
 The parsers compile to `@wafertools/testdata-parser` on npm. The package is consumed by
 both the tsmap web version and can be used independently.
+
+Test a change against the web build without publishing anything, via a local link (from
+the repo root — this builds `packages/parsers/pkg/` and symlinks
+`node_modules/@wafertools/testdata-parser` to it):
+
+```bash
+npm run parser:link    # build (dev/unoptimized) + link
+npm run parser:build   # rerun after each Rust edit
+npm run dev:web        # picks up the linked build immediately
+npm run parser:unlink  # restore the published package — required before any release
+```
+
+To actually publish:
 
 ```bash
 cd packages/parsers

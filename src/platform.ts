@@ -17,6 +17,9 @@ export interface HeadersResult {
   headers: string[];
   sample: Record<string, string>[];
   rowCount: number;
+  /** Coarse per-column type ("number" | "bool" | "string") — set only by
+   *  natively-typed sources (Parquet); absent for CSV/JSON. */
+  columnTypes?: Record<string, 'number' | 'bool' | 'string'>;
 }
 
 export interface FileHandle {
@@ -43,6 +46,13 @@ export interface CliStartupArgs {
   files: string[];
   tests?: string;
   splits?: string;
+  /** Set when `--url`/`--url-format` (cli_files.rs) failed to fetch — the
+   *  Rust side resolves the URL to a real local file *before* the frontend
+   *  ever runs (see fetch_url.rs's module doc for why), so `files` already
+   *  contains the resolved path on success; this is only ever populated on
+   *  failure, for the frontend to surface the same way a bad `--splits`/
+   *  `--tests` file already is. */
+  urlError?: string;
 }
 
 export interface Platform {
@@ -52,8 +62,14 @@ export interface Platform {
   parseAtdf(file: FileHandle): Promise<RustParsedFile>;
   parseCsv(file: FileHandle, mapping: CsvMapping): Promise<RustParsedFile>;
   parseJson(file: FileHandle, mapping: CsvMapping): Promise<RustParsedFile>;
+  parseParquet(file: FileHandle, mapping: CsvMapping): Promise<RustParsedFile>;
   csvHeaders(file: FileHandle): Promise<HeadersResult>;
   jsonHeaders(file: FileHandle): Promise<HeadersResult>;
+  /** Unlike csvHeaders/jsonHeaders (computed in plain JS on web, see
+   *  parseCsvHeaders/parseJsonHeaders below), Parquet's binary format has no
+   *  pure-JS shortcut — this always goes through the WASM worker on web, and
+   *  through the native command on Tauri. */
+  parquetHeaders(file: FileHandle): Promise<HeadersResult>;
   savePng(blob: Blob, stem: string): Promise<void>;
   openReport(html: string): void;
   /** Opens an external URL in the system browser (Tauri) / a new tab (web). */
@@ -94,6 +110,31 @@ export interface Platform {
   /** Reads a text file by absolute path — used to fetch the content of a
    *  CLI-supplied `--tests`/`--splits` file. Tauri only; never called on web. */
   readTextFile(path: string): Promise<string>;
+  /** Current file-type association status for each of ASSOCIABLE_EXTENSIONS
+   *  (see file_associations.rs) — reflects the real OS state (registry on
+   *  Windows, mimeapps.list on Linux), not just what the user last clicked.
+   *  Tauri only; there is no such concept on web. */
+  getFileAssociationStatus(): Promise<FileAssociationStatus[]>;
+  /** Associates (or un-associates) `extension` with tsmap. Rejects with a
+   *  clear message on failure — most commonly a locked-down machine that
+   *  restricts registry/mimeapps.list writes — rather than silently no-op'ing.
+   *  Tauri only. */
+  setFileAssociation(extension: string, associate: boolean): Promise<void>;
+}
+
+export interface FileAssociationStatus {
+  extension: string;
+  associated: boolean;
+  /** The executable path currently registered for this extension (Windows
+   *  registry command / Linux `.desktop` file's `Exec=`) — `null` when not
+   *  associated or unreadable. This is what the OS will actually launch on a
+   *  cold double-click, which can drift from `currentExePath` (e.g. toggled
+   *  on once from a debug build, then left stale after switching back to the
+   *  release build). */
+  registeredExePath: string | null;
+  /** The path of the tsmap binary currently running, for comparison against
+   *  `registeredExePath`. `null` only if the OS call to resolve it failed. */
+  currentExePath: string | null;
 }
 
 // ── Tauri platform ────────────────────────────────────────────────────────────
@@ -114,10 +155,10 @@ function makeTauriPlatform(): Platform {
         multiple: true,
         defaultPath: lastDir ?? undefined,
         filters: [
-          { name: 'Wafer map files', extensions: ['stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'gz', 'zip'] },
+          { name: 'Wafer map files', extensions: ['stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet', 'gz', 'zip'] },
           { name: 'STDF', extensions: ['stdf', 'std'] },
           { name: 'ATDF', extensions: ['atdf', 'atd'] },
-          { name: 'CSV / JSON', extensions: ['csv', 'json'] },
+          { name: 'CSV / JSON / Parquet', extensions: ['csv', 'json', 'parquet'] },
           { name: 'Archives', extensions: ['gz', 'zip'] },
         ],
       });
@@ -174,6 +215,11 @@ function makeTauriPlatform(): Platform {
       return invoke<RustParsedFile>('parse_json', { path: file.path, mapping });
     },
 
+    async parseParquet(file, mapping) {
+      const invoke = await getInvoke();
+      return invoke<RustParsedFile>('parse_parquet', { path: file.path, mapping });
+    },
+
     async csvHeaders(file) {
       const invoke = await getInvoke();
       return invoke<HeadersResult>('csv_headers', { path: file.path });
@@ -182,6 +228,11 @@ function makeTauriPlatform(): Platform {
     async jsonHeaders(file) {
       const invoke = await getInvoke();
       return invoke<HeadersResult>('json_headers', { path: file.path });
+    },
+
+    async parquetHeaders(file) {
+      const invoke = await getInvoke();
+      return invoke<HeadersResult>('parquet_headers', { path: file.path });
     },
 
     async savePng(blob, stem) {
@@ -309,6 +360,16 @@ function makeTauriPlatform(): Platform {
       const invoke = await getInvoke();
       return invoke<string>('read_text_file', { path });
     },
+
+    async getFileAssociationStatus() {
+      const invoke = await getInvoke();
+      return invoke<FileAssociationStatus[]>('get_file_association_status');
+    },
+
+    async setFileAssociation(extension, associate) {
+      const invoke = await getInvoke();
+      await invoke('set_file_association', { extension, associate });
+    },
   };
 }
 
@@ -318,7 +379,7 @@ function makeTauriPlatform(): Platform {
 // request/response messages by id.
 
 type ParserOp =
-  | 'parseStdf' | 'parseAtdf' | 'parseCsv' | 'parseJson'
+  | 'parseStdf' | 'parseAtdf' | 'parseCsv' | 'parseJson' | 'parseParquet' | 'parquetHeaders'
   | 'stdfTestNames' | 'atdfTestNames' | 'parseStdfFiltered' | 'parseAtdfFiltered';
 
 interface PendingCall {
@@ -485,12 +546,22 @@ function makeWebPlatform(): Platform {
       return await callWorker('parseJson', file.bytes, { mapping }) as RustParsedFile;
     },
 
+    async parseParquet(file, mapping) {
+      return await callWorker('parseParquet', file.bytes, { mapping }) as RustParsedFile;
+    },
+
     async csvHeaders(file) {
       return parseCsvHeaders(file.bytes);
     },
 
     async jsonHeaders(file) {
       return parseJsonHeaders(file.bytes);
+    },
+
+    async parquetHeaders(file) {
+      // No pure-JS shortcut for a binary Parquet schema/footer, unlike
+      // csvHeaders/jsonHeaders above — always goes through the WASM worker.
+      return await callWorker('parquetHeaders', file.bytes) as HeadersResult;
     },
 
     async savePng(blob, stem) {
@@ -598,6 +669,10 @@ function makeWebPlatform(): Platform {
     async getStartupFiles() { return null; },
     async respawnNewInstance() {},
     async readTextFile() { throw new Error('readTextFile is not supported on web'); },
+    // No concept of "the OS's default app for a file type" in a browser —
+    // never called on web (the Help menu row is Tauri-only, see main.ts).
+    async getFileAssociationStatus() { throw new Error('File associations are not supported on web'); },
+    async setFileAssociation() { throw new Error('File associations are not supported on web'); },
 
     async getSampleSplitsCsv() {
       try {

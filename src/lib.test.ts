@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, stableTestNumber } from './lib';
+import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -16,6 +16,47 @@ describe('basename', () => {
   });
   it('returns empty string for trailing slash', () => {
     expect(basename('/some/dir/')).toBe('');
+  });
+});
+
+// ── isUrlImportFormat ─────────────────────────────────────────────────────────
+
+describe('isUrlImportFormat', () => {
+  it('accepts every supported format', () => {
+    for (const f of ['stdf', 'atdf', 'csv', 'json', 'parquet']) {
+      expect(isUrlImportFormat(f)).toBe(true);
+    }
+  });
+  it('is case-insensitive', () => {
+    expect(isUrlImportFormat('JSON')).toBe(true);
+    expect(isUrlImportFormat('Stdf')).toBe(true);
+  });
+  it('rejects an unsupported format', () => {
+    expect(isUrlImportFormat('xlsx')).toBe(false);
+    expect(isUrlImportFormat('')).toBe(false);
+  });
+});
+
+// ── deriveFileName ────────────────────────────────────────────────────────────
+
+describe('deriveFileName', () => {
+  it('uses the last path segment as the stem', () => {
+    expect(deriveFileName('https://example.com/lots/wafer-42.stdf', 'stdf')).toBe('wafer-42.stdf');
+  });
+  it('strips an existing extension from the segment and forces the declared format', () => {
+    expect(deriveFileName('https://example.com/export.bin', 'json')).toBe('export.json');
+  });
+  it('ignores query strings when deriving the stem', () => {
+    expect(deriveFileName('https://example.com/data/lot?token=abc123&sig=xyz', 'csv')).toBe('lot.csv');
+  });
+  it('falls back to a generic stem for a bare-root URL', () => {
+    expect(deriveFileName('https://example.com/', 'json')).toBe('url-import.json');
+  });
+  it('falls back to a generic stem for a malformed URL', () => {
+    expect(deriveFileName('not a url', 'json')).toBe('url-import.json');
+  });
+  it('lowercases the forced extension regardless of the format hint casing', () => {
+    expect(deriveFileName('https://example.com/lot.stdf', 'STDF')).toBe('lot.stdf');
   });
 });
 
@@ -460,5 +501,56 @@ describe('stableTestNumber', () => {
     const b = stableTestNumber('GAIN_DB', usedB);
 
     expect(a).toBe(b);
+  });
+});
+
+// ── testNumberForColumn ───────────────────────────────────────────────────────
+// Wide format's per-column number: raw exports sometimes name a test column
+// literally by its number ("1001", "1002") with no descriptive name at all —
+// that real number should be used as-is, not hashed away.
+
+describe('testNumberForColumn', () => {
+  it('uses a bare-numeric column header literally', () => {
+    expect(testNumberForColumn('1001', new Set())).toBe(1001);
+  });
+
+  it('trims surrounding whitespace before checking', () => {
+    expect(testNumberForColumn(' 1001 ', new Set())).toBe(1001);
+  });
+
+  it('falls back to hashing for a non-numeric header', () => {
+    const n = testNumberForColumn('Vt_lin', new Set());
+    expect(n).toBe(stableTestNumber('Vt_lin', new Set()));
+    expect(n).toBeGreaterThanOrEqual(1_000_000);
+  });
+
+  it('never collides a literal number with a previously hashed one', () => {
+    const used = new Set<number>();
+    const hashed = testNumberForColumn('some_test_name', used);
+    // A literal number is always well under the reserved band a hash lands
+    // in, so this can never coincide — but assert the actual invariant
+    // (used-set membership), not just the value ranges.
+    const literal = testNumberForColumn('1001', used);
+    expect(literal).not.toBe(hashed);
+    expect(used.has(literal)).toBe(true);
+    expect(used.has(hashed)).toBe(true);
+  });
+
+  it('falls back to hashing when the literal number is already taken', () => {
+    const used = new Set<number>([1001]);
+    const n = testNumberForColumn('1001', used);
+    expect(n).not.toBe(1001);
+    expect(n).toBeGreaterThanOrEqual(1_000_000);
+  });
+
+  it('falls back to hashing when the literal exceeds u32 range', () => {
+    const n = testNumberForColumn('99999999999', new Set());
+    expect(n).toBeGreaterThanOrEqual(1_000_000);
+  });
+
+  it('registers the literal number in `used` so a later hash cannot land on it', () => {
+    const used = new Set<number>();
+    testNumberForColumn('1001', used);
+    expect(used.has(1001)).toBe(true);
   });
 });

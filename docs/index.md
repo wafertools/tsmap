@@ -7,8 +7,8 @@ hide:
 # tsmap
 
 A desktop and browser application for loading and visualising semiconductor wafer map data.
-Open STDF, ATDF, CSV, and JSON lot files and get interactive yield maps, parametric heat
-maps, bin pareto charts, per-test boxplots and histograms, and a cross-test correlation
+Open STDF, ATDF, CSV, JSON, and Parquet lot files and get interactive yield maps, parametric
+heat maps, bin pareto charts, per-test boxplots and histograms, and a cross-test correlation
 matrix — all without uploading your data anywhere. Wafer rendering and analysis are built
 on [wafermap](https://wafertools.github.io/wafermap/), our own purpose-built wafer-map engine.
 
@@ -68,6 +68,7 @@ See the full [Features](features.md) tour, or read through a few [Use cases](use
 | ATDF (`.atdf`, `.atd`) | ASCII equivalent of STDF |
 | CSV (`.csv`, `.txt`, `.dat`) | Column mapping step; wide and long (pivot) formats |
 | JSON (`.json`) | Flat array or nested `[{ wafer, results: [{die}] }]` |
+| Parquet (`.parquet`) | Columnar, typed; same column mapping step as CSV/JSON, with a type-mismatch hint. `snappy`/`gzip`/`lz4`/`brotli` on both platforms; `zstd` on desktop only |
 | Gzip (`.gz`) | Transparent decompression — e.g. `lot.stdf.gz` |
 | Zip (`.zip`) | All contained files extracted and loaded as a batch |
 

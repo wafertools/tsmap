@@ -17,6 +17,8 @@ export type ParserOp =
   | 'parseAtdf'
   | 'parseCsv'
   | 'parseJson'
+  | 'parseParquet'
+  | 'parquetHeaders'
   | 'stdfTestNames'
   | 'atdfTestNames'
   | 'parseStdfFiltered'
@@ -64,6 +66,8 @@ function run(wasm: WasmModule, req: ParserRequest): unknown {
     case 'parseAtdf':         return wasm.parse_atdf(req.bytes);
     case 'parseCsv':          return wasm.parse_csv(req.bytes, req.mapping);
     case 'parseJson':         return wasm.parse_json(req.bytes, req.mapping);
+    case 'parseParquet':      return wasm.parse_parquet(req.bytes, req.mapping);
+    case 'parquetHeaders':    return wasm.parquet_headers(req.bytes);
     case 'stdfTestNames':     return wasm.stdf_test_names(req.bytes);
     case 'atdfTestNames':     return wasm.atdf_test_names(req.bytes);
     case 'parseStdfFiltered': return wasm.parse_stdf_filtered(req.bytes, req.selected ?? []);

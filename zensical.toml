@@ -5,13 +5,14 @@ site_author = "Paul Robins"
 repo_url    = "https://github.com/wafertools/tsmap"
 
 nav = [
-  { "Home"        = "index.md"       },
-  { "Features"    = "features.md"    },
-  { "Use cases"   = "use-cases.md"   },
-  { "User guide"  = "user-guide.md"  },
-  { "Web app"     = "web.md"         },
-  { "Parser API"  = "parser-api.md"  },
-  { "Development" = "development.md" },
+  { "Home"         = "index.md"                       },
+  { "Features"     = "features.md"                    },
+  { "Use cases"    = "use-cases.md"                    },
+  { "User guide"   = "user-guide.md"                   },
+  { "Integrations" = "integrating-data-selection.md"   },
+  { "Web app"      = "web.md"                          },
+  { "Parser API"   = "parser-api.md"                   },
+  { "Development"  = "development.md"                  },
 ]
 
 [project.theme]

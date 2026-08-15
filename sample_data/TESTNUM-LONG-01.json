@@ -1,0 +1,218 @@
+[
+  {
+    "wafer": "W01",
+    "x": 0,
+    "y": 0,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2001,
+    "test_val": 100.0
+  },
+  {
+    "wafer": "W01",
+    "x": 0,
+    "y": 0,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2002,
+    "test_val": 200.0
+  },
+  {
+    "wafer": "W01",
+    "x": 0,
+    "y": 0,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2003,
+    "test_val": 300.0
+  },
+  {
+    "wafer": "W01",
+    "x": 1,
+    "y": 0,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2001,
+    "test_val": 101.5
+  },
+  {
+    "wafer": "W01",
+    "x": 1,
+    "y": 0,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2002,
+    "test_val": 198.0
+  },
+  {
+    "wafer": "W01",
+    "x": 1,
+    "y": 0,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2003,
+    "test_val": 300.5
+  },
+  {
+    "wafer": "W01",
+    "x": 0,
+    "y": 1,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2001,
+    "test_val": 103.0
+  },
+  {
+    "wafer": "W01",
+    "x": 0,
+    "y": 1,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2002,
+    "test_val": 196.0
+  },
+  {
+    "wafer": "W01",
+    "x": 0,
+    "y": 1,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2003,
+    "test_val": 301.0
+  },
+  {
+    "wafer": "W01",
+    "x": 1,
+    "y": 1,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2001,
+    "test_val": 104.5
+  },
+  {
+    "wafer": "W01",
+    "x": 1,
+    "y": 1,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2002,
+    "test_val": 194.0
+  },
+  {
+    "wafer": "W01",
+    "x": 1,
+    "y": 1,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2003,
+    "test_val": 301.5
+  },
+  {
+    "wafer": "W02",
+    "x": 0,
+    "y": 0,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2001,
+    "test_val": 100.0
+  },
+  {
+    "wafer": "W02",
+    "x": 0,
+    "y": 0,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2002,
+    "test_val": 200.0
+  },
+  {
+    "wafer": "W02",
+    "x": 0,
+    "y": 0,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2003,
+    "test_val": 300.0
+  },
+  {
+    "wafer": "W02",
+    "x": 1,
+    "y": 0,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2001,
+    "test_val": 101.5
+  },
+  {
+    "wafer": "W02",
+    "x": 1,
+    "y": 0,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2002,
+    "test_val": 198.0
+  },
+  {
+    "wafer": "W02",
+    "x": 1,
+    "y": 0,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2003,
+    "test_val": 300.5
+  },
+  {
+    "wafer": "W02",
+    "x": 0,
+    "y": 1,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2001,
+    "test_val": 103.0
+  },
+  {
+    "wafer": "W02",
+    "x": 0,
+    "y": 1,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2002,
+    "test_val": 196.0
+  },
+  {
+    "wafer": "W02",
+    "x": 0,
+    "y": 1,
+    "hbin": 1,
+    "sbin": 1,
+    "test_num": 2003,
+    "test_val": 301.0
+  },
+  {
+    "wafer": "W02",
+    "x": 1,
+    "y": 1,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2001,
+    "test_val": 104.5
+  },
+  {
+    "wafer": "W02",
+    "x": 1,
+    "y": 1,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2002,
+    "test_val": 194.0
+  },
+  {
+    "wafer": "W02",
+    "x": 1,
+    "y": 1,
+    "hbin": 2,
+    "sbin": 2,
+    "test_num": 2003,
+    "test_val": 301.5
+  }
+]

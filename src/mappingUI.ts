@@ -1,7 +1,7 @@
 // Column mapping overlay — shown after csv_headers, before parse_csv.
 // Mirrors the wmap showcase mapping phase.
 
-import { escapeHtml as esc, stableTestNumber } from './lib';
+import { escapeHtml as esc, testNumberForColumn } from './lib';
 
 export interface CsvTestCol {
   col: string;
@@ -21,6 +21,10 @@ export interface CsvMapping {
   meta: string[];
   splitBy: string[];
   testnameCol: string | null;
+  /** Long-format only: a column holding each row's real test number. May be
+   *  set alone (no name column at all — the number doubles as the display
+   *  name) or alongside testnameCol (real number, given name). */
+  testnumberCol: string | null;
   testvalueCol: string | null;
   loLimitCol: string | null;
   hiLimitCol: string | null;
@@ -32,11 +36,30 @@ export interface HeadersResult {
   headers: string[];
   sample: Record<string, string>[];
   rowCount: number;
+  /** Coarse per-column type ("number" | "bool" | "string"), set only by
+   *  natively-typed sources (currently Parquet — CSV/JSON cells are all text,
+   *  so they never set this). Used to flag an obviously wrong role (e.g. a
+   *  string column mapped to X) before a full parse silently drops every row. */
+  columnTypes?: Record<string, 'number' | 'bool' | 'string'>;
+}
+
+/** Roles that require a numeric cell value. Mapping one of these to a
+ *  string-typed column (per `HeadersResult.columnTypes`) is very likely a
+ *  mistake — flagged, not blocked, since a numeric-looking string still
+ *  parses fine (same leniency the Rust side applies). */
+const NUMERIC_ROLES = new Set<ColRole>(['x', 'y', 'hbin', 'sbin', 'site', 'test', 'testnumber', 'testvalue', 'loLimit', 'hiLimit']);
+
+/** Whether a role assigned to a column should show the type-mismatch hint —
+ *  shared by the initial row render and the role-change handler so the two
+ *  can never drift apart. `colType` is only ever set for typed sources
+ *  (currently Parquet); `undefined` (CSV/JSON) never mismatches. */
+export function isTypeMismatch(role: ColRole, colType: 'number' | 'bool' | 'string' | undefined): boolean {
+  return colType === 'string' && NUMERIC_ROLES.has(role);
 }
 
 // ── Column role detection — mirrors showcase detectRole ───────────────────────
 
-type ColRole = 'x' | 'y' | 'hbin' | 'sbin' | 'wafer' | 'lot' | 'site' | 'testname' | 'testvalue' | 'loLimit' | 'hiLimit' | 'units' | 'test' | 'metadata' | '';
+type ColRole = 'x' | 'y' | 'hbin' | 'sbin' | 'wafer' | 'lot' | 'site' | 'testname' | 'testnumber' | 'testvalue' | 'loLimit' | 'hiLimit' | 'units' | 'test' | 'metadata' | '';
 
 const EXACT_ROLES: { role: ColRole; patterns: string[] }[] = [
   { role: 'x',         patterns: ['x','die_x','x_loc','xloc','col','column','step_x','stepx','diex','xstep','x_step','xcoord','x_coord','xpos','x_pos'] },
@@ -46,7 +69,8 @@ const EXACT_ROLES: { role: ColRole; patterns: string[] }[] = [
   { role: 'wafer',     patterns: ['wafer','wafer_id','waferid','wafer_num','wafernum','wid','wafer_no','waferno','wfr','wfr_id','wnum'] },
   { role: 'lot',       patterns: ['lot','lot_id','lotid','lot_num','lotnum','lot_no','lotno'] },
   { role: 'site',      patterns: ['site','site_num','sitenum','site_no','siteno','site_id','siteid'] },
-  { role: 'testname',  patterns: ['test_name','testname','param','parameter','param_name','measurement','test_item','test_num','tnum'] },
+  { role: 'testname',  patterns: ['test_name','testname','param','parameter','param_name','measurement','test_item'] },
+  { role: 'testnumber', patterns: ['test_num','testnum','tnum','test_number','testnumber','testno','test_no','t_num'] },
   { role: 'testvalue', patterns: ['result','value','val','measured','meas','reading','test_value','test_result','meas_value','meas_val'] },
   { role: 'loLimit',   patterns: ['lo_limit','low_limit','lolimit','lower_limit','ll','lsl','spec_lo','spec_low','min_limit','lo_lim'] },
   { role: 'hiLimit',   patterns: ['hi_limit','high_limit','hilimit','upper_limit','ul','usl','spec_hi','spec_high','max_limit','hi_lim'] },
@@ -78,7 +102,8 @@ const REGEX_ROLES: { role: ColRole; re: RegExp }[] = [
   // `testvalueCol` unset, the parser falls back to wide-format parsing of that
   // one bogus column — every other test in the file disappears with no error,
   // since nothing here was actually wrong, just unrecognized.
-  { role: 'testname',  re: /^(?:test[_\s-]?name|param(?:eter)?(?:[_\s-]?name)?|test[_\s-]?item|test[_\s-]?num(?:ber)?|t[_\s-]?num)$/ },
+  { role: 'testname',  re: /^(?:test[_\s-]?name|param(?:eter)?(?:[_\s-]?name)?|test[_\s-]?item)$/ },
+  { role: 'testnumber', re: /^(?:test[_\s-]?num(?:ber)?|t[_\s-]?num|test[_\s-]?no)$/ },
   { role: 'testvalue', re: /^(?:test[_\s-]?(?:val(?:ue)?|result)|result[_\s-]?val(?:ue)?|meas(?:ured)?[_\s-]?(?:val(?:ue)?|result))$/ },
 ];
 
@@ -156,6 +181,7 @@ const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
   { value: 'site',      label: 'Test site' },
   { value: 'test',      label: 'Test value' },
   { value: 'testname',  label: 'Test name (long format)' },
+  { value: 'testnumber', label: 'Test number (long format)' },
   { value: 'testvalue', label: 'Test result (long format)' },
   { value: 'loLimit',   label: 'Low limit (long format)' },
   { value: 'hiLimit',   label: 'High limit (long format)' },
@@ -172,7 +198,7 @@ const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
  * genuinely many-per-file roles.
  */
 const SINGLE_VALUE_ROLES: ReadonlyArray<ColRole> =
-  ['x', 'y', 'hbin', 'sbin', 'wafer', 'lot', 'site', 'testname', 'testvalue', 'loLimit', 'hiLimit', 'units'];
+  ['x', 'y', 'hbin', 'sbin', 'wafer', 'lot', 'site', 'testname', 'testnumber', 'testvalue', 'loLimit', 'hiLimit', 'units'];
 
 function roleLabel(role: ColRole): string {
   return ROLE_OPTIONS.find(o => o.value === role)?.label ?? role;
@@ -221,18 +247,21 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
   let x = '', y = '';
   let hbin: string | null = null, sbin: string | null = null;
   let wafer: string | null = null, lot: string | null = null, site: string | null = null;
-  let testnameCol: string | null = null, testvalueCol: string | null = null;
+  let testnameCol: string | null = null, testnumberCol: string | null = null, testvalueCol: string | null = null;
   let loLimitCol: string | null = null, hiLimitCol: string | null = null, unitsCol: string | null = null;
   const tests: CsvTestCol[] = [];
   const meta: string[] = [];
   const splitBy: string[] = [];
-  // Hashed from the column's own key (`col`), not its user-editable display
+  // Derived from the column's own key (`col`), not its user-editable display
   // name — `col` is guaranteed unique per file (it's the real header text),
-  // while two rows can end up with the same typed-in name. Deterministic and
-  // order-independent: the same column gets the same number whether it's the
-  // 3rd column or the 30th, so a saved test list / override survives a column
-  // reorder or an added/removed column. `usedTestNumbers` guarantees no two
-  // columns in this one mapping ever collide, however the hash lands.
+  // while two rows can end up with the same typed-in name. If `col` is itself
+  // a bare number (a raw-export convention — columns literally named "1001",
+  // "1002"), that real number is used as-is; otherwise it's hashed. Either
+  // way it's deterministic and order-independent: the same column gets the
+  // same number whether it's the 3rd column or the 30th, so a saved test
+  // list / override survives a column reorder or an added/removed column.
+  // `usedTestNumbers` guarantees no two columns in this one mapping ever
+  // collide, however each one lands.
   const usedTestNumbers = new Set<number>();
 
   for (const tr of rows) {
@@ -246,6 +275,7 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
     else if (role === 'lot')   lot = col;
     else if (role === 'site')  site = col;
     else if (role === 'testname')  testnameCol = col;
+    else if (role === 'testnumber') testnumberCol = col;
     else if (role === 'testvalue') testvalueCol = col;
     else if (role === 'loLimit') loLimitCol = col;
     else if (role === 'hiLimit') hiLimitCol = col;
@@ -253,7 +283,7 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
     else if (role === 'test') {
       const nameInput = tr.querySelector<HTMLInputElement>('input[type="text"]');
       const name = nameInput?.value.trim() || col;
-      tests.push({ col, testNumber: stableTestNumber(col, usedTestNumbers), name });
+      tests.push({ col, testNumber: testNumberForColumn(col, usedTestNumbers), name });
     } else if (role === 'metadata') {
       meta.push(col);
       const splitCheck = tr.querySelector<HTMLInputElement>('input[type="checkbox"]');
@@ -265,7 +295,7 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
     .split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
 
   return {
-    x, y, hbin, sbin, wafer, lot, site, tests, meta, splitBy, testnameCol, testvalueCol,
+    x, y, hbin, sbin, wafer, lot, site, tests, meta, splitBy, testnameCol, testnumberCol, testvalueCol,
     loLimitCol, hiLimitCol, unitsCol,
     passBins: passBins.length ? passBins : [1],
   };
@@ -274,11 +304,16 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
 // ── Long-format confirmation modal ────────────────────────────────────────────
 
 function detectLongFormat(mapping: CsvMapping, sample: Record<string, string>[]): { nameCol: string; valueCol: string } | null {
-  if (!mapping.testnameCol || !mapping.testvalueCol) return null;
+  // Name OR number identifies the test in long format — a number-only file
+  // (no descriptive name column at all) is legitimate, not just a name-only
+  // one. `nameCol` in the returned hint is cosmetic (used for messaging in
+  // the confirmation prompt below); fall back to the number column when
+  // there's no name to show.
+  if ((!mapping.testnameCol && !mapping.testnumberCol) || !mapping.testvalueCol) return null;
   // Check if coordinates repeat in sample (indicates long format)
   const posSet = new Set(sample.map(r => `${r[mapping.x]},${r[mapping.y]}`));
   if (posSet.size >= sample.length && sample.length >= 5) return null; // every row unique
-  return { nameCol: mapping.testnameCol, valueCol: mapping.testvalueCol };
+  return { nameCol: mapping.testnameCol ?? mapping.testnumberCol ?? '', valueCol: mapping.testvalueCol };
 }
 
 function showLongFormatModal(): Promise<boolean> {
@@ -348,6 +383,7 @@ export async function showMappingOverlay(
     if (saved.lot)   savedRoles[saved.lot]   = 'lot';
     if (saved.site)  savedRoles[saved.site]  = 'site';
     if (saved.testnameCol)  savedRoles[saved.testnameCol]  = 'testname';
+    if (saved.testnumberCol) savedRoles[saved.testnumberCol] = 'testnumber';
     if (saved.testvalueCol) savedRoles[saved.testvalueCol] = 'testvalue';
     if (saved.loLimitCol) savedRoles[saved.loLimitCol] = 'loLimit';
     if (saved.hiLimitCol) savedRoles[saved.hiLimitCol] = 'hiLimit';
@@ -372,11 +408,15 @@ export async function showMappingOverlay(
       `<option value="${o.value}"${o.value === role ? ' selected' : ''}>${o.label}</option>`
     ).join('');
 
+    const colType = result.columnTypes?.[h];
+    const mismatched = colType === 'string' && NUMERIC_ROLES.has(role);
+
     tableRows += `
       <tr data-col="${esc(h)}">
         <td class="col-name">${esc(h)}</td>
         <td class="col-arrow">→</td>
-        <td><select>${options}</select></td>
+        <td class="role-cell"><select>${options}</select><span class="type-mismatch-hint"${mismatched ? '' : ' hidden'}
+             title="This column's values look like text, not numbers — double-check this mapping.">⚠</span></td>
         <td><input type="text" class="test-name-input" value="${esc(testName)}" placeholder="Test name"
              style="display:${role === 'test' ? 'inline-block' : 'none'}"></td>
         <td class="split-cell" style="visibility:${role === 'metadata' ? 'visible' : 'hidden'}">
@@ -444,16 +484,21 @@ export async function showMappingOverlay(
   // temporal dead zone for anything that read it eagerly.
   const validationEl = overlay.querySelector<HTMLElement>('#map-validation')!;
 
-  // Wire up role change → show/hide test name input and split checkbox
+  // Wire up role change → show/hide test name input, split checkbox, and the
+  // numeric/string type-mismatch hint (only ever set for typed sources —
+  // Parquet currently — so this is a no-op for CSV/JSON's untyped columns).
   for (const tr of rowEls) {
     const sel = tr.querySelector<HTMLSelectElement>('select')!;
     const nameInput = tr.querySelector<HTMLInputElement>('input[type="text"]')!;
     const splitCell = tr.querySelector<HTMLElement>('.split-cell')!;
     const splitCheck = tr.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    const mismatchHint = tr.querySelector<HTMLElement>('.type-mismatch-hint')!;
+    const colType = result.columnTypes?.[tr.dataset.col!];
 
     sel.addEventListener('change', () => {
       nameInput.style.display = sel.value === 'test' ? 'inline-block' : 'none';
       splitCell.style.visibility = sel.value === 'metadata' ? 'visible' : 'hidden';
+      mismatchHint.hidden = !(colType === 'string' && NUMERIC_ROLES.has(sel.value as ColRole));
       if (sel.value !== 'metadata') splitCheck.checked = false;
       validationEl.textContent = ''; // stale clash message — re-checked on Continue
     });
