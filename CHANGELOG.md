@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Dies/wafers with no reported X/Y position are now supported everywhere**, instead of being silently dropped at parse time. STDF (the `SENTINEL_I2` marker), ATDF (blank PRR X/Y fields), and CSV/JSON/Parquet (a missing/unmapped/unparseable x or y column) all keep a coordinate-less die rather than discarding it, and surface a `"Wafer {id}: N of M dies have no reported X/Y position"` warning in the log panel when this happens. The column mapping step no longer requires X/Y — leaving both unassigned (or a row missing one) is an explicit, informed choice (a confirmation explains what it means), not a silent drop; assigning only one of the two is still blocked, since a die is either fully positioned or fully unpositioned, never half. A wafer with no reported position never renders as a fabricated map — it shows a compact bin-breakdown or histogram summary instead (colour-matched to the map's own legend/colorbar, including log-scale and spec/data-range awareness), with a **View table** toggle for the full per-die list and CSV export. A mixed wafer keeps its normal map plus an expandable "+N dies without position data" footer for the rest. New **Lot ▾ → Die list…** shows every die across the whole loaded lot in one table, with its own CSV export. Sample fixtures: `sample_data/COORDLESS-LOT-01.{stdf,atdf}`, `sample_data/TESTNUM-COORDLESS-01.{csv,json,parquet}`. See `WMAP_ISSUES.md` #39 for the full technical writeup, including several follow-up rounds of UI fixes found in manual testing (footer collapse, histogram sizing/colours, table hover, table fill-height). This feature depends on an unpublished wmap build (developed via the local link workflow) and is not yet shippable — wmap must be published and re-pinned before the next release.
+
+### Changed
+
+- **Toolbar restructured.** "Filter tests…", "Splits…", and "Die list…" — three buttons that had grown the row past what its own documented overflow defences were designed for — collapsed into a single **Lot ▾** menu, with group separators now framing File-entry / Lot-operations / destructive (**Clear**) sections. A row that doesn't currently apply (e.g. "Filter tests…" on a file with no test data) shows disabled with the reason in its tooltip rather than being hidden, so the menu's shape stays stable between loads. New shared `src/anchoredMenu.ts` backs all three of the toolbar's popup menus (Recent, Help, Lot) — they'd each grown a byte-identical copy of the same positioning/dismissal shell.
+
+### Fixed
+
+- **A toolbar button styled by an unmaintained ID list could silently render unstyled.** Toolbar button CSS was keyed to a hand-maintained `#id-a, #id-b, #id-c { … }` list duplicated across a base rule and a `:hover` rule; a button added without updating both fell through to raw browser-default chrome (visible as a wrapping label on "Die list…"). Replaced with a `.tb-btn` class plus `--primary`/`--danger` modifiers, so a new toolbar button is styled correctly by construction.
+- **The die-list table (both the per-wafer "View table" toggle and the lot-wide "Die list…" dialog) was capped at a fixed 360px tall**, leaving a lot of empty space in a large card or the resizable modal, and produced two nested scrollbars inside the modal. It now fills its container.
+
 ## [0.1.26] — 2026-08-15
 
 ### Added

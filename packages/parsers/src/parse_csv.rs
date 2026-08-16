@@ -23,8 +23,15 @@ pub struct CsvTestCol {
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CsvMapping {
-    pub x: String,
-    pub y: String,
+    /// Column mapped to the die's X grid position. `None` (together with `y`)
+    /// means no position column was assigned at all — every row/die is then
+    /// coordinate-less. Independent of a *row's own* value failing to parse,
+    /// which also produces a coordinate-less die rather than dropping the row.
+    #[serde(default)]
+    pub x: Option<String>,
+    /// Column mapped to the die's Y grid position. See `x`.
+    #[serde(default)]
+    pub y: Option<String>,
     pub hbin: Option<String>,
     pub sbin: Option<String>,
     pub wafer: Option<String>,
@@ -213,19 +220,31 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
         let mut die_map: indexmap::IndexMap<String, HashMap<String, String>> =
             indexmap::IndexMap::new();
 
-        for rec in &all_rows {
-            let x = get(rec, &mapping.x);
-            let y = get(rec, &mapping.y);
-            if x.is_empty() || y.is_empty() { continue; }
+        for (row_idx, rec) in all_rows.iter().enumerate() {
+            let x = get(rec, mapping.x.as_deref().unwrap_or(""));
+            let y = get(rec, mapping.y.as_deref().unwrap_or(""));
+            let has_position = !x.is_empty() && !y.is_empty();
 
             let wafer = mapping.wafer.as_deref().map(|c| get(rec, c)).unwrap_or_default();
             let lot = mapping.lot.as_deref().map(|c| get(rec, c)).unwrap_or_default();
-            let key = format!("{}\x00{}\x00{}\x00{}", wafer, lot, x, y);
+            // Positioned rows pivot together by (wafer, lot, x, y) as before.
+            // A coordinate-less row has no position to group by — rather than
+            // merging unrelated rows under a shared empty key, each becomes
+            // its own die (row_idx guarantees a unique key), so a
+            // coordinate-less long-format file loses cross-row pivoting but
+            // never loses or merges data incorrectly.
+            let key = if has_position {
+                format!("{}\x00{}\x00{}\x00{}", wafer, lot, x, y)
+            } else {
+                format!("{}\x00{}\x00__row_{}", wafer, lot, row_idx)
+            };
 
             let wide = die_map.entry(key).or_insert_with(|| {
                 let mut m = HashMap::new();
-                m.insert(mapping.x.clone(), x.clone());
-                m.insert(mapping.y.clone(), y.clone());
+                if has_position {
+                    if let Some(c) = &mapping.x { m.insert(c.clone(), x.clone()); }
+                    if let Some(c) = &mapping.y { m.insert(c.clone(), y.clone()); }
+                }
                 if let Some(c) = &mapping.wafer { m.insert(c.clone(), wafer.clone()); }
                 if let Some(c) = &mapping.lot   { m.insert(c.clone(), lot.clone()); }
                 if let Some(c) = &mapping.hbin  { m.insert(c.clone(), get(rec, c)); }
@@ -334,15 +353,21 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
 
     for (wid, rows) in &groups {
         let mut dies: Vec<DieResult> = Vec::new();
+        let mut row_index_in_wafer: u32 = 0;
 
         for row in rows {
-            let x: i32 = match row.get(&mapping.x).and_then(|v| v.parse().ok()) {
-                Some(v) => v,
-                None => continue,
-            };
-            let y: i32 = match row.get(&mapping.y).and_then(|v| v.parse().ok()) {
-                Some(v) => v,
-                None => continue,
+            let x: Option<i32> = mapping.x.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
+            let y: Option<i32> = mapping.y.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
+            // No x/y column mapped, or this row's value didn't parse — kept
+            // as a coordinate-less die (with a stable per-wafer die_index)
+            // rather than dropped, matching every other format's rule.
+            let (x, y) = if x.is_some() && y.is_some() { (x, y) } else { (None, None) };
+            let die_index = if x.is_none() {
+                let idx = row_index_in_wafer;
+                row_index_in_wafer += 1;
+                Some(idx)
+            } else {
+                None
             };
 
             let hbin: Option<u32> = if has_hbin {
@@ -369,7 +394,7 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
             }
 
             dies.push(DieResult {
-                x, y, hbin, sbin,
+                x, y, die_index, hbin, sbin,
                 site_num,
                 part_id: None,
                 test_values,
@@ -407,7 +432,8 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
         }
     }
 
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings: vec![] })
+    let warnings = position_warnings(&wafers);
+    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings })
 }
 
 /// Allocation-light wide-format parse: resolve every mapped column to an index
@@ -426,8 +452,8 @@ fn parse_csv_wide(
     let idx = |name: &str| col_idx.get(name).copied();
     let opt_idx = |c: &Option<String>| c.as_deref().and_then(idx);
 
-    let x_i = idx(&mapping.x);
-    let y_i = idx(&mapping.y);
+    let x_i = opt_idx(&mapping.x);
+    let y_i = opt_idx(&mapping.y);
     let hbin_i = opt_idx(&mapping.hbin);
     let sbin_i = opt_idx(&mapping.sbin);
     let site_i = opt_idx(&mapping.site);
@@ -448,13 +474,18 @@ fn parse_csv_wide(
 
     // Group dies by wafer/split key, preserving first-seen order.
     let mut groups: indexmap::IndexMap<String, WaferData> = indexmap::IndexMap::new();
+    // Per-wafer-group ordinal for a coordinate-less row's die_index.
+    let mut row_index_by_group: HashMap<String, u32> = HashMap::new();
     // Lot metadata is taken from the first kept row.
     let mut first_kept: Option<csv::StringRecord> = None;
 
     for rec in all_rows {
-        // x/y are required and numeric — skip the row otherwise (matches old behaviour).
-        let x: i32 = match x_i.and_then(|i| cell(rec, i).parse().ok()) { Some(v) => v, None => continue };
-        let y: i32 = match y_i.and_then(|i| cell(rec, i).parse().ok()) { Some(v) => v, None => continue };
+        // No x/y column mapped, or this row's value doesn't parse — kept as
+        // a coordinate-less die rather than dropped (a die must be either
+        // fully positioned or fully unpositioned, never half).
+        let x: Option<i32> = x_i.and_then(|i| cell(rec, i).parse().ok());
+        let y: Option<i32> = y_i.and_then(|i| cell(rec, i).parse().ok());
+        let (x, y) = if x.is_some() && y.is_some() { (x, y) } else { (None, None) };
 
         let wid = {
             let w = cell_opt(rec, wafer_i);
@@ -486,13 +517,22 @@ fn parse_csv_wide(
 
         if first_kept.is_none() { first_kept = Some(rec.clone()); }
 
+        let die_index = if x.is_none() {
+            let counter = row_index_by_group.entry(key.clone()).or_insert(0);
+            let idx = *counter;
+            *counter += 1;
+            Some(idx)
+        } else {
+            None
+        };
+
         let wafer = groups.entry(key).or_insert_with(|| WaferData {
             wafer_id: wid.to_string(),
             results: Vec::new(),
             part_count: None, good_count: None, fail_count: None,
             fields: Vec::new(),
         });
-        wafer.results.push(DieResult { x, y, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
+        wafer.results.push(DieResult { x, y, die_index, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
     }
 
     // Finalise per-wafer counts.
@@ -518,7 +558,8 @@ fn parse_csv_wide(
         }
     }
 
-    ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings: vec![] }
+    let warnings = position_warnings(&wafers);
+    ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings }
 }
 
 fn detect_delimiter(bytes: &[u8]) -> u8 {
@@ -575,8 +616,8 @@ mod tests {
 
     fn basic_mapping(x: &str, y: &str) -> CsvMapping {
         CsvMapping {
-            x: x.to_string(),
-            y: y.to_string(),
+            x: Some(x.to_string()),
+            y: Some(y.to_string()),
             hbin: None,
             sbin: None,
             wafer: None,
@@ -637,8 +678,8 @@ mod tests {
         assert_eq!(result.wafers.len(), 1);
         let dies = &result.wafers[0].results;
         assert_eq!(dies.len(), 2);
-        assert!(dies.iter().any(|d| d.x == 3 && d.y == 7));
-        assert!(dies.iter().any(|d| d.x == -1 && d.y == -2));
+        assert!(dies.iter().any(|d| d.x == Some(3) && d.y == Some(7)));
+        assert!(dies.iter().any(|d| d.x == Some(-1) && d.y == Some(-2)));
     }
 
     #[test]
@@ -676,11 +717,19 @@ mod tests {
     }
 
     #[test]
-    fn rows_with_invalid_coords_are_skipped() {
+    fn rows_with_invalid_coords_are_kept_as_coordinate_less() {
         let csv = "x,y\n1,2\nbad,3\n4,bad\n5,6\n";
         let path = tmp(csv);
         let result = parse_csv_inner(path.to_str().unwrap().to_string(), basic_mapping("x", "y")).unwrap();
-        assert_eq!(result.wafers[0].results.len(), 2);
+        let dies = &result.wafers[0].results;
+        assert_eq!(dies.len(), 4, "an unparseable x/y no longer drops the row");
+        assert_eq!(dies.iter().filter(|d| d.x.is_some()).count(), 2);
+        let unpositioned = dies.iter().filter(|d| d.x.is_none());
+        assert_eq!(unpositioned.clone().count(), 2);
+        // Each unpositioned row still gets a distinct, stable die_index.
+        let indices: std::collections::HashSet<_> = unpositioned.map(|d| d.die_index).collect();
+        assert_eq!(indices.len(), 2);
+        assert!(!indices.contains(&None));
     }
 
     #[test]
@@ -794,7 +843,7 @@ mod tests {
         assert_eq!(result.test_defs.len(), 2);
         assert_eq!(result.test_defs.get("1001").map(|d| d.name.as_str()), Some("1001"));
         assert_eq!(result.test_defs.get("1002").map(|d| d.name.as_str()), Some("1002"));
-        let d0 = result.wafers[0].results.iter().find(|d| d.x == 0 && d.y == 0).unwrap();
+        let d0 = result.wafers[0].results.iter().find(|d| d.x == Some(0) && d.y == Some(0)).unwrap();
         assert!((d0.test_values["1001"] - 1.1).abs() < 1e-9);
         assert!((d0.test_values["1002"] - 2.2).abs() < 1e-9);
     }
@@ -828,7 +877,7 @@ mod tests {
         // Only the identifiable row contributes a test value; the die at
         // (0,0) still exists (x/y always survive) but with no test data.
         assert_eq!(result.test_defs.len(), 1);
-        let d0 = result.wafers[0].results.iter().find(|d| d.x == 0 && d.y == 0).unwrap();
+        let d0 = result.wafers[0].results.iter().find(|d| d.x == Some(0) && d.y == Some(0)).unwrap();
         assert!(d0.test_values.is_empty());
     }
 
@@ -1051,6 +1100,39 @@ mod tests {
             })
             .collect();
         m
+    }
+
+    #[test]
+    fn sample_file_coordinateless_lot() {
+        // sample_data/TESTNUM-COORDLESS-01.csv — W01 fully positioned, W02
+        // mixed (2 of 4 rows have blank x/y), W03 fully coordinate-less (no
+        // row has x/y). See WMAP_ISSUES.md #39.
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/TESTNUM-COORDLESS-01.csv");
+        let mut m = basic_mapping("x", "y");
+        m.wafer = Some("wafer".to_string());
+        m.hbin = Some("hbin".to_string());
+        m.sbin = Some("sbin".to_string());
+        m.tests = vec![
+            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string() },
+            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string() },
+            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string() },
+        ];
+        let result = parse_csv_inner(path.to_string(), m).unwrap();
+        assert_eq!(result.wafers.len(), 3);
+
+        let w01 = result.wafers.iter().find(|w| w.wafer_id == "W01").unwrap();
+        assert_eq!(w01.results.len(), 4);
+        assert!(w01.results.iter().all(|d| d.x.is_some()));
+
+        let w02 = result.wafers.iter().find(|w| w.wafer_id == "W02").unwrap();
+        assert_eq!(w02.results.len(), 4, "no row should be dropped");
+        assert_eq!(w02.results.iter().filter(|d| d.x.is_some()).count(), 2);
+        assert_eq!(w02.results.iter().filter(|d| d.x.is_none()).count(), 2);
+
+        let w03 = result.wafers.iter().find(|w| w.wafer_id == "W03").unwrap();
+        assert_eq!(w03.results.len(), 3);
+        assert!(w03.results.iter().all(|d| d.x.is_none() && d.y.is_none()));
+        assert!(w03.results.iter().all(|d| d.hbin.is_some() && !d.test_values.is_empty()));
     }
 
     // Run with: cargo test --manifest-path packages/parsers/Cargo.toml --features bench --release -- --nocapture bench_parse_csv

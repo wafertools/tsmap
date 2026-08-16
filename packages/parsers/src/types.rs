@@ -11,8 +11,23 @@ pub struct ScanResult {
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DieResult {
-    pub x: i32,
-    pub y: i32,
+    /// Die grid X position. `None` (together with `y`) means this die has no
+    /// reported spatial position at all — it still carries real measured
+    /// data and counts toward every non-spatial stat downstream, but is
+    /// never placed on a wafer map. A die is either fully positioned (both
+    /// `x` and `y` `Some`) or fully unpositioned (both `None`) — never half;
+    /// see wmap's `buildWaferMap`, which rejects that state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x: Option<i32>,
+    /// Die grid Y position. See `x`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y: Option<i32>,
+    /// Per-wafer ordinal (PRR/row encounter order), populated only when `x`/`y`
+    /// are both `None` — gives the frontend/wmap a stable identity to key an
+    /// unpositioned die by (`unpositioned_<die_index>`) without relying on
+    /// array position surviving filters/sorts downstream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub die_index: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hbin: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -67,6 +82,25 @@ pub struct WaferData {
     /// (STDF/ATDF WIR/WRR). Empty for formats without wafer-level records.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fields: Vec<MetaField>,
+}
+
+/// Shared across every parser: one warning per wafer that has at least one
+/// die with no reported X/Y position, naming how many. Kept as a single
+/// implementation so the message never drifts between formats — call this
+/// once per wafer after all its dies are collected.
+pub fn position_warnings(wafers: &[WaferData]) -> Vec<String> {
+    wafers.iter().filter_map(|w| {
+        let total = w.results.len();
+        let unpositioned = w.results.iter().filter(|d| d.x.is_none()).count();
+        if unpositioned == 0 {
+            None
+        } else {
+            Some(format!(
+                "Wafer {}: {unpositioned} of {total} die(s) have no reported X/Y position",
+                w.wafer_id,
+            ))
+        }
+    }).collect()
 }
 
 /// One metadata field as a raw key/value pair. `key` is the source field name
@@ -173,7 +207,7 @@ mod tests {
     #[test]
     fn die_result_serialises_test_pass_camel_case_and_omits_empty() {
         let mut die = DieResult {
-            x: 1, y: 2, hbin: Some(1), sbin: None, site_num: None, part_id: None,
+            x: Some(1), y: Some(2), die_index: None, hbin: Some(1), sbin: None, site_num: None, part_id: None,
             test_values: HashMap::new(), test_pass: HashMap::new(),
         };
         let json = serde_json::to_string(&die).unwrap();
@@ -181,6 +215,18 @@ mod tests {
         die.test_pass.insert("2001".to_string(), true);
         let json = serde_json::to_string(&die).unwrap();
         assert!(json.contains("\"testPass\":{\"2001\":true}"), "camelCase key expected: {json}");
+    }
+
+    #[test]
+    fn die_result_omits_x_y_when_unpositioned_and_serialises_die_index() {
+        let die = DieResult {
+            x: None, y: None, die_index: Some(3), hbin: Some(1), sbin: None, site_num: None, part_id: None,
+            test_values: HashMap::new(), test_pass: HashMap::new(),
+        };
+        let json = serde_json::to_string(&die).unwrap();
+        assert!(!json.contains("\"x\""), "unpositioned die must omit x: {json}");
+        assert!(!json.contains("\"y\""), "unpositioned die must omit y: {json}");
+        assert!(json.contains("\"dieIndex\":3"), "die_index expected: {json}");
     }
 
     #[test]

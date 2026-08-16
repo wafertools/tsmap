@@ -14,8 +14,9 @@ Discussions](https://github.com/wafertools/.github/discussions).
 - **Open** CSV, JSON, Parquet, ATDF, and STDF wafer map files
 - **Multi-wafer** — all formats support multiple wafers; renders as a gallery automatically
 - **Stats & findings** — yield, bin breakdown, ring/quadrant analysis, and spatial findings
+- **Coordinate-less dies** — X/Y position is optional; a wafer with no reported position shows a CSV-exportable die list instead of a fabricated map, and a partly-positioned wafer shows both
 - **Charts** — yield by wafer, bin pareto, per-test box plots and histograms
-- **Test selector** — for files with many tests, a two-pass flow lets you choose which tests to import before the full parse; "Filter tests…" re-opens the selector after load
+- **Test selector** — for files with many tests, a two-pass flow lets you choose which tests to import before the full parse; the **Lot ▾** menu's "Filter tests…" re-opens the selector after load
 - **PNG export** — save any wafer map from the toolbar
 - **Cross-platform** — Linux (Wayland/X11), macOS, Windows 11; also runs in the browser via WASM
 

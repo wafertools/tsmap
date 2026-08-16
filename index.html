@@ -642,37 +642,37 @@
       }
       #drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: var(--bg-accent-hover); }
       #drop-zone.drag-over { border-style: solid; }
-      #open-btn {
-        display: inline-block;
-        background: none; border: 1px solid var(--accent); border-radius: 4px;
-        color: var(--accent); font-size: 12px; padding: 3px 10px; cursor: pointer;
+      /* Toolbar buttons are styled by CLASS, never by an enumerated ID list.
+         The previous `#filter-tests-btn, #value-findings-btn, #splits-btn,
+         #recent-btn { … }` pair of rules had to be extended by hand for every
+         new button, in two places (base + :hover) — and #die-list-btn was
+         added without either, so it rendered with raw browser-default chrome
+         and, missing white-space:nowrap, wrapped its label mid-word. Exactly
+         the "two copies of a rule is the bug" case: a class means any new
+         toolbar button is correctly styled by construction. Only genuinely
+         different COLOUR intents get a modifier below. */
+      .tb-btn {
+        background: none; border: 1px solid var(--border-dim); border-radius: 4px;
+        color: var(--text-muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
         white-space: nowrap; user-select: none;
       }
-      #open-btn:hover { background: var(--bg-accent-hover); }
-      #add-btn {
-        background: none; border: 1px solid var(--border-dim); border-radius: 4px;
-        color: var(--text-muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
-        white-space: nowrap;
-      }
-      #add-btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); background: var(--bg-accent-hover); }
-      #add-btn:disabled { opacity: 0.4; cursor: default; }
-      #filter-tests-btn, #value-findings-btn, #splits-btn, #recent-btn {
-        background: none; border: 1px solid var(--border-dim); border-radius: 4px;
-        color: var(--text-muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
-        white-space: nowrap;
-      }
-      #filter-tests-btn:hover, #value-findings-btn:not(:disabled):hover, #splits-btn:hover, #recent-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-accent-hover); }
+      .tb-btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); background: var(--bg-accent-hover); }
+      .tb-btn:disabled { opacity: 0.4; cursor: default; }
+      /* Primary (the one entry action) — accent-outlined at rest, not just on hover. */
+      .tb-btn--primary { border-color: var(--accent); color: var(--accent); }
+      /* Destructive — neutral at rest, error-coloured only on hover, so it never
+         shouts for attention but does confirm intent before the click lands. */
+      .tb-btn--danger { border-color: var(--border-muted); }
+      .tb-btn--danger:not(:disabled):hover { border-color: var(--error-text); color: var(--error-text); background: none; }
       #recent-btn { display: inline-flex; align-items: center; gap: 5px; }
+      /* Group divider. Toggled with the group it frames (setToolbarGroupVisible,
+         main.ts) — a divider with nothing beside it reads as a rendering bug. */
+      .tb-sep { width: 1px; align-self: stretch; margin: 3px 2px; background: var(--border-dim); flex-shrink: 0; }
+      .tb-caret { opacity: 0.7; font-size: 10px; }
       /* The checkbox glyph carries the on/off state so the button reads as a toggle, not a nav link. */
       #value-findings-btn .vf-box::before { content: '\2610'; margin-right: 5px; }      /* ☐ off */
       #value-findings-btn.active { border-color: var(--accent); color: var(--accent); background: var(--bg-accent-hover); }
       #value-findings-btn.active .vf-box::before { content: '\2611'; }                  /* ☑ on */
-      #reset-btn {
-        background: none; border: 1px solid var(--border-muted); border-radius: 4px;
-        color: var(--text-muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
-        white-space: nowrap;
-      }
-      #reset-btn:hover { border-color: var(--error-text); color: var(--error-text); }
       #drop-hint { white-space: nowrap; flex-shrink: 0; }
       #file-label {
         font-size: 12px; color: var(--text-muted);
@@ -893,17 +893,19 @@
       <div id="toolbar">
         <span id="toolbar-title">tsmap</span>
         <div id="drop-zone" title="Open wafer-map files — or drop them anywhere">
-          <button id="open-btn" title="Open wafer-map files — or drop them anywhere">Open file</button>
+          <button id="open-btn" class="tb-btn tb-btn--primary" title="Open wafer-map files — or drop them anywhere">Open file</button>
           <input id="file-input" type="file" multiple
             accept=".stdf,.std,.atdf,.atd,.csv,.json,.parquet,.gz,.zip,.txt,.dat"
             style="display:none" />
         </div>
-        <button id="add-btn" disabled title="Append more files to the current view">Add files</button>
-        <button id="recent-btn" style="display:none" title="Recently opened files"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/></svg> Recent</button>
-        <button id="filter-tests-btn" style="display:none" title="Change which tests are imported, then re-parse">Filter tests…</button>
-        <button id="splits-btn" style="display:none" title="Define and assign wafer splits (process corners, experiment groups, etc.)">Splits…</button>
-        <button id="value-findings-btn" role="switch" style="display:none" aria-checked="false"><span class="vf-box"></span>Value findings</button>
-        <button id="reset-btn" style="display:none" title="Unload all files and reset">Clear</button>
+        <button id="add-btn" class="tb-btn" disabled title="Append more files to the current view">Add files</button>
+        <button id="recent-btn" class="tb-btn" style="display:none" title="Recently opened files"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/></svg> Recent</button>
+        <span class="tb-sep" style="display:none"></span>
+        <button id="lot-btn" class="tb-btn" style="display:none" aria-haspopup="menu" aria-expanded="false"
+          title="Filter tests, wafer splits, and the lot-wide die list">Lot <span class="tb-caret">▾</span></button>
+        <button id="value-findings-btn" class="tb-btn" role="switch" style="display:none" aria-checked="false"><span class="vf-box"></span>Value findings</button>
+        <span class="tb-sep" style="display:none"></span>
+        <button id="reset-btn" class="tb-btn tb-btn--danger" style="display:none" title="Unload all files and reset">Clear</button>
         <span id="drop-hint">or drop a file anywhere</span>
         <span id="busy-spinner"></span>
         <span id="file-label"></span>

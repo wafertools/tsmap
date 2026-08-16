@@ -10,8 +10,14 @@ export interface CsvTestCol {
 }
 
 export interface CsvMapping {
-  x: string;
-  y: string;
+  /** Column mapped to the die's X grid position. `null` (together with `y`)
+   *  means no position column was assigned — every die in the file will show
+   *  as a die list only, with no wafer map. Independent of a row's own value
+   *  failing to parse, which also produces a coordinate-less die rather than
+   *  dropping the row (see the Rust side). */
+  x: string | null;
+  /** Column mapped to the die's Y grid position. See `x`. */
+  y: string | null;
   hbin: string | null;
   sbin: string | null;
   wafer: string | null;
@@ -231,6 +237,20 @@ export function validateRoleAssignments(
   return `Each of these roles takes a single column — ${parts.join('; ')}. Change all but one to “Test value” or “— ignore —”.`;
 }
 
+/**
+ * A die must be either fully positioned (both X and Y mapped) or fully
+ * unpositioned (neither) — one of the two set without the other is always a
+ * mistake (a stray role assignment), never a legitimate "no position" case,
+ * so it's a hard block. Both absent is legitimate and handled separately
+ * (a confirmation, not a block) by the caller.
+ */
+export function validateXYAssignment(mapping: Pick<CsvMapping, 'x' | 'y'>): string | null {
+  if ((!!mapping.x) !== (!!mapping.y)) {
+    return 'Assign both X and Y position columns, or neither — not just one.';
+  }
+  return null;
+}
+
 // ── Read mapping from the overlay DOM ────────────────────────────────────────
 
 /** Every row's current column→role pairing, in DOM order. Shared by
@@ -244,7 +264,7 @@ function readRoleAssignments(overlay: HTMLElement): Array<{ col: string; role: C
 
 function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvMapping {
   const rows = overlay.querySelectorAll<HTMLTableRowElement>('tr[data-col]');
-  let x = '', y = '';
+  let x: string | null = null, y: string | null = null;
   let hbin: string | null = null, sbin: string | null = null;
   let wafer: string | null = null, lot: string | null = null, site: string | null = null;
   let testnameCol: string | null = null, testnumberCol: string | null = null, testvalueCol: string | null = null;
@@ -310,10 +330,50 @@ function detectLongFormat(mapping: CsvMapping, sample: Record<string, string>[])
   // the confirmation prompt below); fall back to the number column when
   // there's no name to show.
   if ((!mapping.testnameCol && !mapping.testnumberCol) || !mapping.testvalueCol) return null;
+  // No x/y mapped at all — nothing to pivot by, so this duplicate-position
+  // heuristic doesn't apply (skip the check rather than false-positive on it).
+  if (!mapping.x || !mapping.y) return null;
   // Check if coordinates repeat in sample (indicates long format)
-  const posSet = new Set(sample.map(r => `${r[mapping.x]},${r[mapping.y]}`));
+  const posSet = new Set(sample.map(r => `${r[mapping.x!]},${r[mapping.y!]}`));
   if (posSet.size >= sample.length && sample.length >= 5) return null; // every row unique
   return { nameCol: mapping.testnameCol ?? mapping.testnumberCol ?? '', valueCol: mapping.testvalueCol };
+}
+
+/**
+ * Confirmation for proceeding with no X/Y columns mapped at all — every die
+ * in the file will have no reported position, so it shows as a die list
+ * only, with no wafer map. Mirrors `showLongFormatModal`'s sub-modal pattern
+ * (own Escape handler, `stopPropagation` so it only closes itself).
+ */
+function showNoPositionModal(): Promise<boolean> {
+  return new Promise(resolve => {
+    const modal = document.createElement('div');
+    modal.id = 'tsmap-noposition-backdrop';
+    modal.className = 'tsmap-modal-backdrop';
+    modal.innerHTML = `
+      <div class="tsmap-modal" role="dialog" aria-modal="true" aria-labelledby="np-title">
+        <h3 id="np-title">No X/Y columns assigned</h3>
+        <p>Every die in this file will show as a die list only, with no wafer map — spatial analysis (rings, quadrants, clusters) won't be available for it. Non-spatial stats (yield, bin counts, per-test analysis) are unaffected.</p>
+        <div class="tsmap-modal-buttons">
+          <button id="np-cancel" class="btn-secondary">Cancel</button>
+          <button id="np-confirm" class="btn-primary">Continue without position data</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    const finish = (result: boolean) => {
+      document.removeEventListener('keydown', onKeyDown);
+      modal.remove();
+      resolve(result);
+    };
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.key === 'Escape') { e.stopPropagation(); finish(false); }
+    }
+    document.addEventListener('keydown', onKeyDown);
+
+    modal.querySelector('#np-cancel')!.addEventListener('click', () => finish(false));
+    modal.querySelector('#np-confirm')!.addEventListener('click', () => finish(true));
+  });
 }
 
 function showLongFormatModal(): Promise<boolean> {
@@ -586,11 +646,20 @@ export async function showMappingOverlay(
 
     const mapping = readMapping(overlay, passBinInput);
 
-    if (!mapping.x || !mapping.y) {
-      validationEl.textContent = 'Assign X and Y position columns before continuing.';
+    const xyClash = validateXYAssignment(mapping);
+    if (xyClash) {
+      validationEl.textContent = xyClash;
       return;
     }
     validationEl.textContent = '';
+
+    // No X/Y at all: an explicit, informed choice — every die in the file
+    // will show as a die list only, with no wafer map (see mappingUI's
+    // "no wafer-shaped visual for coordinate-less data" convention).
+    if (!mapping.x || !mapping.y) {
+      const confirmed = await showNoPositionModal();
+      if (!confirmed) return;
+    }
 
     // Long-format confirmation
     const longFmt = detectLongFormat(mapping, sample);

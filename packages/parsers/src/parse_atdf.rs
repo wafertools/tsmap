@@ -185,6 +185,10 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     let mut pending_pass: HashMap<u32, HashMap<String, bool>> = HashMap::new();
     let mut pending_site: HashMap<u32, u32> = HashMap::new();
     let mut soft_bin_fabricated: usize = 0;
+    // Per-wafer PRR-encounter ordinal, reset on each WIR — used as die_index
+    // for a die with no reported X/Y (see the PRR branch below), mirroring
+    // parse_stdf.rs's identical scheme.
+    let mut prr_index_in_wafer: u32 = 0;
 
     for rec in &records {
         let colon = match rec.find(':') {
@@ -222,6 +226,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                 };
                 let mut fields = Vec::new();
                 push_field(&mut fields, "waferStartT", nonempty(get(&f, "START_T")));
+                prr_index_in_wafer = 0;
                 current_wafer = Some(WaferData {
                     wafer_id,
                     results: Vec::new(),
@@ -312,14 +317,16 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                 }
             }
             "PRR" => {
-                let x: i32 = match at(&raw_fields, PRR_X_COORD).parse() {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
-                let y: i32 = match at(&raw_fields, PRR_Y_COORD).parse() {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
+                // ATDF leaves the X/Y field blank when no position was
+                // recorded for a die — kept as a coordinate-less die rather
+                // than dropped (matching parse_stdf.rs's SENTINEL_I2
+                // handling). A die is either fully positioned or fully
+                // unpositioned; a malformed/half pair (one parses, one
+                // doesn't) is treated as unpositioned too rather than losing
+                // the whole die's test data over one bad field.
+                let x_raw: Option<i32> = at(&raw_fields, PRR_X_COORD).parse().ok();
+                let y_raw: Option<i32> = at(&raw_fields, PRR_Y_COORD).parse().ok();
+                let (x, y) = if x_raw.is_some() && y_raw.is_some() { (x_raw, y_raw) } else { (None, None) };
                 let key = site_key(at(&raw_fields, PRR_HEAD_NUM), at(&raw_fields, PRR_SITE_NUM));
                 let site_num = pending_site.remove(&key);
                 let test_values = pending_values.remove(&key).unwrap_or_default();
@@ -331,10 +338,18 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     .map(|v: u32| if v == 65535 { hbin.unwrap_or(1) } else { v })
                     .or(hbin);
                 let part_id: Option<u32> = at(&raw_fields, PRR_PART_ID).parse().ok();
-                let die = DieResult { x, y, hbin, sbin, site_num, part_id, test_values, test_pass };
+                let die_index = if x.is_none() {
+                    let idx = prr_index_in_wafer;
+                    prr_index_in_wafer += 1;
+                    Some(idx)
+                } else {
+                    None
+                };
+                let die = DieResult { x, y, die_index, hbin, sbin, site_num, part_id, test_values, test_pass };
                 match current_wafer.as_mut() {
                     Some(w) => w.results.push(die),
                     None => {
+                        prr_index_in_wafer = 0;
                         let mut w = WaferData {
                             wafer_id: format!("W{}", wafers.len() + 1),
                             results: Vec::new(),
@@ -358,7 +373,8 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
         }
     }
 
-    let warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    warnings.extend(position_warnings(&wafers));
     Ok(ParsedStdf { meta, wafers, test_defs, sites, warnings })
 }
 
@@ -646,8 +662,8 @@ mod tests {
         let inner = pir(1,1) + &prr(1,1,3,7,2,5);
         let path = tmp(&one_wafer("W1", &inner));
         let die = &parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap().wafers[0].results[0];
-        assert_eq!(die.x, 3);
-        assert_eq!(die.y, 7);
+        assert_eq!(die.x, Some(3));
+        assert_eq!(die.y, Some(7));
         assert_eq!(die.hbin, Some(2));
         assert_eq!(die.sbin, Some(5));
     }
@@ -657,17 +673,23 @@ mod tests {
         let inner = pir(1,1) + &prr(1,1,-4,-9,1,1);
         let path = tmp(&one_wafer("W1", &inner));
         let die = &parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap().wafers[0].results[0];
-        assert_eq!(die.x, -4);
-        assert_eq!(die.y, -9);
+        assert_eq!(die.x, Some(-4));
+        assert_eq!(die.y, Some(-9));
     }
 
     #[test]
-    fn die_with_missing_coords_is_skipped() {
+    fn die_with_missing_coords_is_kept_not_dropped() {
         let inner = pir(1,1) + "PRR:1|1|1|4|P|1|1||\n";
         let text = format!("{}{}{}{}{}", far(), mir_full(), wir("W1"), inner, wrr("W1", 0, 0));
         let path = tmp(&text);
         let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
-        assert_eq!(result.wafers[0].results.len(), 0);
+        let dies = &result.wafers[0].results;
+        assert_eq!(dies.len(), 1, "the coordinate-less die must be kept, not dropped");
+        assert_eq!(dies[0].x, None);
+        assert_eq!(dies[0].y, None);
+        assert_eq!(dies[0].hbin, Some(1));
+        assert_eq!(dies[0].sbin, Some(1));
+        assert_eq!(dies[0].die_index, Some(0));
     }
 
     #[test]
@@ -744,8 +766,8 @@ mod tests {
         let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
         let dies = &result.wafers[0].results;
         assert_eq!(dies.len(), 2);
-        let d0 = dies.iter().find(|d| d.x == 0).unwrap();
-        let d1 = dies.iter().find(|d| d.x == 1).unwrap();
+        let d0 = dies.iter().find(|d| d.x == Some(0)).unwrap();
+        let d1 = dies.iter().find(|d| d.x == Some(1)).unwrap();
         assert!((d0.test_values["1"] - 1.1).abs() < 1e-9);
         assert!((d1.test_values["1"] - 2.2).abs() < 1e-9);
     }
@@ -762,8 +784,8 @@ mod tests {
         let path = tmp(&text);
         let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
         let die = &result.wafers[0].results[0];
-        assert_eq!(die.x, 9);
-        assert_eq!(die.y, 3);
+        assert_eq!(die.x, Some(9));
+        assert_eq!(die.y, Some(3));
     }
 
     #[test]
@@ -772,7 +794,7 @@ mod tests {
             + &wir("W1") + &pir(1,1) + &prr(1,1,5,6,1,1) + &wrr("W1", 1, 1);
         let path = tmp(&text);
         let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
-        assert_eq!(result.wafers[0].results[0].x, 5);
+        assert_eq!(result.wafers[0].results[0].x, Some(5));
     }
 
     #[test]
@@ -781,8 +803,33 @@ mod tests {
             .replace('\n', "\r\n");
         let path = tmp(&text);
         let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
-        assert_eq!(result.wafers[0].results[0].x, 1);
-        assert_eq!(result.wafers[0].results[0].y, 2);
+        assert_eq!(result.wafers[0].results[0].x, Some(1));
+        assert_eq!(result.wafers[0].results[0].y, Some(2));
+    }
+
+    #[test]
+    fn sample_file_coordinateless_mixed_wafer() {
+        // Hand-written fixture (sample_data/COORDLESS-LOT-01.atdf) — one
+        // wafer, 6 positioned dies + 2 with blank PRR X/Y ("no position
+        // reported"). See WMAP_ISSUES.md #39.
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/COORDLESS-LOT-01.atdf");
+        let result = parse_atdf_sync(path.to_string()).unwrap();
+        assert_eq!(result.wafers.len(), 1);
+        let dies = &result.wafers[0].results;
+        assert_eq!(dies.len(), 8, "no die should be dropped");
+        let positioned = dies.iter().filter(|d| d.x.is_some()).count();
+        let unpositioned = dies.iter().filter(|d| d.x.is_none()).count();
+        assert_eq!(positioned, 6);
+        assert_eq!(unpositioned, 2);
+        // Every unpositioned die still has a stable, unique die_index.
+        let indices: std::collections::HashSet<_> =
+            dies.iter().filter_map(|d| d.die_index).collect();
+        assert_eq!(indices.len(), 2);
+        // Real data survives — the whole point of keeping the die.
+        assert!(dies.iter().all(|d| d.hbin.is_some()));
+        assert!(dies.iter().all(|d| !d.test_values.is_empty()));
+        let position_warning = result.warnings.iter().any(|w| w.contains("W01") && w.contains("position"));
+        assert!(position_warning, "expected a position warning for W01: {:?}", result.warnings);
     }
 
     #[test]

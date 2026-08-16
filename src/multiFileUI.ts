@@ -3,6 +3,7 @@
 import type { ParsedFile, WaferData, WaferSource } from './types';
 import { makeWaferSource, escapeHtml as esc } from './lib';
 import { openModal } from './modal';
+import { hasPosition } from '@wafertools/wafermap';
 
 // ── Rename overlay ────────────────────────────────────────────────────────────
 
@@ -258,8 +259,10 @@ export function detectMismatches(incoming: RenamedWafer[], existing: WaferData[]
   // match but whose columns don't (or vice versa) is exactly the mismatch worth
   // catching. Previously only X was compared, so a differing Y span passed
   // silently under a warning that claimed to cover the grid.
-  const existingRange = coordRange(existing.flatMap(w => w.results));
-  const incomingRange = coordRange(incoming.flatMap(w => w.results));
+  // Spatial-only heuristic — coordinate-less dies have no grid position to
+  // compare, so they're excluded rather than producing a bogus 0-span.
+  const existingRange = coordRange(existing.flatMap(w => w.results).filter(hasPosition));
+  const incomingRange = coordRange(incoming.flatMap(w => w.results).filter(hasPosition));
   if (existingRange && incomingRange) {
     const differing: string[] = [];
     const xSpanExist = existingRange.maxX - existingRange.minX;

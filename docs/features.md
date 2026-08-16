@@ -41,6 +41,24 @@ statistical outlier detection on top.
 
 See [The wafer map view](user-guide.md#5-the-wafer-map-view) in the user guide.
 
+### Dies with no reported position
+
+X/Y position is optional in every format. A wafer with no reported position never renders as
+a fabricated map — showing dies at synthetic positions risks being misread as real spatial
+data. Instead it shows a compact summary that follows the current plot mode — a bin breakdown
+in the map's own colours for hard/soft-bin modes, or a histogram (also colour-matched, and
+log-scale/spec-range aware like the map's colorbar) for value mode — with a one-click toggle
+to the full per-die table when you need exact values or CSV export. A wafer that's only
+partly positioned renders its map for the dies that do have coordinates, plus an expandable
+"+N dies without position data" footer offering the same summary/table for the rest. Yield,
+bin counts, and per-test statistics still count every die either way — only spatial findings
+(edge ring, quadrants, clustering) are scoped to positioned dies. A lot-wide combined die
+list, also CSV-exportable, is available from the toolbar's **Lot ▾** menu for any
+multi-wafer load.
+
+See [Dies with no reported position](user-guide.md#51-dies-with-no-reported-position) in the
+user guide.
+
 ## Wafer splits — compare process corners
 
 Attach an arbitrary label to each wafer — a process corner (TT/FF/SS/FS/SF), an experiment

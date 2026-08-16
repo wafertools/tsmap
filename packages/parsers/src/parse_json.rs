@@ -104,18 +104,28 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
         let mut die_map: indexmap::IndexMap<String, HashMap<String, String>> =
             indexmap::IndexMap::new();
 
-        for row in &flat_rows {
-            let x = row.get(&mapping.x).map(|s| s.as_str()).unwrap_or("");
-            let y = row.get(&mapping.y).map(|s| s.as_str()).unwrap_or("");
-            if x.is_empty() || y.is_empty() { continue; }
+        for (row_idx, row) in flat_rows.iter().enumerate() {
+            let x = mapping.x.as_deref().and_then(|c| row.get(c)).map(|s| s.as_str()).unwrap_or("");
+            let y = mapping.y.as_deref().and_then(|c| row.get(c)).map(|s| s.as_str()).unwrap_or("");
+            let has_position = !x.is_empty() && !y.is_empty();
             let wafer = mapping.wafer.as_deref().and_then(|c| row.get(c)).map(|s| s.as_str()).unwrap_or("");
             let lot = mapping.lot.as_deref().and_then(|c| row.get(c)).map(|s| s.as_str()).unwrap_or("");
-            let key = format!("{}\x00{}\x00{}\x00{}", wafer, lot, x, y);
+            // Positioned rows pivot together by (wafer, lot, x, y) as before.
+            // A coordinate-less row has no position to group by — rather than
+            // merging unrelated rows under a shared empty key, each becomes
+            // its own die (row_idx guarantees a unique key).
+            let key = if has_position {
+                format!("{}\x00{}\x00{}\x00{}", wafer, lot, x, y)
+            } else {
+                format!("{}\x00{}\x00__row_{}", wafer, lot, row_idx)
+            };
 
             let wide = die_map.entry(key).or_insert_with(|| {
                 let mut m = HashMap::new();
-                m.insert(mapping.x.clone(), x.to_string());
-                m.insert(mapping.y.clone(), y.to_string());
+                if has_position {
+                    if let Some(c) = &mapping.x { m.insert(c.clone(), x.to_string()); }
+                    if let Some(c) = &mapping.y { m.insert(c.clone(), y.to_string()); }
+                }
                 if let Some(c) = &mapping.wafer { m.insert(c.clone(), wafer.to_string()); }
                 if let Some(c) = &mapping.lot   { m.insert(c.clone(), lot.to_string()); }
                 if let Some(c) = &mapping.hbin  { m.insert(c.clone(), row.get(c).cloned().unwrap_or_default()); }
@@ -205,13 +215,18 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
 
     for (wid, rows) in &groups {
         let mut dies: Vec<DieResult> = Vec::new();
+        let mut row_index_in_wafer: u32 = 0;
 
         for row in rows {
-            let x: i32 = match row.get(&mapping.x).and_then(|v| v.parse().ok()) {
-                Some(v) => v, None => continue,
-            };
-            let y: i32 = match row.get(&mapping.y).and_then(|v| v.parse().ok()) {
-                Some(v) => v, None => continue,
+            let x: Option<i32> = mapping.x.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
+            let y: Option<i32> = mapping.y.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
+            let (x, y) = if x.is_some() && y.is_some() { (x, y) } else { (None, None) };
+            let die_index = if x.is_none() {
+                let idx = row_index_in_wafer;
+                row_index_in_wafer += 1;
+                Some(idx)
+            } else {
+                None
             };
 
             let hbin: Option<u32> = mapping.hbin.as_deref()
@@ -231,7 +246,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
                 }
             }
 
-            dies.push(DieResult { x, y, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
+            dies.push(DieResult { x, y, die_index, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
         }
 
         let part_count = dies.len() as u32;
@@ -261,7 +276,8 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
         }
     }
 
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings: vec![] })
+    let warnings = position_warnings(&wafers);
+    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings })
 }
 
 /// Allocation-light wide-format JSON parse over already-flattened rows. Reads each
@@ -280,15 +296,15 @@ fn parse_json_wide(
         .map(|t| (t.test_number.to_string(), t.col.as_str())).collect();
 
     let mut groups: indexmap::IndexMap<String, WaferData> = indexmap::IndexMap::new();
+    let mut row_index_by_group: HashMap<String, u32> = HashMap::new();
     let mut first_kept: Option<&HashMap<String, String>> = None;
 
     for row in flat_rows {
-        let x: i32 = match row.get(&mapping.x).and_then(|v| v.parse().ok()) {
-            Some(v) => v, None => continue,
-        };
-        let y: i32 = match row.get(&mapping.y).and_then(|v| v.parse().ok()) {
-            Some(v) => v, None => continue,
-        };
+        // No x/y column mapped, or this row's value doesn't parse — kept as
+        // a coordinate-less die rather than dropped.
+        let x: Option<i32> = mapping.x.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
+        let y: Option<i32> = mapping.y.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
+        let (x, y) = if x.is_some() && y.is_some() { (x, y) } else { (None, None) };
 
         let wid: &str = mapping.wafer.as_deref()
             .and_then(|c| row.get(c)).map(|s| s.as_str())
@@ -319,13 +335,22 @@ fn parse_json_wide(
 
         if first_kept.is_none() { first_kept = Some(row); }
 
+        let die_index = if x.is_none() {
+            let counter = row_index_by_group.entry(key.clone()).or_insert(0);
+            let idx = *counter;
+            *counter += 1;
+            Some(idx)
+        } else {
+            None
+        };
+
         let wafer = groups.entry(key).or_insert_with(|| WaferData {
             wafer_id: wid.to_string(),
             results: Vec::new(),
             part_count: None, good_count: None, fail_count: None,
             fields: Vec::new(),
         });
-        wafer.results.push(DieResult { x, y, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
+        wafer.results.push(DieResult { x, y, die_index, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
     }
 
     let wafers: Vec<WaferData> = groups.into_values().map(|mut w| {
@@ -351,7 +376,8 @@ fn parse_json_wide(
         }
     }
 
-    ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings: vec![] }
+    let warnings = position_warnings(&wafers);
+    ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings }
 }
 
 fn flatten_to_rows(val: &Value) -> Option<Vec<HashMap<String, String>>> {
@@ -472,7 +498,7 @@ mod tests {
 
     fn basic_mapping(x: &str, y: &str) -> CsvMapping {
         CsvMapping {
-            x: x.to_string(), y: y.to_string(),
+            x: Some(x.to_string()), y: Some(y.to_string()),
             hbin: None, sbin: None, wafer: None, lot: None, site: None,
             tests: vec![], meta: vec![], split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
@@ -526,7 +552,7 @@ mod tests {
         assert_eq!(result.wafers.len(), 1);
         let dies = &result.wafers[0].results;
         assert_eq!(dies.len(), 2);
-        assert!(dies.iter().any(|d| d.x == 3 && d.y == 7));
+        assert!(dies.iter().any(|d| d.x == Some(3) && d.y == Some(7)));
     }
 
     #[test]
@@ -543,11 +569,14 @@ mod tests {
     }
 
     #[test]
-    fn rows_with_invalid_coords_skipped() {
+    fn rows_with_invalid_coords_are_kept_as_coordinate_less() {
         let json = r#"[{"x":"bad","y":1},{"x":2,"y":3}]"#;
         let path = tmp(json);
         let result = parse_json_sync(path.to_str().unwrap().to_string(), basic_mapping("x", "y")).unwrap();
-        assert_eq!(result.wafers[0].results.len(), 1);
+        let dies = &result.wafers[0].results;
+        assert_eq!(dies.len(), 2, "an unparseable x/y no longer drops the row");
+        assert_eq!(dies.iter().filter(|d| d.x.is_some()).count(), 1);
+        assert_eq!(dies.iter().filter(|d| d.x.is_none()).count(), 1);
     }
 
     #[test]
@@ -680,7 +709,7 @@ mod tests {
         m.testvalue_col = Some("val".to_string());
         let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
         assert_eq!(result.test_defs.len(), 1);
-        let d0 = result.wafers[0].results.iter().find(|d| d.x == 0 && d.y == 0).unwrap();
+        let d0 = result.wafers[0].results.iter().find(|d| d.x == Some(0) && d.y == Some(0)).unwrap();
         assert!(d0.test_values.is_empty());
     }
 
@@ -720,6 +749,39 @@ mod tests {
         m.lot = Some("lot".to_string());
         let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
         assert_eq!(result.meta.get("lotId"), Some("LOT-99"));
+    }
+
+    #[test]
+    fn sample_file_coordinateless_lot() {
+        // sample_data/TESTNUM-COORDLESS-01.json — same lot as the CSV
+        // fixture of the same name: W01 fully positioned, W02 mixed (2 of 4
+        // rows have null x/y), W03 fully coordinate-less. See WMAP_ISSUES.md #39.
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/TESTNUM-COORDLESS-01.json");
+        let mut m = basic_mapping("x", "y");
+        m.wafer = Some("wafer".to_string());
+        m.hbin = Some("hbin".to_string());
+        m.sbin = Some("sbin".to_string());
+        m.tests = vec![
+            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string() },
+            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string() },
+            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string() },
+        ];
+        let result = parse_json_sync(path.to_string(), m).unwrap();
+        assert_eq!(result.wafers.len(), 3);
+
+        let w01 = result.wafers.iter().find(|w| w.wafer_id == "W01").unwrap();
+        assert_eq!(w01.results.len(), 4);
+        assert!(w01.results.iter().all(|d| d.x.is_some()));
+
+        let w02 = result.wafers.iter().find(|w| w.wafer_id == "W02").unwrap();
+        assert_eq!(w02.results.len(), 4, "no row should be dropped");
+        assert_eq!(w02.results.iter().filter(|d| d.x.is_some()).count(), 2);
+        assert_eq!(w02.results.iter().filter(|d| d.x.is_none()).count(), 2);
+
+        let w03 = result.wafers.iter().find(|w| w.wafer_id == "W03").unwrap();
+        assert_eq!(w03.results.len(), 3);
+        assert!(w03.results.iter().all(|d| d.x.is_none() && d.y.is_none()));
+        assert!(w03.results.iter().all(|d| d.hbin.is_some() && !d.test_values.is_empty()));
     }
 
     /// Wide-format mapping matching scripts/generate_csv_json_bench.py.

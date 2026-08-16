@@ -521,6 +521,10 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
     let mut wafers: Vec<WaferData> = Vec::new();
     let mut soft_bin_fabricated: usize = 0;
     let mut current_wafer: Option<WaferData> = None;
+    // Per-wafer PRR-encounter ordinal — reset on each WIR, used as die_index
+    // for a die that has no reported x/y (SENTINEL_I2 on either), so it still
+    // has a stable identity downstream (unpositioned_<die_index>).
+    let mut prr_index_in_wafer: u32 = 0;
 
     // Shared test index and per-site accumulators.
     // Key = (head_num, site_num).
@@ -632,21 +636,32 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
             // ── PRR ──────────────────────────────────────────────────────────
             (5, 20) => {
                 let Some(prr) = parse_prr(b, order) else { continue };
-                if prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2 {
-                    site_accums.remove(&(prr.head, prr.site));
-                    continue;
-                }
                 let key = (prr.head, prr.site);
+                // SENTINEL_I2 on X or Y is STDF's documented "no position
+                // reported" marker — real data, not a parse failure, so the
+                // die is kept (with x/y: None) rather than dropped.
+                let unpositioned = prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2;
                 let (test_values, test_pass) = if let Some(accum) = site_accums.get(&key) {
                     (accum.to_test_values(&test_index, &index_keys),
                      accum.to_test_pass(&test_index, &index_keys))
                 } else {
                     (HashMap::new(), HashMap::new())
                 };
+                if unpositioned {
+                    site_accums.remove(&key);
+                }
                 if prr.soft_bin == 65535 { soft_bin_fabricated += 1; }
+                let die_index = if unpositioned {
+                    let idx = prr_index_in_wafer;
+                    prr_index_in_wafer += 1;
+                    Some(idx)
+                } else {
+                    None
+                };
                 let die = DieResult {
-                    x: prr.x as i32,
-                    y: prr.y as i32,
+                    x: if unpositioned { None } else { Some(prr.x as i32) },
+                    y: if unpositioned { None } else { Some(prr.y as i32) },
+                    die_index,
                     hbin: Some(prr.hard_bin as u32),
                     sbin: Some(if prr.soft_bin == 65535 {
                         prr.hard_bin as u32
@@ -659,6 +674,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
                     test_pass,
                 };
                 if current_wafer.is_none() {
+                    prr_index_in_wafer = 0;
                     current_wafer = Some(WaferData {
                         wafer_id: format!("W{}", wafers.len() + 1),
                         results: Vec::new(),
@@ -685,6 +701,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
             }
             (2, 10) => { // WIR
                 let wir = decode_wir(b, order);
+                prr_index_in_wafer = 0;
                 current_wafer = Some(WaferData {
                     wafer_id: if wir.wafer_id.is_empty() {
                         format!("W{}", wafers.len() + 1)
@@ -725,7 +742,8 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
         }
     }
 
-    let warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    warnings.extend(position_warnings(&wafers));
     Ok(ParsedStdf { meta, wafers, test_defs, sites, warnings })
 }
 
@@ -826,6 +844,7 @@ pub fn parse_stdf_from_bytes_filtered(
     let mut wafers: Vec<WaferData> = Vec::new();
     let mut soft_bin_fabricated: usize = 0;
     let mut current_wafer: Option<WaferData> = None;
+    let mut prr_index_in_wafer: u32 = 0;
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
     let mut index_keys: Vec<String> = Vec::new();
@@ -930,21 +949,32 @@ pub fn parse_stdf_from_bytes_filtered(
 
             (5, 20) => {
                 let Some(prr) = parse_prr(b, order) else { continue };
-                if prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2 {
-                    site_accums.remove(&(prr.head, prr.site));
-                    continue;
-                }
                 let key = (prr.head, prr.site);
+                // SENTINEL_I2 on X or Y is STDF's documented "no position
+                // reported" marker — real data, not a parse failure, so the
+                // die is kept (with x/y: None) rather than dropped.
+                let unpositioned = prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2;
                 let (test_values, test_pass) = if let Some(accum) = site_accums.get(&key) {
                     (accum.to_test_values(&test_index, &index_keys),
                      accum.to_test_pass(&test_index, &index_keys))
                 } else {
                     (HashMap::new(), HashMap::new())
                 };
+                if unpositioned {
+                    site_accums.remove(&key);
+                }
                 if prr.soft_bin == 65535 { soft_bin_fabricated += 1; }
+                let die_index = if unpositioned {
+                    let idx = prr_index_in_wafer;
+                    prr_index_in_wafer += 1;
+                    Some(idx)
+                } else {
+                    None
+                };
                 let die = DieResult {
-                    x: prr.x as i32,
-                    y: prr.y as i32,
+                    x: if unpositioned { None } else { Some(prr.x as i32) },
+                    y: if unpositioned { None } else { Some(prr.y as i32) },
+                    die_index,
                     hbin: Some(prr.hard_bin as u32),
                     sbin: Some(if prr.soft_bin == 65535 {
                         prr.hard_bin as u32
@@ -957,6 +987,7 @@ pub fn parse_stdf_from_bytes_filtered(
                     test_pass,
                 };
                 if current_wafer.is_none() {
+                    prr_index_in_wafer = 0;
                     current_wafer = Some(WaferData {
                         wafer_id: format!("W{}", wafers.len() + 1),
                         results: Vec::new(),
@@ -980,6 +1011,7 @@ pub fn parse_stdf_from_bytes_filtered(
             }
             (2, 10) => { // WIR
                 let wir = decode_wir(b, order);
+                prr_index_in_wafer = 0;
                 current_wafer = Some(WaferData {
                     wafer_id: if wir.wafer_id.is_empty() {
                         format!("W{}", wafers.len() + 1)
@@ -1016,7 +1048,8 @@ pub fn parse_stdf_from_bytes_filtered(
         if !wafer.results.is_empty() { wafers.push(wafer); }
     }
 
-    let warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    warnings.extend(position_warnings(&wafers));
     Ok(ParsedStdf { meta, wafers, test_defs, sites, warnings })
 }
 
@@ -1050,6 +1083,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
     let mut wafers: Vec<WaferData> = Vec::new();
     let mut soft_bin_fabricated: usize = 0;
     let mut current_wafer: Option<WaferData> = None;
+    let mut prr_index_in_wafer: u32 = 0;
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
     let mut index_keys: Vec<String> = Vec::new();
@@ -1133,11 +1167,8 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
             }
             (5, 20) => {
                 let Some(prr) = parse_prr(b, order) else { continue };
-                if prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2 {
-                    site_accums.remove(&(prr.head, prr.site));
-                    continue;
-                }
                 let key = (prr.head, prr.site);
+                let unpositioned = prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2;
                 let t_hmap = Instant::now();
                 let (test_values, test_pass) = if let Some(accum) = site_accums.get(&key) {
                     (accum.to_test_values(&test_index, &index_keys),
@@ -1145,11 +1176,23 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                 } else {
                     (HashMap::new(), HashMap::new())
                 };
+                if unpositioned {
+                    site_accums.remove(&key);
+                }
                 p2_hashmap_ns += t_hmap.elapsed().as_nanos();
                 die_count += 1;
                 if prr.soft_bin == 65535 { soft_bin_fabricated += 1; }
+                let die_index = if unpositioned {
+                    let idx = prr_index_in_wafer;
+                    prr_index_in_wafer += 1;
+                    Some(idx)
+                } else {
+                    None
+                };
                 let die = DieResult {
-                    x: prr.x as i32, y: prr.y as i32,
+                    x: if unpositioned { None } else { Some(prr.x as i32) },
+                    y: if unpositioned { None } else { Some(prr.y as i32) },
+                    die_index,
                     hbin: Some(prr.hard_bin as u32),
                     sbin: Some(if prr.soft_bin == 65535 { prr.hard_bin as u32 } else { prr.soft_bin as u32 }),
                     site_num: Some(prr.site as u32),
@@ -1158,6 +1201,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                     test_pass,
                 };
                 if current_wafer.is_none() {
+                    prr_index_in_wafer = 0;
                     current_wafer = Some(WaferData {
                         wafer_id: format!("W{}", wafers.len() + 1),
                         results: Vec::new(), part_count: None, good_count: None, fail_count: None,
@@ -1173,6 +1217,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
             }
             (2, 10) => {
                 let wir = decode_wir(b, order);
+                prr_index_in_wafer = 0;
                 current_wafer = Some(WaferData {
                     wafer_id: if wir.wafer_id.is_empty() { format!("W{}", wafers.len() + 1) } else { wir.wafer_id },
                     results: Vec::new(), part_count: None, good_count: None, fail_count: None,
@@ -1209,7 +1254,8 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
         test_count: test_index.len(),
     };
 
-    let warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    warnings.extend(position_warnings(&wafers));
     Ok((ParsedStdf { meta, wafers, test_defs, sites, warnings }, timing))
 }
 
@@ -1223,6 +1269,55 @@ mod tests {
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.stdf");
     const SINGLE_WAFER: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_W01.stdf");
+    // Generated by scripts/generate_stdf_coordinateless.py — W01 fully
+    // positioned, W02 ~15% coordinate-less (mixed), W03 100% coordinate-less.
+    // See WMAP_ISSUES.md #39.
+    const COORDLESS_LOT: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/COORDLESS-LOT-01.stdf");
+
+    #[test]
+    fn coordless_lot_w01_is_fully_positioned() {
+        let result = parse_stdf_sync(COORDLESS_LOT.to_string()).unwrap();
+        let w01 = result.wafers.iter().find(|w| w.wafer_id == "W01").unwrap();
+        assert!(!w01.results.is_empty());
+        assert!(w01.results.iter().all(|d| d.x.is_some() && d.y.is_some()));
+        assert!(w01.results.iter().all(|d| d.die_index.is_none()));
+    }
+
+    #[test]
+    fn coordless_lot_w02_is_mixed() {
+        let result = parse_stdf_sync(COORDLESS_LOT.to_string()).unwrap();
+        let w02 = result.wafers.iter().find(|w| w.wafer_id == "W02").unwrap();
+        let positioned = w02.results.iter().filter(|d| d.x.is_some()).count();
+        let unpositioned = w02.results.iter().filter(|d| d.x.is_none()).count();
+        assert!(positioned > 0, "expected some positioned dies in the mixed wafer");
+        assert!(unpositioned > 0, "expected some coordinate-less dies in the mixed wafer");
+        // Every unpositioned die still has a stable, unique die_index.
+        let indices: std::collections::HashSet<_> =
+            w02.results.iter().filter_map(|d| d.die_index).collect();
+        assert_eq!(indices.len(), unpositioned);
+    }
+
+    #[test]
+    fn coordless_lot_w03_is_fully_coordinate_less_but_keeps_bin_and_test_data() {
+        let result = parse_stdf_sync(COORDLESS_LOT.to_string()).unwrap();
+        let w03 = result.wafers.iter().find(|w| w.wafer_id == "W03").unwrap();
+        assert!(!w03.results.is_empty());
+        assert!(w03.results.iter().all(|d| d.x.is_none() && d.y.is_none()));
+        // Real measured data must survive — this is the whole point of
+        // keeping the die instead of dropping it.
+        assert!(w03.results.iter().all(|d| d.hbin.is_some()));
+        assert!(w03.results.iter().all(|d| !d.test_values.is_empty()));
+    }
+
+    #[test]
+    fn coordless_lot_surfaces_a_position_warning_per_affected_wafer() {
+        let result = parse_stdf_sync(COORDLESS_LOT.to_string()).unwrap();
+        let w02_warning = result.warnings.iter().any(|w| w.contains("W02") && w.contains("position"));
+        let w03_warning = result.warnings.iter().any(|w| w.contains("W03") && w.contains("position"));
+        assert!(w02_warning, "expected a position warning for W02: {:?}", result.warnings);
+        assert!(w03_warning, "expected a position warning for W03: {:?}", result.warnings);
+    }
 
     #[test]
     fn multi_wafer_lot_meta() {
@@ -1271,7 +1366,7 @@ mod tests {
         let result = parse_stdf_sync(MULTI_WAFER.to_string()).unwrap();
         for w in &result.wafers {
             for d in &w.results {
-                assert!(d.x != SENTINEL_I2 as i32 && d.y != SENTINEL_I2 as i32,
+                assert!(d.x != Some(SENTINEL_I2 as i32) && d.y != Some(SENTINEL_I2 as i32),
                     "sentinel coordinate leaked into results");
             }
         }
@@ -1628,8 +1723,8 @@ mod tests {
             assert_eq!(be.wafers.len(), 1);
             let ld = &le.wafers[0].results[0];
             let bd = &be.wafers[0].results[0];
-            assert_eq!((ld.x, ld.y, ld.hbin, ld.sbin), (3, 7, Some(1), Some(1)));
-            assert_eq!((bd.x, bd.y, bd.hbin, bd.sbin), (3, 7, Some(1), Some(1)));
+            assert_eq!((ld.x, ld.y, ld.hbin, ld.sbin), (Some(3), Some(7), Some(1), Some(1)));
+            assert_eq!((bd.x, bd.y, bd.hbin, bd.sbin), (Some(3), Some(7), Some(1), Some(1)));
             // Test value (the f32 result — the field most sensitive to byte order)
             assert_eq!(ld.test_values.get("1000"), Some(&1.25));
             assert_eq!(bd.test_values.get("1000"), Some(&1.25));

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tokenize, detectRole, validateRoleAssignments, isTypeMismatch } from './mappingUI';
+import { tokenize, detectRole, validateRoleAssignments, isTypeMismatch, validateXYAssignment } from './mappingUI';
 
 const noSample: Record<string, string>[] = [];
 const numericSample = (col: string, val = '1.5'): Record<string, string>[] => [{ [col]: val }];
@@ -194,5 +194,22 @@ describe('isTypeMismatch', () => {
   it('does not flag a non-numeric role regardless of type', () => {
     expect(isTypeMismatch('wafer', 'string')).toBe(false);
     expect(isTypeMismatch('metadata', 'string')).toBe(false);
+  });
+});
+
+// ── validateXYAssignment ─────────────────────────────────────────────────────
+
+describe('validateXYAssignment', () => {
+  it('accepts both x and y mapped', () => {
+    expect(validateXYAssignment({ x: 'colX', y: 'colY' })).toBeNull();
+  });
+  it('accepts neither x nor y mapped (coordinate-less file)', () => {
+    expect(validateXYAssignment({ x: null, y: null })).toBeNull();
+  });
+  it('rejects x mapped without y', () => {
+    expect(validateXYAssignment({ x: 'colX', y: null })).toMatch(/both X and Y/);
+  });
+  it('rejects y mapped without x', () => {
+    expect(validateXYAssignment({ x: null, y: 'colY' })).toMatch(/both X and Y/);
   });
 });

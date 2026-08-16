@@ -4,7 +4,7 @@
  * enableTestValueAnalysis: true.
  */
 import { describe, it, expect } from 'vitest';
-import { buildWaferMap } from '@wafertools/wafermap';
+import { buildWaferMap, hasPosition, type PositionedDie } from '@wafertools/wafermap';
 import { analyzeWaferMap, analyzeWaferLot } from '@wafertools/wafermap/stats';
 
 function makeDie(x: number, y: number, testValues: Record<number, number>) {
@@ -100,7 +100,7 @@ describe('functional (F) tests end-to-end through the tsmap→wmap mapping', () 
     const waferMap = buildWaferMap({ results, testDefs });
 
     // Map: functional test forced to test pass/fail display.
-    const view = buildView(waferMap.wafer, waferMap.dies, {
+    const view = buildView(waferMap.wafer, waferMap.dies.filter(hasPosition) as PositionedDie[], {
       plotMode: 'value', testDefs, activeTest: 2001,
     });
     expect(view.passFailDisplay).toBe('test');

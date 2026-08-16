@@ -3,7 +3,8 @@ declare const __BUILD_DATE__: string;
 
 import { buildWaferMap } from '@wafertools/wafermap';
 import type { WaferMapResult } from '@wafertools/wafermap';
-import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf } from '@wafertools/wafermap/render';
+import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, buildDieListSection } from '@wafertools/wafermap/render';
+import type { Die } from '@wafertools/wafermap';
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
@@ -17,10 +18,12 @@ import type { CsvMapping } from './mappingUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
 import type { ParsedFile, WaferData, TestDef, TestOverride } from './types';
 import { attachTooltip, upgradeTitleTooltips } from './tooltip';
+import { openAnchoredMenu, makeMenuRow } from './anchoredMenu';
 import { ICONS } from './icons';
 import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme } from './theme';
 import { makeMenuSelect } from './menuSelect';
 import { showSplitsModal } from './splitsUI';
+import { openModal } from './modal';
 import { showFileAssociationsModal } from './fileAssociationsUI';
 import { getSplitLabel, setSplitLabel, waferDisplayLabel, splitsFingerprint, parseSplitsCsv } from './splits';
 import { getRecentFiles, addRecentFiles, removeRecentFile, formatRecentTime } from './recentFiles';
@@ -42,8 +45,7 @@ const dropZone        = document.getElementById('drop-zone')!;
 const openBtn         = document.getElementById('open-btn')!;
 const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
 const recentBtn       = document.getElementById('recent-btn') as HTMLButtonElement;
-const filterTestsBtn    = document.getElementById('filter-tests-btn') as HTMLButtonElement;
-const splitsBtn        = document.getElementById('splits-btn') as HTMLButtonElement;
+const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
 const valueFindingsBtn  = document.getElementById('value-findings-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
@@ -52,6 +54,22 @@ const busySpinner     = document.getElementById('busy-spinner')!;
 const logList         = document.getElementById('log-list')!;
 const logToggle       = document.getElementById('log-toggle')!;
 const logPanel        = document.getElementById('log-panel')!;
+
+/**
+ * Show/hide the whole "a lot is loaded" half of the toolbar — the Lot ▾
+ * trigger, the Clear button, and the group separators that frame them.
+ * The separators are toggled here rather than left permanently in the markup
+ * because a divider with nothing on one side of it reads as a rendering bug;
+ * they only earn their place once there's a second group to divide.
+ */
+function setToolbarGroupVisible(visible: boolean): void {
+  const display = visible ? '' : 'none';
+  lotBtn.style.display = display;
+  resetBtn.style.display = display;
+  for (const sep of document.querySelectorAll<HTMLElement>('#toolbar .tb-sep')) {
+    sep.style.display = display;
+  }
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -435,9 +453,10 @@ function renderWafers(wafers: WaferData[], label: string, testDefs: Record<strin
   const restoredSplits = loadSavedSplits(wafers);
   clearLotStatsCache();
   addBtn.disabled = wafers.length === 0;
-  resetBtn.style.display = '';
-  filterTestsBtn.style.display = Object.keys(currentTestDefs).length > 0 ? '' : 'none';
-  splitsBtn.style.display = wafers.length > 0 ? '' : 'none';
+  // One trigger for every lot-scoped dialog (see openLotMenu). Its rows
+  // handle their own availability — "Filter tests…" greys out for a file with
+  // no test data — so this only needs the "is anything loaded at all" gate.
+  setToolbarGroupVisible(wafers.length > 0);
   // Value findings are only meaningful when there are test values. Reset
   // it off on every new load so a fresh (possibly large) lot starts on the fast path.
   const hasTestValues = wafers.some(w => w.results.some(d => d.testValues && Object.keys(d.testValues).length > 0));
@@ -580,9 +599,7 @@ function showEmptyState() {
   binaryScanScope = 'largest';
   clearLotStatsCache();
   addBtn.disabled = true;
-  resetBtn.style.display = 'none';
-  filterTestsBtn.style.display = 'none';
-  splitsBtn.style.display = 'none';
+  setToolbarGroupVisible(false);
   valueFindingsBtn.style.display = 'none';
   destroyMainView();
   container.classList.remove('gallery');
@@ -715,69 +732,37 @@ function syncRecentBtn() {
 }
 
 let closeRecentMenu: (() => void) | null = null;
+let closeLotMenu: (() => void) | null = null;
 
 /** Opens (or closes, if already open) a themed dropdown of recent files
  *  anchored under `anchor`, reusing buildRecentRows for the row UI. */
 function openRecentMenu(anchor: HTMLElement) {
   if (closeRecentMenu) { closeRecentMenu(); return; }
 
-  const popup = document.createElement('div');
-  popup.style.cssText = [
-    'position:fixed', 'z-index:var(--z-tooltip)',
-    'background:var(--bg-overlay)', 'color:var(--text-secondary)',
-    'border:1px solid var(--border-mid)', 'border-radius:6px',
-    'box-shadow:0 6px 20px rgba(0,0,0,0.35)',
-    'padding:8px', 'min-width:260px', 'max-width:360px',
-    'font-size:12px', 'font-family:system-ui,sans-serif',
-  ].join(';');
+  closeRecentMenu = openAnchoredMenu(
+    anchor,
+    {
+      padding: '8px', minWidth: '260px', maxWidth: '360px', fontSize: '12px',
+      onClose: () => { closeRecentMenu = null; },
+    },
+    (popup, close) => {
+      const heading = document.createElement('div');
+      heading.style.cssText = 'font-size:11px;color:var(--text-veryfaint);text-transform:uppercase;' +
+        'letter-spacing:.04em;margin-bottom:6px;';
+      heading.textContent = 'Recent';
+      popup.appendChild(heading);
 
-  const heading = document.createElement('div');
-  heading.style.cssText = 'font-size:11px;color:var(--text-veryfaint);text-transform:uppercase;' +
-    'letter-spacing:.04em;margin-bottom:6px;';
-  heading.textContent = 'Recent';
-  popup.appendChild(heading);
-
-  const rebuild = () => {
-    popup.querySelector('.recent-rows')?.remove();
-    if (getRecentFiles().length === 0) { close(); return; }
-    const rows = buildRecentRows(close, rebuild);
-    rows.classList.add('recent-rows');
-    popup.appendChild(rows);
-  };
-  rebuild();
-
-  document.body.appendChild(popup);
-  const r = anchor.getBoundingClientRect();
-  const margin = 8;
-  popup.style.top = `${r.bottom + 4}px`;
-  popup.style.left = `${r.left}px`;
-  requestAnimationFrame(() => {
-    const pw = popup.offsetWidth;
-    let left = r.left;
-    if (left + pw + margin > window.innerWidth) left = window.innerWidth - pw - margin;
-    popup.style.left = `${Math.max(margin, left)}px`;
-  });
-
-  function onOutside(e: PointerEvent) {
-    const t = e.target as Node;
-    if (!popup.contains(t) && !anchor.contains(t)) close();
-  }
-  function onKey(e: KeyboardEvent) { if (e.key === 'Escape') close(); }
-
-  function close() {
-    popup.remove();
-    document.removeEventListener('pointerdown', onOutside, true);
-    document.removeEventListener('keydown', onKey, true);
-    window.removeEventListener('blur', close);
-    window.removeEventListener('resize', close);
-    closeRecentMenu = null;
-  }
-  closeRecentMenu = close;
-
-  document.addEventListener('pointerdown', onOutside, true);
-  document.addEventListener('keydown', onKey, true);
-  window.addEventListener('blur', close);
-  window.addEventListener('resize', close);
+      // Re-entrant: removing the last entry from inside a row closes the menu.
+      const rebuild = () => {
+        popup.querySelector('.recent-rows')?.remove();
+        if (getRecentFiles().length === 0) { close(); return; }
+        const rows = buildRecentRows(close, rebuild);
+        rows.classList.add('recent-rows');
+        popup.appendChild(rows);
+      };
+      rebuild();
+    },
+  );
 }
 
 // ── Multi-file load flow ──────────────────────────────────────────────────────
@@ -1339,7 +1324,10 @@ function filterCapacity(): { dieCount: number; totalTests: number } | undefined 
   return { dieCount, totalTests };
 }
 
-filterTestsBtn.addEventListener('click', async () => {
+/** "Filter tests…" — re-run the test selector against the loaded lot and
+ *  re-parse. Reached from the Lot ▾ menu (`openLotMenu`); a named function
+ *  rather than an inline listener so the menu row can call it directly. */
+async function openFilterTests() {
   if (busy || Object.keys(currentTestDefs).length === 0) return;
   // For CSV/JSON (no binary files), we only support in-memory filtering — no re-parse available.
   // For STDF/ATDF we use currentTestNames from the first-pass scan (may re-parse if user adds tests).
@@ -1488,7 +1476,7 @@ filterTestsBtn.addEventListener('click', async () => {
     entries.length === 1 ? entries[0].fileName : `${entries.length} files`,
     mergedDefs,
   );
-});
+}
 
 
 function openSplitsDialog() {
@@ -1513,7 +1501,57 @@ function openSplitsDialog() {
   });
 }
 
-splitsBtn.addEventListener('click', openSplitsDialog);
+
+
+/**
+ * Every die across the whole loaded lot as one table, with CSV export —
+ * the "not per-card only" lot-level counterpart to the per-wafer die-list
+ * wmap shows for a coordinate-less wafer's map replacement / mixed-wafer
+ * footer. Reuses wmap's `buildDieListSection` (the same rendering component)
+ * rather than a second implementation; the wafer-id attribution is the one
+ * thing only tsmap can supply, since only tsmap has the "lot" concept.
+ */
+function openDieListDialog() {
+  if (currentWafers.length === 0) return;
+  cachedLotStats ??= buildLotStatsSummary(currentWafers);
+  const { items } = cachedLotStats;
+
+  const waferLabelByDie = new WeakMap<Die, string>();
+  const allDies: Die[] = [];
+  for (const item of items) {
+    for (const die of item.dies) {
+      waferLabelByDie.set(die, item.label);
+      allDies.push(die);
+    }
+  }
+  const testDefs = toWmapTestDefs(currentTestDefs);
+
+  openModal({
+    title: 'Die list',
+    sizing: 'resizable',
+    // 'hidden', not 'auto': the TABLE owns the scrolling (buildDieListSection's
+    // own scroll box now fills its container), so the modal body must not
+    // scroll too — 'auto' gave two nested scrollbars, and it also makes the
+    // body a plain block, which has no definite height for the table to fill
+    // against. 'hidden' keeps the body a flex column, so the header row stays
+    // pinned and only the rows scroll.
+    bodyOverflow: 'hidden',
+    mount(body) {
+      body.style.cssText += 'padding:16px;';
+      const section = buildDieListSection(allDies, testDefs, {
+        title: `Die list — ${allDies.length} dies across ${items.length} wafer${items.length !== 1 ? 's' : ''}`,
+        csvFilename: 'dies.csv',
+        onSaveText,
+        extraColumn: { label: 'Wafer', get: (d) => waferLabelByDie.get(d) },
+      });
+      // No height:100% here any more — buildDieListSection sizes itself with
+      // flex:1/min-height:0, the pattern WebView2 actually resolves (see the
+      // cross-platform CSS rules in CLAUDE.md).
+      if (section) body.appendChild(section);
+    },
+  });
+}
+
 
 
 let closeHelpMenu: (() => void) | null = null;
@@ -1607,109 +1645,92 @@ function showToast(anchor: HTMLElement, text: string) {
 function openHelpMenu(anchor: HTMLElement) {
   if (closeHelpMenu) { closeHelpMenu(); return; }
 
-  const popup = document.createElement('div');
-  popup.style.cssText = [
-    'position:fixed', 'z-index:var(--z-tooltip)',
-    'background:var(--bg-overlay)', 'color:var(--text-secondary)',
-    'border:1px solid var(--border-mid)', 'border-radius:6px',
-    'box-shadow:0 6px 20px rgba(0,0,0,0.35)',
-    'padding:6px', 'min-width:200px',
-    'font-size:13px', 'font-family:system-ui,sans-serif',
-    'display:flex', 'flex-direction:column', 'gap:2px',
-  ].join(';');
+  closeHelpMenu = openAnchoredMenu(
+    anchor,
+    { stack: true, onClose: () => { closeHelpMenu = null; } },
+    (popup, close) => {
+      popup.appendChild(makeMenuRow(close, {
+        label: 'tsmap guide',
+        hint: 'File loading, mapping, splits, test selector, and more — opens in your browser',
+        onClick: () => { showToast(anchor, 'Opening in browser…'); platform.openGuide(); },
+        icon: ICONS.externalLink,
+      }));
 
-  const makeRow = (label: string, hint: string, enabled: boolean, onClick: () => void, icon?: string) => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.disabled = !enabled;
-    row.style.cssText = 'display:flex;align-items:center;gap:6px;text-align:left;background:none;border:none;border-radius:4px;' +
-      `padding:6px 10px;font-size:13px;color:${enabled ? 'var(--text-secondary)' : 'var(--text-veryfaint)'};` +
-      `cursor:${enabled ? 'pointer' : 'default'};`;
-    const text = document.createElement('span');
-    text.textContent = label;
-    text.style.flex = '1';
-    row.appendChild(text);
-    if (icon) {
-      const iconSpan = document.createElement('span');
-      iconSpan.innerHTML = icon;
-      iconSpan.style.cssText = 'display:inline-flex;opacity:0.6;flex-shrink:0;';
-      row.appendChild(iconSpan);
-    }
-    if (enabled) {
-      row.addEventListener('mouseenter', () => { row.style.background = 'var(--bg-hover-row)'; });
-      row.addEventListener('mouseleave', () => { row.style.background = 'none'; });
-      row.addEventListener('click', () => { close(); onClick(); });
-    }
-    attachTooltip(row, hint);
-    popup.appendChild(row);
-  };
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Wafer map reference',
+        hint: mainViewController
+          ? 'Wafer map/gallery controls, Findings/Insights panels, and more (wafermap’s own guide)'
+          : 'Load a file first to access the wafer map reference',
+        enabled: !!mainViewController,
+        onClick: () => { showToast(anchor, 'Opening guide…'); mainViewController?.openUserGuide(); },
+      }));
 
-  makeRow(
-    'tsmap guide',
-    'File loading, mapping, splits, test selector, and more — opens in your browser',
-    true,
-    () => { showToast(anchor, 'Opening in browser…'); platform.openGuide(); },
-    ICONS.externalLink,
+      // No such concept in a browser (there's no OS-level "default app for a file
+      // type" a web page can register), so this row only exists on desktop.
+      if (isTauri) {
+        popup.appendChild(makeMenuRow(close, {
+          label: 'File associations…',
+          hint: 'Open .stdf/.atdf/.parquet files in tsmap automatically from your file manager',
+          onClick: () => {
+            showFileAssociationsModal({
+              getStatus: () => platform.getFileAssociationStatus(),
+              setAssociation: (extension, associate) => platform.setFileAssociation(extension, associate),
+            });
+          },
+        }));
+      }
+    },
   );
+}
 
-  makeRow(
-    'Wafer map reference',
-    mainViewController ? 'Wafer map/gallery controls, Findings/Insights panels, and more (wafermap’s own guide)' : 'Load a file first to access the wafer map reference',
-    !!mainViewController,
-    () => { showToast(anchor, 'Opening guide…'); mainViewController?.openUserGuide(); },
+/**
+ * The **Lot ▾** menu — every dialog that acts on the already-loaded lot.
+ * These were three separate toolbar buttons (Filter tests…, Splits…, Die
+ * list…); they're homogeneous (all open a modal, all only meaningful once
+ * data is loaded) and they're the group that keeps growing, so they collapse
+ * into one trigger rather than widening a row that already needs three
+ * separate overflow defences (see #toolbar's own comment in index.html).
+ *
+ * Rows that don't currently apply are shown DISABLED with the reason in their
+ * tooltip, not hidden — a menu whose contents change shape between loads is
+ * harder to learn than one with a stable shape and greyed rows.
+ */
+function openLotMenu(anchor: HTMLElement) {
+  if (closeLotMenu) { closeLotMenu(); return; }
+
+  anchor.setAttribute('aria-expanded', 'true');
+  closeLotMenu = openAnchoredMenu(
+    anchor,
+    {
+      stack: true, minWidth: '220px',
+      onClose: () => { closeLotMenu = null; anchor.setAttribute('aria-expanded', 'false'); },
+    },
+    (popup, close) => {
+      const hasTests = Object.keys(currentTestDefs).length > 0;
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Filter tests…',
+        hint: hasTests
+          ? 'Change which tests are imported, then re-parse'
+          : 'This file has no test data to filter',
+        enabled: hasTests && !busy,
+        onClick: () => { void openFilterTests(); },
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Splits…',
+        hint: 'Define and assign wafer splits (process corners, experiment groups, etc.)',
+        onClick: openSplitsDialog,
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Die list…',
+        hint: 'View every die across the loaded lot as a table, with CSV export',
+        onClick: openDieListDialog,
+      }));
+    },
   );
-
-  // No such concept in a browser (there's no OS-level "default app for a file
-  // type" a web page can register), so this row only exists on desktop.
-  if (isTauri) {
-    makeRow(
-      'File associations…',
-      'Open .stdf/.atdf/.parquet files in tsmap automatically from your file manager',
-      true,
-      () => {
-        showFileAssociationsModal({
-          getStatus: () => platform.getFileAssociationStatus(),
-          setAssociation: (extension, associate) => platform.setFileAssociation(extension, associate),
-        });
-      },
-    );
-  }
-
-  document.body.appendChild(popup);
-  const r = anchor.getBoundingClientRect();
-  const margin = 8;
-  popup.style.top = `${r.bottom + 4}px`;
-  popup.style.left = `${r.left}px`;
-  requestAnimationFrame(() => {
-    const pw = popup.offsetWidth;
-    let left = r.left;
-    if (left + pw + margin > window.innerWidth) left = window.innerWidth - pw - margin;
-    popup.style.left = `${Math.max(margin, left)}px`;
-  });
-
-  function onOutside(e: PointerEvent) {
-    const t = e.target as Node;
-    if (!popup.contains(t) && !anchor.contains(t)) close();
-  }
-  function onKey(e: KeyboardEvent) { if (e.key === 'Escape') close(); }
-
-  function close() {
-    popup.remove();
-    document.removeEventListener('pointerdown', onOutside, true);
-    document.removeEventListener('keydown', onKey, true);
-    window.removeEventListener('blur', close);
-    window.removeEventListener('resize', close);
-    closeHelpMenu = null;
-  }
-  closeHelpMenu = close;
-
-  document.addEventListener('pointerdown', onOutside, true);
-  document.addEventListener('keydown', onKey, true);
-  window.addEventListener('blur', close);
-  window.addEventListener('resize', close);
 }
 
 helpBtn.addEventListener('click', () => openHelpMenu(helpBtn));
+lotBtn.addEventListener('click', () => openLotMenu(lotBtn));
 
 // Replace the native `title` tooltips on tsmap's top-toolbar chrome with the
 // themed, instant tooltip (see tooltip.ts) so they match the wmap map toolbar

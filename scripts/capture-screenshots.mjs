@@ -602,7 +602,19 @@ async function runSetup(page, steps, baseUrl) {
         break;
 
       case 'openSplitsDialog': {
-        await page.click('#splits-btn');
+        // Splits… moved out of the top bar into the Lot ▾ menu — open the
+        // menu first, then pick the row by its visible label (the rows are
+        // built in JS and carry no id/selector of their own).
+        await page.click('#lot-btn');
+        await page.waitForTimeout(150);
+        const opened = await page.evaluate(() => {
+          const row = [...document.querySelectorAll('button')]
+            .find(b => b.textContent?.trim().startsWith('Splits'));
+          if (!row) return false;
+          row.click();
+          return true;
+        });
+        if (!opened) throw new Error('openSplitsDialog: no "Splits…" row found in the Lot menu');
         await waitForSelector(page, 'div[role="dialog"]');
         await page.waitForTimeout(300);
         break;

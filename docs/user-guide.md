@@ -346,8 +346,8 @@ or wrong results.
 
 | Role | What it means |
 |------|--------------|
-| **X position** | Die column coordinate (prober step, integer). Required. |
-| **Y position** | Die row coordinate (prober step, integer). Required. |
+| **X position** | Die column coordinate (prober step, integer). Optional — see [Dies with no reported position](#dies-with-no-reported-position) below. |
+| **Y position** | Die row coordinate (prober step, integer). Optional — see [Dies with no reported position](#dies-with-no-reported-position) below. |
 | **Hard bin** | Hard bin number per die |
 | **Soft bin** | Soft bin number per die |
 | **Wafer ID** | Identifies which wafer each row belongs to; splits rows into separate wafer maps |
@@ -389,6 +389,22 @@ Examples:
     1, 1, 1,    Idsat_vg1,  185
     2, 1, 2,    Vt_lin,     438
     2, 1, 2,    Idsat_vg1,  179
+
+### Dies with no reported position
+
+X/Y aren't required. Leave both unassigned and every die in the file is treated as having no
+reported position — a confirmation explains what that means (see
+[Dies with no reported position](#51-dies-with-no-reported-position) below) before you
+continue. Assigning only one of X/Y (not both) is blocked — a die is either fully positioned
+or fully unpositioned, never half.
+
+A row whose X or Y cell is blank or doesn't parse is handled the same way individually: kept
+as a coordinate-less die rather than dropped, even if most of the file's other rows do have a
+position (a "mixed" wafer). `sample_data/TESTNUM-COORDLESS-01.{csv,json,parquet}` demonstrate
+this — the same three-wafer lot in all three formats, one wafer fully positioned, one mixed,
+one fully coordinate-less. STDF and ATDF have the same rule applied to their own "no reported
+position" conventions (the STDF sentinel value and ATDF's blank PRR X/Y fields respectively);
+`sample_data/COORDLESS-LOT-01.stdf` and `sample_data/COORDLESS-LOT-01.atdf` are their fixtures.
 
 ### Pass bins
 
@@ -531,7 +547,7 @@ If you select no tests, tsmap asks you to confirm ("No tests selected — only b
 
 ### After load: re-filtering
 
-After a successful load, the **Filter tests…** button appears in the toolbar. Click it to
+After a successful load, the toolbar's **Lot ▾** menu offers **Filter tests…**. Click it to
 re-open the test selector at any time and change which tests are imported. The file is
 re-parsed with the new selection — bin and yield data is preserved regardless of which
 tests you select.
@@ -553,6 +569,43 @@ with the summary panel open by default; a multi-wafer lot shows a side-by-side g
 The map is delivered by the wafermap rendering engine. For a full walkthrough of toolbar
 controls, plot modes, overlays, zoom and pan, die hover tooltips, findings panel, summary
 panel, and gallery controls, open tsmap's **?** Help menu → **Wafer map reference**.
+
+### 5.1 Dies with no reported position
+
+Not every file reports an X/Y position for every die — see
+[Dies with no reported position](#dies-with-no-reported-position) in the column mapping
+section for how that's assigned (or left unassigned) at load time. What you see afterwards
+depends on how much of a wafer is affected:
+
+- **A fully coordinate-less wafer** never renders as a map or gallery mosaic — showing dies
+  at fabricated positions would risk being misread as real spatial layout. Instead the card
+  shows a compact summary matching the current plot mode: a **bin breakdown** (colour-coded
+  the same as a positioned card's own bin legend) for hard/soft-bin modes, or a small
+  **histogram** for value mode — coloured through the same colour scheme, log-scale, and
+  spec/data-range settings the map itself uses, so switching those in the toolbar updates the
+  summary the same way it would a real map. A **View table** toggle switches to the full
+  per-die table (one row per die, site/index, hard bin, soft bin, every test value) with its
+  own **Export CSV** button.
+- **A mixed wafer** — some dies positioned, some not — renders its normal wafer map for the
+  positioned dies, plus an expandable **"+N dies without position data"** footer beneath the
+  card (click the footer, or its chevron, to expand/collapse). Expanding it shows the same
+  summary/table toggle, scoped to just the unpositioned subset.
+- The toolbar's spatial-only controls (zoom, pan, select, download, orientation, overlays,
+  legend position) are hidden on a fully coordinate-less card, since there's no map for them
+  to act on. Plot mode and colour scheme stay — both drive what the summary shows.
+- A **lot-level die list** combining every wafer (with a wafer-id column) is available from
+  the toolbar's **Lot ▾** menu for multi-wafer loads, with its own CSV export covering the
+  whole lot.
+
+`sample_data/COORDLESS-LOT-01.stdf` demonstrates all three wafer states in one lot: `W01` is
+fully positioned, `W02` is a mixed wafer (~15% of dies unpositioned), and `W03` is fully
+coordinate-less.
+
+Findings that depend on physical layout — edge ring, quadrants, sectors, reticle position,
+cluster and pattern detection — only ever consider positioned dies, so a coordinate-less
+wafer contributes none of these. Everything else — yield, bin counts, per-test statistics,
+and the Insights tab's histograms/correlation/scatter — still includes every die, positioned
+or not.
 
 ### Value findings
 
@@ -589,7 +642,8 @@ in the [Insights tab's Group by dropdown](#7-insights-tab) — split-vs-split
 yield, boxplots, histograms, correlation, and scatter all work immediately with no extra
 setup — and they can optionally be shown right on the wafer map/gallery labels too.
 
-Once a file is loaded, click **Splits…** in the toolbar to open the assignment dialog.
+Once a file is loaded, open the toolbar's **Lot ▾** menu and choose **Splits…** to open the
+assignment dialog.
 The banner at the top shows where things stand: with no assignments yet it points you at
 the two ways to get started (assign below, or load a saved CSV), and once splits exist it
 becomes a summary — e.g. *"5 splits assigned to 13 of 13 wafers"* — so a lot whose splits
