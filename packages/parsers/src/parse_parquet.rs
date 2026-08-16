@@ -82,6 +82,10 @@ fn field_to_string(f: &Field) -> String {
 }
 
 pub fn parquet_headers_from_bytes(bytes: &[u8]) -> Result<ParquetHeadersResult, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
     let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(|e| e.to_string())?;
     headers_from_reader(&reader)
 }
@@ -156,6 +160,10 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> Result<ParquetHeadersResult
 }
 
 pub fn parse_parquet_from_bytes(bytes: &[u8], mapping: CsvMapping) -> Result<ParsedStdf, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
     let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(|e| e.to_string())?;
     parse_from_reader(&reader, mapping)
 }

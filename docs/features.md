@@ -20,6 +20,15 @@ faster, ATDF about 2.8× faster.
 See [Supported file formats](user-guide.md#1-supported-file-formats) and
 [Opening files](user-guide.md#2-opening-files) in the user guide.
 
+## Find the right files before you open them
+
+Pointed at a directory of hundreds of lots, **Filter files…** reads only each file's header
+metadata — lot ID, part type, tester, job name, wafer count, start and finish times, site
+count — and lays them out as one row per file. Sort, filter per column, or search across all
+of them, then load just the subset you actually want; the rest are never parsed. A filter can
+be saved and reloaded, so a recurring selection is a file rather than a habit. Because the
+scan skips die and test records entirely, it stays quick over a large batch.
+
 ## Two-pass test selector
 
 STDF/ATDF files with a lot of tests get a fast first-pass scan, then a selector overlay to
@@ -48,9 +57,9 @@ a fabricated map — showing dies at synthetic positions risks being misread as 
 data. Instead it shows a compact summary that follows the current plot mode — a bin breakdown
 in the map's own colours for hard/soft-bin modes, or a histogram (also colour-matched, and
 log-scale/spec-range aware like the map's colorbar) for value mode — with a one-click toggle
-to the full per-die table when you need exact values or CSV export. A wafer that's only
+to the full die list when you need exact values or CSV export. A wafer that's only
 partly positioned renders its map for the dies that do have coordinates, plus an expandable
-"+N dies without position data" footer offering the same summary/table for the rest. Yield,
+"+N dies without position data" footer offering the same chart/die-list toggle for the rest. Yield,
 bin counts, and per-test statistics still count every die either way — only spatial findings
 (edge ring, quadrants, clustering) are scoped to positioned dies. A lot-wide combined die
 list, also CSV-exportable, is available from the toolbar's **Lot ▾** menu for any

@@ -96,6 +96,13 @@ mod wasm {
     }
 
     #[wasm_bindgen]
+    pub fn stdf_file_meta(bytes: &[u8]) -> Result<JsValue, JsValue> {
+        crate::parse_stdf::parse_stdf_file_meta(bytes)
+            .map(|r| to_js(&r))
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen]
     pub fn parse_stdf_filtered(bytes: &[u8], selected: JsValue) -> Result<JsValue, JsValue> {
         let selected: Vec<u32> = serde_wasm_bindgen::from_value(selected)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -108,6 +115,13 @@ mod wasm {
     #[wasm_bindgen]
     pub fn atdf_test_names(bytes: &[u8]) -> Result<JsValue, JsValue> {
         crate::parse_atdf::parse_atdf_test_names(bytes)
+            .map(|r| to_js(&r))
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen]
+    pub fn atdf_file_meta(bytes: &[u8]) -> Result<JsValue, JsValue> {
+        crate::parse_atdf::parse_atdf_file_meta(bytes)
             .map(|r| to_js(&r))
             .map_err(|e| JsValue::from_str(&e))
     }

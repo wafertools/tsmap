@@ -1,6 +1,6 @@
 mod cli_files;
 mod commands;
-use commands::{atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_test_names, write_temp_html};
+use commands::{atdf_file_meta, atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_file_meta, stdf_test_names, write_temp_html};
 use commands::get_startup_files::set_startup_args;
 use tauri::{Emitter, Manager, WindowEvent};
 
@@ -229,7 +229,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_test_names, write_temp_html])
+        .invoke_handler(tauri::generate_handler![atdf_file_meta, atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_file_meta, stdf_test_names, write_temp_html])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

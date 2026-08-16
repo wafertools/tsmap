@@ -4345,7 +4345,7 @@ dependencies = [
 
 [[package]]
 name = "testdata-parser"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -4743,7 +4743,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tsmap"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "futures-util",
  "libc",

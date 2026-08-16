@@ -9,7 +9,7 @@ import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/w
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, errMsg, deriveFileName, isUrlImportFormat } from './lib';
+import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv } from './testSelectorUI';
@@ -23,6 +23,7 @@ import { ICONS } from './icons';
 import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme } from './theme';
 import { makeMenuSelect } from './menuSelect';
 import { showSplitsModal } from './splitsUI';
+import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
 import { openModal } from './modal';
 import { showFileAssociationsModal } from './fileAssociationsUI';
 import { getSplitLabel, setSplitLabel, waferDisplayLabel, splitsFingerprint, parseSplitsCsv } from './splits';
@@ -46,6 +47,7 @@ const openBtn         = document.getElementById('open-btn')!;
 const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
 const recentBtn       = document.getElementById('recent-btn') as HTMLButtonElement;
 const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
+const filterFilesBtn  = document.getElementById('filter-files-btn') as HTMLButtonElement;
 const valueFindingsBtn  = document.getElementById('value-findings-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
@@ -309,9 +311,14 @@ if (isTauri) {
     if (busy) return;
     const items = Array.from(e.dataTransfer?.files ?? []);
     if (items.length === 0) return;
+    // size/lastModified come free from the File and are what the file-filter
+    // table's baseline columns read — a dropped file should carry them just
+    // like a picked one.
     const files = await Promise.all(items.map(async f => ({
       name: f.name,
       bytes: new Uint8Array(await f.arrayBuffer()),
+      size: f.size,
+      lastModified: f.lastModified,
     })));
     handleFiles(files, false);
   });
@@ -776,6 +783,9 @@ function setBusy(msg: string) {
   openBtn.style.pointerEvents = 'none';
   openBtn.style.opacity = '0.5';
   addBtn.disabled = true;
+  // Filter files… guards on `busy` in its own handler, so it was inert while
+  // busy but still looked live — the one file-entry button that didn't say so.
+  filterFilesBtn.disabled = true;
 }
 
 function setIdle(msg = '') {
@@ -784,6 +794,7 @@ function setIdle(msg = '') {
   busySpinner.classList.remove('active');
   openBtn.style.pointerEvents = '';
   openBtn.style.opacity = '';
+  filterFilesBtn.disabled = false;
   if (currentWafers.length > 0) addBtn.disabled = false;
 }
 
@@ -852,29 +863,24 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     return;
   }
 
-  // Determine effective extension — strip .gz wrapper to get inner format
-  const effectiveExt = (name: string) => {
-    const parts = name.split('.');
-    const ext = parts.pop()?.toLowerCase() ?? '';
-    return ext === 'gz' ? (parts.pop()?.toLowerCase() ?? ext) : ext;
-  };
-
   // Validate all files have the same extension (relaxed for mixed-format zips)
-  const exts = [...new Set(files.map(f => effectiveExt(f.name)))];
-  if (exts.length > 1 && !needsCleanup) {
-    log('error', `Mixed formats not supported: ${exts.join(', ')} — please select files of the same type`);
+  // — checkSameExtension/effectiveFileExtension (lib.ts) are shared with the
+  // file-filter table's own picker, so this rule lives in exactly one place.
+  const mixedFormatsError = checkSameExtension(files.map(f => f.name), needsCleanup);
+  if (mixedFormatsError) {
+    log('error', mixedFormatsError);
     setIdle('Error: mixed formats');
     return;
   }
 
   // For CSV/JSON/Parquet: show mapping overlay once for the first such file, apply to all
   const needsMapping = (e: string) => e === 'csv' || e === 'txt' || e === 'dat' || e === 'json' || e === 'parquet';
-  const firstMappable = files.find(f => needsMapping(effectiveExt(f.name)));
+  const firstMappable = files.find(f => needsMapping(effectiveFileExtension(f.name)));
 
   let mappingPromise: Promise<CsvMapping | null> = Promise.resolve(null);
 
   if (firstMappable) {
-    const firstExt = effectiveExt(firstMappable.name);
+    const firstExt = effectiveFileExtension(firstMappable.name);
     setBusy(`Reading ${firstMappable.name}…`);
     const headersResult = await (firstExt === 'json' ? platform.jsonHeaders(firstMappable)
       : firstExt === 'parquet' ? platform.parquetHeaders(firstMappable)
@@ -887,7 +893,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       return;
     }
 
-    const mappableFiles = files.filter(f => needsMapping(effectiveExt(f.name)));
+    const mappableFiles = files.filter(f => needsMapping(effectiveFileExtension(f.name)));
     const note = mappableFiles.length > 1 ? ` — mapping applied to all ${mappableFiles.length} CSV/JSON/Parquet files` : '';
     log('info', `${firstMappable.name}: ${headersResult.rowCount} rows, ${headersResult.headers.length} columns${note}`);
 
@@ -908,7 +914,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   // For STDF/ATDF: first-pass scan to get testDefs cheaply, then filtered parse.
   // For CSV/JSON/Parquet: parse fully now (fast), use parsed testDefs for the selector.
   const isBinaryExt = (e: string) => e === 'stdf' || e === 'std' || e === 'atdf' || e === 'atd';
-  const binaryFiles = files.filter(f => isBinaryExt(effectiveExt(f.name)));
+  const binaryFiles = files.filter(f => isBinaryExt(effectiveFileExtension(f.name)));
 
   // firstPassTestDefs: merged testDefs from first-pass scan (STDF/ATDF) and/or full parse (CSV/JSON).
   let firstPassTestDefs: StdfTestNames | null = null;
@@ -924,7 +930,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       return aSize >= bSize ? a : b;
     });
     currentBinaryFiles = binaryFiles;
-    currentBinaryExt = effectiveExt(largestBinary.name);
+    currentBinaryExt = effectiveFileExtension(largestBinary.name);
     binaryScanScope = 'largest';
 
     // Default scan scope: the largest file only — a fast, representative test
@@ -941,9 +947,9 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   }
 
   // Parse CSV/JSON files now; collect their testDefs for the selector.
-  const nonBinaryFiles = files.filter(f => !isBinaryExt(effectiveExt(f.name)));
+  const nonBinaryFiles = files.filter(f => !isBinaryExt(effectiveFileExtension(f.name)));
   for (const file of nonBinaryFiles) {
-    const fileExt = effectiveExt(file.name);
+    const fileExt = effectiveFileExtension(file.name);
     setBusy(`Parsing ${file.name}…`);
     try {
       const parsed: ParsedFile = fileExt === 'json' ? rustToLocal(await platform.parseJson(file, mapping!), file.name)
@@ -1070,7 +1076,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     }
 
     for (const file of files) {
-      const fileExt = effectiveExt(file.name);
+      const fileExt = effectiveFileExtension(file.name);
 
       // CSV/JSON already parsed above — just collect.
       if (!isBinaryExt(fileExt)) {
@@ -1213,6 +1219,36 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
 
 // ── Open / Add buttons ────────────────────────────────────────────────────────
 
+// Above this many files picked in one go, Open files/Add files offers to
+// route the batch into Filter files… instead of parsing it straight away —
+// large picks are exactly the case that tool exists for, and offering it
+// up front saves parsing a batch the user only wanted to narrow down.
+const FILTER_OFFER_THRESHOLD = 5;
+
+/** Returns true if the offer was accepted and the filter dialog now owns the
+ *  files (caller must not also call handleFiles); false if declined or the
+ *  batch was too small to offer. Called with `busy` still true from the
+ *  picker wait, so the confirm dialog can't be raced by a second pick.
+ *
+ *  Takes `PickedFile`s rather than `FileHandle`s so the offer can be made
+ *  *before* any bytes are read on web — routing a 200-file batch into the
+ *  filter table shouldn't first materialise all 200 (see `PickedFile`). */
+async function offerFilterFirst(picked: PickedFile[], isAppend: boolean, prevLabel: string): Promise<boolean> {
+  if (picked.length <= FILTER_OFFER_THRESHOLD) return false;
+  setBusy('Waiting for confirmation…');
+  const wantsFilter = await platform.confirm(
+    `You selected ${picked.length} files. Filter them first before ${isAppend ? 'adding' : 'loading'}?`,
+  );
+  if (!wantsFilter) return false;
+  setIdle(prevLabel);
+  void openFileFilterDialog(platform, {
+    onConfirmedLoad: (chosen, chosenAppend) => handleFiles(chosen, chosenAppend),
+    confirm: (msg) => platform.confirm(msg),
+    log,
+  }, picked);
+  return true;
+}
+
 async function pickAndHandle(isAppend: boolean) {
   if (busy) return;
   const prevLabel = fileLabel.textContent ?? '';
@@ -1229,6 +1265,7 @@ async function pickAndHandle(isAppend: boolean) {
     setIdle(prevLabel);
     return;
   }
+  if (await offerFilterFirst(files.map(pickedFromHandle), isAppend, prevLabel)) return;
   busy = false;
   handleFiles(files, isAppend);
 }
@@ -1252,11 +1289,12 @@ if (isTauri) {
     const rawFiles = Array.from(fileInput.files ?? []);
     fileInput.value = '';  // reset so same file can be re-picked
     if (rawFiles.length === 0) { setIdle(prevLabelOnPick); return; }
+    // Offer the filter route before reading a single byte — a batch big enough
+    // to be worth filtering is exactly the one not worth materialising first.
+    const picked = rawFiles.map(pickedFromWebFile);
+    if (await offerFilterFirst(picked, appendOnPick, prevLabelOnPick)) return;
+    const files = await Promise.all(picked.map(materializePicked));
     busy = false;
-    const files = await Promise.all(rawFiles.map(async f => ({
-      name: f.name,
-      bytes: new Uint8Array(await f.arrayBuffer()),
-    })));
     handleFiles(files, appendOnPick);
   });
 
@@ -1731,6 +1769,15 @@ function openLotMenu(anchor: HTMLElement) {
 
 helpBtn.addEventListener('click', () => openHelpMenu(helpBtn));
 lotBtn.addEventListener('click', () => openLotMenu(lotBtn));
+
+filterFilesBtn.addEventListener('click', () => {
+  if (busy) return;
+  void openFileFilterDialog(platform, {
+    onConfirmedLoad: (files, isAppend) => handleFiles(files, isAppend),
+    confirm: (msg) => platform.confirm(msg),
+    log,
+  });
+});
 
 // Replace the native `title` tooltips on tsmap's top-toolbar chrome with the
 // themed, instant tooltip (see tooltip.ts) so they match the wmap map toolbar

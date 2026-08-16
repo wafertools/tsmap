@@ -43,6 +43,14 @@
  *     filechooser interception (real button + native input, not a drop — only
  *     this path sets isAppend=true, needed to reach append-confirm).
  *
+ *   ['filterFiles', ['/tmp/a.stdf', '/tmp/b.stdf']]
+ *     Click "Filter files…" and pick files via the same filechooser
+ *     interception (its own dedicated input, not the shared #file-input).
+ *
+ *   ['waitForFilterScan']
+ *     Poll until the filter table has rows — the table is only built once
+ *     every per-file scan has resolved, so this is the real completion signal.
+ *
  *   ['waitForWafers']
  *     Poll until a canvas element appears inside #map-container.
  *
@@ -431,6 +439,27 @@ async function runSetup(page, steps, baseUrl) {
         break;
       }
 
+      case 'filterFiles': {
+        // Same filechooser interception as loadFile/addFiles, but against
+        // #filter-files-btn, which opens fileFilterUI's own dedicated hidden
+        // input rather than the shared #file-input.
+        const files = Array.isArray(args[0]) ? args[0] : [args[0]];
+        const [chooser] = await Promise.all([
+          page.waitForEvent('filechooser'),
+          page.click('#filter-files-btn'),
+        ]);
+        await chooser.setFiles(files);
+        break;
+      }
+
+      case 'waitForFilterScan': {
+        // The table is only constructed once every scan has resolved, so its
+        // presence in the modal IS the completion signal — no fixed sleep.
+        await waitForSelector(page, '.tsmap-modal-box table tbody tr');
+        await page.waitForTimeout(300);
+        break;
+      }
+
       case 'waitForWafers':
         await waitForWmapCanvas(page);
         break;
@@ -737,6 +766,38 @@ async function runSetup(page, steps, baseUrl) {
           if (scroll) { scroll.style.flex = 'none'; scroll.style.overflow = 'visible'; scroll.style.maxHeight = 'none'; }
         });
         await page.waitForTimeout(100);
+        break;
+      }
+
+      case 'shrinkModalToContent': {
+        // The openModal 'resizable' box is a fixed-size dialog whose body
+        // scrolls — right for the app, wrong for a guide image, where a short
+        // table would sit in two-thirds empty space. Same idea as
+        // shrinkPanelToContent, for .tsmap-modal-box instead of .mapping-panel.
+        await page.evaluate(() => {
+          const box = document.querySelector('.tsmap-modal-box');
+          if (!box) return;
+          box.style.height = 'auto';
+          box.style.maxHeight = 'none';
+          // Width too: the box is capped relative to the viewport, so a wide
+          // table would still be sliced mid-column no matter how wide the
+          // viewport is. Let the content decide, and give the capture a
+          // viewport wide enough to hold the result.
+          box.style.width = 'max-content';
+          box.style.maxWidth = 'none';
+          // Any inner scroll container: let it size to its content. Both axes,
+          // since setting only overflow-y forces overflow-x back to auto.
+          for (const el of box.querySelectorAll('*')) {
+            const cs = getComputedStyle(el);
+            if (cs.overflowY === 'auto' || cs.overflowY === 'scroll'
+              || cs.overflowX === 'auto' || cs.overflowX === 'scroll') {
+              el.style.flex = 'none';
+              el.style.overflow = 'visible';
+              el.style.maxHeight = 'none';
+            }
+          }
+        });
+        await page.waitForTimeout(150);
         break;
       }
 

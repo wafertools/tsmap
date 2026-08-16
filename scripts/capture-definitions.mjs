@@ -117,7 +117,7 @@ export const CAPTURES = [
   {
     file: 'empty-toolbar',
     group: 'ui',
-    description: 'Empty-state toolbar — Open file / Add files / Recent / theme / help',
+    description: 'Empty-state toolbar — Open files / Filter files / Add files / Recent / theme / help',
     selector: '#toolbar',
   },
 
@@ -178,6 +178,25 @@ export const CAPTURES = [
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
     ],
     selector: '#tsmap-test-selector-overlay div[role="dialog"]',
+  },
+
+  // ── §2 Filter files dialog ────────────────────────────────────────────────
+  // Four STDFs so the table has enough rows for the sort/filter affordances
+  // (per-column ▾, Columns ▾, the selection count) to read at a glance.
+  {
+    file: 'file-filter',
+    group: 'ui',
+    description: 'Filter files dialog — four scanned STDFs with metadata columns',
+    // Wide viewport so the full metadata column set fits rather than being
+    // sliced mid-header; shrunk vertically so four rows don't sit in a
+    // dialog-sized expanse of empty space.
+    viewport: { width: 1900, height: 900 },
+    setup: [
+      ['filterFiles', [TD('small.stdf'), TD('medium.stdf'), TD('correlated.stdf'), TD('many_tests.stdf')]],
+      ['waitForFilterScan'],
+      ['shrinkModalToContent'],
+    ],
+    selector: '.tsmap-modal-box',
   },
 
   // ── §9 Log panel ─────────────────────────────────────────────────────────────

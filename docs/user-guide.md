@@ -75,17 +75,63 @@ browser download nag. For the AppImage, mark it executable first:
     chmod +x tsmap-*-linux-x86_64.AppImage
     ./tsmap-*-linux-x86_64.AppImage
 
-![Empty-state toolbar — Open file, Add files, Recent, theme picker, help](images/empty-toolbar.png)
+![Empty-state toolbar — Open files, Filter files, Add files, Recent, theme picker, help](images/empty-toolbar.png)
 
 The **colour theme** picker sits at the right end of the toolbar, next to the help button. Choose
 Auto to follow your system's light/dark setting, or pick a theme explicitly — Light, Light green,
 Solarized Light, High contrast, Dark, Nord, Solarized Dark. Your choice is remembered.
 
-### Open file
+### Open files
 
-Click **Open file** in the toolbar to open a file picker. You can select one file or
+Click **Open files** in the toolbar to open a file picker. You can select one file or
 multiple files at once. On the desktop the picker opens a native OS dialog; in the browser
 it opens the browser file dialog.
+
+### Filter files
+
+When you have far more files than you want to load — a directory of hundreds of lots, say —
+**Filter files…** lets you narrow them down before anything is parsed. Pick the whole set,
+and tsmap reads just the *header* metadata from each one: lot ID, part type, tester, job
+name and whatever else the file carries, plus wafer count, earliest start, latest finish and
+site count for STDF/ATDF. No die data is read, so scanning a large batch is quick.
+
+![Filter files dialog — four scanned STDF files with their lot metadata as columns](images/file-filter.png)
+
+The results appear in a table, one row per file, with a column for every metadata field
+found across the batch (alongside Name, Size and Modified). From there you can:
+
+- **Sort** by clicking a column heading — click again to reverse, a third time to clear.
+  Size and Modified sort by their real value, not by how they're written.
+- **Filter** a column by clicking the **▾** in its heading and ticking the values to keep.
+  Right-clicking any cell opens the same popup pre-set to that cell's value — a quick way to
+  say "just this lot". **Clear filters** in the toolbar resets every column at once.
+- **Hide columns** you don't care about with **Columns ▾** — a batch can easily produce
+  twenty-odd metadata columns. Hiding one only affects the display; if it has a filter set,
+  that filter still applies (the picker marks it as filtered so you can tell).
+- **Search** across all columns with the search box.
+- **Select** rows by clicking them or their checkbox; **Select all**, **Select none** and
+  **Invert** apply to the rows currently shown, so they respect the filter.
+
+**Load selection…** replaces whatever is currently loaded with the files you've ticked;
+**Add selection…** appends them instead. Both confirm first. The selected files then go
+through the normal load flow — column mapping, test selector, wafer rename and so on — just
+as if you had picked them directly.
+
+**Save filter…** writes the current column filters and search text to a small JSON file, and
+**Load filter…** reads one back, re-selecting every row that matches. That makes a recurring
+selection ("this quarter's production lots") reusable across sessions and across different
+batches of files. If a saved filter names a column these particular files don't have, that
+column is ignored and the dialog says so, rather than quietly matching nothing.
+
+If you pick more than five files through **Open files** or **Add files**, tsmap offers to
+route them into this table first, so you don't have to pick them twice.
+
+**Mixed formats are fine here.** Unlike **Open files**, you can scan a directory holding
+STDF, CSV and Parquet together — reading metadata doesn't care about the format, and a
+**Format** column appears so you can sort and filter by it. The one-format-per-load rule
+still applies when you actually load, so narrow the selection to a single format first; the
+dialog tells you if you haven't and stays open so you can adjust. Zip archives are expanded
+and their contents scanned individually, and `.gz` files are read straight through.
 
 ### Loading sample data
 
@@ -104,7 +150,7 @@ the file picker and is supported on both desktop and browser.
 
 *Desktop only.* The **Recent** button lists the last 8 file sets you've opened, each showing
 when it was last loaded (`Today 14:32`, `Yesterday 09:05`, or a date for older entries).
-Click an entry to reopen it — this replaces the current view the same way **Open file**
+Click an entry to reopen it — this replaces the current view the same way **Open files**
 does, so it's not a way to append. Click the **×** next to an entry to remove it from the
 list. Recent is available whenever you have history, whether or not a file is currently
 loaded — not just from the empty state. Not shown in the browser version, since reopening
@@ -583,13 +629,13 @@ depends on how much of a wafer is affected:
   the same as a positioned card's own bin legend) for hard/soft-bin modes, or a small
   **histogram** for value mode — coloured through the same colour scheme, log-scale, and
   spec/data-range settings the map itself uses, so switching those in the toolbar updates the
-  summary the same way it would a real map. A **View table** toggle switches to the full
+  chart the same way it would a real map. A **View die list** toggle switches to the full
   per-die table (one row per die, site/index, hard bin, soft bin, every test value) with its
-  own **Export CSV** button.
+  own **Export CSV** button; from there, **View chart** switches back.
 - **A mixed wafer** — some dies positioned, some not — renders its normal wafer map for the
   positioned dies, plus an expandable **"+N dies without position data"** footer beneath the
   card (click the footer, or its chevron, to expand/collapse). Expanding it shows the same
-  summary/table toggle, scoped to just the unpositioned subset.
+  chart/die-list toggle, scoped to just the unpositioned subset.
 - The toolbar's spatial-only controls (zoom, pan, select, download, orientation, overlays,
   legend position) are hidden on a fully coordinate-less card, since there's no map for them
   to act on. Plot mode and colour scheme stay — both drive what the summary shows.
@@ -778,6 +824,7 @@ applied. If soft bin data is not meaningful for your product, this warning can b
 | File parsing | Native Rust (fast, off UI thread) | WASM in a Web Worker (same logic) |
 | File picker | Native OS dialog | Browser dialog |
 | Drag and drop | Yes | Yes |
+| Filter files | Yes | Yes (scans at most 4 files at a time to bound memory) |
 | PNG save | Native save dialog | Browser download folder |
 | Zip extraction | Native Rust | In-browser (fflate) |
 | Offline use | Yes | Yes (once page loaded) |

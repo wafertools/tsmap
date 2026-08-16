@@ -10,6 +10,35 @@ export function basename(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;
 }
 
+/** File extension, with a `.gz` wrapper stripped to expose the inner format
+ *  (`lot.stdf.gz` → `stdf`) — used everywhere a set of picked files needs to
+ *  agree on format before dispatch. */
+export function effectiveFileExtension(name: string): string {
+  const parts = name.split('.');
+  const ext = parts.pop()?.toLowerCase() ?? '';
+  return ext === 'gz' ? (parts.pop()?.toLowerCase() ?? ext) : ext;
+}
+
+/**
+ * Checks that every file in `names` shares the same effective extension
+ * (see `effectiveFileExtension`) — the "you can't mix STDF and CSV in one
+ * load" rule. Returns `null` when they agree (or when `relaxed` is true,
+ * e.g. a zip whose extracted contents may legitimately be mixed formats —
+ * `handleFiles`'s own `needsCleanup` case); otherwise a ready-to-log error
+ * message naming the offending extensions.
+ *
+ * Extracted from `handleFiles` (main.ts) so the file-filter table's own
+ * picker enforces the identical rule rather than a second copy of it — see
+ * this repo's own "two copies of a rule is the bug" convention.
+ */
+export function checkSameExtension(names: string[], relaxed = false): string | null {
+  const exts = [...new Set(names.map(effectiveFileExtension))];
+  if (exts.length > 1 && !relaxed) {
+    return `Mixed formats not supported: ${exts.join(', ')} — please select files of the same type`;
+  }
+  return null;
+}
+
 /** Formats tsmap can dispatch a URL-sourced import to — mirrors
  *  `SUPPORTED_FORMATS` in `src-tauri/src/commands/fetch_url.rs`, and the set
  *  `effectiveExt`-based dispatch in `handleFiles` (main.ts) already handles.

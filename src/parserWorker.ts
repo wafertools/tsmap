@@ -21,6 +21,8 @@ export type ParserOp =
   | 'parquetHeaders'
   | 'stdfTestNames'
   | 'atdfTestNames'
+  | 'stdfFileMeta'
+  | 'atdfFileMeta'
   | 'parseStdfFiltered'
   | 'parseAtdfFiltered';
 
@@ -70,6 +72,8 @@ function run(wasm: WasmModule, req: ParserRequest): unknown {
     case 'parquetHeaders':    return wasm.parquet_headers(req.bytes);
     case 'stdfTestNames':     return wasm.stdf_test_names(req.bytes);
     case 'atdfTestNames':     return wasm.atdf_test_names(req.bytes);
+    case 'stdfFileMeta':      return wasm.stdf_file_meta(req.bytes);
+    case 'atdfFileMeta':      return wasm.atdf_file_meta(req.bytes);
     case 'parseStdfFiltered': return wasm.parse_stdf_filtered(req.bytes, req.selected ?? []);
     case 'parseAtdfFiltered': return wasm.parse_atdf_filtered(req.bytes, req.selected ?? []);
   }

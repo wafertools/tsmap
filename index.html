@@ -893,11 +893,12 @@
       <div id="toolbar">
         <span id="toolbar-title">tsmap</span>
         <div id="drop-zone" title="Open wafer-map files — or drop them anywhere">
-          <button id="open-btn" class="tb-btn tb-btn--primary" title="Open wafer-map files — or drop them anywhere">Open file</button>
+          <button id="open-btn" class="tb-btn tb-btn--primary" title="Open wafer-map files — or drop them anywhere">Open files</button>
           <input id="file-input" type="file" multiple
             accept=".stdf,.std,.atdf,.atd,.csv,.json,.parquet,.gz,.zip,.txt,.dat"
             style="display:none" />
         </div>
+        <button id="filter-files-btn" class="tb-btn" title="Scan many files for lot/wafer metadata, then filter and select which to load">Filter files…</button>
         <button id="add-btn" class="tb-btn" disabled title="Append more files to the current view">Add files</button>
         <button id="recent-btn" class="tb-btn" style="display:none" title="Recently opened files"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/></svg> Recent</button>
         <span class="tb-sep" style="display:none"></span>

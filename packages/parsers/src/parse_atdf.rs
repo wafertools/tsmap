@@ -89,10 +89,39 @@ fn nonempty(s: &str) -> Option<String> {
     if t.is_empty() { None } else { Some(t.to_string()) }
 }
 
+/// Split raw ATDF text into logical records (joining continuation lines —
+/// any line starting with a space is appended to the previous record, per
+/// the ATDF spec) and detect the field delimiter from FAR, which must be the
+/// first non-empty record. Shared by every entry point that reads ATDF text
+/// (full parse, first-pass test-name scan, file-meta scan) — this used to be
+/// duplicated verbatim in two of those three; a fourth copy for file-meta
+/// would have made three.
+fn split_atdf_records(raw: &str) -> (Vec<String>, char) {
+    let mut delim: Option<char> = None;
+    let mut records: Vec<String> = Vec::new();
+    for line in raw.lines() {
+        if line.starts_with(' ') {
+            if let Some(last) = records.last_mut() {
+                last.push_str(line.trim_start());
+                continue;
+            }
+        }
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            if delim.is_none() && trimmed.starts_with("FAR:") {
+                delim = trimmed.chars().nth(5);
+            }
+            records.push(trimmed.to_string());
+        }
+    }
+    (records, delim.unwrap_or('|'))
+}
+
 // ── Metadata extraction (generic, all non-empty fields) ────────────────────────
 // Emit every non-empty MIR/WIR/WRR field as a key/value pair, keyed with the
-// SAME camelCase keys the STDF parser uses so faceting is format-agnostic. ATDF
-// timestamps are already human-readable strings, so they pass through verbatim.
+// SAME camelCase keys the STDF parser uses so faceting is format-agnostic.
+// Timestamps are normalised to ISO 8601 for the same reason — see
+// `atdf_time_to_iso`.
 // (ATDF→STDF-key map; left = ATDF field name, right = emitted key.)
 const MIR_KEYS: &[(&str, &str)] = &[
     ("SETUP_T","setupT"), ("START_T","startT"), ("LOT_ID","lotId"),
@@ -112,10 +141,64 @@ const WRR_KEYS: &[(&str, &str)] = &[
     ("MASK_ID","maskId"), ("USR_DESC","waferDescUser"), ("EXC_DESC","waferDescExec"),
 ];
 
+/// Emitted keys carrying a timestamp. Kept as one list so the normalisation
+/// below is applied by key, not re-decided at each call site.
+const TIME_KEYS: &[&str] = &["setupT", "startT", "waferStartT", "waferFinishT"];
+
+/// ATDF writes timestamps as `HH:MM:SS DD-MMM-YYYY` (e.g. `14:32:05 16-AUG-2026`),
+/// which does **not** sort lexicographically — compared as plain strings they
+/// order by hour-of-day, so `23:00:00 01-JAN-2020` looks later than
+/// `09:00:00 31-DEC-2026`. The STDF parser emits the same keys as fixed-width
+/// ISO 8601 via `epoch_to_iso`, so normalising here gives one format per key
+/// across both parsers: faceting stays genuinely format-agnostic, and callers
+/// that want the earliest/latest of a set (`parse_atdf_file_meta`) can just
+/// compare strings.
+///
+/// Anything not matching the expected shape is returned trimmed but otherwise
+/// unchanged — a generator that writes a bare `0`, or a vendor with its own
+/// convention, keeps what it had rather than being dropped or mangled.
+fn atdf_time_to_iso(raw: &str) -> String {
+    let t = raw.trim();
+    let Some((clock, date)) = t.split_once(' ') else { return t.to_string() };
+    let mut cp = clock.split(':');
+    let (Some(hh), Some(mm), Some(ss), None) = (cp.next(), cp.next(), cp.next(), cp.next()) else {
+        return t.to_string();
+    };
+    let mut dp = date.split('-');
+    let (Some(dd), Some(mon), Some(yyyy), None) = (dp.next(), dp.next(), dp.next(), dp.next()) else {
+        return t.to_string();
+    };
+    const MONTHS: [&str; 12] = [
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+    ];
+    let Some(mon_idx) = MONTHS.iter().position(|m| m.eq_ignore_ascii_case(mon)) else {
+        return t.to_string();
+    };
+    let (Ok(h), Ok(mi), Ok(s), Ok(d), Ok(y)) = (
+        hh.parse::<u32>(), mm.parse::<u32>(), ss.parse::<u32>(),
+        dd.parse::<u32>(), yyyy.parse::<i32>(),
+    ) else {
+        return t.to_string();
+    };
+    // s may be 60 — a leap second is legal in the source and harmless here.
+    if h > 23 || mi > 59 || s > 60 || d == 0 || d > 31 {
+        return t.to_string();
+    }
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", y, mon_idx + 1, d, h, mi, s)
+}
+
+/// The one place a raw ATDF field value becomes an emitted metadata value.
+/// Currently that only means timestamp normalisation, but routing every field
+/// through it keeps that decision keyed off `TIME_KEYS` rather than duplicated
+/// at each `push_field` call.
+fn meta_value(key: &str, value: String) -> String {
+    if TIME_KEYS.contains(&key) { atdf_time_to_iso(&value) } else { value }
+}
+
 fn fields_from(m: &HashMap<&str, &str>, keys: &[(&str, &str)]) -> Vec<MetaField> {
     let mut f = Vec::new();
     for (atdf, key) in keys {
-        push_field(&mut f, key, nonempty(get(m, atdf)));
+        push_field(&mut f, key, nonempty(get(m, atdf)).map(|v| meta_value(key, v)));
     }
     f
 }
@@ -134,6 +217,10 @@ fn soft_bin_warning(fabricated: usize) -> Vec<String> {
 }
 
 pub fn parse_atdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
         .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
     parse_atdf_str(raw, None)
@@ -152,27 +239,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
             Some(set) => test_num.parse::<u32>().map_or(false, |n| set.contains(&n)),
         }
     };
-    // Detect delimiter from the FAR record. FAR must be the first non-empty record
-    // per the ATDF spec, so we can read it during the single join pass without
-    // collecting all records first.
-    let mut delim: Option<char> = None;
-    let mut records: Vec<String> = Vec::new();
-    for line in raw.lines() {
-        if line.starts_with(' ') {
-            if let Some(last) = records.last_mut() {
-                last.push_str(line.trim_start());
-                continue;
-            }
-        }
-        let trimmed = line.trim();
-        if !trimmed.is_empty() {
-            if delim.is_none() && trimmed.starts_with("FAR:") {
-                delim = trimmed.chars().nth(5);
-            }
-            records.push(trimmed.to_string());
-        }
-    }
-    let delim = delim.unwrap_or('|');
+    let (records, delim) = split_atdf_records(raw);
 
     let mut meta = LotMeta::default();
     let mut test_defs: HashMap<String, TestDef> = HashMap::new();
@@ -225,7 +292,8 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     if id.is_empty() { format!("W{}", wafers.len() + 1) } else { id.to_string() }
                 };
                 let mut fields = Vec::new();
-                push_field(&mut fields, "waferStartT", nonempty(get(&f, "START_T")));
+                push_field(&mut fields, "waferStartT",
+                    nonempty(get(&f, "START_T")).map(|v| meta_value("waferStartT", v)));
                 prr_index_in_wafer = 0;
                 current_wafer = Some(WaferData {
                     wafer_id,
@@ -390,30 +458,17 @@ pub fn parse_atdf_sync(path: String) -> Result<ParsedStdf, String> {
 /// Scans the file for PTR/FTR records only, collecting test names and limits.
 /// Does not accumulate die results. Returns a flat map of test_num string → TestDef.
 pub fn parse_atdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
         .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
     parse_atdf_test_names_str(raw)
 }
 
 fn parse_atdf_test_names_str(raw: &str) -> Result<crate::types::ScanResult, String> {
-    let mut delim: Option<char> = None;
-    let mut records: Vec<String> = Vec::new();
-    for line in raw.lines() {
-        if line.starts_with(' ') {
-            if let Some(last) = records.last_mut() {
-                last.push_str(line.trim_start());
-                continue;
-            }
-        }
-        let trimmed = line.trim();
-        if !trimmed.is_empty() {
-            if delim.is_none() && trimmed.starts_with("FAR:") {
-                delim = trimmed.chars().nth(5);
-            }
-            records.push(trimmed.to_string());
-        }
-    }
-    let delim = delim.unwrap_or('|');
+    let (records, delim) = split_atdf_records(raw);
 
     let mut test_defs: HashMap<String, TestDef> = HashMap::new();
     let mut pir_count: u32 = 0;
@@ -464,6 +519,87 @@ fn parse_atdf_test_names_str(raw: &str) -> Result<crate::types::ScanResult, Stri
     }
 
     Ok(crate::types::ScanResult { test_defs, die_count: pir_count })
+}
+
+/// Fast metadata-only scan for the file-filter table — the ATDF twin of
+/// `parse_stdf.rs`'s `parse_stdf_file_meta`. ATDF has no binary records to
+/// skip over (it's already line-based text), so this is simply "only handle
+/// MIR/SDR/WIR/WRR line names, ignore everything else" rather than any kind
+/// of seek/skip — reuses the same field tables and helpers the full parse
+/// uses for these same four record types.
+pub fn parse_atdf_file_meta(bytes: &[u8]) -> Result<crate::types::FileMeta, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
+    let raw = std::str::from_utf8(bytes)
+        .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
+    parse_atdf_file_meta_str(raw)
+}
+
+fn parse_atdf_file_meta_str(raw: &str) -> Result<crate::types::FileMeta, String> {
+    let (records, delim) = split_atdf_records(raw);
+
+    let mut lot_meta = LotMeta::default();
+    let mut wafer_count: u32 = 0;
+    let mut earliest_start: Option<String> = None;
+    let mut latest_finish: Option<String> = None;
+    let mut site_nums: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
+    for rec in &records {
+        let colon = match rec.find(':') {
+            Some(i) => i,
+            None => continue,
+        };
+        let name = &rec[..colon];
+        let raw_fields: Vec<&str> = rec[colon + 1..].split(delim).collect();
+
+        match name {
+            "MIR" => {
+                let f = field_map(MIR, &raw_fields);
+                lot_meta.fields = fields_from(&f, MIR_KEYS);
+            }
+            "SDR" => {
+                // Same skip(2) convention as the full parse's own SDR handling —
+                // HEAD_NUM/SITE_GRP occupy the first two positions, SITE_NUM is a
+                // sub-delimited list from position 2 onward.
+                for raw_site in raw_fields.iter().skip(2) {
+                    if let Ok(site) = raw_site.trim().parse::<u32>() {
+                        site_nums.insert(site);
+                    }
+                }
+            }
+            // Both comparisons are plain string compares, which is only sound
+            // because meta_value has normalised these to fixed-width ISO 8601
+            // — see atdf_time_to_iso.
+            "WIR" => {
+                wafer_count += 1;
+                let f = field_map(WIR, &raw_fields);
+                if let Some(t) = nonempty(get(&f, "START_T")).map(|v| meta_value("waferStartT", v)) {
+                    if earliest_start.as_deref().map_or(true, |cur| t.as_str() < cur) {
+                        earliest_start = Some(t);
+                    }
+                }
+            }
+            "WRR" => {
+                let f = field_map(WRR, &raw_fields);
+                if let Some(t) = nonempty(get(&f, "FINISH_T")).map(|v| meta_value("waferFinishT", v)) {
+                    if latest_finish.as_deref().map_or(true, |cur| t.as_str() > cur) {
+                        latest_finish = Some(t);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(crate::types::FileMeta {
+        lot_meta,
+        wafer_count,
+        earliest_start,
+        latest_finish,
+        site_count: if site_nums.is_empty() { None } else { Some(site_nums.len() as u32) },
+    })
 }
 
 // ── Filtered parse ────────────────────────────────────────────────────────────
@@ -849,6 +985,85 @@ mod tests {
         let result = parse_atdf_sync(path.to_string()).unwrap();
         assert_eq!(result.wafers.len(), 1);
         assert!(!result.test_defs.is_empty(), "expected test defs");
+    }
+
+    // ── ATDF timestamp normalisation ──────────────────────────────────────────
+
+    #[test]
+    fn atdf_time_converts_spec_format_to_iso() {
+        assert_eq!(atdf_time_to_iso("14:32:05 16-AUG-2026"), "2026-08-16T14:32:05Z");
+        assert_eq!(atdf_time_to_iso("09:00:00 01-jan-2020"), "2020-01-01T09:00:00Z");
+        assert_eq!(atdf_time_to_iso("  23:59:59 31-DEC-1999  "), "1999-12-31T23:59:59Z");
+    }
+
+    #[test]
+    fn atdf_time_normalisation_makes_string_compare_chronological() {
+        // The bug this guards: as raw ATDF text, "23:00:00 01-JAN-2020" sorts
+        // AFTER "09:00:00 31-DEC-2026" because the hour leads the string.
+        let early = atdf_time_to_iso("23:00:00 01-JAN-2020");
+        let late = atdf_time_to_iso("09:00:00 31-DEC-2026");
+        assert!(early < late, "{early} should compare before {late}");
+        assert!("23:00:00 01-JAN-2020" > "09:00:00 31-DEC-2026", "raw form sorts wrongly");
+    }
+
+    #[test]
+    fn atdf_time_passes_through_unrecognised_values() {
+        // Our own generators write a bare "0"; vendors may use anything.
+        assert_eq!(atdf_time_to_iso("0"), "0");
+        assert_eq!(atdf_time_to_iso(""), "");
+        assert_eq!(atdf_time_to_iso("not a time"), "not a time");
+        assert_eq!(atdf_time_to_iso("25:00:00 16-AUG-2026"), "25:00:00 16-AUG-2026");
+        assert_eq!(atdf_time_to_iso("14:32:05 16-XXX-2026"), "14:32:05 16-XXX-2026");
+        assert_eq!(atdf_time_to_iso("14:32 16-AUG-2026"), "14:32 16-AUG-2026");
+    }
+
+    #[test]
+    fn file_meta_picks_earliest_and_latest_across_wafers() {
+        // Three wafers, deliberately out of order and crossing a day boundary
+        // so an hour-of-day comparison would pick the wrong pair.
+        let text = format!(
+            "{}{}\
+             WIR:1|09:00:00 02-FEB-2026|1|W01\nWRR:1|10:00:00 02-FEB-2026|1|W01|1|0|1\n\
+             WIR:1|23:00:00 01-FEB-2026|1|W02\nWRR:1|23:30:00 01-FEB-2026|1|W02|1|0|1\n\
+             WIR:1|11:00:00 03-FEB-2026|1|W03\nWRR:1|12:00:00 03-FEB-2026|1|W03|1|0|1\n",
+            far(), mir_full(),
+        );
+        let meta = parse_atdf_file_meta(text.as_bytes()).unwrap();
+        assert_eq!(meta.wafer_count, 3);
+        assert_eq!(meta.earliest_start.as_deref(), Some("2026-02-01T23:00:00Z"));
+        assert_eq!(meta.latest_finish.as_deref(), Some("2026-02-03T12:00:00Z"));
+    }
+
+    // ── File-meta fast scan: consistency against the full parse (ATDF twin of
+    // parse_stdf.rs's own file_meta tests) ──────────────────────────────────
+
+    #[test]
+    fn file_meta_lot_fields_and_wafer_count_match_full_parse() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.atdf");
+        let bytes = std::fs::read(path).unwrap();
+        let meta = parse_atdf_file_meta(&bytes).unwrap();
+        let full = parse_atdf_from_bytes(&bytes).unwrap();
+        assert_eq!(meta.lot_meta.get("lotId"), full.meta.get("lotId"));
+        assert_eq!(meta.wafer_count as usize, full.wafers.len());
+        assert!(full.wafers.len() > 1, "expected multiple wafers");
+    }
+
+    #[test]
+    fn file_meta_wafer_count_matches_full_parse_for_coordinate_less_lot() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/COORDLESS-LOT-01.atdf");
+        let bytes = std::fs::read(path).unwrap();
+        let meta = parse_atdf_file_meta(&bytes).unwrap();
+        let full = parse_atdf_from_bytes(&bytes).unwrap();
+        assert_eq!(meta.wafer_count as usize, full.wafers.len());
+    }
+
+    #[test]
+    fn file_meta_single_wafer() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_W01.atdf");
+        let bytes = std::fs::read(path).unwrap();
+        let meta = parse_atdf_file_meta(&bytes).unwrap();
+        assert_eq!(meta.wafer_count, 1);
+        assert!(meta.lot_meta.get("lotId").is_some());
     }
 
     fn gz_of(src: &str) -> std::path::PathBuf {

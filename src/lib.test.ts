@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat } from './lib';
+import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -16,6 +16,41 @@ describe('basename', () => {
   });
   it('returns empty string for trailing slash', () => {
     expect(basename('/some/dir/')).toBe('');
+  });
+});
+
+// ── effectiveFileExtension / checkSameExtension ─────────────────────────────────
+
+describe('effectiveFileExtension', () => {
+  it('returns the plain extension', () => {
+    expect(effectiveFileExtension('lot.stdf')).toBe('stdf');
+  });
+  it('strips a .gz wrapper to expose the inner format', () => {
+    expect(effectiveFileExtension('lot.stdf.gz')).toBe('stdf');
+  });
+  it('lowercases the extension', () => {
+    expect(effectiveFileExtension('LOT.STDF')).toBe('stdf');
+  });
+  it('treats a dot-less name as its own "extension" (matches split-on-dot behaviour, not a special case)', () => {
+    expect(effectiveFileExtension('lot')).toBe('lot');
+  });
+});
+
+describe('checkSameExtension', () => {
+  it('returns null when every file shares the same extension', () => {
+    expect(checkSameExtension(['a.stdf', 'b.stdf', 'c.stdf.gz'])).toBeNull();
+  });
+  it('returns an error naming the offending extensions when mixed', () => {
+    const err = checkSameExtension(['a.stdf', 'b.csv']);
+    expect(err).toContain('Mixed formats not supported');
+    expect(err).toContain('stdf');
+    expect(err).toContain('csv');
+  });
+  it('is the same rule handleFiles enforces — relaxed=true skips the check (mixed-content zip)', () => {
+    expect(checkSameExtension(['a.stdf', 'b.csv'], true)).toBeNull();
+  });
+  it('returns null for a single file', () => {
+    expect(checkSameExtension(['only.stdf'])).toBeNull();
   });
 });
 

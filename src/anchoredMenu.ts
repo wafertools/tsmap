@@ -54,16 +54,46 @@ export function openAnchoredMenu(
     ...(options.stack ? ['display:flex', 'flex-direction:column', 'gap:2px'] : []),
   ].join(';');
 
+  // A pointerdown that dismisses the menu is about to produce a `click` on
+  // whatever was under it. Usually that's wanted — clicking a different
+  // toolbar button should dismiss this menu AND activate that button. The
+  // exception is a modal backdrop: modal.ts closes its dialog on backdrop
+  // `click`, so one click would dismiss the popup *and* the dialog hosting
+  // it. Swallow just that case, keyed off modal.ts's own documented
+  // `.tsmap-modal-backdrop` hook. pointerdown and click are separate events,
+  // so stopping the pointerdown isn't enough on its own.
+  function swallowNextClick(e: MouseEvent) {
+    document.removeEventListener('click', swallowNextClick, true);
+    e.stopPropagation();
+  }
+
   function onOutside(e: PointerEvent) {
     const t = e.target as Node;
-    if (!popup.contains(t) && !anchor.contains(t)) close();
+    if (popup.contains(t) || anchor.contains(t)) return;
+    const onBackdrop = t instanceof Element && !!t.closest('.tsmap-modal-backdrop');
+    // close() clears any pending swallow as cleanup, so arm it afterwards.
+    close();
+    if (onBackdrop) document.addEventListener('click', swallowNextClick, true);
   }
-  function onKey(e: KeyboardEvent) { if (e.key === 'Escape') close(); }
+
+  // Escape must not travel past this menu. It can be opened from inside a
+  // modal.ts dialog (the file-filter table's per-column filter popup), whose
+  // own bubble-phase Escape handler would otherwise close the whole dialog in
+  // the same keystroke — this listener is capture-phase, so it always runs
+  // first. Fixed here, in the widget that consumes the key, rather than at
+  // each call site; menuSelect.ts already had to learn the same lesson.
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    e.preventDefault();
+    close();
+  }
 
   function close() {
     popup.remove();
     document.removeEventListener('pointerdown', onOutside, true);
     document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('click', swallowNextClick, true);
     window.removeEventListener('blur', close);
     window.removeEventListener('resize', close);
     options.onClose?.();

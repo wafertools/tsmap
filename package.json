@@ -1,7 +1,7 @@
 {
   "name": "tsmap",
   "private": true,
-  "version": "0.1.26",
+  "version": "0.1.27",
   "type": "module",
   "scripts": {
     "build:guide": "node scripts/build-user-guide.mjs",
@@ -41,8 +41,8 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
-    "@wafertools/testdata-parser": "^0.7.0",
-    "@wafertools/wafermap": "^0.22.0",
+    "@wafertools/testdata-parser": "^0.8.0",
+    "@wafertools/wafermap": "^0.23.0",
     "fflate": "^0.8.3"
   },
   "devDependencies": {

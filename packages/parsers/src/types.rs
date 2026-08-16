@@ -8,6 +8,35 @@ pub struct ScanResult {
     pub die_count: u32,
 }
 
+/// Fast, MIR/SDR/WIR/WRR-only scan result for the file-filter table — deliberately
+/// NOT a full parse (no PTR/FTR/PIR/PRR walk), so this stays cheap on a large batch
+/// of files picked at once. `lot_meta` mirrors the same lot-level fields a full
+/// parse would produce (from `mir_fields`); `earliest_start`/`latest_finish` and
+/// `wafer_count` are aggregated across every WIR/WRR pair seen, since a file-filter
+/// row is one row per FILE, not per wafer.
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMeta {
+    pub lot_meta: LotMeta,
+    pub wafer_count: u32,
+    /// Earliest WIR START_T seen. `None` if the file has no WIR records (e.g.
+    /// a single-wafer STDF with no wafer-level records at all).
+    ///
+    /// Normally fixed-width ISO 8601 — STDF converts from its epoch field via
+    /// `epoch_to_iso`, ATDF from its `HH:MM:SS DD-MMM-YYYY` text via
+    /// `atdf_time_to_iso` — which is what makes "earliest" a plain string
+    /// compare. An ATDF value in some other convention passes through
+    /// unrecognised rather than being dropped, so this is not *guaranteed*
+    /// ISO; treat it as display text unless you have parsed it.
+    pub earliest_start: Option<String>,
+    /// Latest WRR FINISH_T seen, same format and caveat as `earliest_start`.
+    /// `None` if no wafer completed (no WRR seen) — a still-running or
+    /// truncated file.
+    pub latest_finish: Option<String>,
+    /// Total distinct site numbers across every SDR seen.
+    pub site_count: Option<u32>,
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DieResult {

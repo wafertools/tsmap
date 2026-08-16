@@ -508,6 +508,10 @@ impl SiteAccum {
 // ── Main parser ───────────────────────────────────────────────────────────────
 
 pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
     let order = detect_byte_order(bytes)?;
     let mut iter = RecordIter { bytes, pos: 0, order };
 
@@ -759,6 +763,10 @@ pub fn parse_stdf_sync(path: String) -> Result<ParsedStdf, String> {
 /// Does not accumulate die results. Used to populate the test selector overlay
 /// before the full parse. Returns a flat map of test_num string → TestDef.
 pub fn parse_stdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
     let order = detect_byte_order(bytes)?;
     let mut iter = RecordIter { bytes, pos: 0, order };
 
@@ -822,6 +830,66 @@ pub fn parse_stdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, S
     }
 
     Ok(crate::types::ScanResult { test_defs, die_count: pir_count })
+}
+
+/// Fast metadata-only scan for the file-filter table (WMAP_ISSUES-adjacent
+/// feature, not test-selection related — see `crate::types::FileMeta`'s own
+/// doc comment). Matches only MIR/SDR/WIR/WRR and otherwise relies on
+/// `RecordIter::next_record`'s existing length-prefixed skip to pass over
+/// every PTR/FTR/PIR/PRR without decoding a single one — this is the same
+/// skip every record type already gets when a scan doesn't match on it, so
+/// walking as far as the last WRR costs "skip N more record headers," not
+/// new per-record work.
+pub fn parse_stdf_file_meta(bytes: &[u8]) -> Result<crate::types::FileMeta, String> {
+    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
+    // Borrows (no copy) when the input isn't gzipped.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
+    let order = detect_byte_order(bytes)?;
+    let mut iter = RecordIter { bytes, pos: 0, order };
+
+    let mut lot_meta = LotMeta::default();
+    let mut wafer_count: u32 = 0;
+    let mut earliest_start: Option<String> = None;
+    let mut latest_finish: Option<String> = None;
+    let mut site_nums: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
+    while let Some(raw) = iter.next_record() {
+        let b = raw.body;
+        match (raw.typ, raw.sub) {
+            (1, 10) => { lot_meta.fields = mir_fields(b, order); } // MIR
+            (1, 80) => { // SDR
+                let (_, sites) = decode_sdr(b);
+                site_nums.extend(sites);
+            }
+            (2, 10) => { // WIR
+                wafer_count += 1;
+                let wir = decode_wir(b, order);
+                if let Some(t) = wir.fields.iter().find(|f| f.key == "waferStartT").map(|f| f.value.clone()) {
+                    if earliest_start.as_deref().map_or(true, |cur| t.as_str() < cur) {
+                        earliest_start = Some(t);
+                    }
+                }
+            }
+            (2, 20) => { // WRR
+                let wrr = decode_wrr(b, order);
+                if let Some(t) = wrr.fields.iter().find(|f| f.key == "waferFinishT").map(|f| f.value.clone()) {
+                    if latest_finish.as_deref().map_or(true, |cur| t.as_str() > cur) {
+                        latest_finish = Some(t);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(crate::types::FileMeta {
+        lot_meta,
+        wafer_count,
+        earliest_start,
+        latest_finish,
+        site_count: if site_nums.is_empty() { None } else { Some(site_nums.len() as u32) },
+    })
 }
 
 // ── Filtered parse ────────────────────────────────────────────────────────────
@@ -1340,6 +1408,95 @@ mod tests {
         }
     }
 
+    // ── Gzip on the bytes path ─────────────────────────────────────────────────
+    // The native path unwraps .gz by file extension in read_bytes, but the
+    // WASM/browser path only ever sees raw bytes with no filename to inspect.
+    // Before maybe_gunzip was applied here, a gzipped STDF parsed fine on
+    // desktop and failed in the browser for any caller that hadn't already
+    // decompressed — which the file-filter scan hadn't.
+
+    fn gzip_bytes(raw: &[u8]) -> Vec<u8> {
+        use std::io::Write;
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        enc.write_all(raw).unwrap();
+        enc.finish().unwrap()
+    }
+
+    #[test]
+    fn gzipped_bytes_parse_identically_to_raw() {
+        let raw = std::fs::read(MULTI_WAFER).unwrap();
+        let gz = gzip_bytes(&raw);
+        assert_eq!(&gz[..2], &[0x1f, 0x8b], "fixture should really be gzipped");
+
+        let from_raw = parse_stdf_from_bytes(&raw).unwrap();
+        let from_gz = parse_stdf_from_bytes(&gz).unwrap();
+        assert_eq!(from_raw.wafers.len(), from_gz.wafers.len());
+        assert_eq!(from_raw.meta.get("lotId"), from_gz.meta.get("lotId"));
+        assert_eq!(
+            from_raw.wafers[0].results.len(),
+            from_gz.wafers[0].results.len(),
+        );
+    }
+
+    #[test]
+    fn gzipped_bytes_work_for_the_scan_entry_points_too() {
+        let raw = std::fs::read(MULTI_WAFER).unwrap();
+        let gz = gzip_bytes(&raw);
+
+        let names_raw = parse_stdf_test_names(&raw).unwrap();
+        let names_gz = parse_stdf_test_names(&gz).unwrap();
+        assert_eq!(names_raw.die_count, names_gz.die_count);
+        assert_eq!(names_raw.test_defs.len(), names_gz.test_defs.len());
+
+        let meta_raw = parse_stdf_file_meta(&raw).unwrap();
+        let meta_gz = parse_stdf_file_meta(&gz).unwrap();
+        assert_eq!(meta_raw.wafer_count, meta_gz.wafer_count);
+        assert_eq!(meta_raw.lot_meta.get("lotId"), meta_gz.lot_meta.get("lotId"));
+    }
+
+    // ── File-meta fast scan: consistency against the full parse ────────────────
+    // The whole point of parse_stdf_file_meta is to be cheap (MIR/SDR/WIR/WRR
+    // only, no PTR/FTR/PIR/PRR decode) — these tests aren't about performance,
+    // they assert the fields it DOES extract agree with what the full parse
+    // already produces for the same bytes, so "cheap" never drifts into "wrong".
+
+    #[test]
+    fn file_meta_lot_fields_match_full_parse() {
+        let bytes = std::fs::read(MULTI_WAFER).unwrap();
+        let meta = parse_stdf_file_meta(&bytes).unwrap();
+        let full = parse_stdf_from_bytes(&bytes).unwrap();
+        assert_eq!(meta.lot_meta.get("lotId"), full.meta.get("lotId"));
+        assert_eq!(meta.lot_meta.get("partType"), full.meta.get("partType"));
+    }
+
+    #[test]
+    fn file_meta_wafer_count_matches_full_parse() {
+        let bytes = std::fs::read(MULTI_WAFER).unwrap();
+        let meta = parse_stdf_file_meta(&bytes).unwrap();
+        let full = parse_stdf_from_bytes(&bytes).unwrap();
+        assert_eq!(meta.wafer_count as usize, full.wafers.len());
+    }
+
+    #[test]
+    fn file_meta_wafer_count_matches_full_parse_for_coordinate_less_lot() {
+        // COORDLESS_LOT mixes fully-positioned/mixed/fully-coordinate-less
+        // wafers — file_meta counts WIR/WRR pairs regardless of die position,
+        // same as the full parse counts wafers regardless.
+        let bytes = std::fs::read(COORDLESS_LOT).unwrap();
+        let meta = parse_stdf_file_meta(&bytes).unwrap();
+        let full = parse_stdf_from_bytes(&bytes).unwrap();
+        assert_eq!(meta.wafer_count as usize, full.wafers.len());
+        assert_eq!(meta.lot_meta.get("lotId"), full.meta.get("lotId"));
+    }
+
+    #[test]
+    fn file_meta_single_wafer_has_no_lot_level_wafer_fields_missing() {
+        let bytes = std::fs::read(SINGLE_WAFER).unwrap();
+        let meta = parse_stdf_file_meta(&bytes).unwrap();
+        assert_eq!(meta.wafer_count, 1);
+        assert!(meta.lot_meta.get("lotId").is_some());
+    }
+
     #[test]
     fn test_defs_populated() {
         let result = parse_stdf_sync(MULTI_WAFER.to_string()).unwrap();
@@ -1612,6 +1769,42 @@ mod tests {
             p2_pct   = timing.p2_hashmap_ms as f64 / total_ms.max(1) as f64 * 100.0,
             total    = total_ms,
             tp       = file_mb / (total_ms as f64 / 1000.0),
+        );
+    }
+
+    // Run with: cargo test --manifest-path packages/parsers/Cargo.toml --features bench --release -- --nocapture bench_file_meta
+    // Measures parse_stdf_file_meta (MIR/SDR/WIR/WRR only, PTR/FTR/PIR/PRR
+    // skipped without decoding) on the same large fixture bench_parse_large
+    // uses — the file-filter feature's "is walking every WIR/WRR worth it"
+    // question from its own plan doc. See session memory perf-baselines file
+    // for the recorded result.
+    #[cfg(feature = "bench")]
+    #[test]
+    fn bench_file_meta() {
+        let path = "/tmp/large.stdf";
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(_) => {
+                eprintln!("SKIP: {path} not found — run scripts/generate_stdf_large.py first");
+                return;
+            }
+        };
+        let file_mb = bytes.len() as f64 / 1_048_576.0;
+
+        let _ = parse_stdf_file_meta(&bytes).unwrap(); // warm
+
+        let t = std::time::Instant::now();
+        let meta = parse_stdf_file_meta(&bytes).unwrap();
+        let elapsed_ms = t.elapsed().as_millis();
+
+        println!(
+            "\n=== bench_file_meta ({file_mb:.0} MB) ===\n\
+             wafers:     {wafers}\n\
+             total:      {total} ms\n\
+             throughput: {tp:.0} MB/s",
+            wafers = meta.wafer_count,
+            total = elapsed_ms,
+            tp = file_mb / (elapsed_ms as f64 / 1000.0).max(0.001),
         );
     }
 

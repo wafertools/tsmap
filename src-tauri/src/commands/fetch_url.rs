@@ -45,10 +45,22 @@ const MAX_DOWNLOAD_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 /// This resolution runs before any window exists — a hung/unresponsive
 /// server would otherwise leave the app appearing to never start at all,
-/// with nothing on screen to explain why. 30s comfortably covers a slow
-/// connection to a real server without leaving a bad URL looking like a
-/// frozen launch for an unbounded time.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+/// with nothing on screen to explain why. 30s comfortably covers reaching a
+/// slow real server without leaving a bad URL looking like a frozen launch
+/// for an unbounded time.
+///
+/// Deliberately a *connect* timeout, not `ClientBuilder::timeout`: that one
+/// is a total deadline covering the response body too, which would cap every
+/// download at 30s regardless of size. `MAX_DOWNLOAD_BYTES` permits 2 GB and
+/// this app's own benchmark fixture is ~340 MB, so a total deadline here
+/// would fail legitimate large lots on anything but a very fast link.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Ceiling on how long the body may take to arrive *between chunks*. Bounds a
+/// server that connects, starts responding, then stalls indefinitely — the
+/// case a connect timeout alone can't catch — without penalising a download
+/// that is simply large and making steady progress.
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
 
 fn temp_dir() -> PathBuf {
     std::env::temp_dir().join("tsmap_url_fetch")
@@ -99,6 +111,33 @@ pub fn resolve_cli_url(args: &mut crate::cli_files::CliArgs) {
     }
 }
 
+/// Warns (never refuses) when the headers file is readable by anyone other
+/// than its owner. This is the one config file in the app that can hold a
+/// credential, and ssh takes the same view of a private key — but unlike an
+/// ssh key this may legitimately live in a CI checkout or a shared image, so
+/// blocking on it would break real setups. A line on stderr is enough to catch
+/// the accidental `chmod 644` on a token file.
+///
+/// Unix-only: Windows ACLs don't map onto a permission-bit check, and there is
+/// no cheap equivalent worth guessing at.
+#[cfg(unix)]
+fn warn_if_world_readable(path: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(meta) = std::fs::metadata(path) else { return };
+    let mode = meta.permissions().mode();
+    // Group or other holding any of read/write/execute.
+    if mode & 0o077 != 0 {
+        eprintln!(
+            "tsmap: warning: --url-headers file {path} is accessible to other users \
+             (mode {:o}) and may contain a credential — consider `chmod 600 {path}`",
+            mode & 0o777,
+        );
+    }
+}
+
+#[cfg(not(unix))]
+fn warn_if_world_readable(_path: &str) {}
+
 /// Parses a `--url-headers` file: one `Header-Name: value` per line, blank
 /// lines and `#` comments skipped — same convention as `--list`'s file
 /// (`cli_files.rs`). Unlike that file's line-level leniency, a malformed
@@ -110,6 +149,7 @@ pub fn resolve_cli_url(args: &mut crate::cli_files::CliArgs) {
 fn parse_headers_file(path: &str) -> Result<Vec<(String, String)>, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read --url-headers file {path}: {e}"))?;
+    warn_if_world_readable(path);
     text.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
@@ -141,6 +181,25 @@ fn fetch_url_to_temp_file_blocking(
     rt.block_on(fetch_impl(url.to_string(), format.to_string(), headers.to_vec()))
 }
 
+/// Renders an error together with its source chain. reqwest's own `Display`
+/// for a redirect-policy rejection is just "error following redirect for url
+/// (…)" — the reason (e.g. our cross-origin refusal above) sits one level down
+/// in `source()`, so surfacing only the top line would tell the user that
+/// something went wrong but not what.
+fn describe_error(e: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = e.to_string();
+    let mut source = e.source();
+    while let Some(inner) = source {
+        let msg = inner.to_string();
+        if !out.contains(&msg) {
+            out.push_str(": ");
+            out.push_str(&msg);
+        }
+        source = inner.source();
+    }
+    out
+}
+
 async fn fetch_impl(url: String, format: String, headers: Vec<(String, String)>) -> Result<String, String> {
     let format = format.to_lowercase();
     if !SUPPORTED_FORMATS.contains(&format.as_str()) {
@@ -150,8 +209,41 @@ async fn fetch_impl(url: String, format: String, headers: Vec<(String, String)>)
         ));
     }
 
+    // Redirects and credentials don't mix. reqwest strips only the headers it
+    // knows are sensitive (Authorization, Cookie, Proxy-Authorization) when a
+    // redirect crosses hosts — a custom header, which is exactly what
+    // `--url-headers` exists to carry (an `X-API-Key` and the like), would be
+    // replayed to whatever the redirect points at. So when the caller supplied
+    // headers, refuse to follow a redirect off the original host rather than
+    // hand their secret to a third party. With no headers there's nothing to
+    // leak, so ordinary redirect-following applies.
+    let redirect_policy = if headers.is_empty() {
+        reqwest::redirect::Policy::limited(10)
+    } else {
+        // Full origin (scheme + host + port), not just host — a different port
+        // on the same host is a different server, and that is how reqwest's own
+        // sensitive-header stripping draws the line too.
+        let origin = reqwest::Url::parse(&url).ok().map(|u| u.origin());
+        reqwest::redirect::Policy::custom(move |attempt| {
+            if attempt.previous().len() >= 10 {
+                return attempt.error("too many redirects");
+            }
+            if Some(attempt.url().origin()) == origin {
+                return attempt.follow();
+            }
+            let message = format!(
+                "refusing to follow a redirect to {} — --url-headers was supplied, and \
+                 forwarding it off the original host would disclose the credential it carries",
+                attempt.url(),
+            );
+            attempt.error(message)
+        })
+    };
+
     let client = reqwest::Client::builder()
-        .timeout(REQUEST_TIMEOUT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(READ_TIMEOUT)
+        .redirect(redirect_policy)
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
     let mut request = client.get(&url);
@@ -161,7 +253,7 @@ async fn fetch_impl(url: String, format: String, headers: Vec<(String, String)>)
     let response = request
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch {url}: {e}"))?;
+        .map_err(|e| format!("Failed to fetch {url}: {}", describe_error(&e)))?;
     let status = response.status();
     if !status.is_success() {
         return Err(format!("Failed to fetch {url}: HTTP {status}"));
@@ -177,7 +269,7 @@ async fn fetch_impl(url: String, format: String, headers: Vec<(String, String)>)
     let mut stream = response.bytes_stream();
     let mut written: u64 = 0;
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("Download of {url} failed: {e}"))?;
+        let chunk = chunk.map_err(|e| format!("Download of {url} failed: {}", describe_error(&e)))?;
         written += chunk.len() as u64;
         if written > MAX_DOWNLOAD_BYTES {
             drop(file);
@@ -340,6 +432,60 @@ mod tests {
         let raw = String::from_utf8_lossy(&received.lock().unwrap()).to_lowercase();
         assert!(raw.contains("authorization: bearer secret-token"), "request was: {raw}");
         assert!(raw.contains("x-api-key: abc123"), "request was: {raw}");
+    }
+
+    /// A one-shot server that 302s to `location` instead of returning a body.
+    fn spawn_redirecting_server(location: String) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 1024];
+                let _ = stream.read(&mut buf);
+                let response = format!(
+                    "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                );
+                let _ = stream.write_all(response.as_bytes());
+            }
+        });
+        format!("http://127.0.0.1:{port}/")
+    }
+
+    #[tokio::test]
+    async fn cross_origin_redirect_is_refused_when_headers_carry_a_credential() {
+        // The redirect target is a second server on a different port — same
+        // host, different origin, which is the case host-only matching would
+        // wrongly wave through.
+        let (target, received) = spawn_capturing_server(Box::leak(ok_response(b"{}").into_boxed_slice()));
+        let url = spawn_redirecting_server(target);
+
+        let err = fetch_impl(
+            url,
+            "json".to_string(),
+            vec![("X-Api-Key".to_string(), "abc123".to_string())],
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.contains("refusing to follow a redirect"), "error was: {err}");
+        // The credential must never have reached the redirect target.
+        assert!(
+            received.lock().unwrap().is_empty(),
+            "the redirect target was contacted despite the refusal",
+        );
+    }
+
+    #[tokio::test]
+    async fn cross_origin_redirect_is_followed_when_no_headers_are_supplied() {
+        // Nothing to leak without headers, so ordinary redirect-following
+        // applies — a presigned link that 302s to storage must still work.
+        let body = b"{\"ok\":true}";
+        let target = spawn_one_shot_server(Box::leak(ok_response(body).into_boxed_slice()));
+        let url = spawn_redirecting_server(target);
+
+        let path = fetch_impl(url, "json".to_string(), vec![]).await.unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), body);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

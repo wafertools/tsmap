@@ -29,6 +29,16 @@ export interface FileHandle {
   path?: string;
   /** File size in bytes — set by tauriPlatform (where bytes is empty); equals bytes.length in webPlatform. */
   size?: number;
+  /** Last-modified time, epoch ms — a universal column for the file-filter
+   *  table regardless of format: unlike any parsed field it costs no parsing
+   *  at all and is never a guess.
+   *
+   *  Set by `tauriPlatform.pickFiles`/`expandArchives` from `stat().mtime`,
+   *  and on web by whichever code turns a browser `File` into a handle: the
+   *  `#file-input` and drop handlers in `main.ts`, and `pickedFromWebFile` in
+   *  `fileFilterUI.ts` — note `webPlatform.pickFiles` itself returns `[]` and
+   *  never produces a handle. Undefined only if the platform call failed. */
+  lastModified?: number;
 }
 
 export type StdfTestNames = Record<string, TestDef>;
@@ -36,6 +46,18 @@ export type StdfTestNames = Record<string, TestDef>;
 export interface ScanResult {
   testDefs: StdfTestNames;
   dieCount: number;
+}
+
+/** Fast, MIR/SDR/WIR/WRR-only metadata for the file-filter table — see
+ *  `packages/parsers/src/types.rs`'s `FileMeta` (this mirrors it exactly).
+ *  Deliberately not a full parse; lot-level fields only, plus wafer-level
+ *  aggregates (count, earliest start, latest finish, site count). */
+export interface FileMeta {
+  lotMeta: LotMeta;
+  waferCount: number;
+  earliestStart?: string;
+  latestFinish?: string;
+  siteCount?: number;
 }
 
 /** Data files (already expanded from any `--list`), plus an optional
@@ -86,6 +108,10 @@ export interface Platform {
   confirm(message: string): Promise<boolean>;
   stdfTestNames(file: FileHandle): Promise<ScanResult>;
   atdfTestNames(file: FileHandle): Promise<ScanResult>;
+  /** Fast metadata-only scan for the file-filter table (see `FileMeta`) —
+   *  MIR/SDR/WIR/WRR only, no die data. */
+  stdfFileMeta(file: FileHandle): Promise<FileMeta>;
+  atdfFileMeta(file: FileHandle): Promise<FileMeta>;
   parseStdfFiltered(file: FileHandle, selected: number[]): Promise<RustParsedFile>;
   parseAtdfFiltered(file: FileHandle, selected: number[]): Promise<RustParsedFile>;
   saveTextFile(content: string, defaultName: string): Promise<void>;
@@ -165,12 +191,16 @@ function makeTauriPlatform(): Platform {
       const paths = Array.isArray(result) ? result : result ? [result] : [];
       if (paths.length > 0) invoke('set_last_dir', { path: paths[0] }).catch(() => {});
       const { stat } = await getFs();
-      return Promise.all(paths.map(async path => ({
-        name: path.split(/[\\/]/).pop() ?? path,
-        bytes: new Uint8Array(0),
-        path,
-        size: await stat(path).then(s => s.size).catch(() => 0),
-      })));
+      return Promise.all(paths.map(async path => {
+        const s = await stat(path).catch(() => null);
+        return {
+          name: path.split(/[\\/]/).pop() ?? path,
+          bytes: new Uint8Array(0),
+          path,
+          size: s?.size ?? 0,
+          lastModified: s?.mtime?.getTime(),
+        };
+      }));
     },
 
     async expandArchives(files) {
@@ -181,11 +211,13 @@ function makeTauriPlatform(): Platform {
         if (f.path && f.name.toLowerCase().endsWith('.zip')) {
           const extracted = await invoke<string[]>('extract_archive', { path: f.path });
           for (const p of extracted) {
+            const s = await stat(p).catch(() => null);
             expanded.push({
               name: p.split(/[\\/]/).pop() ?? p,
               bytes: new Uint8Array(0),
               path: p,
-              size: await stat(p).then(s => s.size).catch(() => 0),
+              size: s?.size ?? 0,
+              lastModified: s?.mtime?.getTime(),
             });
           }
         } else {
@@ -277,6 +309,16 @@ function makeTauriPlatform(): Platform {
     async atdfTestNames(file) {
       const invoke = await getInvoke();
       return invoke<ScanResult>('atdf_test_names', { path: file.path });
+    },
+
+    async stdfFileMeta(file) {
+      const invoke = await getInvoke();
+      return invoke<FileMeta>('stdf_file_meta', { path: file.path });
+    },
+
+    async atdfFileMeta(file) {
+      const invoke = await getInvoke();
+      return invoke<FileMeta>('atdf_file_meta', { path: file.path });
     },
 
     async parseStdfFiltered(file, selected) {
@@ -380,7 +422,8 @@ function makeTauriPlatform(): Platform {
 
 type ParserOp =
   | 'parseStdf' | 'parseAtdf' | 'parseCsv' | 'parseJson' | 'parseParquet' | 'parquetHeaders'
-  | 'stdfTestNames' | 'atdfTestNames' | 'parseStdfFiltered' | 'parseAtdfFiltered';
+  | 'stdfTestNames' | 'atdfTestNames' | 'stdfFileMeta' | 'atdfFileMeta'
+  | 'parseStdfFiltered' | 'parseAtdfFiltered';
 
 interface PendingCall {
   resolve: (value: unknown) => void;
@@ -610,6 +653,14 @@ function makeWebPlatform(): Platform {
 
     async atdfTestNames(file) {
       return await callWorker('atdfTestNames', file.bytes) as ScanResult;
+    },
+
+    async stdfFileMeta(file) {
+      return await callWorker('stdfFileMeta', file.bytes) as FileMeta;
+    },
+
+    async atdfFileMeta(file) {
+      return await callWorker('atdfFileMeta', file.bytes) as FileMeta;
     },
 
     async parseStdfFiltered(file, selected) {

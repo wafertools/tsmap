@@ -353,7 +353,7 @@ function showNoPositionModal(): Promise<boolean> {
     modal.innerHTML = `
       <div class="tsmap-modal" role="dialog" aria-modal="true" aria-labelledby="np-title">
         <h3 id="np-title">No X/Y columns assigned</h3>
-        <p>Every die in this file will show as a die list only, with no wafer map — spatial analysis (rings, quadrants, clusters) won't be available for it. Non-spatial stats (yield, bin counts, per-test analysis) are unaffected.</p>
+        <p>Every die in this file will have no reported position, so its card shows a bin/value summary and die list in place of a wafer map. Yield, bin counts, per-test histograms, correlation and other Insights charts, and the exportable die list all work as normal — only spatial analysis (rings, quadrants, clusters) is unavailable for it.</p>
         <div class="tsmap-modal-buttons">
           <button id="np-cancel" class="btn-secondary">Cancel</button>
           <button id="np-confirm" class="btn-primary">Continue without position data</button>

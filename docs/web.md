@@ -9,9 +9,14 @@ Worker, so the interface stays responsive even while a large file loads.
 
 ## Opening files
 
-Click **Open file** to pick one or more files from your device, or drag and drop files
+Click **Open files** to pick one or more files from your device, or drag and drop files
 anywhere in the window. Multiple files are loaded as a batch and merged into a single
 gallery, with a rename step to label each wafer.
+
+For a large set, **Filter files…** scans just the header metadata of every file you pick —
+lot ID, part type, wafer count and so on — and shows them in a sortable, filterable table so
+you can load only the ones you want. Files are read a few at a time and released again, so
+scanning a big batch doesn't hold it all in memory.
 
 For STDF and ATDF files with more than 200 tests, a test selector overlay appears before
 parsing — pick which tests to import, then click **Import**. A **Filter tests…** button in
