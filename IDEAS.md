@@ -244,6 +244,20 @@ change — noted per item.
 
 ## Data ingestion (needs validated demand before scoping)
 
+- [ ] **Allow STDF + ATDF in the same load batch.** They're the same record model (ATDF is
+      STDF's own text-readable rendering) — a mixed tester fleet emitting one format or the
+      other for the same lot is a plausible real case. `checkSameExtension` (`lib.ts`) currently
+      blocks mixing them, same as it blocks e.g. stdf+csv.
+      Note (2026-08-16): checked the actual coupling before scoping. The second-pass parse loop
+      in `handleFiles` (`main.ts`) already dispatches stdf vs atdf correctly per file inside its
+      `for (const file of files)` loop — that half needs no work. The real blocker is the
+      first-pass scan, `scanBinaryTests`, which picks ONE parser for the whole batch via a
+      single shared `currentBinaryExt` flag (used both for the initial load's default scan and
+      for "Filter tests…"'s rescan) — feeding it a mixed batch today would call the ATDF text
+      parser on raw STDF bytes (or vice versa) and fail or misparse. Would need to become
+      per-file, mirroring the second-pass loop, before `checkSameExtension` could actually be
+      loosened for this pair. Discussed with the user 2026-08-16; not started.
+
 - [x] **"Open from URL" — programmatic REST-pull ingestion.** ~~Today tsmap only ingests local
       files~~ Implemented 2026-08-15 as `--url <url> --url-format <stdf|atdf|csv|json|parquet>`
       (desktop) / `?dataUrl=&dataFormat=` (web query param) — a caller application (its own data
@@ -309,6 +323,16 @@ change — noted per item.
       `#map-container` and force wmap to re-lay-out the canvas. Verified reachable at 1100,
       900, 780 and 640px. A real overflow menu is still the answer if the button count grows
       again — this buys headroom, it doesn't remove the ceiling.
+      Note (2026-08-16): the button list above was stale — **Filter tests** and **Splits** no
+      longer exist as separate buttons (collapsed into the **Lot ▾** menu by the same
+      toolbar-restructuring commit already noted elsewhere in this file), and the list predated
+      **Filter files…** (the file-triage feature) entirely. Current buttons: Open files, Filter
+      files…, Add files, Recent, Lot ▾, Value findings, Clear, theme picker, Help — a wash on
+      net count (two buttons collapsed into one menu, one new button added). Re-verified the
+      overflow defence itself against this current set, not just assumed it still held: no
+      overflow at any of the same four breakpoints (1100/900/780/640px — `toolbarScrollWidth`
+      never exceeded `toolbarClientWidth` at any of them), `help-btn`/`filter-files-btn` stay
+      fully on-screen throughout. The fix still holds; only the button inventory needed updating.
 - [ ] **Accessibility for canvas charts.** Charts are canvas-only with no text/table
       alternative. Not urgent for this audience but worth tracking.
       Note (2026-07-11): tsmap has no canvas chart code of its own left (moved into wmap's
