@@ -1,5 +1,9 @@
 # Changelog
 
+For a curated, plain-language summary of what's actually changed for users, see
+[What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
+technical record, including internal changes.
+
 ## [0.1.27] — 2026-08-16
 
 ### Added

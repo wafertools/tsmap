@@ -13,6 +13,7 @@ nav = [
   { "Web app"      = "web.md"                          },
   { "Parser API"   = "parser-api.md"                   },
   { "Development"  = "development.md"                  },
+  { "What's New"   = "https://wafertools.github.io/whats-new/" },
 ]
 
 [project.theme]
