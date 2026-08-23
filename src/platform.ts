@@ -481,8 +481,28 @@ function callWorker(
   });
 }
 
-/** Decompress a .gz file using the browser's native DecompressionStream. */
+/**
+ * Decompress a .gz file using the browser's native DecompressionStream.
+ *
+ * Checks the gzip magic bytes (0x1f 0x8b) first and returns the input
+ * unchanged if they're absent — mirrors the Rust parser's `maybe_gunzip`
+ * (CLAUDE.md: "a safe no-op if the caller already decompressed"), and for
+ * the same reason: a server that sets `Content-Encoding: gzip` on a
+ * `.gz`-suffixed asset (common static-host default, confirmed here against
+ * both the Vite dev server and — this is the well-known part — GitHub
+ * Pages' Fastly CDN, which does this for any `.gz`-named file regardless of
+ * framework) makes the browser's own `fetch()` transparently decompress the
+ * body before this function ever sees it. Calling DecompressionStream again
+ * on already-decompressed bytes throws `The compressed data was not valid:
+ * incorrect header check` — which is exactly what shipped (2026-08,
+ * getSampleFile's `sample-lot.stdf.gz`): the error was real, but harmless
+ * only by accident, because the Rust parser's own maybe_gunzip silently
+ * absorbed the already-decompressed bytes downstream. Web-only — Tauri
+ * reads the file straight off disk (resolveResource), no HTTP transport
+ * layer involved, so it never hits this.
+ */
 async function decompressGzip(bytes: Uint8Array): Promise<Uint8Array> {
+  if (bytes.length < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) return bytes;
   const ds = new DecompressionStream('gzip');
   const writer = ds.writable.getWriter();
   const reader = ds.readable.getReader();

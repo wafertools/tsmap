@@ -1,7 +1,7 @@
 {
   "name": "tsmap",
   "private": true,
-  "version": "0.1.27",
+  "version": "0.1.28",
   "type": "module",
   "scripts": {
     "build:guide": "node scripts/build-user-guide.mjs",
@@ -14,6 +14,7 @@
     "build:web": "tsc && vite build",
     "build:site": "npm run build:web && ${ZENSICAL:-.venv/bin/zensical} build --clean && cp -r dist site/app",
     "build:site:dev": "npm run predev && tsc && vite build && ${ZENSICAL:-.venv/bin/zensical} build --clean && cp -r dist site/app",
+    "preview:site": "npm run build:site:dev && echo \"\\nServing site at http://localhost:8002/ — Ctrl-C to stop\\n\" && cd site && python3 -m http.server 8002",
     "check": "tsc --noEmit",
     "check:drift": "node scripts/check-drift.mjs",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
@@ -34,7 +35,10 @@
     "parser:unlink": "npm unlink @wafertools/testdata-parser && npm install @wafertools/testdata-parser && echo '\\n  ✓ unlinked — restored published testdata-parser from npm'",
     "screenshots:data": "python3 scripts/generate_test_suite.py",
     "screenshots": "node scripts/capture-screenshots.mjs",
-    "screenshots:only": "node scripts/capture-screenshots.mjs --only"
+    "screenshots:only": "node scripts/capture-screenshots.mjs --only",
+    "demo:data": "python3 scripts/generate_edge_corner_lot.py --seed 12345 --out testdata/edge-corner-lot",
+    "demo:build": "npm run predev && tsc && vite build",
+    "demo:test": "node scripts/run-scenario.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -42,7 +46,7 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
     "@wafertools/testdata-parser": "^0.8.0",
-    "@wafertools/wafermap": "^0.23.0",
+    "@wafertools/wafermap": "^0.23.1",
     "fflate": "^0.8.3"
   },
   "devDependencies": {

@@ -10,6 +10,10 @@ user selects manually in the application. Those approaches can be appropriate wh
 system first downloads or stages files locally; this guide focuses on avoiding that manual
 download/import step.
 
+**[Try the live demo →](demos/open-from-link.html)** It generates the browser `?dataUrl=`
+link and the desktop `tsmap://open?url=...` link for a chosen sample dataset, so you can see
+both launch paths working end to end before wiring one up.
+
 ## What tsmap does
 
 tsmap is a wafer-map visualisation tool for STDF, ATDF, CSV, JSON, and Parquet data. It is

@@ -341,6 +341,37 @@ change — noted per item.
       colourblind-safe "Accessible" colour scheme — but no text/table alternative for the chart
       canvases themselves exists yet. If pursued, this is now a wmap-side idea, not tsmap's.
 
+## Demo/investigation-scenario system
+
+A deterministic, scripted investigation of a deliberately-designed dataset, driven against
+the *real* app rather than staged. Built 2026-08:
+
+- `scripts/lib/` (server/browser/inject/steps — extracted from `capture-screenshots.mjs`,
+  which now shares it rather than duplicating it)
+- `scripts/generate_edge_corner_lot.py` (a 12-wafer lot with a real, verified process-corner
+  defect — one corner's `fmax_MHz` fails concentrated at the wafer edge, 73% edge-die fail
+  rate vs 5.8% non-edge, not staged — plus a 190-file decoy haystack, both gitignored,
+  `npm run demo:data`)
+- `scripts/run-scenario.mjs` + `scripts/scenarios/edge-corner-lot.mjs` (7 beats: haystack →
+  filter → open → inspect → group-by-split → the worst-capability test syncs the other
+  panels to it → drill into the bad corner, the opened wafer lands pre-selected on that
+  exact test, ring pattern visible — `npm run demo:test`, or `HEADED=1
+  CHROME_PATH=/usr/bin/google-chrome npm run demo:test` to watch it run in a real window)
+
+Required adding `data-wmap-*` hooks to wmap's Insights DOM (WMAP_ISSUES.md #36). `scripts/scenarios/README.md`
+is the technical reference (full step catalog, beat/check shape, how to extend it).
+Authoring workflow: each scenario is a hand-written `<name>.md` (prose — "select this, click
+this…") plus a generated `<name>.mjs` — see `scripts/scenarios/edge-corner-lot.md` for the worked
+template. Multiple demos are meant to coexist as separate `.md`/`.mjs` pairs.
+
+**CI wiring was considered, then deliberately deferred, not blocked** — wiring an unattended
+scenario into automation after exactly one clean run is premature regardless of workflow.
+Revisit only if/when the scenario has survived enough real use to be worth trusting
+unattended.
+
+A further idea building on this scenario (turning it into a produced video, with narration
+and a visible-cursor replay) is tracked outside this repo — see this repo's `CLAUDE.md`.
+
 ## Prioritization (if picking three to start)
 
 1. Cpk/Ppk — closes the biggest functional gap for the target audience. **Done** 2026-07-10

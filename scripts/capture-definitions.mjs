@@ -29,6 +29,8 @@
 
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { injectFile } from './lib/inject.mjs';
+import { waitForSelector, dismissSelector, pinWmapToolbar } from './lib/steps.mjs';
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../../');
 // TD() returns an absolute path — the capture runner maps /testdata/<name> on the
@@ -38,72 +40,6 @@ const TD   = (f) => `${ROOT}/testdata/${f}`;
 // tests also read from here). Used for anything the generic testdata/ suite
 // doesn't cover, e.g. the corner-lot wafer-splits demo.
 const SD   = (f) => `${ROOT}/sample_data/${f}`;
-
-// ─── Shared helpers used in screenshotFn entries ──────────────────────────────
-// screenshotFn receives (page, outFile, baseUrl) — baseUrl is the static server origin.
-
-async function injectFileAndWaitForSelector(page, filePath, selector, baseUrl, timeout = 20000) {
-  const name     = filePath.split('/').pop();
-  const urlPrefix = filePath.startsWith(`${ROOT}/sample_data/`) ? '/sample_data/' : '/testdata/';
-  const fetchUrl = `${baseUrl}${urlPrefix}${name}`;
-
-  await page.waitForFunction(() => !!document.getElementById('open-btn'), { timeout: 10000 });
-  await page.evaluate(async ([url, n]) => {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`fetch failed: ${resp.status} ${url}`);
-    const blob = await resp.blob();
-    const file = new File([blob], n);
-    const dt   = new DataTransfer();
-    dt.items.add(file);
-    document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
-  }, [fetchUrl, name]);
-
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const el = await page.$(selector);
-    if (el) return;
-    await page.waitForTimeout(200);
-  }
-  throw new Error(`Timeout waiting for ${selector} after loading ${name}`);
-}
-
-async function dismissSelector(page) {
-  // Click "Select all" first — default selection is empty, need tests loaded
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    btns.find(b => b.textContent?.trim() === 'Select all')?.click();
-  });
-  await page.waitForTimeout(200);
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    const b = btns.find(b => b.textContent?.includes('Import'));
-    if (b) { b.id = '__import-btn__'; }
-  });
-  await page.click('#__import-btn__');
-  // Wait for canvas to appear
-  const start = Date.now();
-  while (Date.now() - start < 60000) {
-    const el = await page.$('#map-container canvas');
-    if (el) { await page.waitForTimeout(800); return; }
-    await page.waitForTimeout(200);
-  }
-}
-
-async function dismissSelectorNone(page) {
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    btns.find(b => b.textContent?.trim() === 'Select none')?.click();
-  });
-  await page.waitForTimeout(200);
-  await dismissSelector(page);
-}
-
-async function pinToolbar(page) {
-  await page.evaluate(() => {
-    const tb = document.querySelector('#map-container [data-wmap-toolbar]');
-    if (tb) { tb.style.opacity = '1'; tb.style.visibility = 'visible'; }
-  });
-}
 
 // ─── Captures ─────────────────────────────────────────────────────────────────
 
@@ -199,6 +135,78 @@ export const CAPTURES = [
     selector: '.tsmap-modal-box',
   },
 
+  // ── §2 File associations dialog (Help menu, desktop-only) ──────────────────
+  // This row (main.ts) is gated on `isTauri`, so it never renders against the
+  // plain web `dist/` build the rest of this harness drives — there's no way
+  // to reach it by clicking through the app. screenshotFn instead stubs
+  // `window.__TAURI_INTERNALS__.invoke` (via page.addInitScript, before the
+  // real navigation) so `isTauri` reads true and `platform.getFileAssociationStatus()`
+  // /`setFileAssociation()` resolve mock data instead of hitting a real Tauri
+  // IPC bridge that doesn't exist in headless Chromium. Every other Tauri-only
+  // call the app makes on this path (`get_startup_files`, the drag/CLI event
+  // listeners in main.ts's `if (isTauri)` block) is either mocked too or
+  // already wrapped in its own `.catch()`, so the rest of startup degrades
+  // quietly instead of throwing. Mock data deliberately covers all three row
+  // states — associated & matched (stdf), unassociated (atdf), associated but
+  // pointing at a stale binary (parquet) — so the guide's screenshot shows the
+  // mismatch warning described in the text right next to it, not just the
+  // common case.
+  {
+    file: 'file-associations',
+    group: 'ui',
+    description: 'File associations dialog (Help menu) — associated/unassociated/stale-path states',
+    screenshotFn: async (page, outFile, baseUrl) => {
+      await page.addInitScript(() => {
+        const statuses = [
+          { extension: 'stdf', associated: true, registeredExePath: '/usr/local/bin/tsmap', currentExePath: '/usr/local/bin/tsmap' },
+          { extension: 'atdf', associated: false, registeredExePath: null, currentExePath: '/usr/local/bin/tsmap' },
+          { extension: 'parquet', associated: true, registeredExePath: '/opt/tsmap-0.1.20/tsmap', currentExePath: '/usr/local/bin/tsmap' },
+        ];
+        // @ts-ignore — mock of the real Tauri IPC bridge, browser-side only.
+        window.__TAURI_INTERNALS__ = {
+          invoke: (cmd) => {
+            if (cmd === 'get_file_association_status') return Promise.resolve(statuses);
+            if (cmd === 'set_file_association') return Promise.resolve();
+            if (cmd === 'get_startup_files') return Promise.resolve(null);
+            return Promise.reject(new Error(`capture mock: unhandled invoke "${cmd}"`));
+          },
+          transformCallback: () => 0,
+          unregisterCallback: () => {},
+          convertFileSrc: (p) => p,
+        };
+      });
+      await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+
+      await page.click('#help-btn');
+      await page.waitForTimeout(200);
+      const clicked = await page.evaluate(() => {
+        const menus = [...document.body.children].filter(el => el.tagName === 'DIV' && el.style.position === 'fixed');
+        for (const menu of menus) {
+          const btn = [...menu.querySelectorAll('button')].find(b => b.textContent?.trim().startsWith('File associations'));
+          if (btn) { btn.click(); return true; }
+        }
+        return false;
+      });
+      if (!clicked) throw new Error('"File associations…" row not found in the Help menu — isTauri mock may not have taken effect');
+
+      await page.waitForSelector('.tsmap-modal-box', { timeout: 5_000 });
+      await page.waitForSelector('.tsmap-modal-box input[type=checkbox]', { timeout: 5_000 });
+      // The dialog's own contentSize sets a fixed 360px min-height regardless
+      // of how much the three mock rows actually need — shrink it the same
+      // way file-filter/column-mapping do, so the guide image isn't mostly
+      // empty grey below the content.
+      await page.evaluate(() => {
+        const box = document.querySelector('.tsmap-modal-box');
+        if (box) { box.style.height = 'auto'; box.style.maxHeight = 'none'; }
+      });
+      await page.waitForTimeout(100);
+
+      const el = await page.$('.tsmap-modal-box');
+      if (!el) throw new Error('file-associations modal box not found');
+      await el.screenshot({ path: outFile });
+    },
+  },
+
   // ── §9 Log panel ─────────────────────────────────────────────────────────────
   {
     file: 'log-panel',
@@ -220,9 +228,20 @@ export const CAPTURES = [
     group: 'maps',
     description: 'Single-wafer map — hard bin, summary panel open',
     screenshotFn: async (page, outFile, baseUrl) => {
-      await injectFileAndWaitForSelector(page, TD('correlated.stdf'), '#tsmap-test-selector-overlay', baseUrl);
+      await injectFile(page, TD('correlated.stdf'), baseUrl);
+      await waitForSelector(page, '#tsmap-test-selector-overlay');
       await page.waitForTimeout(400);
-      await dismissSelectorNone(page);
+      // Historical behaviour, preserved exactly: this click "Select none" is
+      // superseded a moment later by dismissSelector's own "Select all" —
+      // net effect is all tests selected + imported, same as every other
+      // capture in this file. Kept as-is rather than "fixed" so this image
+      // doesn't change; see M1 harness-extraction notes.
+      await page.evaluate(() => {
+        const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
+        btns.find(b => b.textContent?.trim() === 'Select none')?.click();
+      });
+      await page.waitForTimeout(200);
+      await dismissSelector(page);
       // Open the summary panel
       await page.evaluate(() => {
         const root = document.querySelector('#map-container') ?? document;
@@ -230,7 +249,7 @@ export const CAPTURES = [
         if (btn && !btn.dataset.active) btn.click();
       });
       await page.waitForTimeout(600);
-      await pinToolbar(page);
+      await pinWmapToolbar(page);
       await page.screenshot({ path: outFile, fullPage: false });
     },
   },

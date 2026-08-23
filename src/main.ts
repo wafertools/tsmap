@@ -613,14 +613,57 @@ function showEmptyState() {
   container.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
                 position:absolute;inset:0;gap:16px;color:var(--text-faint);user-select:none;">
-      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="32" cy="32" r="28" stroke="var(--border-mid)" stroke-width="2"/>
-        <circle cx="32" cy="32" r="18" stroke="var(--border-mid)" stroke-width="1.5" stroke-dasharray="3 3"/>
-        <circle cx="32" cy="32" r="8"  stroke="var(--border-mid)" stroke-width="1.5"/>
-        <line x1="32" y1="4"  x2="32" y2="10" stroke="var(--border-mid)" stroke-width="2" stroke-linecap="round"/>
-        <line x1="32" y1="54" x2="32" y2="60" stroke="var(--border-mid)" stroke-width="2" stroke-linecap="round"/>
-        <line x1="4"  y1="32" x2="10" y2="32" stroke="var(--border-mid)" stroke-width="2" stroke-linecap="round"/>
-        <line x1="54" y1="32" x2="60" y2="32" stroke="var(--border-mid)" stroke-width="2" stroke-linecap="round"/>
+      <svg width="64" height="64" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+        <!-- Same wafer glyph as public/tsmap-favicon.ico/tsmap-favicon-*.png
+             (the wafertools icon family — wafer body, grid, notch, one
+             highlighted "anchor" die), shape data copied verbatim from
+             /home/paul/Pictures/wafertools-icons/wafertools-icon-template.svg.
+             Theme-tinted (var(--border-dim), matching the "Load sample
+             data" button's own border right below it), unlike the
+             favicon's fixed brand colours — this has to stay legible and
+             unobtrusive across all 8 themes as a background placeholder,
+             not read as a brand mark on its own. The highlight die keeps
+             tsmap's fixed brand green (#3fae52, same as the favicon/app
+             icon) as the one accent tying it back to the real icon.
+
+             Stroke widths are NOT copied verbatim from the template — its
+             values (2.5/6/9) were sized for direct rasterization at
+             1024px+; scaled live to this 64px display size they land at
+             sub-pixel widths (down to ~0.15px) that browsers barely render,
+             which is exactly what happened to the first version of this
+             icon (confirmed empirically — only the highlight die was
+             visible, everything else vanished). Multiplied roughly x3-6 so
+             real on-screen strokes land around 1-2px instead. -->
+        <defs>
+          <clipPath id="empty-state-wafer-clip">
+            <path d="M 96.17,481.73 A 417,417 0 1,1 98.20,564.54 L 145.11,521.97 Z"/>
+          </clipPath>
+        </defs>
+        <path d="M 96.17,481.73 A 417,417 0 1,1 98.20,564.54 L 145.11,521.97 Z"
+              fill="none" stroke="var(--border-dim)" stroke-width="32"/>
+        <g clip-path="url(#empty-state-wafer-clip)">
+          <g stroke="var(--border-dim)" stroke-width="14" opacity="0.5">
+            <line x1="197" y1="95" x2="197" y2="931"/>
+            <line x1="422" y1="95" x2="422" y2="931"/>
+            <line x1="647" y1="95" x2="647" y2="931"/>
+            <line x1="872" y1="95" x2="872" y2="931"/>
+            <line x1="95" y1="270" x2="931" y2="270"/>
+            <line x1="95" y1="495" x2="931" y2="495"/>
+            <line x1="95" y1="720" x2="931" y2="720"/>
+          </g>
+          <g stroke="var(--border-dim)" stroke-width="22" stroke-dasharray="20 16" opacity="0.9">
+            <line x1="95" y1="360" x2="931" y2="360"/>
+            <line x1="287" y1="95" x2="287" y2="931"/>
+          </g>
+          <g fill="none" stroke="var(--border-dim)" stroke-width="26">
+            <rect x="197" y="270" width="180" height="180" rx="22" fill="#3fae52" stroke="none"/>
+            <rect x="422" y="270" width="180" height="180" rx="22"/>
+            <rect x="647" y="270" width="180" height="180" rx="22"/>
+            <rect x="197" y="495" width="180" height="180" rx="22"/>
+            <rect x="422" y="495" width="180" height="180" rx="22"/>
+            <rect x="647" y="495" width="180" height="180" rx="22"/>
+          </g>
+        </g>
       </svg>
       <div style="font-size:15px;color:var(--text-dim);">Open a file to get started</div>
       <div style="font-size:12px;color:var(--text-veryfaint);">Supports STDF, ATDF, CSV, JSON and Parquet</div>

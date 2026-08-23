@@ -60,6 +60,10 @@ Charts &amp; Insights
 
 See the full [Features](features.md) tour, or read through a few [Use cases](use-cases.md).
 
+Have a data-selection app of your own? Try the **[live demo of opening tsmap from a
+link](demos/open-from-link.html)** — pick a sample dataset and launch it into the browser
+build or the desktop app with a single URL.
+
 ## Supported formats
 
 | Format | Notes |
@@ -79,6 +83,7 @@ Questions, ideas, or want to show off a wafer map you built? Use [GitHub Discuss
 ## Links
 
 - [Web app](app/index.html)
+- [Demo: open tsmap from a link](demos/open-from-link.html)
 - [Features](features.md)
 - [Use cases](use-cases.md)
 - [User guide](user-guide.md)

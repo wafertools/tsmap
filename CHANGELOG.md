@@ -4,6 +4,26 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.28] — 2026-08-23
+
+### Added
+
+- **New app/favicon icon** — a wafer glyph (wafer body, die grid, notch, one highlighted "anchor" die) replaces the old placeholder icon, as pre-rendered `.ico`/16px/32px PNGs (`public/tsmap-favicon*`) rather than a live-scaled SVG, since the source strokes render as sub-pixel hairlines at favicon size. The same glyph, inline and theme-tinted, replaces the old generic "target" icon in the empty-state placeholder (`showEmptyState`, `main.ts`).
+- **Live demo: opening tsmap from a link.** `docs/demos/open-from-link.html` — pick a sample dataset and get real, working launch links for both the browser (`?dataUrl=`) and desktop (`tsmap://open?url=...`) paths, plus the equivalent `--url`/`--url-format` CLI line. Linked from the homepage, `web.md`, `integrating-data-selection.md`, and the user guide's "Opening data from a URL" section, which also gained a fuller explanation of how the `tsmap://` handler gets registered (Linux/Windows: every app start; macOS: at install, via the bundle) and what a browser's own "open this link in tsmap?" prompt looks like the first time.
+- **`npm run preview:site`** — builds the docs site (`build:site:dev`) and serves it at `localhost:8002`, mirroring wafermap's own script of the same name, so cross-page links and non-Markdown pages under `docs/` (like the new demo above) can be clicked through the way a real visitor would rather than read as source.
+- **File associations dialog now has a real screenshot in the user guide**, instead of prose only. Since that dialog is Tauri-only and the screenshot pipeline drives the plain web build, `capture-screenshots.mjs` gained a `screenshotFn`-based capture (`file-associations`) that stubs `window.__TAURI_INTERNALS__.invoke` before navigation so `isTauri` reads true and the dialog's two IPC calls resolve mock data (all three checkbox states shown at once: associated & matched, unassociated, associated-but-stale-path) instead of hitting a real Tauri bridge that doesn't exist in headless Chromium.
+- **Scripted demo/investigation scenario tooling** (internal, `scripts/lib/`, `scripts/run-scenario.mjs`, `scripts/scenarios/`, `scripts/generate_edge_corner_lot.py`) — a deterministic, assertion-checked replay of a real investigation against a deliberately-designed 12-wafer dataset (`npm run demo:data && npm run demo:test`), extracted from and now shared with `capture-screenshots.mjs`'s own server/browser/step harness. See `IDEAS.md`'s "Demo/investigation-scenario system" section for the full writeup.
+
+### Changed
+
+- **wmap bumped to 0.23.1** (from 0.23.0). Ships stable `data-wmap-*` DOM hooks on the Insights tab (closes WMAP_ISSUES.md #36 — used by the new scenario tooling above; the 24 existing screenshot captures still use the older heading-text selectors, not migrated in this pass) and a fix for a degenerate-axis pitch bug (#40, below). No tsmap code changes were needed for the bump itself. Published, unlinked, pinned to `^0.23.1`.
+- **Dark-theme border/text contrast raised to WCAG 1.4.11** across Dark, Nord, and Solarized Dark (`--border-mid` and `--text-dim`/`--text-faint`/`--text-veryfaint` in `index.html`). The old values measured 1.04–2.4:1 against these themes' own backgrounds — effectively invisible in places (e.g. the empty-state "Supports STDF, ATDF…" subtitle) rather than a deliberately subtle choice. New values are hue-matched per theme and cleared against every surface these tokens actually render on (`bg-app`/`bg-modal`/`bg-overlay`). Light themes were unaffected and left alone.
+
+### Fixed
+
+- **A `.gz`-suffixed sample file failed to load in the browser build when served from GitHub Pages.** GitHub Pages' CDN sets `Content-Encoding: gzip` on `.gz`-named assets, so the browser's own `fetch()` had already decompressed the body before `decompressGzip` (`platform.ts`) ran `DecompressionStream('gzip')` on it a second time, throwing "The compressed data was not valid." (This had shipped without visibly failing, since the Rust parser's own `maybe_gunzip` silently absorbed the already-decompressed bytes downstream — but the error was real.) `decompressGzip` now checks the gzip magic bytes first and returns the input unchanged if they're absent, mirroring the Rust parser's own no-op-when-already-decompressed behaviour. Desktop was never affected (no HTTP transport layer involved).
+- **A sparse coordinate-less wafer (only some dies positioned, all confined to one row or column) could render visibly stretched, non-square dies** (wmap 0.23.1, WMAP_ISSUES.md #40) — wmap's pitch inference read "I only ever saw one row" as "this wafer is 2x wider than tall" instead of recognising it as a sampling artefact of partial position coverage. Cosmetic only; die count/bin/yield were unaffected.
+
 ## [0.1.27] — 2026-08-16
 
 ### Added

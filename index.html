@@ -4,7 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tsmap</title>
-    <link rel="icon" href="/tsmap-favicon.svg" type="image/svg+xml" />
+    <!-- Pre-rendered, not a live-scaled inline SVG: at favicon size (16-32px)
+         the wafer-glyph's stroke widths (authored for a 1024-unit source)
+         scale down to sub-pixel values that browsers barely render — found
+         by testing the equivalent inline SVG at 64px (see the empty-state
+         icon in main.ts, which needed its strokes bumped for exactly this
+         reason). The official exports don't have that risk: each size was
+         rasterized directly, not scaled live. -->
+    <link rel="icon" href="/tsmap-favicon.ico" sizes="any" />
+    <link rel="icon" href="/tsmap-favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/tsmap-favicon-16.png" type="image/png" sizes="16x16" />
     <script type="module" src="/src/main.ts" defer></script>
     <script>
       // Last-resort visibility for a module that fails to load/parse — at that
@@ -59,7 +68,23 @@
         --bg-accent-hover: #2b3a4f;
 
         --border-strong:   #333;
-        --border-mid:      #3a3a3a;
+        /* --border-mid is the default border for buttons/inputs/dropdowns/
+           modals (35+ call sites, incl. --wmap-border below — the wafer
+           map's own toolbar inherits it too) — it needs to actually be
+           visible, unlike --border-strong above (2 call sites, deliberately
+           subtle structural dividers, left alone). The old value (#3a3a3a)
+           measured 1.04-1.25:1 contrast against this theme's own
+           backgrounds — essentially invisible, not a "subtle" choice, a
+           bug. #808080 clears WCAG 1.4.11's 3:1 non-text-contrast minimum
+           against every surface this token actually sits on here (bg-app,
+           bg-modal, bg-overlay) — found and fixed 2026-08. Same bug existed
+           in nord and solarized-dark (their own --border-mid, below) —
+           fixed the same way, hue-matched to each theme's own palette
+           rather than reusing this grey. Not touched: light-theme
+           --border-mid values, which don't have this problem (darkening
+           text/borders against a light background naturally increases
+           contrast; the bug is specific to lightening against a dark one). */
+        --border-mid:      #808080;
         --border-subtle:   #2a2a2a;
         --border-muted:    #444;
         --border-dim:      #555;
@@ -68,9 +93,21 @@
         --text-secondary:  #ccc;
         --text-tertiary:   #aaa;
         --text-muted:      #888;
-        --text-dim:        #666;
-        --text-faint:      #555;
-        --text-veryfaint:  #444;
+        /* text-dim/faint/veryfaint measured 1.4-2.4:1 contrast against this
+           theme's own backgrounds — below WCAG AA's 4.5:1 (normal text) even
+           for the LARGE-text 3:1 floor in most cases. Same class of bug as
+           --border-mid above (lightening tokens weren't lightened enough
+           for a dark background), confirmed by the "Supports STDF, ATDF…"
+           empty-state subtitle (text-veryfaint) being reported unreadable.
+           Fixed 2026-08, same hue-preserving-lighten approach, target
+           ~4.5-5.0:1 against every background these actually render on
+           (bg-app/bg-modal/bg-overlay). The three values compress closer
+           together than before — full readability took priority over a
+           wide subtlety gradient, per explicit direction. Same bug existed
+           in nord and solarized-dark, fixed the same way below. */
+        --text-dim:        #a9a9a9;
+        --text-faint:      #a4a4a4;
+        --text-veryfaint:  #a0a0a0;
         --text-subdued:    #999;
         --text-light:      #ddd;
         --text-lighter:    #bbb;
@@ -214,7 +251,7 @@
         --bg-accent-hover: #3b4a58;
 
         --border-strong:   #4c566a;
-        --border-mid:      #434c5e;
+        --border-mid:      #808da5;
         --border-subtle:   #3b4252;
         --border-muted:    #4c566a;
         --border-dim:      #616e88;
@@ -223,9 +260,11 @@
         --text-secondary:  #e5e9f0;
         --text-tertiary:   #d8dee9;
         --text-muted:      #a6adbb;
-        --text-dim:        #7b8496;
-        --text-faint:      #616e88;
-        --text-veryfaint:  #4c566a;
+        /* see the dark theme's own --text-dim/faint/veryfaint comment above
+           — same bug, same fix, hue-matched to nord's palette. */
+        --text-dim:        #b2b7c1;
+        --text-faint:      #a9b2c2;
+        --text-veryfaint:  #a5aebe;
         --text-subdued:    #c0c6d2;
         --text-light:      #e5e9f0;
         --text-lighter:    #c0c6d2;
@@ -275,7 +314,7 @@
         --bg-accent-hover: #0a3f52;
 
         --border-strong:   #12586b;
-        --border-mid:      #0e4653;
+        --border-mid:      #647e85;
         --border-subtle:   #073642;
         --border-muted:    #12586b;
         --border-dim:      #586e75;
@@ -284,9 +323,11 @@
         --text-secondary:  #93a1a1;
         --text-tertiary:   #839496;
         --text-muted:      #657b83;
-        --text-dim:        #586e75;
-        --text-faint:      #4a5f66;
-        --text-veryfaint:  #3b4d52;
+        /* see the dark theme's own --text-dim/faint/veryfaint comment above
+           — same bug, same fix, hue-matched to solarized-dark's palette. */
+        --text-dim:        #90a4ab;
+        --text-faint:      #87a0a8;
+        --text-veryfaint:  #819da4;
         --text-subdued:    #839496;
         --text-light:      #eee8d5;
         --text-lighter:    #93a1a1;

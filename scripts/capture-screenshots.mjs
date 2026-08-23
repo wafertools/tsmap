@@ -1,13 +1,13 @@
 /**
  * Captures screenshots of the tsmap web app for use in the user guide.
  *
- * FORKED — ../wafermap/scripts/capture-screenshots.mjs is the same harness
- * (static server + headless Chromium + a setup-step vocabulary) pointed at a
- * different app. This is the one pair of scripts here that is genuinely
- * duplicated rather than coincidentally same-named, and extracting the shared
- * harness is a real (unstarted) job — see IDEAS.md. Until then, a fix to the
- * harness half of one usually belongs in the other too; the capture
- * *definitions* never do.
+ * The reusable half of this file (static server, browser/page setup, file
+ * injection, the declarative setup-step vocabulary) now lives in
+ * scripts/lib/ — shared with scripts/run-scenario.mjs. This file keeps only
+ * the screenshot-specific main loop and CLI. See scripts/lib/steps.mjs's
+ * header for the step vocabulary reference and the allowCosmetic/strict
+ * flags (this script keeps the historical lenient/cosmetic-allowed defaults
+ * so none of the existing capture-definitions.mjs targets change behaviour).
  *
  * Usage:
  *   node scripts/capture-screenshots.mjs
@@ -27,798 +27,25 @@
  *   npm run build:web          — builds the app to dist/
  *   npm run screenshots:data   — generates demo STDF/CSV files in /tmp/
  *
- * ─── Setup step reference ─────────────────────────────────────────────────────
- *
- * setup is an array of steps. Each step is an array: [stepName, ...args].
- *
- *   ['loadFile', '/tmp/tsmap-demo.stdf']
- *     Inject a file into the app via simulated drop. Waits for parse to complete.
- *
- *   ['loadFiles', ['/tmp/a.stdf', '/tmp/b.stdf']]
- *     Inject multiple files in one drop (triggers the wafer rename overlay —
- *     see multiFileUI.ts's needsRename, which requires entries.length > 1).
- *
- *   ['addFiles', '/tmp/tsmap-demo2.stdf']
- *     Click the "Add files" toolbar button and pick a file via Playwright's
- *     filechooser interception (real button + native input, not a drop — only
- *     this path sets isAppend=true, needed to reach append-confirm).
- *
- *   ['filterFiles', ['/tmp/a.stdf', '/tmp/b.stdf']]
- *     Click "Filter files…" and pick files via the same filechooser
- *     interception (its own dedicated input, not the shared #file-input).
- *
- *   ['waitForFilterScan']
- *     Poll until the filter table has rows — the table is only built once
- *     every per-file scan has resolved, so this is the real completion signal.
- *
- *   ['waitForWafers']
- *     Poll until a canvas element appears inside #map-container.
- *
- *   ['waitForOverlay', '#tsmap-test-selector-overlay']
- *     Poll until the given overlay selector appears in the DOM.
- *
- *   ['dismissSelector']
- *     Click "Import" in the test selector overlay (imports all tests).
- *
- *   ['dismissSelectorSelectNone']
- *     Click "Select none" then "Import" (imports bin data only, skips selector screenshot).
- *
- *   ['dismissSelectorThenRename']
- *     Like dismissSelector, but waits for the rename overlay instead of a
- *     wafer canvas afterward — needed when loading multiple files together,
- *     where the rename overlay appears before anything renders (see
- *     multiFileUI.ts's needsRename: entries.length > 1).
- *
- *   ['openInsights']
- *     Click the wafer map/gallery's "Insights" button (wmap's own built-in
- *     chart suite — tsmap's old bespoke Charts view was removed and folded
- *     into wmap, see WMAP_ISSUES.md). Waits for the Overview sub-tab to render.
- *
- *   ['selectInsightsTab', 'Distributions']
- *     Click an Insights sub-tab by exact label — 'Overview', 'Distributions',
- *     or 'Correlation'.
- *
- *   NOTE on the four Insights steps (selectInsightsTab, expandChartByTitle,
- *   setInsightsGroupBy, clickChartRowByTitle): they locate their target by
- *   wmap's own user-visible copy, because its Insights DOM carries no stable
- *   class/id/aria hooks (WMAP_ISSUES.md #36). A wmap rename therefore breaks
- *   them — so every one of them THROWS when its match fails. Never soften one
- *   back into an `if (found) …` no-op: a step that silently does nothing still
- *   produces a screenshot, just of the wrong state under the right filename,
- *   which has shipped wrong images twice already (see expandChartByTitle).
- *
- *   ['hoverMap']
- *     Hover the wafer map canvas to pin the wmap toolbar visible.
- *
- *   ['hoverMapCard', N]
- *     Hover the Nth canvas in the gallery (0-based).
- *
- *   ['clickToolbarBtn', 'aria-label']
- *     Click a button in the wmap toolbar by aria-label (pins toolbar first).
- *
- *   ['openWmapDropdown', 'Plot mode']
- *     Open a wmap toolbar dropdown and leave it open.
- *
- *   ['selectWmapMode', 'Soft Bin']
- *     Pick an item from the wmap Plot mode dropdown.
- *
- *   ['openSummaryPanel']
- *     Open the wmap summary/findings panel.
- *
- *   ['clickFindingByText', 'edge']
- *     Click the first finding whose text contains the given string.
- *
- *   ['expandChartByTitle', 'Test scatter']
- *     Inside the open Insights tab, find the chart card whose heading text
- *     starts with the given string and click its Expand button. Leaves the
- *     modal open for screenshotting.
- *
- *   ['expandLogPanel']
- *     Click the log toggle button to open the log panel.
- *
- *   ['openSplitsDialog']
- *     Click the "Splits…" toolbar button and wait for the dialog.
- *
- *   ['closeSplitsDialog']
- *     Click "Done" in the splits dialog.
- *
- *   ['loadSplitsFile', '/abs/path/to/splits.csv']
- *     Click "Load splits…" in the splits dialog and pick the given file via
- *     Playwright's filechooser interception.
- *
- *   ['setInsightsGroupBy', 'Split']
- *     Select an option (by visible-label prefix) in the Insights tab's
- *     "Group by:" dropdown.
- *
- *   ['clickChartRowByTitle', 'Yield by wafer', rowIdx]
- *     Click a specific row (0-based) inside the canvas of the chart card
- *     whose heading starts with the given string — for the yield/boxplot
- *     in-place group drilldown. Parks the pointer off-canvas afterwards so
- *     wmap's cursor-following chart tooltip isn't baked into the screenshot.
- *
- *   ['showCursorOn', '#selector', offsetX, offsetY]
- *     Inject a fake SVG cursor centred on the element (optional pixel nudge).
- *
- *   ['hideCursor']
- *     Remove the fake cursor.
- *
- *   ['shrinkPanelToContent']
- *     For the mapping/rename overlays: `.mapping-panel` is `flex:1` inside a
- *     `position:fixed;inset:0` overlay by design (a real full-screen dialog,
- *     content scrolls inside it) — so it always fills the whole viewport
- *     regardless of how little content there is, leaving a large empty gap in
- *     a screenshot. Overrides flex-sizing so the panel and its scroll
- *     container shrink-wrap their actual content instead, for a tight crop.
- *     Capture-only cosmetic tweak; doesn't reflect real app behaviour.
- *
- *   ['wait', 400]
- *     Extra delay in ms.
- *
- *   ['scroll', 0, 500]
- *     window.scrollTo(x, y).
- *
- * ──────────────────────────────────────────────────────────────────────────────
+ * NOTE ../wafermap/scripts/capture-screenshots.mjs is the same kind of
+ * harness (static server + headless Chromium + a setup-step vocabulary)
+ * pointed at a different app. Extracting a harness shared *across* the two
+ * repos is a separate, unstarted job — see IDEAS.md. scripts/lib/ here only
+ * de-duplicates the two *tsmap-internal* consumers of this harness
+ * (screenshot capture and the scenario runner).
  */
 
-import { chromium } from 'playwright';
-import { createServer } from 'http';
-import { readFileSync, existsSync } from 'fs';
-import { extname, join, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { DIST, ROOT } from './lib/paths.mjs';
+import { startServer } from './lib/server.mjs';
+import { launchBrowser, newCapturePage } from './lib/browser.mjs';
+import { runSetup } from './lib/steps.mjs';
 import { CAPTURES } from './capture-definitions.mjs';
 
-const ROOT       = resolve(fileURLToPath(import.meta.url), '../../');
-const DIST       = join(ROOT, 'dist');
-const TESTDATA   = join(ROOT, 'testdata');
-const SAMPLEDATA = join(ROOT, 'sample_data');
-const OUT        = join(ROOT, 'docs', 'images');
-
-// ─── MIME types ───────────────────────────────────────────────────────────────
-
-const MIME = {
-  '.html':  'text/html',
-  '.js':    'application/javascript',
-  '.mjs':   'application/javascript',
-  '.css':   'text/css',
-  '.json':  'application/json',
-  '.wasm':  'application/wasm',
-  '.png':   'image/png',
-  '.svg':   'image/svg+xml',
-  '.ico':   'image/x-icon',
-  '.woff2': 'font/woff2',
-  '.stdf':  'application/octet-stream',
-  '.std':   'application/octet-stream',
-  '.atdf':  'text/plain',
-  '.atd':   'text/plain',
-  '.csv':   'text/csv',
-  '.txt':   'text/plain',
-};
-
-// ─── Static server ────────────────────────────────────────────────────────────
-// Serves dist/ at /, testdata/ (gitignored, generated fixtures) at /testdata/,
-// and sample_data/ (committed fixtures, e.g. the corner-lot splits demo) at
-// /sample_data/. Using these routes lets the page fetch files without streaming
-// bytes through CDP.
-
-function startServer() {
-  return new Promise((res) => {
-    const server = createServer((req, resp) => {
-      let urlPath = req.url.split('?')[0];
-      if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
-
-      let fsPath;
-      if (urlPath.startsWith('/testdata/')) {
-        fsPath = join(TESTDATA, urlPath.slice('/testdata/'.length));
-      } else if (urlPath.startsWith('/sample_data/')) {
-        fsPath = join(SAMPLEDATA, urlPath.slice('/sample_data/'.length));
-      } else {
-        fsPath = join(DIST, urlPath);
-      }
-
-      if (!existsSync(fsPath)) {
-        resp.writeHead(404); resp.end('Not found: ' + fsPath); return;
-      }
-      const ext = extname(fsPath);
-      const mime = MIME[ext] ?? 'application/octet-stream';
-      resp.writeHead(200, { 'Content-Type': mime, 'Access-Control-Allow-Origin': '*' });
-      resp.end(readFileSync(fsPath));
-    });
-    server.listen(0, '127.0.0.1', () => res({ server, port: server.address().port }));
-  });
-}
-
-// ─── Cursor helper ────────────────────────────────────────────────────────────
-
-const CURSOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="22" viewBox="0 0 18 22"><path d="M1 1 L1 18 L5.2 13.8 L8.6 21 L11 19.8 L7.6 12.5 L14 12.5 Z" fill="white" stroke="#333" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
-
-async function injectCursor(page, x, y) {
-  await page.evaluate(([svg, cx, cy]) => {
-    const el = document.getElementById('__fake-cursor__');
-    if (el) el.remove();
-    const div = document.createElement('div');
-    div.id = '__fake-cursor__';
-    Object.assign(div.style, { position: 'fixed', left: `${cx}px`, top: `${cy}px`, width: '18px', height: '22px', pointerEvents: 'none', zIndex: '999999' });
-    div.innerHTML = svg;
-    document.body.appendChild(div);
-  }, [CURSOR_SVG, x, y]);
-}
-
-async function removeCursor(page) {
-  await page.evaluate(() => { document.getElementById('__fake-cursor__')?.remove(); });
-}
-
-// ─── File injection ───────────────────────────────────────────────────────────
-//
-// The tsmap web app listens for a 'drop' event on document.body.
-// We inject files by having the PAGE fetch them from the static server's /testdata/
-// route — no bytes ever cross the CDP bridge, so large files don't OOM Node.
-//
-// filePath is an absolute path under ROOT/testdata/; the server exposes it at /testdata/<name>.
-// baseUrl is passed in so the page knows where to fetch from.
-
-async function injectFile(page, filePath, baseUrl) {
-  await injectFiles(page, [filePath], baseUrl);
-}
-
-// Same as injectFile but drops every path in filePaths as one multi-item
-// DataTransfer — needed for the "loading multiple files together" state
-// (triggers the wafer rename overlay; see multiFileUI.ts's needsRename).
-async function injectFiles(page, filePaths, baseUrl) {
-  const items = filePaths.map(filePath => {
-    if (!existsSync(filePath)) throw new Error(`Demo data file not found: ${filePath}`);
-    const fileName = filePath.split('/').pop();
-    const urlPrefix = filePath.startsWith(SAMPLEDATA) ? '/sample_data/' : '/testdata/';
-    return { fetchUrl: `${baseUrl}${urlPrefix}${fileName}`, fileName };
-  });
-
-  // Wait until the app's drop listener is registered (open-btn is present and the
-  // page script has run). The listener is added synchronously in main.ts on DOMContentLoaded,
-  // so waiting for networkidle (done before setup) is sufficient — but add a small
-  // extra guard to avoid a race on slower machines.
-  await page.waitForFunction(() => !!document.getElementById('open-btn'), { timeout: 10000 });
-
-  await page.evaluate(async (fetchItems) => {
-    const dt = new DataTransfer();
-    for (const { fetchUrl, fileName } of fetchItems) {
-      const resp = await fetch(fetchUrl);
-      if (!resp.ok) throw new Error(`fetch failed: ${resp.status} ${fetchUrl}`);
-      const blob = await resp.blob();
-      dt.items.add(new File([blob], fileName));
-    }
-    document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
-  }, items);
-}
-
-// Clicks the "Add files" toolbar button and picks filePath via Playwright's
-// filechooser interception — unlike a drop (always a fresh load), only the
-// real button + native <input type=file> path sets main.ts's `appendOnPick`
-// flag, which is what's needed to reach the append-confirm dialog.
-async function addFile(page, filePath) {
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    page.click('#add-btn'),
-  ]);
-  await chooser.setFiles(filePath);
-}
-
-// ─── Wait helpers ─────────────────────────────────────────────────────────────
-
-async function waitForSelector(page, selector, timeout = 20000) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const el = await page.$(selector);
-    if (el) return el;
-    await page.waitForTimeout(200);
-  }
-  throw new Error(`Timeout waiting for selector: ${selector}`);
-}
-
-async function waitForWmapCanvas(page) {
-  // WASM parse in headless Chromium can be slow — allow up to 60s for large files
-  await waitForSelector(page, '#map-container canvas', 60000);
-  // Extra settle time for wmap to finish rendering
-  await page.waitForTimeout(800);
-}
-
-// ─── wmap toolbar helpers (borrowed from wmap capture-screenshots.mjs) ────────
-
-async function pinWmapToolbar(page, containerSel = '#map-container') {
-  await page.evaluate((sel) => {
-    const tb = document.querySelector(`${sel} [data-wmap-toolbar]`);
-    if (tb) { tb.style.opacity = '1'; tb.style.visibility = 'visible'; }
-  }, containerSel);
-}
-
-async function hoverMapCanvas(page, containerSel = '#map-container') {
-  const canvas = await page.$(`${containerSel} canvas`);
-  if (!canvas) return;
-  const box = await canvas.boundingBox();
-  if (!box) return;
-  await page.mouse.move(box.x + box.width * 0.38, box.y + box.height * 0.35);
-  await page.waitForTimeout(400);
-  await pinWmapToolbar(page, containerSel);
-}
-
-async function openSummaryPanel(page, containerSel = '#map-container') {
-  await page.evaluate((sel) => {
-    const root = document.querySelector(sel) ?? document;
-    const btn = [...root.querySelectorAll('button')].find(b => b.ariaLabel === 'Summary panel');
-    if (btn && !btn.dataset.active) btn.click();
-  }, containerSel);
-  await page.waitForTimeout(600);
-  await hoverMapCanvas(page, containerSel);
-}
-
-async function clickFindingByText(page, textFragment, containerSel = '#map-container') {
-  const found = await page.evaluate(([sel, filter]) => {
-    const root = document.querySelector(sel) ?? document;
-    const rows = [...root.querySelectorAll('[data-wmap-finding]')];
-    const row = rows.find(r => {
-      if (filter && !r.textContent?.includes(filter)) return false;
-      let el = r.parentElement;
-      while (el && el !== root) { if (el.style.display === 'none') return false; el = el.parentElement; }
-      return true;
-    });
-    if (!row) return false;
-    let panel = row.parentElement;
-    while (panel) { const oy = getComputedStyle(panel).overflowY; if (oy === 'auto' || oy === 'scroll') break; panel = panel.parentElement; }
-    if (panel) panel.scrollTop = Math.max(0, row.offsetTop - 40);
-    row.dataset.wmapFindingTarget = 'pending';
-    return true;
-  }, [containerSel, textFragment]);
-  if (!found) return;
-  await page.click('[data-wmap-finding-target="pending"]');
-  await page.evaluate(() => { delete document.querySelector('[data-wmap-finding-target="pending"]')?.dataset.wmapFindingTarget; });
-  await page.waitForTimeout(400);
-}
-
-async function selectWmapDropdownItem(page, btnAriaLabel, itemLabel) {
-  await page.evaluate((label) => {
-    const btn = [...document.querySelectorAll('button')].find(b => b.ariaLabel === label);
-    if (!btn) return;
-    let el = btn.parentElement;
-    while (el) { if (el.hasAttribute('data-wmap-toolbar')) { el.style.opacity = '1'; el.style.visibility = 'visible'; break; } el = el.parentElement; }
-  }, btnAriaLabel);
-  await page.click(`button[aria-label="${btnAriaLabel}"]`);
-  await page.waitForTimeout(300);
-  const clicked = await page.evaluate((label) => {
-    const menus = [...document.body.children].filter(el => el.tagName === 'DIV' && el.style.position === 'fixed');
-    for (const menu of menus) {
-      // Use startsWith to handle items with trailing decoration like ' ▶'
-      const row = [...menu.querySelectorAll('div')].find(d => d.textContent?.trim().startsWith(label));
-      if (row) { row.click(); return true; }
-    }
-    return false;
-  }, itemLabel);
-  if (!clicked) throw new Error(`Dropdown item not found: "${itemLabel}" in "${btnAriaLabel}"`);
-  await page.waitForTimeout(200);
-}
-
-async function openWmapDropdown(page, btnAriaLabel, highlightItem = null) {
-  await page.evaluate((label) => {
-    const btn = [...document.querySelectorAll('button')].find(b => b.ariaLabel === label);
-    if (btn) { let el = btn.parentElement; while (el) { if (el.hasAttribute('data-wmap-toolbar')) { el.style.opacity = '1'; el.style.visibility = 'visible'; break; } el = el.parentElement; } btn.click(); }
-  }, btnAriaLabel);
-  await page.waitForTimeout(150);
-  if (highlightItem) {
-    await page.evaluate((label) => {
-      const menus = [...document.body.children].filter(el => el.tagName === 'DIV' && el.style.position === 'fixed' && el.offsetParent !== null);
-      for (const menu of menus) {
-        const div = [...menu.querySelectorAll('div')].find(d => d.textContent?.trim() === label);
-        if (div) { div.style.fontWeight = 'bold'; return; }
-      }
-    }, highlightItem);
-  }
-  await pinWmapToolbar(page);
-  await page.waitForTimeout(100);
-}
-
-// ─── Step runner ──────────────────────────────────────────────────────────────
-
-async function runSetup(page, steps, baseUrl) {
-  for (const step of steps) {
-    const [name, ...args] = step;
-    switch (name) {
-
-      case 'loadFile': {
-        await injectFile(page, args[0], baseUrl);
-        // After drop the app starts parsing; wait for overlay or wafer canvas
-        await page.waitForTimeout(500);
-        break;
-      }
-
-      case 'loadFiles': {
-        await injectFiles(page, args[0], baseUrl);
-        await page.waitForTimeout(500);
-        break;
-      }
-
-      case 'addFiles': {
-        await addFile(page, args[0]);
-        await page.waitForTimeout(500);
-        break;
-      }
-
-      case 'filterFiles': {
-        // Same filechooser interception as loadFile/addFiles, but against
-        // #filter-files-btn, which opens fileFilterUI's own dedicated hidden
-        // input rather than the shared #file-input.
-        const files = Array.isArray(args[0]) ? args[0] : [args[0]];
-        const [chooser] = await Promise.all([
-          page.waitForEvent('filechooser'),
-          page.click('#filter-files-btn'),
-        ]);
-        await chooser.setFiles(files);
-        break;
-      }
-
-      case 'waitForFilterScan': {
-        // The table is only constructed once every scan has resolved, so its
-        // presence in the modal IS the completion signal — no fixed sleep.
-        await waitForSelector(page, '.tsmap-modal-box table tbody tr');
-        await page.waitForTimeout(300);
-        break;
-      }
-
-      case 'waitForWafers':
-        await waitForWmapCanvas(page);
-        break;
-
-      case 'waitForOverlay':
-        await waitForSelector(page, args[0] ?? '#tsmap-test-selector-overlay');
-        await page.waitForTimeout(300);
-        break;
-
-      case 'dismissSelector': {
-        // Click "Select all" then Import so tests are loaded (default selection is empty)
-        await waitForSelector(page, '#tsmap-test-selector-overlay');
-        await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-          btns.find(b => b.textContent?.trim() === 'Select all')?.click();
-        });
-        await page.waitForTimeout(200);
-        await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-          const b = btns.find(b => b.textContent?.includes('Import'));
-          if (b) { b.id = '__import-btn__'; }
-        });
-        await page.click('#__import-btn__');
-        await waitForWmapCanvas(page);
-        break;
-      }
-
-      case 'dismissSelectorThenRename': {
-        await waitForSelector(page, '#tsmap-test-selector-overlay');
-        await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-          btns.find(b => b.textContent?.trim() === 'Select all')?.click();
-        });
-        await page.waitForTimeout(200);
-        await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-          const b = btns.find(b => b.textContent?.includes('Import'));
-          if (b) { b.id = '__import-btn__'; }
-        });
-        await page.click('#__import-btn__');
-        await waitForSelector(page, '#tsmap-rename-overlay');
-        await page.waitForTimeout(300);
-        break;
-      }
-
-      case 'dismissSelectorSelectNone': {
-        await waitForSelector(page, '#tsmap-test-selector-overlay');
-        // Click "Select none"
-        await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-          btns.find(b => b.textContent?.trim() === 'Select none')?.click();
-        });
-        await page.waitForTimeout(200);
-        // Click Import
-        await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-          const b = btns.find(b => b.textContent?.includes('Import'));
-          if (b) b.id = '__import-btn__';
-        });
-        await page.click('#__import-btn__');
-        await waitForWmapCanvas(page);
-        break;
-      }
-
-      case 'openInsights': {
-        // wmap's own Insights button — tsmap's bespoke Charts view (#charts-btn,
-        // .chart-card) was removed and folded into wmap (see WMAP_ISSUES.md).
-        // Insights/Expand/Help live in sceneControlsEl, unwrapped from the
-        // hover-to-reveal toolbar, so no pinning is needed before clicking.
-        await page.click('button[aria-label="Insights"]');
-        await page.waitForTimeout(1200);
-        break;
-      }
-
-      case 'selectInsightsTab': {
-        // Insights tab-bar buttons (Overview/Distributions/Correlation) have no
-        // class/id — wmap's insightsTab.ts sets only textContent — so match on
-        // exact label text. Text matching against another package's user-visible
-        // copy is brittle by construction (WMAP_ISSUES.md #36), so a miss must
-        // throw: a silent no-op here screenshots the wrong sub-tab under the
-        // right filename, which is exactly how six wrong images shipped in
-        // 2026-07 (see expandChartByTitle's history note below).
-        const label = args[0];
-        const tabbed = await page.evaluate((lbl) => {
-          const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === lbl);
-          if (!btn) return false;
-          btn.click();
-          return true;
-        }, label);
-        if (!tabbed) throw new Error(`Insights sub-tab not found: "${label}" (renamed in wmap?)`);
-        await page.waitForTimeout(500);
-        break;
-      }
-
-      case 'expandChartByTitle': {
-        // wmap's chart cards (chartShell.ts cardShell) carry no class/id either
-        // on the card or the Expand button (it's `title = 'Expand'`, not
-        // aria-label) — match the card by its heading text instead, then find
-        // the Expand button among that heading's siblings.
-        //
-        // A miss throws rather than no-opping. The predecessor of this step
-        // matched the Expand button on textContent === '⛶', which stopped
-        // matching after wmap's SVG-icon refactor and silently no-opped every
-        // capture using it — chart-yield/chart-pareto/boxplot/histogram/
-        // correlation/scatter.png were all byte-identical shots of the
-        // unexpanded grid (found and fixed 2026-07-08). Matching on wmap's
-        // heading copy has the same failure mode on any future rename, so the
-        // only safe form is a loud one.
-        const wanted = args[0];
-        const expanded = await page.evaluate((titleText) => {
-          const headings = [...document.querySelectorAll('div')]
-            .filter(d => d.children.length === 0 && d.textContent?.trim().startsWith(titleText));
-          for (const h of headings) {
-            const headingRow = h.parentElement;
-            const btn = headingRow && [...headingRow.querySelectorAll('button')].find(b => b.title === 'Expand');
-            if (btn) { btn.click(); return true; }
-          }
-          return false;
-        }, wanted);
-        if (!expanded) throw new Error(`Chart card / Expand button not found for title: "${wanted}" (renamed in wmap?)`);
-        // Wait for modal backdrop to appear
-        await page.waitForTimeout(800);
-        break;
-      }
-
-      case 'hoverMap':
-        await hoverMapCanvas(page, args[0] ?? '#map-container');
-        break;
-
-      case 'hoverMapCard': {
-        const idx = args[0] ?? 0;
-        const cards = await page.$$('#map-container canvas');
-        if (cards[idx]) {
-          const box = await cards[idx].boundingBox();
-          if (box) await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.4);
-        }
-        await page.waitForTimeout(400);
-        await pinWmapToolbar(page);
-        break;
-      }
-
-      case 'clickToolbarBtn': {
-        const label = args[0];
-        await page.evaluate((lbl) => {
-          const btn = [...document.querySelectorAll('button')].find(b => b.ariaLabel === lbl);
-          if (!btn) return;
-          let el = btn.parentElement;
-          while (el) { if (el.hasAttribute('data-wmap-toolbar')) { el.style.opacity = '1'; el.style.visibility = 'visible'; break; } el = el.parentElement; }
-        }, label);
-        await page.click(`button[aria-label="${label}"]`);
-        await page.waitForTimeout(300);
-        break;
-      }
-
-      case 'openWmapDropdown':
-        await openWmapDropdown(page, args[0], args[1] ?? null);
-        break;
-
-      case 'selectWmapMode':
-        await selectWmapDropdownItem(page, 'Plot mode', args[0]);
-        break;
-
-      case 'openSummaryPanel':
-        await openSummaryPanel(page, args[0] ?? '#map-container');
-        break;
-
-      case 'clickFindingByText':
-        await clickFindingByText(page, args[0], args[1] ?? '#map-container');
-        break;
-
-      case 'openSplitsDialog': {
-        // Splits… moved out of the top bar into the Lot ▾ menu — open the
-        // menu first, then pick the row by its visible label (the rows are
-        // built in JS and carry no id/selector of their own).
-        await page.click('#lot-btn');
-        await page.waitForTimeout(150);
-        const opened = await page.evaluate(() => {
-          const row = [...document.querySelectorAll('button')]
-            .find(b => b.textContent?.trim().startsWith('Splits'));
-          if (!row) return false;
-          row.click();
-          return true;
-        });
-        if (!opened) throw new Error('openSplitsDialog: no "Splits…" row found in the Lot menu');
-        await waitForSelector(page, 'div[role="dialog"]');
-        await page.waitForTimeout(300);
-        break;
-      }
-
-      case 'closeSplitsDialog': {
-        await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('div[role="dialog"] button')];
-          const b = btns.find(b => b.textContent?.trim() === 'Done');
-          if (b) b.click();
-        });
-        await page.waitForTimeout(400);
-        break;
-      }
-
-      case 'loadSplitsFile': {
-        // Splits are loaded via a real file picker (platform.pickTextFile), so
-        // this must arm Playwright's filechooser listener before the click,
-        // same pattern as a real user gesture — page.evaluate()-driven clicks
-        // are not reliably treated as one. .first(): when nothing is assigned
-        // yet the empty-state banner shows its own "Load splits…" button
-        // alongside the footer one — both trigger the same load.
-        const filePath = args[0];
-        const [chooser] = await Promise.all([
-          page.waitForEvent('filechooser'),
-          page.locator('div[role="dialog"] button', { hasText: 'Load splits…' }).first().click(),
-        ]);
-        await chooser.setFiles(filePath);
-        await page.waitForTimeout(500);
-        break;
-      }
-
-      case 'setInsightsGroupBy': {
-        // The Insights "Group by:" <select> is a child of its own <label>
-        // (chartShell.ts makeLabeledSelect), not a sibling of a label span —
-        // find the label whose text starts with "Group by:" and read its
-        // nested select.
-        const label = args[0];
-        const grouped = await page.evaluate((optionLabel) => {
-          const labels = [...document.querySelectorAll('label')];
-          const groupByLabel = labels.find(l => l.querySelector('select') && l.textContent?.trim().startsWith('Group by:'));
-          const select = groupByLabel?.querySelector('select');
-          if (!select) return 'no-select';
-          const opt = [...select.options].find(o => o.textContent?.trim().startsWith(optionLabel));
-          if (!opt) return 'no-option';
-          select.value = opt.value;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          return 'ok';
-        }, label);
-        // Loud on a miss: an ungrouped chart still screenshots fine, so a silent
-        // no-op here ships a "grouped by Split" image that isn't grouped at all.
-        if (grouped === 'no-select') throw new Error('Insights "Group by:" select not found (renamed/restructured in wmap?)');
-        if (grouped === 'no-option') throw new Error(`Insights "Group by:" option not found: "${label}"`);
-        await page.waitForTimeout(600);
-        break;
-      }
-
-      case 'clickChartRowByTitle': {
-        // Click a specific row inside the canvas of the chart card whose
-        // heading starts with the given title — used for the yield/boxplot
-        // in-place group drilldown (row geometry matches chartShell.ts
-        // PADDING=12 and barPanel.ts ROW_HEIGHT=24/ROW_GAP=5).
-        const wanted = args[0];
-        const rowIdx = args[1] ?? 0;
-        const box = await page.evaluate((titleText) => {
-          const headings = [...document.querySelectorAll('div')]
-            .filter(d => d.children.length === 0 && d.textContent?.trim().startsWith(titleText));
-          for (const h of headings) {
-            const card = h.parentElement?.parentElement;
-            const canvas = card?.querySelector('canvas');
-            if (canvas) {
-              const r = canvas.getBoundingClientRect();
-              return { x: r.x, y: r.y, width: r.width, height: r.height };
-            }
-          }
-          return null;
-        }, wanted);
-        if (!box) throw new Error(`Chart card canvas not found for title: "${wanted}" (renamed in wmap?)`);
-        const PADDING = 12, ROW_HEIGHT = 24, ROW_GAP = 5;
-        const y = box.y + PADDING + rowIdx * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
-        const x = box.x + box.width / 2;
-        await page.mouse.click(x, y);
-        // Park the pointer off the canvas afterwards: wmap's charts show a hover
-        // tooltip that follows the cursor, and it stays pinned over the data for
-        // as long as the pointer sits there — it was baked into
-        // yield-group-drilldown.png, obscuring the very bars the image exists to
-        // show. Any step that clicks *into* a canvas needs this.
-        await page.mouse.move(2, 2);
-        await page.waitForTimeout(500);
-        break;
-      }
-
-      case 'expandLogPanel':
-        await page.click('#log-toggle');
-        await page.waitForTimeout(300);
-        break;
-
-      case 'showCursorOn': {
-        const target = args[0];
-        const ox = args[1] ?? 0;
-        const oy = args[2] ?? 0;
-        const isSel = /^[.#\[a-z]/i.test(target) && !/\s/.test(target.split('[')[0]);
-        const el = isSel ? await page.$(target) : (await page.$(`[aria-label="${target}"]`) ?? await page.$(target));
-        if (el) {
-          const box = await el.boundingBox();
-          if (box) await injectCursor(page, box.x + box.width / 2 + ox, box.y + box.height / 2 + oy);
-        }
-        break;
-      }
-
-      case 'hideCursor':
-        await removeCursor(page);
-        break;
-
-      case 'shrinkPanelToContent': {
-        await page.evaluate(() => {
-          const panel = document.querySelector('.mapping-panel');
-          if (panel) { panel.style.flex = 'none'; panel.style.maxHeight = 'none'; }
-          const scroll = document.querySelector('.mapping-scroll');
-          if (scroll) { scroll.style.flex = 'none'; scroll.style.overflow = 'visible'; scroll.style.maxHeight = 'none'; }
-        });
-        await page.waitForTimeout(100);
-        break;
-      }
-
-      case 'shrinkModalToContent': {
-        // The openModal 'resizable' box is a fixed-size dialog whose body
-        // scrolls — right for the app, wrong for a guide image, where a short
-        // table would sit in two-thirds empty space. Same idea as
-        // shrinkPanelToContent, for .tsmap-modal-box instead of .mapping-panel.
-        await page.evaluate(() => {
-          const box = document.querySelector('.tsmap-modal-box');
-          if (!box) return;
-          box.style.height = 'auto';
-          box.style.maxHeight = 'none';
-          // Width too: the box is capped relative to the viewport, so a wide
-          // table would still be sliced mid-column no matter how wide the
-          // viewport is. Let the content decide, and give the capture a
-          // viewport wide enough to hold the result.
-          box.style.width = 'max-content';
-          box.style.maxWidth = 'none';
-          // Any inner scroll container: let it size to its content. Both axes,
-          // since setting only overflow-y forces overflow-x back to auto.
-          for (const el of box.querySelectorAll('*')) {
-            const cs = getComputedStyle(el);
-            if (cs.overflowY === 'auto' || cs.overflowY === 'scroll'
-              || cs.overflowX === 'auto' || cs.overflowX === 'scroll') {
-              el.style.flex = 'none';
-              el.style.overflow = 'visible';
-              el.style.maxHeight = 'none';
-            }
-          }
-        });
-        await page.waitForTimeout(150);
-        break;
-      }
-
-      case 'wait':
-        await page.waitForTimeout(args[0] ?? 300);
-        break;
-
-      case 'scroll':
-        await page.evaluate(([x, y]) => window.scrollTo(x, y), [args[0] ?? 0, args[1] ?? 0]);
-        break;
-
-      default:
-        throw new Error(`Unknown setup step: "${name}"`);
-    }
-  }
-}
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
+const OUT_IMAGES = join(ROOT, 'docs', 'images');
 
 async function main() {
-  // Verify the dist directory exists
   if (!existsSync(DIST)) {
     console.error('\n✗  dist/ not found. Run: npm run build:web\n');
     process.exit(1);
@@ -851,55 +78,55 @@ async function main() {
 
   const { server, port } = await startServer();
   const base = `http://127.0.0.1:${port}`;
-  // CHROME_PATH: fall back to a system Chrome when Playwright's bundled
-  // Chromium isn't installed/supported (e.g. CHROME_PATH=/usr/bin/google-chrome).
-  const browser = await chromium.launch(
-    process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {},
-  );
+  const browser = await launchBrowser();
 
   let ok = 0, fail = 0;
 
-  for (const cap of targets) {
-    const outFile = join(OUT, cap.file + '.png');
-    const label = cap.file + '.png';
-    process.stdout.write(`  ${label.padEnd(28)} `);
+  try {
+    for (const cap of targets) {
+      const outFile = join(OUT_IMAGES, cap.file + '.png');
+      const label = cap.file + '.png';
+      process.stdout.write(`  ${label.padEnd(28)} `);
 
-    try {
-      const ctx  = await browser.newContext({ viewport: cap.viewport ?? { width: 1280, height: 800 }, deviceScaleFactor: 2 });
-      const page = await ctx.newPage();
+      let ctx;
+      try {
+        const opened = await newCapturePage(browser, {
+          viewport: cap.viewport ?? { width: 1280, height: 800 },
+          deviceScaleFactor: 2, // contract with build-user-guide.mjs, which halves PNG dims on read
+        });
+        ctx = opened.ctx;
+        const page = opened.page;
 
-      page.on('console', () => {});
-      page.on('pageerror', () => {});
-      // window.confirm() in headless Chromium returns false; auto-accept so the
-      // "bin data only" confirmation in showTestSelectorOverlay doesn't block.
-      page.on('dialog', d => d.accept());
+        await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 30_000 });
 
-      await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 30_000 });
+        if (cap.wait) await page.waitForTimeout(cap.wait);
+        // Historical defaults: allowCosmetic true, strict false — unchanged
+        // behaviour for all 24 existing capture targets.
+        if (cap.setup) await runSetup(page, cap.setup, base);
 
-      if (cap.wait) await page.waitForTimeout(cap.wait);
-      if (cap.setup) await runSetup(page, cap.setup, base);
+        if (cap.screenshotFn) {
+          await cap.screenshotFn(page, outFile, base);
+        } else if (cap.selector) {
+          const el = await page.$(cap.selector);
+          if (!el) throw new Error(`selector not found: ${cap.selector}`);
+          await el.screenshot({ path: outFile });
+        } else {
+          await page.screenshot({ path: outFile, fullPage: cap.fullPage ?? false });
+        }
 
-      if (cap.screenshotFn) {
-        await cap.screenshotFn(page, outFile, base);
-      } else if (cap.selector) {
-        const el = await page.$(cap.selector);
-        if (!el) throw new Error(`selector not found: ${cap.selector}`);
-        await el.screenshot({ path: outFile });
-      } else {
-        await page.screenshot({ path: outFile, fullPage: cap.fullPage ?? false });
+        await ctx.close();
+        console.log('✓');
+        ok++;
+      } catch (err) {
+        if (ctx) await ctx.close().catch(() => {});
+        console.log(`✗  ${err.message}`);
+        fail++;
       }
-
-      await ctx.close();
-      console.log('✓');
-      ok++;
-    } catch (err) {
-      console.log(`✗  ${err.message}`);
-      fail++;
     }
+  } finally {
+    await browser.close();
+    server.close();
   }
-
-  await browser.close();
-  server.close();
 
   console.log(`\n${ok} captured, ${fail} failed — saved to docs/images/\n`);
   if (fail > 0) process.exit(1);

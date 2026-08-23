@@ -20,6 +20,10 @@ CLAUDE.md
 *.atd
 /testdata
 
+# Scenario-runner checkpoint screenshots (scripts/run-scenario.mjs) —
+# regenerated on every run, not the guide's docs/images.
+/demo
+
 # …but the curated samples published on the docs site must be committed
 # (the *.stdf / *.atdf globs above match by extension regardless of directory,
 #  so re-include the sample paths explicitly)

@@ -216,6 +216,21 @@ has been run at least once on that machine (which registers it as the link's han
 </a>
 ```
 
+**Enabling the `tsmap://` handler.** On Linux and Windows, tsmap registers itself as the
+handler for the `tsmap://` scheme every time it starts — installed via `.deb`/`.msi` or run
+as a raw dev/portable binary, the effect is the same, and nothing needs to be configured by
+hand. On macOS the registration instead comes from the app bundle at install time (via
+`Info.plist`), so it's already in place the first time the app is launched, and there is no
+separate runtime registration step. Either way, the practical rule is the same: **run tsmap
+at least once on a machine before a `tsmap://` link there will do anything.** The first time
+a browser follows one of these links it will normally show its own "Open tsmap?"-style
+confirmation prompt — that's the browser guarding external-app links in general, not
+anything tsmap controls, and it typically offers a "always allow links from this site" option
+so the prompt doesn't reappear.
+
+Try both launch paths — including the `tsmap://` one — with real sample data on the
+**[live demo](demos/open-from-link.html)**.
+
 All three forms need the format spelled out explicitly (`stdf`, `atdf`, `csv`, `json`, or
 `parquet`) — tsmap doesn't guess it from the URL. Once fetched, the file goes through the
 exact same load as opening it locally: column mapping for CSV/JSON/Parquet, the test
@@ -307,6 +322,8 @@ automatically by double-clicking them in a file manager (Windows Explorer, GNOME
 Dolphin, etc.). CSV and JSON aren't offered here on purpose — those extensions are already
 claimed by dozens of unrelated apps, and quietly becoming their default handler would be an
 unwelcome surprise even behind a checkbox.
+
+![File associations dialog — STDF associated, ATDF not, Parquet associated but pointing at a stale binary](images/file-associations.png)
 
 Each file type is a separate checkbox, and nothing is associated until you turn one on — this
 is never set automatically. It's a setting, not an installer choice, so you can change your

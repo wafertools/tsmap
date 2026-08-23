@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Open tsmap from a link</title>
+<style>
+:root {
+  --bg: #eef2f3;
+  --surface: #ffffff;
+  --surface-sunken: #e3e9ea;
+  --text-primary: #101a1d;
+  --text-secondary: #4c5c60;
+  --text-muted: #7c8a8d;
+  --border: #d3dcde;
+  --border-strong: #b7c4c6;
+  --web: #0e7c86;
+  --web-ink: #063f45;
+  --web-bg: #dcf1f0;
+  --desktop: #9a5a1f;
+  --desktop-ink: #4d2c0e;
+  --desktop-bg: #f6e6d2;
+  --code-bg: #0f191c;
+  --code-text: #d7e4e2;
+  --code-muted: #7fa39e;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c1315;
+    --surface: #131d20;
+    --surface-sunken: #0f1719;
+    --text-primary: #e9eeee;
+    --text-secondary: #a3b3b5;
+    --text-muted: #6c7d80;
+    --border: #263336;
+    --border-strong: #364547;
+    --web: #4fc3c0;
+    --web-ink: #bdeeeb;
+    --web-bg: #12302f;
+    --desktop: #d99a52;
+    --desktop-ink: #f2d9b6;
+    --desktop-bg: #33240f;
+    --code-bg: #070d0e;
+    --code-text: #d7e4e2;
+    --code-muted: #5f8580;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  margin: 0;
+  padding: 2.5rem 1.5rem 4rem;
+}
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+}
+h1.sr-only, .sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap;
+}
+header.top { margin-bottom: 2rem; }
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.6rem;
+}
+h1 {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.6rem;
+  text-wrap: balance;
+}
+.lede {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 60ch;
+}
+.lede code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--surface-sunken);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  color: var(--text-primary);
+}
+
+.dataset-picker {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1.75rem 0 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.dataset-picker .label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+.chips { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.chip {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.chip[aria-pressed="true"] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg);
+}
+.chip:focus-visible { outline: 2px solid var(--web); outline-offset: 2px; }
+
+.paths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+@media (max-width: 560px) {
+  .paths { grid-template-columns: 1fr; }
+}
+.path-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.path-card .kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;
+}
+.path-card.web .dot { background: var(--web); }
+.path-card.desktop .dot { background: var(--desktop); }
+.path-card h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+.path-card p.desc {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.url-box {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  word-break: break-all;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.url-box .hi { color: var(--text-primary); }
+.launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid transparent;
+}
+.path-card.web .launch { background: var(--web-bg); color: var(--web-ink); border-color: var(--web); }
+.path-card.desktop .launch { background: var(--desktop-bg); color: var(--desktop-ink); border-color: var(--desktop); }
+.launch:hover { filter: brightness(0.97); }
+.launch:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+
+section.how {
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+section.how h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+.cli {
+  background: var(--code-bg);
+  color: var(--code-text);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+.cli .c { color: var(--code-muted); }
+
+.note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0.9rem 0 0;
+}
+.note strong { color: var(--text-primary); font-weight: 600; }
+
+footer.src {
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+}
+footer.src a { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="top">
+    <p class="eyebrow">tsmap &middot; open from url</p>
+    <h1>Same link, two ways in</h1>
+    <p class="sr-only">Interactive demo of tsmap's URL-based data loading: launch links for the web app and the tsmap:// desktop deep link, generated live for a chosen sample dataset.</p>
+    <p class="lede">A data-selection page hands tsmap one URL. tsmap fetches it and loads straight into the wafer map &mdash; no download, no re-upload. Pick a sample dataset below, then use either launch button for real.</p>
+  </header>
+
+  <div class="dataset-picker">
+    <span class="label">Sample dataset</span>
+    <div class="chips" id="chips" role="group" aria-label="Sample dataset"></div>
+  </div>
+
+  <div class="paths">
+    <div class="path-card web">
+      <div class="kicker"><span class="dot"></span><h2>Browser</h2></div>
+      <p class="desc">A page opens tsmap's web app with <code style="font-family:var(--font-mono)">?dataUrl=</code> in the query string. Works from any link, any browser.</p>
+      <div class="url-box" id="web-url"></div>
+      <a class="launch" id="web-launch" href="#" target="_blank" rel="noopener">Open in browser &rarr;</a>
+    </div>
+    <div class="path-card desktop">
+      <div class="kicker"><span class="dot"></span><h2>Desktop app</h2></div>
+      <p class="desc">A <code style="font-family:var(--font-mono)">tsmap://</code> link launches the installed desktop app directly, or forwards to an already-running window.</p>
+      <div class="url-box" id="desktop-url"></div>
+      <a class="launch" id="desktop-launch" href="#">Open in tsmap &rarr;</a>
+    </div>
+  </div>
+
+  <section class="how">
+    <h2>Same thing from a script or terminal</h2>
+    <div class="cli"><span class="c"># desktop CLI &mdash; equivalent to the tsmap:// link above</span>
+<div id="cli-line">tsmap --url &lt;url&gt; --url-format &lt;format&gt;</div>
+    </div>
+    <p class="note">The desktop fetch happens in Rust before the window even opens, and supports <strong>--url-headers</strong> for header-authenticated APIs &mdash; a credential never has to sit in a browser URL. See <a href="../integrating-data-selection/">Integrating tsmap with a data-selection system</a> for the short-lived-URL and proxy patterns this is designed around.</p>
+    <p class="note">The desktop button only does something if tsmap is installed and its <code style="font-family:var(--font-mono)">tsmap://</code> handler is registered on this machine &mdash; that happens automatically the first time you run the app. See <a href="../user-guide/#opening-data-from-a-url">the user guide</a> for details.</p>
+  </section>
+
+  <footer class="src">
+    Sample files are served from <a href="../samples/">wafertools.github.io/tsmap/samples</a> &mdash; synthetic data, no real device data.
+  </footer>
+</div>
+
+<script>
+const DATASETS = [
+  { key: "stdf", label: "STDF", format: "stdf", file: "tsmap-sample.stdf" },
+  { key: "parquet", label: "Parquet", format: "parquet", file: "tsmap-sample.parquet" },
+  { key: "csv", label: "CSV", format: "csv", file: "tsmap-sample.csv" },
+  { key: "json", label: "JSON", format: "json", file: "tsmap-sample.json" },
+  { key: "correlated", label: "STDF, correlated", format: "stdf", file: "tsmap-correlated.stdf" },
+];
+const SAMPLE_BASE = "https://wafertools.github.io/tsmap/samples/";
+const WEB_APP_BASE = "https://wafertools.github.io/tsmap/app/";
+
+const chipsEl = document.getElementById("chips");
+const webUrlEl = document.getElementById("web-url");
+const desktopUrlEl = document.getElementById("desktop-url");
+const webLaunchEl = document.getElementById("web-launch");
+const desktopLaunchEl = document.getElementById("desktop-launch");
+const cliLineEl = document.getElementById("cli-line");
+
+let current = DATASETS[0].key;
+
+function render() {
+  const ds = DATASETS.find(d => d.key === current);
+  const dataUrl = SAMPLE_BASE + ds.file;
+  const encoded = encodeURIComponent(dataUrl);
+
+  const webHref = WEB_APP_BASE + "?dataUrl=" + encoded + "&dataFormat=" + ds.format;
+  const desktopHref = "tsmap://open?url=" + encoded + "&format=" + ds.format;
+
+  webUrlEl.innerHTML = escapeHtml(WEB_APP_BASE) + "?dataUrl=<span class=\"hi\">" + escapeHtml(encoded) + "</span>&amp;dataFormat=<span class=\"hi\">" + ds.format + "</span>";
+  desktopUrlEl.innerHTML = "tsmap://open?url=<span class=\"hi\">" + escapeHtml(encoded) + "</span>&amp;format=<span class=\"hi\">" + ds.format + "</span>";
+
+  webLaunchEl.href = webHref;
+  desktopLaunchEl.href = desktopHref;
+
+  cliLineEl.innerHTML = "tsmap --url " + escapeHtml(dataUrl) + " \\\n  --url-format " + ds.format;
+
+  [...chipsEl.children].forEach(btn => {
+    const pressed = btn.dataset.key === current;
+    btn.setAttribute("aria-pressed", String(pressed));
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+DATASETS.forEach(ds => {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "chip";
+  btn.dataset.key = ds.key;
+  btn.textContent = ds.label;
+  btn.setAttribute("aria-pressed", "false");
+  btn.addEventListener("click", () => { current = ds.key; render(); });
+  chipsEl.appendChild(btn);
+});
+
+render();
+</script>
+
+</body>
+</html>
