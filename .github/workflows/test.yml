@@ -42,6 +42,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Prose drifts silently — a stale architecture tree type-checks and tests
+      # green forever. See scripts/check-architecture-docs.mjs.
+      - name: Check docs against the code
+        run: npm run check:docs
+
       - name: Unit tests (JS)
         run: npm test
 

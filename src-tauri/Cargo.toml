@@ -4,6 +4,8 @@ version = "0.1.28"
 description = "Desktop application for loading and visualising semiconductor wafer map data"
 authors = ["Paul Robins"]
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/wafertools/tsmap"
 default-run = "tsmap"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

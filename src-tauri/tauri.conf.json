@@ -36,6 +36,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Paul Robins",
+    "homepage": "https://wafertools.github.io/tsmap/",
+    "copyright": "Copyright (c) 2026 Paul Robins",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "category": "Utility",
+    "shortDescription": "Wafer map viewer for semiconductor test data",
+    "longDescription": "tsmap loads semiconductor wafer map data from STDF, ATDF, CSV, JSON, and Parquet files and renders interactive yield maps, parametric heat maps, bin pareto charts, per-test boxplots and histograms, and a cross-test correlation matrix. Parsing happens entirely on your own machine — there is no upload step.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

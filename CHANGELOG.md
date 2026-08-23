@@ -327,6 +327,48 @@ but the underlying numbers were still fragile in a different way.
 
 - **CI type check failed on a clean checkout** — `src/userGuideHtml.ts` is generated (gitignored) by `npm run build:guide`, normally run by the `predev`/`prebuild` hooks. The `Test` job's `npm run check` had no such hook, so `tsc` couldn't resolve the import and both the Test and Deploy workflows failed. Added a `Build user guide` step before the type check in `test.yml`.
 
+## [0.1.11] — 2026-06-20
+
+*Reconstructed from the release commit (`14adf3e`) — this entry was not written at release time.*
+
+### Added
+
+- **Correlation matrix reworked.** Tests are filtered and sorted by mean |r| descending, so correlated groups cluster top-left. Colour encodes strength only, via `Math.abs(r)` with solid `blendTowardBg()` interpolation rather than alpha compositing, so it respects the user's colour scheme. A summary line counts strong (≥0.7) and moderate (0.4–0.7) pairs and notes how many weak pairs are hidden, scaling the number of displayed tests between 6 and 20 by significance. Tooltips gained test numbers.
+- **Chart PNG exports gained a header strip** — bold panel title plus a subtitle carrying filename, wafer/die counts, active test name and timestamp. Applied at save time only; the live UI is unchanged. All chart PNGs now export on a white background.
+
+### Changed
+
+- Scatter panel: the X-axis unit label moved below the axis and centred, and Y-axis unit label spacing increased.
+- `testdata/correlated.stdf` regenerated — 30 PTR tests with realistic unclamped values, and the site-monitor group now has independent per-die noise so it no longer forms a spurious dark cluster.
+- wmap bumped to 0.14.1.
+
+### Fixed
+
+- **Stale chart data could persist across loads** — `showEmptyState()` now clears every chart cache.
+- **Correlation pair counts were computed over the full matrix**, not the displayed tests.
+- **ATDF filtered parse kept the *unselected* tests** — an inverted `selected.contains` guard. ATDF also gained a zero-copy UTF-8 parse, with delimiter detection during the join pass.
+
+## [0.1.10] — 2026-06-15
+
+*Reconstructed from the release commit (`04bbe9e`) — this entry was not written at release time.*
+
+### Added
+
+- **User guide** (`docs/user-guide.md`) — a full workflow guide for test engineers, with 19 Playwright-captured screenshots and the `capture-screenshots.mjs`/`capture-definitions.mjs` tooling that produces them.
+- **Test selector gained Save list / Load list, range select, and a type filter.**
+
+### Changed
+
+- **The test selector is now always shown** for any file carrying test data (STDF, ATDF, CSV, JSON) — the previous 200-test threshold is gone. It also receives capacity information (die × test count) to drive the memory advisory bar.
+- **`parse_stdf_test_names`/`parse_atdf_test_names` return `ScanResult { testDefs, dieCount }`** instead of a flat `HashMap`, which is what makes that memory advisory accurate (testdata-parser 0.2.3; the `normaliseScanResult` compatibility shim is gone with it). The `stdf_test_names`/`atdf_test_names` Tauri commands return `ScanResult` to match.
+- The "bin data only" confirmation uses a native dialog on Tauri — `onAsk` is wired to `platform.confirm()` rather than `window.confirm`.
+- mappingUI: the "Render maps →" button is now "Continue →".
+
+### Fixed
+
+- **An out-of-memory error during a full parse surfaced as a hang.** The parse is wrapped in try/catch and reports OOM as a readable idle message.
+
+
 ## [0.1.9] — 2026-06-10
 
 ### Added

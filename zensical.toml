@@ -10,6 +10,7 @@ nav = [
   { "Use cases"    = "use-cases.md"                    },
   { "User guide"   = "user-guide.md"                   },
   { "Integrations" = "integrating-data-selection.md"   },
+  { "Open-from-link demo" = "demos/open-from-link.html" },
   { "Web app"      = "web.md"                          },
   { "Parser API"   = "parser-api.md"                   },
   { "Development"  = "development.md"                  },
