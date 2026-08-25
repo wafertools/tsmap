@@ -3,6 +3,7 @@
 
 import type { CsvMapping } from './mappingUI';
 import type { LotMeta, WaferData, TestDef } from './types';
+import { openModal } from './modal';
 
 export interface RustParsedFile {
   meta: LotMeta;
@@ -103,8 +104,12 @@ export interface Platform {
    * browser, so it works fully offline. Web: it's served from the same
    * origin as the app (Vite copies public/ into the build output), so it's
    * just a relative link — no bundling step needed there.
+   *
+   * Returns whether the guide opened in a *separate window*. False means the
+   * web build fell back to an in-app modal because the popup was refused —
+   * still shown, but the caller must not claim "opening in your browser".
    */
-  openGuide(): void;
+  openGuide(): boolean;
   confirm(message: string): Promise<boolean>;
   stdfTestNames(file: FileHandle): Promise<ScanResult>;
   atdfTestNames(file: FileHandle): Promise<ScanResult>;
@@ -294,6 +299,8 @@ function makeTauriPlatform(): Platform {
         const path = await resolveResource('guide/index.html');
         await openPath(path);
       });
+      // Always a real system-browser window here — no popup blocker involved.
+      return true;
     },
 
     async confirm(message) {
@@ -413,6 +420,74 @@ function makeTauriPlatform(): Platform {
       await invoke('set_file_association', { extension, associate });
     },
   };
+}
+
+// ── Blocked-popup recovery (web only) ─────────────────────────────────────────
+// `window.open` returns null when a popup blocker — or an embedded WebView —
+// refuses the window. Every web call site below used to discard that return
+// value and fail silently; Help → "tsmap guide" went further and showed an
+// "Opening in browser…" toast for a window that never opened, which is exactly
+// the false reassurance that toast was added to prevent. Popup blocking is
+// default policy on plenty of managed desktops, so this is a normal path, not
+// an edge case.
+//
+// The popup is still tried first everywhere it was before: a real browser
+// window is what makes Ctrl+P / Save-as-PDF work on the guide and the report,
+// and an iframe can't offer that. These are the fallbacks for when it's
+// refused — the same try-popup-then-fall-back shape wmap already uses for its
+// own guide (`openUserGuideWindow`) and for gallery card detach.
+
+/** Open a popup, reporting whether it actually opened. */
+function openPopup(url: string, features?: string): boolean {
+  return window.open(url, '_blank', features) != null;
+}
+
+/**
+ * Show same-origin HTML in an in-app modal. Used when the popup is refused;
+ * `src` for a real URL, `srcdoc` for a generated document.
+ */
+function openFramedModal(title: string, source: { src: string } | { srcdoc: string }): void {
+  openModal({
+    title,
+    sizing: 'content',
+    mount(body) {
+      const frame = document.createElement('iframe');
+      if ('src' in source) frame.src = source.src;
+      else frame.srcdoc = source.srcdoc;
+      frame.title = title;
+      // inset:0 on a positioned parent rather than height:100% — see the
+      // cross-platform CSS rules in CLAUDE.md.
+      frame.style.cssText = 'position:absolute;inset:0;width:100%;border:0;background:var(--bg-base)';
+      body.style.position = 'relative';
+      body.appendChild(frame);
+    },
+  });
+}
+
+/**
+ * Last resort for an external URL, which can't be iframed (X-Frame-Options /
+ * frame-ancestors). Clicking the link is a fresh user gesture, so the blocker
+ * permits it — the user recovers in one click instead of hitting a dead button.
+ */
+function openBlockedLinkNotice(url: string): void {
+  openModal({
+    title: 'Popup blocked',
+    sizing: 'content',
+    contentSize: { width: 'min(90vw, 460px)', height: 'auto' },
+    mount(body) {
+      const p = document.createElement('p');
+      p.textContent = 'Your browser blocked the new window. Open the link directly:';
+      p.style.cssText = 'margin:0 0 12px;font-size:13px;color:var(--text-secondary)';
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = url;
+      a.style.cssText = 'font-size:13px;color:var(--accent);word-break:break-all';
+      body.append(p, a);
+      a.focus();
+    },
+  });
 }
 
 // ── WASM platform (parsing runs in a worker) ──────────────────────────────────
@@ -641,12 +716,17 @@ function makeWebPlatform(): Platform {
     openReport(html) {
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      // Popup first — a real browser window keeps Ctrl+P / Save-as-PDF working,
+      // which an iframe modal cannot offer. Fall back only when it's refused.
+      if (!openPopup(url)) openFramedModal('Summary report', { src: url });
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     },
 
     openExternal(url) {
-      window.open(url, '_blank', 'noopener');
+      // An arbitrary external origin can't be iframed (X-Frame-Options /
+      // frame-ancestors), so the recovery here is a link the user clicks —
+      // that click is a fresh user gesture, which the blocker allows.
+      if (!openPopup(url, 'noopener')) openBlockedLinkNotice(url);
     },
 
     openGuide() {
@@ -660,7 +740,12 @@ function makeWebPlatform(): Platform {
       // Vite's dev server doesn't resolve directory-index requests the way a
       // production static host does, so a trailing-slash URL silently falls
       // through to the app's own SPA shell instead of the guide.
-      window.open(new URL('guide/index.html', window.location.href).href, '_blank', 'noopener');
+      const href = new URL('guide/index.html', window.location.href).href;
+      // Popup first, for the same printing reason as openReport above. The
+      // guide is same-origin, so the fallback can iframe it directly.
+      if (openPopup(href, 'noopener')) return true;
+      openFramedModal('tsmap guide', { src: href });
+      return false;
     },
 
     async confirm(message) {

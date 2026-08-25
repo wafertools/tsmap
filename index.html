@@ -710,16 +710,18 @@
          main.ts) — a divider with nothing beside it reads as a rendering bug. */
       .tb-sep { width: 1px; align-self: stretch; margin: 3px 2px; background: var(--border-dim); flex-shrink: 0; }
       .tb-caret { opacity: 0.7; font-size: 10px; }
-      /* The checkbox glyph carries the on/off state so the button reads as a toggle, not a nav link. */
-      #value-findings-btn .vf-box::before { content: '\2610'; margin-right: 5px; }      /* ☐ off */
-      #value-findings-btn.active { border-color: var(--accent); color: var(--accent); background: var(--bg-accent-hover); }
-      #value-findings-btn.active .vf-box::before { content: '\2611'; }                  /* ☑ on */
       #drop-hint { white-space: nowrap; flex-shrink: 0; }
+      /* Shrinks to an ellipsis, but never below a width that can still show
+         something. Without the floor it collapsed to a single character plus
+         an ellipsis ("s…") at narrow widths — still occupying toolbar space,
+         still holding a tooltip, conveying nothing. Below the floor the
+         container query hides it outright and gives the space back. */
       #file-label {
         font-size: 12px; color: var(--text-muted);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        min-width: 0; flex-shrink: 1;
+        min-width: 9ch; flex-shrink: 1;
       }
+      @media (max-width: 900px) { #file-label { display: none; } }
       #busy-spinner {
         display: none; width: 13px; height: 13px; border-radius: 50%;
         border: 2px solid var(--border-dim); border-top-color: var(--accent);
@@ -913,8 +915,12 @@
         transform: rotate(-135deg); transition: transform 0.15s; margin-bottom: -2px;
       }
       #log-toggle[aria-expanded="true"]::after { transform: rotate(45deg); margin-bottom: 2px; }
+      /* Hugs its content up to a cap rather than always claiming 120px. A
+         fresh session's log is four or five lines; the fixed height spent a
+         quarter of a short viewport on empty space and cropped the top row of
+         wafer maps through the middle of the disc to do it. */
       #log-panel {
-        display: none; height: 120px; overflow-y: auto;
+        display: none; max-height: min(120px, 22vh); overflow-y: auto;
         padding: 4px 12px 6px;
       }
       #log-panel.open { display: block; border-top: 1px solid var(--border-subtle); }
@@ -945,9 +951,8 @@
         <span class="tb-sep" style="display:none"></span>
         <button id="lot-btn" class="tb-btn" style="display:none" aria-haspopup="menu" aria-expanded="false"
           title="Filter tests, wafer splits, and the lot-wide die list">Lot <span class="tb-caret">▾</span></button>
-        <button id="value-findings-btn" class="tb-btn" role="switch" style="display:none" aria-checked="false"><span class="vf-box"></span>Value findings</button>
         <span class="tb-sep" style="display:none"></span>
-        <button id="reset-btn" class="tb-btn tb-btn--danger" style="display:none" title="Unload all files and reset">Clear</button>
+        <button id="reset-btn" class="tb-btn tb-btn--danger" style="display:none" title="Unload all files and return to the start screen">Clear files</button>
         <span id="drop-hint">or drop a file anywhere</span>
         <span id="busy-spinner"></span>
         <span id="file-label"></span>

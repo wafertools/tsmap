@@ -132,6 +132,13 @@ export interface MenuRowOptions {
   onClick: () => void;
   /** Trailing icon markup, e.g. ICONS.externalLink to mark a row that leaves the app. */
   icon?: string;
+  /**
+   * Present = this row is a toggle, and the value is its current state. Renders
+   * a leading ☑/☐ and switches the row to `role="menuitemcheckbox"` with
+   * `aria-checked`, so it announces as a toggle rather than a plain command.
+   * Omit for an ordinary action row.
+   */
+  checked?: boolean;
 }
 
 /**
@@ -147,6 +154,18 @@ export function makeMenuRow(close: () => void, opts: MenuRowOptions): HTMLButton
   row.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:none;border-radius:4px;' +
     `padding:6px 10px;font-size:13px;color:${enabled ? 'var(--text-secondary)' : 'var(--text-veryfaint)'};` +
     `cursor:${enabled ? 'pointer' : 'default'};`;
+
+  if (opts.checked !== undefined) {
+    row.setAttribute('role', 'menuitemcheckbox');
+    row.setAttribute('aria-checked', String(opts.checked));
+    const box = document.createElement('span');
+    // Same ☑/☐ glyphs the toolbar's own switch used, so the control keeps its
+    // appearance when it moves into a menu.
+    box.textContent = opts.checked ? '☑' : '☐';
+    box.setAttribute('aria-hidden', 'true');
+    box.style.cssText = 'flex-shrink:0;font-size:14px;line-height:1;';
+    row.appendChild(box);
+  }
 
   const text = document.createElement('span');
   text.textContent = opts.label;

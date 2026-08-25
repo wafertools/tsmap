@@ -46,7 +46,6 @@ const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
 const recentBtn       = document.getElementById('recent-btn') as HTMLButtonElement;
 const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
 const filterFilesBtn  = document.getElementById('filter-files-btn') as HTMLButtonElement;
-const valueFindingsBtn  = document.getElementById('value-findings-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
 const fileLabel       = document.getElementById('file-label')!;
@@ -190,10 +189,14 @@ function setDragActive(on: boolean): void {
 
 // ── Platform intercepts ───────────────────────────────────────────────────────
 
-if (isTauri) {
-  // Route wmap HTML reports through Tauri — window.open is blocked in WebKitGTK.
-  setReportOpener((html: string) => platform.openReport(html));
+// Route wmap HTML reports through the platform adapter on BOTH targets. Tauri
+// needs it because window.open is blocked in WebKitGTK; web needs it because
+// wmap's own fallback is a bare console.warn, so a blocked popup lost the
+// report silently. This used to sit inside the isTauri block below, which left
+// webPlatform.openReport unreachable — implemented, but nothing could call it.
+setReportOpener((html: string) => platform.openReport(html));
 
+if (isTauri) {
   // File drop
   import('@tauri-apps/api/event').then(({ listen }) => {
     // Tauri emits its own drag lifecycle rather than DOM drag events.
@@ -417,25 +420,64 @@ let pendingSampleSplitSeed: Map<string, string> | null = null;
  */
 let pendingTestListPreload: string | null = null;
 
-/** Applies any saved splits for this exact wafer set and reports whether it
- * applied anything — callers must surface that (never apply silently), since
- * a previous session's splits reappearing with no visible cause is confusing. */
-function loadSavedSplits(wafers: WaferData[]): boolean {
+/**
+ * Ceiling on tests × dies for pre-ticking the whole test list in the selector.
+ *
+ * The selector's default-empty rule exists so a big lot can't blow memory on an
+ * accidental "import everything" — it is a proxy for cost, not a preference.
+ * Below this budget there is nothing to protect against, and making the user
+ * hunt for "Select all" is pure friction (the bundled sample is 7 tests × 2,873
+ * dies ≈ 20k, four orders of magnitude under).
+ *
+ * Budgeted on tests × dies rather than test count, because test count is not
+ * the cost driver: values accumulate per test per die, so 20 tests × 500k dies
+ * is far heavier than 200 tests × 2k dies. Thresholding on test count alone
+ * would auto-load the expensive case and still gate the cheap one. Both numbers
+ * are already known at this point from the first-pass scan.
+ *
+ * Deliberately not user-configurable: it is a setting almost nobody would find
+ * or tune, and Select all / Select none already cover whatever it gets wrong.
+ */
+const AUTOSELECT_CELL_BUDGET = 2_000_000;
+
+function isCheapToImportAll(testCount: number, dieCount: number): boolean {
+  // dieCount is 0 when nothing reported a die count — no basis to judge, so
+  // fall back to the conservative default rather than guessing.
+  return testCount > 0 && dieCount > 0 && testCount * dieCount <= AUTOSELECT_CELL_BUDGET;
+}
+
+/**
+ * Applies any saved splits for this exact wafer set and reports where they came
+ * from — callers must surface that (never apply silently), since splits
+ * reappearing with no visible cause is confusing.
+ *
+ * `'restored'` and `'seeded'` are distinguished because they warrant different
+ * treatment. A restore from a previous session is genuinely unexpected: the
+ * user did nothing to ask for it, so the dialog opens to show what happened. A
+ * seed is this same load writing the bundled sample's own splits moments
+ * earlier — expected, self-explanatory, and not worth a modal on top of the
+ * test selector the user has just dismissed.
+ */
+type SplitsRestore = 'none' | 'restored' | 'seeded';
+
+function loadSavedSplits(wafers: WaferData[]): SplitsRestore {
   try {
     const store = JSON.parse(localStorage.getItem(SPLITS_LS_KEY) ?? '{}');
+    const fromSeed = pendingSampleSplitSeed !== null;
     if (pendingSampleSplitSeed) {
       store[splitsFingerprint(wafers)] = Object.fromEntries(pendingSampleSplitSeed);
       localStorage.setItem(SPLITS_LS_KEY, JSON.stringify(store));
       pendingSampleSplitSeed = null;
     }
     const saved: Record<string, string> | undefined = store[splitsFingerprint(wafers)];
-    if (!saved) return false;
+    if (!saved) return 'none';
     let applied = false;
     for (const w of wafers) {
       if (getSplitLabel(w) === undefined && saved[w.waferId]) { setSplitLabel(w, saved[w.waferId]); applied = true; }
     }
-    return applied;
-  } catch { return false; }
+    if (!applied) return 'none';
+    return fromSeed ? 'seeded' : 'restored';
+  } catch { return 'none'; }
 }
 
 function saveSplits(wafers: WaferData[]): void {
@@ -464,11 +506,7 @@ function renderWafers(wafers: WaferData[], label: string, testDefs: Record<strin
   setToolbarGroupVisible(wafers.length > 0);
   // Value findings are only meaningful when there are test values. Reset
   // it off on every new load so a fresh (possibly large) lot starts on the fast path.
-  const hasTestValues = wafers.some(w => w.results.some(d => d.testValues && Object.keys(d.testValues).length > 0));
   valueFindings = false;
-  valueFindingsBtn.classList.remove('active');
-  valueFindingsBtn.setAttribute('aria-checked', 'false');
-  valueFindingsBtn.style.display = hasTestValues ? '' : 'none';
 
   const totalDies = wafers.reduce((n, w) => n + w.results.length, 0);
   const loadedMsg = `${label} — ${wafers.length} wafer${wafers.length !== 1 ? 's' : ''}, ${totalDies} dies`;
@@ -484,9 +522,14 @@ function renderWafers(wafers: WaferData[], label: string, testDefs: Record<strin
     // Splits carried over from a previous session on this exact wafer set —
     // never apply that silently. Open the dialog so it's obvious what
     // happened and the user can review, edit, or "Clear all" it.
-    if (restoredSplits) {
+    if (restoredSplits === 'restored') {
       log('info', 'Restored wafer splits from a previous session — review in the Splits dialog.');
       openSplitsDialog();
+    } else if (restoredSplits === 'seeded') {
+      // The sample lot ships with its own splits, so seeing them is expected.
+      // Log it rather than stacking a second dialog on the test selector the
+      // user has just worked through.
+      log('info', 'The sample lot includes wafer splits — edit them via Lot ▾ → Splits….');
     }
   }));
 }
@@ -605,7 +648,6 @@ function showEmptyState() {
   clearLotStatsCache();
   addBtn.disabled = true;
   setToolbarGroupVisible(false);
-  valueFindingsBtn.style.display = 'none';
   destroyMainView();
   container.classList.remove('gallery');
   container.innerHTML = `
@@ -1025,6 +1067,10 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     let scopedDefs = firstPassTestDefs;
     let carrySelection: number[] = [];
     let carryOverrides = new Map<number, TestOverride>();
+    // Only the very first open of this load gets the cheap-lot default below —
+    // a "scan all files" re-open must carry the user's actual selection, even
+    // when that selection is deliberately empty.
+    let firstOpen = true;
     // Consumed once, on the very first open of this load's selector — a
     // "scan all files" re-open within the same load must not keep re-applying
     // it over the user's in-progress adjustments (see pendingTestListPreload).
@@ -1036,6 +1082,13 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       const totalDieCount = binaryScanDieCount + csvDieCount;
       // Offer "scan all" only with >1 binary file and while still scoped to largest.
       const canScanAll = binaryFiles.length > 1 && scanScope === 'largest';
+
+      // Pre-tick everything when importing the lot is provably cheap. A CLI
+      // --tests preload always wins — it's an explicit instruction.
+      if (firstOpen && !testListPreload && isCheapToImportAll(allTestNums.size, totalDieCount)) {
+        carrySelection = [...allTestNums];
+      }
+      firstOpen = false;
 
       const result = await new Promise<{ kind: 'confirm'; selection: number[]; overrides: Map<number, TestOverride> }
                                      | { kind: 'cancel' }
@@ -1363,23 +1416,24 @@ if (isTauri) {
   });
 }
 
-valueFindingsBtn.addEventListener('click', () => {
+/** Toggle regional test-value findings and re-analyse. Reached from the Lot ▾
+ *  menu (`openLotMenu`); a named function rather than an inline listener so the
+ *  menu row can call it directly. */
+function toggleValueFindings() {
   if (busy || currentWafers.length === 0) return;
   valueFindings = !valueFindings;
-  valueFindingsBtn.classList.toggle('active', valueFindings);
-  valueFindingsBtn.setAttribute('aria-checked', String(valueFindings));
   // Analysis results are cached; the toggle changes what they contain, so drop
   // them. Re-render the current map view (gallery/single) with the new setting —
   // the raw dies are already in memory, so this is a re-analyse, not a reload.
   cachedLotStats = null;
-  log('info', `Value findings ${valueFindings ? 'on — recomputing regional test-value findings' : 'off'}`);
+  log('info', `Test-value findings ${valueFindings ? 'on — recomputing regional test-value findings' : 'off'}`);
   const label = currentFileName;
   setBusy(`${valueFindings ? 'Analysing' : 'Rendering'} ${label}…`);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     renderWaferView(currentWafers, label);
     setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
   }));
-});
+}
 
 resetBtn.addEventListener('click', () => {
   if (currentWafers.length === 0) return;
@@ -1680,7 +1734,12 @@ function openHelpMenu(anchor: HTMLElement) {
       popup.appendChild(makeMenuRow(close, {
         label: 'tsmap guide',
         hint: 'File loading, mapping, splits, test selector, and more — opens in your browser',
-        onClick: () => { showToast(anchor, 'Opening in browser…'); platform.openGuide(); },
+        // Toast only if a separate window actually opened. It used to fire
+        // unconditionally, so a blocked popup produced "Opening in browser…"
+        // for a window that never appeared — the exact false reassurance this
+        // toast exists to prevent. openGuide() shows its own in-app fallback
+        // when it returns false, which needs no toast: the user can see it.
+        onClick: () => { if (platform.openGuide()) showToast(anchor, 'Opening in browser…'); },
         icon: ICONS.externalLink,
       }));
 
@@ -1748,6 +1807,21 @@ function openLotMenu(anchor: HTMLElement) {
         hint: 'Define and assign wafer splits (process corners, experiment groups, etc.)',
         onClick: openSplitsDialog,
       }));
+      // Moved out of the app bar, where it was a bare switch reading "Value
+      // findings" with no indication of what it acted on. In a menu row there
+      // is room to name the object, and it sits with the other lot-scoped
+      // controls instead of beside the file buttons.
+      const hasTestValues = currentWafers.some(w =>
+        w.results.some(d => d.testValues && Object.keys(d.testValues).length > 0));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Show test-value findings',
+        hint: hasTestValues
+          ? 'Add regional test-value findings to the summary panel (slower on large lots)'
+          : 'This lot has no test values to analyse',
+        enabled: hasTestValues && !busy,
+        checked: valueFindings,
+        onClick: toggleValueFindings,
+      }));
     },
   );
 }
@@ -1773,7 +1847,6 @@ filterFilesBtn.addEventListener('click', () => {
 // a temporal-dead-zone ReferenceError and abort the module — killing every
 // button handler registered after it.
 upgradeTitleTooltips(document.getElementById('toolbar') ?? document);
-attachTooltip(valueFindingsBtn, 'Add regional test-value findings to the summary panel (slower on large lots)');
 attachTooltip(logToggle, logToggleTip);
 // file-label is CSS-truncated with ellipsis (long paths/filenames would
 // otherwise wrap and double the toolbar's height) — a getter-backed tooltip
