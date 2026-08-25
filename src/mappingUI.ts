@@ -620,11 +620,21 @@ export async function showMappingOverlay(
   };
 
   // Escape cancels the mapping overlay — same path as the Cancel button. Bail
-  // while the long-format sub-modal is open (it has its own Escape handler); we
-  // don't want Escape there to also tear down the parent mapping overlay.
+  // while either nested confirm sub-modal is open (each has its own Escape
+  // handler); we don't want Escape there to also tear down the parent mapping
+  // overlay. Both ids must be checked: `stopPropagation()` in the sub-modals'
+  // own handlers only stops *later* listeners on the same event, not other
+  // listeners already registered on `document` before it (this one, registered
+  // when the overlay opened) — so without this guard, Escape inside either
+  // sub-modal doesn't just dismiss it, it also fires straight through to here
+  // and discards the whole in-progress mapping. showLongFormatModal was
+  // guarded from the start; showNoPositionModal was added later and missed —
+  // that gap is exactly what let this bug through, so if a third sub-modal is
+  // ever added here, it needs the same id added below.
   function onKeyDown(e: KeyboardEvent): void {
     if (e.key !== 'Escape') return;
     if (document.getElementById('tsmap-longformat-backdrop')) return;
+    if (document.getElementById('tsmap-noposition-backdrop')) return;
     closeOverlay();
     onCancel();
   }

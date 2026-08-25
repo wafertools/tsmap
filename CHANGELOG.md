@@ -4,6 +4,17 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.29] — 2026-08-25
+
+### Changed
+
+- **wmap bumped to 0.24.3** (from 0.23.1). Ships, since 0.23.1: metadata reaching the die-list table and its CSV export plus a Summary panel "View die list" link (0.24.0, closes WMAP_ISSUES.md #41); fixes for the die-list modal opening behind a host's own `<dialog>` and the report popup being blocked as an ad (0.24.1); a die-list modal scrollbar fix (0.24.2); and, in 0.24.3, the die-list modal's font and padding rendering incorrectly when opened from a wafer detached into its own popup window, the "Data warnings" popup mispositioning in that same detached-popup case, and a matching fix for the in-app user guide window. No tsmap code changes were needed for the bump itself beyond the removal below. Published, unlinked, pinned to `^0.24.3`.
+- **tsmap's own "Die list…" Lot menu entry is gone**, along with the hand-rolled `openDieListDialog()` it opened (`main.ts`) — wmap's Summary panel has shipped an equivalent "View die list" link since 0.24.0 (per-wafer on a single map, lot-pooled with a Wafer column in the gallery), making tsmap's own copy of the same `buildDieListSection` call redundant. Reach it from the Summary panel instead of the Lot menu.
+
+### Fixed
+
+- **Escape while the "No X/Y columns assigned" confirmation was open (inside the column-mapping overlay) closed the entire mapping overlay instead of just that confirmation, discarding the in-progress column mapping.** The mapping overlay's own Escape guard (`mappingUI.ts`) checked for its *other* nested confirm dialog (`tsmap-longformat-backdrop`) but not this one (`tsmap-noposition-backdrop`) — a copy-paste gap from when the no-position confirmation was added after the long-format one. Both sub-modals call `stopPropagation()` on their own Escape handler, which (as the existing long-format guard's own comment already noted) only stops *later* listeners on the same event, not the parent overlay's listener registered *before* it — so the guard has to name every nested sub-modal explicitly; there's no way to make `stopPropagation()` alone sufficient.
+
 ## [0.1.28] — 2026-08-23
 
 ### Added

@@ -3,8 +3,7 @@ declare const __BUILD_DATE__: string;
 
 import { buildWaferMap } from '@wafertools/wafermap';
 import type { WaferMapResult } from '@wafertools/wafermap';
-import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, buildDieListSection } from '@wafertools/wafermap/render';
-import type { Die } from '@wafertools/wafermap';
+import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf } from '@wafertools/wafermap/render';
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
@@ -24,7 +23,6 @@ import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme 
 import { makeMenuSelect } from './menuSelect';
 import { showSplitsModal } from './splitsUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
-import { openModal } from './modal';
 import { showFileAssociationsModal } from './fileAssociationsUI';
 import { getSplitLabel, setSplitLabel, waferDisplayLabel, splitsFingerprint, parseSplitsCsv } from './splits';
 import { getRecentFiles, addRecentFiles, removeRecentFile, formatRecentTime } from './recentFiles';
@@ -1584,57 +1582,6 @@ function openSplitsDialog() {
 
 
 
-/**
- * Every die across the whole loaded lot as one table, with CSV export —
- * the "not per-card only" lot-level counterpart to the per-wafer die-list
- * wmap shows for a coordinate-less wafer's map replacement / mixed-wafer
- * footer. Reuses wmap's `buildDieListSection` (the same rendering component)
- * rather than a second implementation; the wafer-id attribution is the one
- * thing only tsmap can supply, since only tsmap has the "lot" concept.
- */
-function openDieListDialog() {
-  if (currentWafers.length === 0) return;
-  cachedLotStats ??= buildLotStatsSummary(currentWafers);
-  const { items } = cachedLotStats;
-
-  const waferLabelByDie = new WeakMap<Die, string>();
-  const allDies: Die[] = [];
-  for (const item of items) {
-    for (const die of item.dies) {
-      waferLabelByDie.set(die, item.label);
-      allDies.push(die);
-    }
-  }
-  const testDefs = toWmapTestDefs(currentTestDefs);
-
-  openModal({
-    title: 'Die list',
-    sizing: 'resizable',
-    // 'hidden', not 'auto': the TABLE owns the scrolling (buildDieListSection's
-    // own scroll box now fills its container), so the modal body must not
-    // scroll too — 'auto' gave two nested scrollbars, and it also makes the
-    // body a plain block, which has no definite height for the table to fill
-    // against. 'hidden' keeps the body a flex column, so the header row stays
-    // pinned and only the rows scroll.
-    bodyOverflow: 'hidden',
-    mount(body) {
-      body.style.cssText += 'padding:16px;';
-      const section = buildDieListSection(allDies, testDefs, {
-        title: `Die list — ${allDies.length} dies across ${items.length} wafer${items.length !== 1 ? 's' : ''}`,
-        csvFilename: 'dies.csv',
-        onSaveText,
-        extraColumn: { label: 'Wafer', get: (d) => waferLabelByDie.get(d) },
-      });
-      // No height:100% here any more — buildDieListSection sizes itself with
-      // flex:1/min-height:0, the pattern WebView2 actually resolves (see the
-      // cross-platform CSS rules in CLAUDE.md).
-      if (section) body.appendChild(section);
-    },
-  });
-}
-
-
-
 let closeHelpMenu: (() => void) | null = null;
 
 /**
@@ -1800,11 +1747,6 @@ function openLotMenu(anchor: HTMLElement) {
         label: 'Splits…',
         hint: 'Define and assign wafer splits (process corners, experiment groups, etc.)',
         onClick: openSplitsDialog,
-      }));
-      popup.appendChild(makeMenuRow(close, {
-        label: 'Die list…',
-        hint: 'View every die across the loaded lot as a table, with CSV export',
-        onClick: openDieListDialog,
       }));
     },
   );

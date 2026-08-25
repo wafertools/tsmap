@@ -8,9 +8,9 @@ At some point these will be converted into an implementation plan for wmap.
 | Field | Value |
 |-------|-------|
 | wmap package | **Renamed** from `@paulrobins/wafermap` to `@wafertools/wafermap` (2026-08-01), scope move only — no functional change. |
-| wmap version in use | **0.23.1** — published to npm and adopted (root pins `^0.23.1`, unlinked, `node_modules` resolves 0.23.1). |
-| Latest wmap release | **0.23.1** published to npm (2026-08-18). wmap's own CHANGELOG groups this and 0.23.0 under one `## [0.23.1]` heading (a wmap-side changelog gap — 0.23.0 never got its own entry before 0.23.1 was tagged), so the two are documented together here rather than split by exact patch. Together they ship: **support for dies/wafers with no reported X/Y position** (issue #39 — `Die.x`/`y`/`physX`/`physY` now optional, `hasPosition`/`isPositionedDie` predicates, spatial findings correctly exclude unpositioned dies while value/bin stats still count them, a coordinate-less wafer renders a bin/histogram summary instead of a fabricated map, new `buildDieListSection`); `renderWaferMap` accepting a `RenderableWaferMap` (no longer a full `WaferMapResult`) so the gallery's own cast-and-hope usage is now honest; a **fix for the degenerate-axis pitch bug** (issue #40 — a positioned-die subset confined to one row/column no longer gets read as "this wafer is 2x wider than tall"); and **stable `data-wmap-*` DOM hooks on the Insights tab** (issue #36 — chart cards, section grid, sub-tab bar, Group-by selects, toggle button), replacing tsmap's brittle heading-text-driven screenshot captures. **Breaking (0.23.0, minor bump):** `Die.x`/`y`/`physX`/`physY` are now optional, not `number` — every spatial function in the library now takes `PositionedDie[]`. tsmap's own coordinate-less-dies work (all four Rust parsers, `mappingUI.ts`, the **Die list…** toolbar button) was built against this while linked and is already committed (`d6ad5df`). Check [github.com/wafertools/wafermap/releases](https://github.com/wafertools/wafermap/releases) |
-| Previous wmap release | **0.22.0** published to npm (2026-08-07): the library surfaces its own data warnings — a ⚠ toolbar indicator plus a Summary-panel banner, fed by one collected, de-duplicated, severity-ordered set. **Breaking:** `StatsSummary.stats.warnings` is now `WaferWarning[]`, not `string[]` — tsmap never read that field, so it was unaffected. |
+| wmap version in use | **0.24.3** — published to npm and adopted (root pins `^0.24.3`, unlinked, `node_modules` resolves 0.24.3). |
+| Latest wmap release | **0.24.3** published to npm (2026-08-25). Fixes the die-list modal's font and padding rendering incorrectly when opened from a wafer detached into its own popup window (`dieList.ts` injected its stylesheet and built elements via the bare global `document` rather than the anchor's own document — correct in-page, wrong once the modal legitimately landed in a different document), the toolbar's "Data warnings" popup mispositioning in that same detached-popup case (`buildWarningsMenuEl`'s `ownerWindow` param existed but neither call site passed it), and a matching fix for the in-app user guide window (`openUserGuideWindow`/`openGuideInFloatingWindow`). Also normalized the shared toolbar/menu primitives (`buildCheckMenuEl`, `makeDropdown`, `makeSearchableTestCombo`, `summaryPanel.ts`'s internal `el()`) to the same doc-aware pattern, and added a build-time check (`check-overlay-conventions.mjs`) that fails on a new `openModal`/`openFloatingWindow` call missing `anchor`, or a new bare `document.head.appendChild`. No breaking changes. **0.24.0** (minor, breaking): metadata now reaches the die-list table and its CSV export (issue #41 — `DieListOptions.metadataColumns`/`waferMetadataColumns`, `RenderOptions.dieList`, new `metadataDisplayValue`/`metadataCategoricalValue`/`resolveMetadataColumns`/`discoverDieMetadataKeys` exports), a new "View die list" link on the Summary panel (on by default, `renderWaferMap`/`renderWaferGallery`), and wafer identity on the two per-test CSVs. **Breaking:** `buildDieListSection`/`RenderOptions.dieList` now caps rendered rows at `maxRows` (default `50_000`) — CSV export is never capped. tsmap sets no `dieList` options and populates no `Die.metadata`, so this adopted with no code change; `npm run check` + `npm test` (319 passing) both clean after the bump. **0.24.1**: fixed the die-list modal opening behind a host's own `<dialog>`, and the report popup being blocked as an ad (`window.open` + Blob URL instead of `document.write`). **0.24.2**: fixed the die-list modal's vertical scrollbar being pushed off-screen by `min-width: auto` on a wide table. Check [github.com/wafertools/wafermap/releases](https://github.com/wafertools/wafermap/releases) |
+| Previous wmap release | **0.23.1** published to npm (2026-08-18), together with 0.23.0: support for dies/wafers with no reported X/Y position (issue #39), `renderWaferMap` accepting a `RenderableWaferMap`, a fix for the degenerate-axis pitch bug (issue #40), and stable `data-wmap-*` DOM hooks on the Insights tab (issue #36). **Breaking (0.23.0):** `Die.x`/`y`/`physX`/`physY` are now optional, not `number`. **0.22.0**: the library surfaces its own data warnings — a ⚠ toolbar indicator plus a Summary-panel banner. **Breaking:** `StatsSummary.stats.warnings` is now `WaferWarning[]`, not `string[]` — tsmap never read that field, so it was unaffected. |
 | Earlier wmap releases | **0.21.1**: `maxSize` render option, gallery card-size fixes. **0.21.0** (breaking): removed long-deprecated aliases (`DieResult.values`/`Die.values`, `TestDef.index`, `colorBySpec`, etc.) — tsmap used none. **0.20.9**: fixed phantom "partial" dies at wafer edges (the edge-die yield fix). Full history in the update log below. |
 | testdata-parser package | **Renamed** from `@paulrobins/testdata-parser` to `@wafertools/testdata-parser` (2026-08-01), scope move only — no functional change. |
 | testdata-parser version | **0.5.0** — published to npm and adopted (root pins `^0.5.0`, lockfile + `node_modules` resolve 0.5.0, crate `Cargo.toml` at 0.5.0). Closes the publish that issue #34 left outstanding — the WASM/browser path now carries real `test_pass`/`testType` functional-test data instead of the legacy-encoded fallback. |
@@ -876,3 +876,114 @@ That inference is backwards for this case: a positioned-die subset confined to a
 **Future enhancement (not implemented, proposed 2026-08-18):** the fix above only prevents a *wrong* guess for a wafer with degenerate position coverage — it can't recover the *correct* aspect ratio for that wafer, because `resolveGridPitch` only ever sees one wafer's dies at a time (it's called per-wafer inside `buildWaferMap`, which has no visibility into sibling wafers). A more capable approach would pool positioned-die coordinates across every wafer in a lot/gallery batch before inferring pitch, since a wafer with sparse coverage often sits alongside other wafers of the same device with full coverage. This would need to live above `resolveGridPitch` — e.g. a lot-level pre-pass (natural fit: `renderWaferGallery`, which already has every wafer's `WaferMapResult` in hand) that infers a shared pitch and feeds it into each wafer's `buildWaferMap` call via `dieConfig` — and would need a real grouping key (device/part-type/lot metadata) so it's never applied across a batch of genuinely different device geometries. Bigger design than this bug fix; not scoped or scheduled.
 
 **Status:** fixed and published in wmap 0.23.1 (2026-08-18); tsmap unlinked and pinned to `^0.23.1`. The future enhancement above remains open and unscheduled.
+
+### ~~41. Die-level metadata renders in tooltips but is silently dropped from the die-list CSV export~~ (fixed in wmap 0.24.0, published)
+
+**Where:** `buildDieListSection` (`packages/canvas-adapter/dieList.ts`) — the fixed `columns` array, which backs both the on-screen table and the "Export CSV" button. Contrast `buildHoverText` (`packages/renderer/buildView.ts`), which does render it.
+
+**Problem:** the two surfaces disagree about whether `DieMetadata` is real data.
+
+The tooltip treats it as first-class — it merges wafer and die metadata and renders every key, with per-die keys overriding the wafer value of the same name, skipping only `null`/`undefined`:
+
+```ts
+const meta = { ...(waferMeta ?? {}), ...(die.metadata ?? {}) };
+for (const [key, value] of Object.entries(meta)) { … }
+```
+
+The die list has a fixed column set and no metadata at all, wafer- or die-level:
+
+```
+[extraColumn?] · Position · Site · Hard bin · Soft bin · <one column per test>
+```
+
+The table and the CSV are generated from that same array, so both omit it — what you see is what you export, and neither shows it.
+
+The consequence is the asymmetry, not the omission on its own. A host that populates `DieMetadata` gets it displayed on hover, which reasonably implies the field is carried through the library; the export then drops it with no warning, no column, and no note. The realistic failure is a user who hovers a die, sees a per-die field, exports the die list intending to filter on it in a spreadsheet, and finds no such column — with nothing on screen explaining why.
+
+`extraColumn` is a partial escape hatch, but **only for a host calling `buildDieListSection` itself**. It is (a) a single column and (b) already spent in tsmap's own lot-wide list on the wafer label (`main.ts`, `extraColumn: { label: 'Wafer', get: … }`), so a host wanting both a wafer label and one metadata field cannot have them.
+
+**Through wmap's own built-in UI there is no escape hatch at all.** The library's single internal call site hardcodes its options:
+
+```ts
+// renderWaferMap.ts:468 — the "View die list" toggle
+buildDieListSection(unpositionedDies, result.testDefs, { onSaveText: options.onSaveText })
+```
+
+Nothing on `RenderOptions` reaches `DieListOptions` — no `dieList` passthrough, no column hook (confirmed by grep: `extraColumn`/`metadataColumns` appear nowhere outside `dieList.ts`). So a user who reaches the die list through wmap's own toggle and Export CSV button gets those fixed columns and no way for the host to add one. That path also drops `Die.partId` and `Die.retestCount`, both of which the tooltip shows.
+
+The only lever left on that path is intercepting the CSV in `onSaveText(text, name, mime)` and rewriting it before saving. That works, but rows cannot be identified by content — the built-in list contains only unpositioned dies, so `positionLabel` renders `—` for every row — leaving row order as the sole join key. A host must reproduce `result.dies.filter((d) => !hasPosition(d))` exactly and match by index. It also fixes only the CSV: the on-screen table still lacks the column, so the two now disagree in the opposite direction.
+
+**tsmap-side impact:** none today. tsmap sets no per-die metadata — everything it attaches is wafer-level (splits via `SPLIT_FIELD_KEY`, provenance via `WaferSource`), so nothing is missing from its current exports. Logged because the gap is in wmap's public API rather than in tsmap's use of it, and because tsmap hits it the moment it surfaces a genuinely per-die field — probe card, site group, or a retest pass index are all plausible.
+
+**Suggested fix:** give `DieListOptions` a `metadataColumns?: string[] | 'auto'`.
+
+- An explicit array names the keys to show, in that order — the right default for a host that knows its own schema.
+- `'auto'` takes the union of keys present across the die set and sorts them, mirroring what `fileFilterUI.ts`/`filterTable.ts` already do for a batch of files with differing metadata. Worth having because a host merging data from several sources may not know the key set up front.
+- Stringify through the same path the tooltip uses, so hover and CSV can never disagree about how a value is rendered. That shared path is the actual point of the fix; two independent formatters would reintroduce the same class of divergence.
+- Scope to `die.metadata` only. `buildDieListSection` receives dies, not wafer metadata, and a wafer-constant column repeated down every row of a per-wafer list is noise.
+
+Worth doing in the same pass: `extraColumn` → `extraColumns?: Array<{ label, get }>` (keeping the singular form as an alias, so no caller breaks). One arbitrary slot is what forces the choice between a wafer label and anything else; the limit has no reason behind it.
+
+**Status:** fixed in wmap (0.24.0, unpublished at the time of writing — developed via the link
+workflow). All four suggestions above landed, plus more than was originally scoped:
+
+- `DieListOptions.metadataColumns` (default `'auto'`) and `waferMetadataColumns` (default
+  `'csv'`) — die metadata on by default in both the table and CSV; wafer metadata CSV-only by
+  default, since it's constant down every row. Stringification goes through new
+  `metadataDisplayValue`/`metadataCategoricalValue` (`@wafertools/wafermap/core`), which also
+  replaced the tooltip's own inline stringifier and three other near-duplicates — so hover and
+  export genuinely share one code path now, not just "the same rule applied twice".
+- `RenderOptions.dieList?: DieListDisplayOptions` closes the "no escape hatch at all" gap on
+  wmap's own built-in view — the wafer metadata and `metadataFields` it needs are always
+  supplied by the library from the current build result, never from the host option.
+- The two per-test CSVs (`test-values.csv`, `functional-tests.csv`) also gained wafer identity,
+  which they'd never had at all — a lot-pooled export previously had no wafer/lot column
+  whatsoever. Self-derived from `perWaferSummaries` in both lot builders, so no call-site change
+  was needed. Die-level metadata is deliberately *not* added to these two: a row there
+  aggregates over many dies, so no single die-level value exists to print.
+- Went further than the suggested fix on two points: `extraColumn` was left alone rather than
+  becoming `extraColumns` (the new metadata columns make the multi-column need moot, so the
+  API-surface cost of adding a second option wasn't justified); and a new `maxRows` (default
+  `50_000`) caps the table's DOM cost, since it has no virtualisation and the new columns would
+  otherwise have made the existing large-lot case (~1.3M elements at 266k dies) strictly worse
+  rather than net-better. The CSV export itself is never capped.
+
+**tsmap-side action, wmap 0.24.2 adopted 2026-08-24:** items 1–3 below verified done. tsmap's
+`main.ts` "Die list…" call (`buildDieListSection` at line ~1622) passes no
+`CsvExportContext`/wafer metadata, so `waferMetadataColumns` (CSV-only by default) has nothing
+to emit and cannot duplicate the existing `extraColumn: { label: 'Wafer', … }`. tsmap also still
+populates no `Die.metadata`, so `metadataColumns: 'auto'` finds no keys either. `npm run check`
+and `npm test` (319 passing) both clean after the bump.
+
+1. If tsmap ever wants a genuinely per-die annotation (probe card, site group, a retest pass
+   index), it now has a real path: populate `Die.metadata` and it appears in both the table and
+   CSV automatically, no `extraColumn`-style plumbing required. Not needed today — left open.
+2. `wmap` bumped to `^0.24.2` in the normal unlink/re-pin flow. Minor bump (new public API, plus
+   a behaviour change — the die-list table now defaults to capping at 50,000 rendered rows, CSV
+   unaffected) — no other breakage found.
+3. **Stopgap applied**, per item 4's own explicit either/or: both `renderWaferMap` and
+   `renderWaferGallery` calls in `main.ts` now pass `dieList: { enabled: false }`, since this
+   pass is the release that actually crosses the `^0.24.0` line and the duplication described
+   below is otherwise live immediately, not hypothetical. The full rework (deleting
+   `openDieListDialog` in favour of wmap's own link) is deliberately **not** done here — it's
+   the separate follow-up item 4 already scopes out below.
+4. ~~`main.ts`'s `openDieListDialog()` (the "Lot ▾ → Die list…" toolbar menu row) is now
+   redundant~~ (done — `openDieListDialog`, its `Die`/`buildDieListSection` imports, and the
+   "Die list…" `Lot ▾` menu row are all deleted; `openModal`'s import went with them, caught by
+   `tsc --noEmit` reporting it unused). wmap is bumped to `^0.24.2` (`package.json`,
+   `package-lock.json`). Both `renderWaferMap`/`renderWaferGallery` call sites already pass
+   `summaryPanel: { placement: 'right', defaultOpen: true }` with no `dieList` option, so wmap's
+   built-in "View die list" link (default-enabled since it's a plain panel link, not a toolbar
+   button) is what tsmap now ships — the full rework, not the `{ enabled: false }` stopgap this
+   entry originally scoped as the alternative. `cachedLotStats`/`buildLotStatsSummary` remain in
+   use elsewhere (the gallery's own lot stats) and were not touched. Verified clean:
+   `tsc --noEmit`, `eslint src`, `vitest run` (319/319), `check-architecture-docs.mjs`,
+   `check-changelog.mjs`, `check-wmap-published.js`.
+
+A host using wmap directly can approximate one metadata column today, since `extraColumn.get` receives the whole `Die` and `Die.metadata` is public:
+
+```ts
+extraColumn: { label: 'Probe card', get: (d) => d.metadata?.probeCard as string | undefined }
+```
+
+`get` returning `undefined` renders an empty cell, which is the documented behaviour. The limits are that it is one column, it is forced to the leading position, and the value arrives as `unknown` so the host casts or stringifies it itself.
