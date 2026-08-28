@@ -4,6 +4,13 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.32] — 2026-08-28
+
+### Fixed
+
+- **The in-app user guide ignored dark themes entirely — Nord, Dark, and Solarized Dark all rendered it as plain light**, and worse, wmap's own section of the combined guide (which *does* try to follow the theme) came out with pale, near-illegible text on a plain white background. Root cause: `scripts/build-user-guide.mjs`'s generated fragment hardcoded a fixed light-theme colour block (`LIGHT_TOKENS`), scoped so it wouldn't leak into the rest of the app — a holdover from when the guide was a genuinely separate standalone page with no relationship to the app's theme at all. Once the guide was folded back into the same document as the running app (see WMAP_ISSUES.md #37), that hardcoded block started actively shadowing the app's real, live theme tokens sitting one ancestor away, instead of letting them cascade in for free. Removed entirely — the guide's own CSS now references the app's real token names directly (with light fallbacks for the one case where there's no ancestor to inherit from at all: a real separate popup window, browser hosts only). Verified against Nord and Solarized Dark in the desktop-equivalent (in-page) path: fully correct, seamless theming, no code beyond the removal needed. wmap's own half of this fix (a missing `background` on its guide chrome) ships in wmap 0.26.1.
+- **wmap bumped to 0.26.1** (from 0.26.0), patch, no breaking changes. Fixes the guide's dark-theme background (companion to the fix above) and `edgeExcluded` dies rendering almost invisibly against the default light data colour scheme (now a visibly darker, distinct grey). Full list in wafermap's own `CHANGELOG.md` [0.26.1]. Published, unlinked, pinned to `^0.26.1`.
+
 ## [0.1.31] — 2026-08-28
 
 ### Added

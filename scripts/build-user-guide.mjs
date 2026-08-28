@@ -116,45 +116,6 @@ html = html.replace(
     `href="#${id}" onclick="(function(e){e.preventDefault();var t=document.querySelector('.tsmap-guide [id=\\'${id}\\']');if(t)t.scrollIntoView({behavior:'smooth'});})(event)"`
 );
 
-// ── Light theme tokens ─────────────────────────────────────────────────────────
-// This fragment is injected into wmap's guide window, which carries its own
-// (light-only) chrome and has no host tokens for these to inherit from — so,
-// same as the old standalone page, it carries its own fixed light-theme
-// values, sourced from index.html's light block. Deliberately a plain
-// literal: this script runs under plain Node, not the app's TS build, so it
-// can't import from src/.
-//
-// Scoped to .tsmap-guide-scope, NOT :root: wmap's "in-page floating window"
-// fallback (the path Tauri/WebKitGTK always takes — window.open is blocked
-// there) injects this fragment as a DOM subtree inside the SAME document as
-// the running tsmap app, not a separate page. A bare :root rule would then
-// override tsmap's own theme tokens for the entire app for as long as the
-// guide stayed open. A real popup window (plain browser hosts) gets its own
-// document, where scoping would be unnecessary but is still harmless —
-// CSS custom properties cascade from any ancestor, not just :root.
-const LIGHT_TOKENS = `
-  --accent: #1a6bbf;
-  --bg-input: #fff;
-  --bg-modal: #fff;
-  --bg-overlay: #fff;
-  --bg-toolbar: #f0f0f0;
-  --bg-row-border: #e8e8e8;
-  --border-strong: #ccc;
-  --border-mid: #bbb;
-  --border-muted: #bbb;
-  --border-dim: #aaa;
-  --border-subtle: #d8d8d8;
-  --text-primary: #111;
-  --text-secondary: #222;
-  --text-tertiary: #333;
-  --text-muted: #555;
-  --text-dim: #666;
-  --text-light: #1a1a1a;
-  --text-subdued: #444;
-  --error-text: #b91c1c;
-  --warn-text: #92400e;
-`;
-
 // ── Guide typography ───────────────────────────────────────────────────────────
 // Matches wmap's own `.wmap-guide` box model exactly (padding, max-width,
 // centering) — see WMAP_ISSUES.md #37 — so the two sections of the combined
@@ -164,36 +125,60 @@ const LIGHT_TOKENS = `
 // does (wmap sets it on maximise/restore; see UserGuideExtension's own doc
 // comment in wmap for the convention), so this section's line length widens
 // in step with wmap's rather than staying capped while wmap's grows.
+//
+// Every colour below is `var(--token, <light fallback>)` — the SAME token
+// names index.html's own theme blocks define (--text-light, --bg-input,
+// etc.), deliberately NOT redefined or scoped anywhere in this fragment.
+// This used to hardcode a fixed light-theme block (`LIGHT_TOKENS`, removed
+// 2026-08-28) on the reasoning that the guide had no host tokens to inherit
+// from — true when the guide was a standalone page, but wrong once it was
+// folded back into the SAME document as the running app (see WMAP_ISSUES.md
+// #37): in that state (the in-page floating-window fallback, which is what
+// Tauri/WebKitGTK always uses — window.open is blocked there), tsmap's real,
+// live theme tokens are already sitting one ancestor away on
+// `<html data-theme="…">`, and the hardcoded block was silently shadowing
+// them, forcing every theme to render as light regardless of what was
+// active — the Nord/Dark/Solarized Dark themes were reading pale text
+// against no matching background because the SAME symptom exists in wmap's
+// own guide chrome, not just here (fixed the same day in wmap's own
+// `build-user-guide.mjs`). Letting these fall through to a real ancestor
+// value is exactly what a normal themed element in `index.html` already
+// does — the guide fragment has no special reason to opt out of that.
+// The `<light fallback>` on each `var()` only matters for the rare case
+// where the guide opens as a genuinely separate document with no ancestor
+// at all (a real popup window, plain browser hosts only, when window.open
+// isn't blocked) — falls back to a plain readable light rendering there,
+// same as wmap's own guide's fallback convention.
 const guideCss = `
-.tsmap-guide { font-size: 14px; color: var(--text-light); line-height: 1.65; padding: 24px 32px; max-width: var(--wmap-guide-reading-width, 720px); margin: 0 auto; box-sizing: border-box; }
-.tsmap-guide h1 { font-size: 1.35em; font-weight: 700; margin: 0 0 18px; padding-bottom: 10px; border-bottom: 2px solid var(--border-mid); color: var(--text-primary); }
-.tsmap-guide h2 { font-size: 1.1em; font-weight: 700; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
-.tsmap-guide h3 { font-size: 1em; font-weight: 700; margin: 20px 0 6px; color: var(--text-tertiary); }
-.tsmap-guide h4 { font-size: 0.9em; font-weight: 600; margin: 14px 0 5px; color: var(--text-muted); }
-.tsmap-guide p  { margin: 0 0 12px; color: var(--text-subdued); }
-.tsmap-guide ul, .tsmap-guide ol { padding-left: 22px; margin: 0 0 12px; color: var(--text-subdued); }
+.tsmap-guide { font-size: 14px; color: var(--text-light, #1a1a1a); line-height: 1.65; padding: 24px 32px; max-width: var(--wmap-guide-reading-width, 720px); margin: 0 auto; box-sizing: border-box; }
+.tsmap-guide h1 { font-size: 1.35em; font-weight: 700; margin: 0 0 18px; padding-bottom: 10px; border-bottom: 2px solid var(--border-mid, #bbb); color: var(--text-primary, #111); }
+.tsmap-guide h2 { font-size: 1.1em; font-weight: 700; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border-subtle, #d8d8d8); color: var(--text-secondary, #222); }
+.tsmap-guide h3 { font-size: 1em; font-weight: 700; margin: 20px 0 6px; color: var(--text-tertiary, #333); }
+.tsmap-guide h4 { font-size: 0.9em; font-weight: 600; margin: 14px 0 5px; color: var(--text-muted, #555); }
+.tsmap-guide p  { margin: 0 0 12px; color: var(--text-subdued, #444); }
+.tsmap-guide ul, .tsmap-guide ol { padding-left: 22px; margin: 0 0 12px; color: var(--text-subdued, #444); }
 .tsmap-guide li { margin-bottom: 4px; }
-.tsmap-guide a  { color: var(--accent); text-decoration: none; }
+.tsmap-guide a  { color: var(--accent, #1a6bbf); text-decoration: none; }
 .tsmap-guide a:hover { text-decoration: underline; }
 .tsmap-guide strong { font-weight: 600; }
 .tsmap-guide code {
   font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
-  font-size: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle);
-  border-radius: 3px; padding: 1px 5px; color: var(--text-tertiary);
+  font-size: 12px; background: var(--bg-input, #fff); border: 1px solid var(--border-subtle, #d8d8d8);
+  border-radius: 3px; padding: 1px 5px; color: var(--text-tertiary, #333);
 }
 .tsmap-guide pre {
-  background: var(--bg-input); border: 1px solid var(--border-subtle);
+  background: var(--bg-input, #fff); border: 1px solid var(--border-subtle, #d8d8d8);
   border-radius: 4px; padding: 10px 12px; overflow-x: auto; margin: 0 0 12px;
 }
 .tsmap-guide pre code { background: none; border: none; padding: 0; font-size: 12px; }
 .tsmap-guide table { border-collapse: collapse; width: 100%; max-width: 900px; margin: 0 0 16px; font-size: 13px; }
-.tsmap-guide th { text-align: left; padding: 7px 10px; color: var(--text-tertiary); font-weight: 600; background: var(--bg-toolbar); border: 1px solid var(--border-mid); }
-.tsmap-guide td { padding: 6px 10px; color: var(--text-subdued); border: 1px solid var(--border-subtle); vertical-align: top; }
-.tsmap-guide tr:nth-child(even) td { background: var(--bg-row-border); }
+.tsmap-guide th { text-align: left; padding: 7px 10px; color: var(--text-tertiary, #333); font-weight: 600; background: var(--bg-toolbar, #f0f0f0); border: 1px solid var(--border-mid, #bbb); }
+.tsmap-guide td { padding: 6px 10px; color: var(--text-subdued, #444); border: 1px solid var(--border-subtle, #d8d8d8); vertical-align: top; }
+.tsmap-guide tr:nth-child(even) td { background: var(--bg-row-border, #e8e8e8); }
 .tsmap-guide img { max-width: 100%; height: auto; }
 .tsmap-guide .tsmap-mockup { max-width: 760px; }
-.tsmap-guide hr { border: none; border-top: 1px solid var(--border-subtle); margin: 24px 0; }
-.tsmap-guide blockquote { border-left: 3px solid var(--border-mid); margin: 0 0 12px; padding: 4px 12px; color: var(--text-muted); }
+.tsmap-guide hr { border: none; border-top: 1px solid var(--border-subtle, #d8d8d8); margin: 24px 0; }
+.tsmap-guide blockquote { border-left: 3px solid var(--border-mid, #bbb); margin: 0 0 12px; padding: 4px 12px; color: var(--text-muted, #555); }
 @media print {
   .tsmap-guide h1, .tsmap-guide h2, .tsmap-guide h3, .tsmap-guide h4 { break-after: avoid; }
   .tsmap-guide pre, .tsmap-guide table, .tsmap-guide img { break-inside: avoid; }
@@ -209,7 +194,7 @@ for (const f of readdirSync(join(ROOT, 'docs/images'))) {
 }
 
 // ── Assemble the fragment (no <!doctype>/<head>/<body> — see header comment) ──
-const fragment = `<style>.tsmap-guide-scope{${LIGHT_TOKENS}}${guideCss}</style><div class="tsmap-guide-scope"><div class="tsmap-guide">${html}</div></div>`;
+const fragment = `<style>${guideCss}</style><div class="tsmap-guide">${html}</div>`;
 
 // ── Emit as a generated TS module (mirrors wmap's own userGuideHtml.ts) ───────
 const moduleSrc = `// GENERATED by scripts/build-user-guide.mjs from docs/user-guide.md — do not edit by hand.
