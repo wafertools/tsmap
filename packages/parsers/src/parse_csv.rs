@@ -433,7 +433,7 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
     }
 
     let warnings = position_warnings(&wafers);
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings })
+    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings })
 }
 
 /// Allocation-light wide-format parse: resolve every mapped column to an index
@@ -559,7 +559,7 @@ fn parse_csv_wide(
     }
 
     let warnings = position_warnings(&wafers);
-    ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings }
+    ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings }
 }
 
 fn detect_delimiter(bytes: &[u8]) -> u8 {

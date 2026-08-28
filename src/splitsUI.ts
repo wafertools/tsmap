@@ -6,7 +6,7 @@
 // module only owns the assignment UI.
 
 import type { WaferData } from './types';
-import { openModal } from './modal';
+import { openModal, SECONDARY_BTN_CSS } from './modal';
 import { getSplitLabel, setSplitLabel, clearAllSplits, listSplitValues, parseSplitsCsv, formatSplitsCsv } from './splits';
 
 export interface SplitsUIOptions {
@@ -30,10 +30,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
   let lastClickedVisibleIndex: number | null = null;
   let searchQuery = '';
 
-  const secondaryBtnCss = [
-    'padding:6px 14px;border-radius:4px;border:1px solid var(--border-mid)',
-    'background:none;color:var(--text-secondary);cursor:pointer;font-size:13px',
-  ].join(';');
+  const secondaryBtnCss = SECONDARY_BTN_CSS;
 
   const modalHandle = openModal({
     title: `Wafer splits (${wafers.length} wafer${wafers.length !== 1 ? 's' : ''})`,

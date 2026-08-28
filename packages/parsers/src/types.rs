@@ -206,6 +206,40 @@ pub struct SiteInfo {
     pub site_num: u32,
 }
 
+/// One bin's human-readable name, from an STDF/ATDF HBR (hard bin) or SBR
+/// (soft bin) record — hard and soft bins occupy independent number spaces
+/// (STDF V4), so `ParsedStdf` carries separate `hbin_defs`/`sbin_defs`, never
+/// mixed. Matches wmap's own `BinDef` shape (`{ bin, name }` — `color` has no
+/// STDF/ATDF source, left for the host to set if it wants one).
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BinDef {
+    pub bin: u32,
+    pub name: String,
+}
+
+/// Sorts a `bin → name` accumulator (built identically by the STDF and ATDF
+/// parsers from HBR/SBR) into the `Vec<BinDef>` `ParsedStdf` carries — sorted
+/// by bin number for deterministic output (a `HashMap`'s iteration order
+/// isn't). Shared here rather than duplicated per parser since it has no
+/// format-specific logic.
+pub fn finish_bin_defs(names: HashMap<u32, String>) -> Vec<BinDef> {
+    let mut defs: Vec<BinDef> = names.into_iter().map(|(bin, name)| BinDef { bin, name }).collect();
+    defs.sort_by_key(|d| d.bin);
+    defs
+}
+
+/// A single decoded HBR/SBR record — bin number, optional name (blank/absent
+/// is `None`, never an empty string), and whether `BIN_PF` was `'P'`. Shared
+/// shape for both the STDF (binary) and ATDF (text field-map) decoders, which
+/// keep their own decode functions since the extraction mechanics genuinely
+/// differ, but produce this same triple.
+pub struct BinRecord {
+    pub bin: u32,
+    pub name: Option<String>,
+    pub pass: bool,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParsedStdf {
@@ -213,6 +247,21 @@ pub struct ParsedStdf {
     pub wafers: Vec<WaferData>,
     pub test_defs: HashMap<String, TestDef>,
     pub sites: Vec<SiteInfo>,
+    /// Hard/soft bin names from HBR/SBR, one entry per distinct bin number
+    /// that had a non-empty name (a bin with no recorded name is omitted,
+    /// not emitted with an empty string — the host falls back to its own
+    /// "Bin N" default). Empty array is omitted from the serialised output.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hbin_defs: Vec<BinDef>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sbin_defs: Vec<BinDef>,
+    /// Hard bin numbers HBR marks Pass (`HBIN_PF == 'P'`) — feeds wmap's
+    /// `waferConfig.passBins`, which otherwise defaults to `[1]` regardless
+    /// of whether bin 1 is actually this file's pass bin. Empty when no HBR
+    /// record had a usable Pass flag; the host leaves wmap's own default in
+    /// place rather than passing an empty (meaning "nothing passes") array.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pass_hbins: Vec<u32>,
     /// Non-fatal advisories surfaced to the host (e.g. fabricated soft bins).
     /// Empty array is omitted from the serialised output.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -94,6 +94,23 @@ const btnStyle: Partial<CSSStyleDeclaration> = {
 };
 
 /**
+ * Shared style for a text-labelled secondary (non-primary) button inside a
+ * modal body — Cancel, Save…, Load…, etc. (`btnStyle` above is for the
+ * modal's own 24×24 header icon buttons — a different shape, not this).
+ * Filled/primary buttons use `--btn-primary-bg`/`--btn-primary-text` instead
+ * (see CLAUDE.md's "Filled buttons" rule) — never this constant.
+ *
+ * Centralized here after `splitsUI.ts`, `waferGeometryUI.ts`,
+ * `definitionsTemplatesUI.ts`, and two dialogs in `main.ts` had each grown a
+ * byte-identical copy of this exact string — the same drift `anchoredMenu.ts`
+ * was extracted to fix (see this repo's own CLAUDE.md on that).
+ */
+export const SECONDARY_BTN_CSS = [
+  'padding:6px 14px;border-radius:4px;border:1px solid var(--border-mid)',
+  'background:none;color:var(--text-secondary);cursor:pointer;font-size:13px',
+].join(';');
+
+/**
  * Open a modal dialog. Returns a handle so the caller can close it
  * programmatically or reach the box/body. The modal owns all backdrop, header,
  * keyboard, and lifecycle behaviour; callers supply only content and teardown.

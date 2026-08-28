@@ -5,6 +5,7 @@ import type { RustParsedFile, StdfTestNames } from './platform';
 import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
 import type { PlotMode } from '@wafertools/wafermap';
 import type { WaferMetadata } from '@wafertools/wafermap/renderer';
+import type { WaferConfig, DieConfig, BinDef } from '@wafertools/wafermap';
 
 export function basename(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;
@@ -101,7 +102,35 @@ export function errMsg(e: unknown): string {
 }
 
 export function rustToLocal(r: RustParsedFile, fileName: string): ParsedFile {
-  return { fileName, meta: r.meta, wafers: r.wafers, testDefs: r.testDefs, warnings: r.warnings };
+  return {
+    fileName, meta: r.meta, wafers: r.wafers, testDefs: r.testDefs,
+    hbinDefs: r.hbinDefs, sbinDefs: r.sbinDefs, passHbins: r.passHbins,
+    warnings: r.warnings,
+  };
+}
+
+/**
+ * Merges hard/soft bin-name lists across multiple parsed files (a multi-file
+ * load or an append), deduping by bin number — a later list's entry for the
+ * same bin overwrites an earlier one, mirroring the within-file HBR/SBR
+ * "last wins" rule the Rust parser already applies (see `finish_bin_defs` in
+ * `parse_stdf.rs`/`parse_atdf.rs`). Returns `undefined` when every input was
+ * empty/absent, so `ParsedFile`'s "absent means nothing to show" convention
+ * survives a merge rather than becoming a present-but-empty array.
+ */
+export function mergeBinDefs(lists: Array<BinDef[] | undefined>): BinDef[] | undefined {
+  const byBin = new Map<number, string>();
+  for (const list of lists) for (const d of list ?? []) byBin.set(d.bin, d.name);
+  if (byBin.size === 0) return undefined;
+  return [...byBin.entries()].map(([bin, name]) => ({ bin, name })).sort((a, b) => a.bin - b.bin);
+}
+
+/** Unions pass-hard-bin lists across multiple parsed files, deduped and sorted. */
+export function mergePassHbins(lists: Array<number[] | undefined>): number[] | undefined {
+  const set = new Set<number>();
+  for (const list of lists) for (const bin of list ?? []) set.add(bin);
+  if (set.size === 0) return undefined;
+  return [...set].sort((a, b) => a - b);
 }
 
 // ── Stable, collision-safe test numbers for CSV/JSON wide-format mapping ──────
@@ -238,6 +267,78 @@ export function toWmapWaferMeta(source: WaferSource | undefined, waferId: string
   for (const f of source?.fields ?? []) applyField(f);
   for (const f of waferFields ?? []) applyField(f);
   return meta;
+}
+
+export interface WcrGeometry {
+  waferConfig: Partial<Pick<WaferConfig, 'diameter' | 'center' | 'notch'>>;
+  dieConfig: Partial<Pick<DieConfig, 'width' | 'height' | 'xAxisDirection' | 'yAxisDirection'>>;
+}
+
+// STDF/ATDF WF_UNITS enum → mm-per-unit. `0` ("Unknown") is deliberately
+// absent — acting on an unlabelled measurement is worse than not using it at
+// all (mirrors the diameter dialog's own "never silently misapply an
+// unconfirmed value" rule).
+const WCR_UNIT_TO_MM: Record<string, number> = { '1': 25.4, '2': 10, '3': 1, '4': 0.0254 };
+
+const WCR_FLAT_TO_NOTCH: Record<string, 'top' | 'bottom' | 'left' | 'right'> = {
+  U: 'top', D: 'bottom', L: 'left', R: 'right',
+};
+
+/**
+ * Interprets a WCR (Wafer Configuration Record) already parsed into
+ * `source.fields` by the Rust crate (`wcr_fields`/`WCR_KEYS` — raw values,
+ * generic keys, same pattern as every other MIR/WIR/WRR field) into wmap's
+ * `waferConfig`/`dieConfig` shape. This is the one place unit conversion and
+ * wmap-shape mapping happen, so the crate itself never needs republishing
+ * when either changes.
+ *
+ * Returns `null` when the file has no WCR record, or when everything it did
+ * have was unusable (unknown units, or every field blank/sentinel) — callers
+ * treat `null` exactly like "no WCR data," falling through to wmap's own
+ * geometric inference unchanged.
+ */
+export function wcrGeometryFrom(source: WaferSource | undefined): WcrGeometry | null {
+  const fields = source?.fields;
+  if (!fields?.length) return null;
+  const get = (key: string): string | undefined => fields.find(f => f.key === key)?.value;
+
+  const mmPerUnit = WCR_UNIT_TO_MM[get('wfUnits') ?? ''];
+  const toMm = (raw: string | undefined): number | undefined => {
+    if (raw === undefined || mmPerUnit === undefined) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n * mmPerUnit : undefined;
+  };
+
+  const waferConfig: WcrGeometry['waferConfig'] = {};
+  const dieConfig: WcrGeometry['dieConfig'] = {};
+
+  const diameter = toMm(get('wafrSiz'));
+  if (diameter !== undefined) waferConfig.diameter = diameter;
+
+  const width = toMm(get('dieWid'));
+  if (width !== undefined) dieConfig.width = width;
+  const height = toMm(get('dieHt'));
+  if (height !== undefined) dieConfig.height = height;
+
+  const cx = get('centerX');
+  const cy = get('centerY');
+  if (cx !== undefined && cy !== undefined) {
+    const x = Number(cx), y = Number(cy);
+    if (Number.isFinite(x) && Number.isFinite(y)) waferConfig.center = { x, y };
+  }
+
+  const flat = get('wfFlat');
+  if (flat !== undefined && flat in WCR_FLAT_TO_NOTCH) {
+    waferConfig.notch = { type: WCR_FLAT_TO_NOTCH[flat] };
+  }
+
+  const posX = get('posX');
+  if (posX === 'L' || posX === 'R') dieConfig.xAxisDirection = posX === 'L' ? 'left' : 'right';
+  const posY = get('posY');
+  if (posY === 'U' || posY === 'D') dieConfig.yAxisDirection = posY === 'U' ? 'up' : 'down';
+
+  if (Object.keys(waferConfig).length === 0 && Object.keys(dieConfig).length === 0) return null;
+  return { waferConfig, dieConfig };
 }
 
 /** Convert tsmap's `Record<string, TestDef>` to wmap's `TestDef[]`. */

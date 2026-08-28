@@ -130,7 +130,7 @@ export interface MenuRowOptions {
   /** Default true. A disabled row stays visible (and still explains itself via `hint`) rather than vanishing. */
   enabled?: boolean;
   onClick: () => void;
-  /** Trailing icon markup, e.g. ICONS.externalLink to mark a row that leaves the app. */
+  /** Trailing icon markup, e.g. to mark a row that behaves unusually. */
   icon?: string;
   /**
    * Present = this row is a toggle, and the value is its current state. Renders

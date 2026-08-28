@@ -16,10 +16,6 @@
 // modal (corner arrows); `maximize`/`minimize` toggle fullscreen INSIDE the modal
 // (corner brackets). They are deliberately different shapes.
 //
-// `externalLink` is also tsmap-LOCAL (not from wmap, like `printer`): it marks the
-// one Help-menu row ("tsmap guide") that always leaves the app for an external
-// browser, so that behaviour is visible without relying on a hover tooltip.
-//
 // All use `stroke="currentColor"` / `fill="none"` and carry no hardcoded colour,
 // so they inherit the button's CSS `color` (a tsmap `--var`) and follow the
 // active theme automatically. Per-icon width/height are tuned so they read as
@@ -48,7 +44,4 @@ export const ICONS = {
   // print/save action has no wmap counterpart, so this icon is not part of the
   // wmap sync set above. Do not expect it in wmap's icon module.
   printer: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`,
-
-  // External link — Lucide `external-link`. tsmap-LOCAL (see note above).
-  externalLink: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`,
 } as const;

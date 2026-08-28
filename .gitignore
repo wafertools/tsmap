@@ -1,5 +1,6 @@
 node_modules/
 public/guide/
+src/guideExtension.ts
 dist/
 site/
 src-tauri/target/

@@ -281,7 +281,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
     }
 
     let warnings = position_warnings(&wafers);
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings })
+    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings })
 }
 
 /// Allocation-light wide-format JSON parse over already-flattened rows. Reads each
@@ -381,7 +381,7 @@ fn parse_json_wide(
     }
 
     let warnings = position_warnings(&wafers);
-    ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings }
+    ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings }
 }
 
 fn flatten_to_rows(val: &Value) -> Option<Vec<HashMap<String, String>>> {

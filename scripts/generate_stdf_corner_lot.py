@@ -64,6 +64,9 @@ MIR = (1, 10)
 SDR = (1, 80)
 WIR = (2, 10)
 WRR = (2, 20)
+WCR = (2, 30)
+HBR = (1, 40)
+SBR = (1, 50)
 PIR = (5, 10)
 PRR = (5, 20)
 PTR = (15, 10)
@@ -85,6 +88,25 @@ def mir(lot_id: str) -> bytes:
 def sdr(sites: list[int]) -> bytes:
     body = u1(1) + u1(1) + u1(len(sites)) + b''.join(u1(s) for s in sites) + cn('') * 14
     return record(*SDR, body)
+
+def wcr(wafr_siz: float, die_ht: float, die_wid: float, wf_units: int, wf_flat: str,
+        center_x: int, center_y: int, pos_x: str, pos_y: str) -> bytes:
+    body = (
+        u1(1) + u1(255) +
+        r4(wafr_siz) + r4(die_ht) + r4(die_wid) +
+        u1(wf_units) + c1(wf_flat) +
+        i2(center_x) + i2(center_y) +
+        c1(pos_x) + c1(pos_y)
+    )
+    return record(*WCR, body)
+
+def hbr(bin_num: int, cnt: int, pf: str, name: str) -> bytes:
+    body = u1(1) + u1(255) + u2(bin_num) + u4(cnt) + c1(pf) + cn(name)
+    return record(*HBR, body)
+
+def sbr(bin_num: int, cnt: int, pf: str, name: str) -> bytes:
+    body = u1(1) + u1(255) + u2(bin_num) + u4(cnt) + c1(pf) + cn(name)
+    return record(*SBR, body)
 
 def wir(wafer_id: str) -> bytes:
     return record(*WIR, u1(1) + u1(255) + u4(0) + cn(wafer_id))
@@ -245,10 +267,23 @@ def generate(output_path: Path) -> None:
     buf = bytearray()
     buf += far()
     buf += mir(output_path.stem)
+    # Die pitch must actually contain every die's grid position (radius=8
+    # steps, see wafer_dies below) within the 300mm wafer, or wmap correctly
+    # rejects it as a geometry-conflict warning (a probed die is always a
+    # real, fully-on-wafer position — see buildWaferMap.ts's own
+    # `requiredRadius` doc). 16.9mm is the largest pitch that fits this exact
+    # grid inside 300mm with a small margin (16.930mm is the maximum before
+    # the farthest die's corner clears the boundary — coincidentally almost
+    # exactly what wmap's own pitch inference already computed for this
+    # fixture pre-WCR, confirming the two are solving the same containment
+    # constraint).
+    buf += wcr(wafr_siz=300.0, die_ht=16.9, die_wid=16.9, wf_units=3, wf_flat='D',
+               center_x=0, center_y=0, pos_x='R', pos_y='U')
     buf += sdr(SITES)
 
     dies = wafer_dies(8)
     part_counter = 1
+    bin_counts = {1: 0, 2: 0, 3: 0}
 
     for wafer_id, corner in WAFER_CORNERS:
         buf += wir(wafer_id)
@@ -280,12 +315,23 @@ def generate(output_path: Path) -> None:
                 die_passed = len(failed_tests) == 0
                 hbin = 1 if die_passed else (2 if len(failed_tests) <= 1 else 3)
                 buf += prr(site, x, y, hbin, hbin, part_counter, die_passed)
+                bin_counts[hbin] += 1
                 part_counter += 1
                 part_cnt += 1
                 if die_passed:
                     good_cnt += 1
 
         buf += wrr(wafer_id, part_cnt, good_cnt)
+
+    # HBR/SBR — hard/soft bin names (hbin and sbin are assigned identically
+    # above, so the two catalogs share bin numbers here; a real file's soft
+    # bins would usually be more finely split than hard bins).
+    buf += hbr(1, bin_counts[1], 'P', 'Pass')
+    buf += hbr(2, bin_counts[2], 'F', 'Fail (1 test)')
+    buf += hbr(3, bin_counts[3], 'F', 'Fail (multi)')
+    buf += sbr(1, bin_counts[1], 'P', 'Pass')
+    buf += sbr(2, bin_counts[2], 'F', 'Fail (1 test)')
+    buf += sbr(3, bin_counts[3], 'F', 'Fail (multi)')
 
     output_path.write_bytes(buf)
 

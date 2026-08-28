@@ -18,6 +18,23 @@ const WRR: &[&str] = &[
 // SDR: site description. HEAD_NUM, SITE_GRP, SITE_CNT, then SITE_NUM (a
 // sub-delimited list), followed by per-site descriptor fields we don't surface.
 const SDR: &[&str] = &["HEAD_NUM","SITE_GRP","SITE_CNT","SITE_NUM"];
+// Field order assumed to match the STDF V4 binary WCR record (2·30) — but
+// note ATDF does NOT always preserve STDF's binary field order (WRR above is
+// a real counter-example: ATDF promotes WAFER_ID ahead of SITE_GRP/ABRT_CNT
+// for readability, unlike the binary layout). Not independently verified
+// against a real ATDF file carrying this record (this repo's own generators
+// never wrote one before now, and no ATDF spec reference or real-equipment
+// sample with a WCR line was available while writing this) — worth
+// confirming against real test-floor output if one becomes available.
+const WCR: &[&str] = &[
+    "HEAD_NUM","SITE_GRP","WAFR_SIZ","DIE_HT","DIE_WID","WF_UNITS","WF_FLAT",
+    "CENTER_X","CENTER_Y","POS_X","POS_Y",
+];
+// Same caveat as WCR above — assumed to match STDF's binary HBR/SBR field
+// order (HEAD_NUM, SITE_NUM, BIN_NUM, BIN_CNT, BIN_PF, BIN_NAM), not
+// independently verified against a real ATDF file.
+const HBR: &[&str] = &["HEAD_NUM","SITE_NUM","HBIN_NUM","HBIN_CNT","HBIN_PF","HBIN_NAM"];
+const SBR: &[&str] = &["HEAD_NUM","SITE_NUM","SBIN_NUM","SBIN_CNT","SBIN_PF","SBIN_NAM"];
 // PTR is used by the first-pass scan; the full parse reads PIR/PRR/FTR positionally
 // (see the *_idx constants), so no field-name arrays are needed for those.
 const PTR: &[&str] = &[
@@ -140,6 +157,16 @@ const WRR_KEYS: &[(&str, &str)] = &[
     ("FINISH_T","waferFinishT"), ("FABWF_ID","fabWaferId"), ("FRAME_ID","frameId"),
     ("MASK_ID","maskId"), ("USR_DESC","waferDescUser"), ("EXC_DESC","waferDescExec"),
 ];
+// Same camelCase keys the STDF parser's wcr_fields emits, so faceting stays
+// format-agnostic like every other record here. WAFR_SIZ/DIE_HT/DIE_WID are
+// left as raw text — ATDF has no binary missing-value sentinel to strip (an
+// absent/blank field is already just an empty string, handled generically by
+// `fields_from` below, same as every other record).
+const WCR_KEYS: &[(&str, &str)] = &[
+    ("WAFR_SIZ","wafrSiz"), ("DIE_HT","dieHt"), ("DIE_WID","dieWid"),
+    ("WF_UNITS","wfUnits"), ("WF_FLAT","wfFlat"), ("CENTER_X","centerX"),
+    ("CENTER_Y","centerY"), ("POS_X","posX"), ("POS_Y","posY"),
+];
 
 /// Emitted keys carrying a timestamp. Kept as one list so the normalisation
 /// below is applied by key, not re-decided at each call site.
@@ -203,6 +230,18 @@ fn fields_from(m: &HashMap<&str, &str>, keys: &[(&str, &str)]) -> Vec<MetaField>
     f
 }
 
+/// Decodes an already-`field_map`'d HBR/SBR into its bin number, optional
+/// name (blank text is already `""` in ATDF, no binary sentinel to strip),
+/// and Pass flag. Shared by both records since they're identically shaped —
+/// only the field *names* differ (HBIN_* vs SBIN_*), passed in by the caller.
+fn decode_bin_record_atdf(f: &HashMap<&str, &str>, num_key: &str, pf_key: &str, nam_key: &str) -> BinRecord {
+    BinRecord {
+        bin: get(f, num_key).parse().unwrap_or(0),
+        name: nonempty(get(f, nam_key)),
+        pass: get(f, pf_key) == "P",
+    }
+}
+
 /// Build the soft-bin advisory shown to the host when SOFT_BIN was the sentinel
 /// 65535 ("no soft bin") and we mirrored the hard bin instead. Returns an empty
 /// vec when no fabrication happened, so the field is omitted from serialisation.
@@ -246,6 +285,9 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     let mut wafers: Vec<WaferData> = Vec::new();
     let mut current_wafer: Option<WaferData> = None;
     let mut sites: Vec<SiteInfo> = Vec::new();
+    let mut hbin_names: HashMap<u32, String> = HashMap::new();
+    let mut sbin_names: HashMap<u32, String> = HashMap::new();
+    let mut pass_hbins: std::collections::HashSet<u32> = std::collections::HashSet::new();
     // Keyed by packed (head,site) u32 (see `site_key`) — avoids a `format!` string
     // key per PIR/PTR/FTR/PRR. Inner map keyed by test-number string (tsmap identity).
     let mut pending_values: HashMap<u32, HashMap<String, f64>> = HashMap::new();
@@ -271,6 +313,24 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
             "MIR" => {
                 let f = field_map(MIR, &raw_fields);
                 meta.fields = fields_from(&f, MIR_KEYS);
+            }
+            // WCR conventionally follows MIR in the stream, same as the STDF
+            // parser's own WCR handling — extend rather than replace, so it
+            // never depends on arriving before MIR's own assignment above.
+            "WCR" => {
+                let f = field_map(WCR, &raw_fields);
+                meta.fields.extend(fields_from(&f, WCR_KEYS));
+            }
+            "HBR" => {
+                let f = field_map(HBR, &raw_fields);
+                let hbr = decode_bin_record_atdf(&f, "HBIN_NUM", "HBIN_PF", "HBIN_NAM");
+                if let Some(name) = hbr.name { hbin_names.insert(hbr.bin, name); }
+                if hbr.pass { pass_hbins.insert(hbr.bin); }
+            }
+            "SBR" => {
+                let f = field_map(SBR, &raw_fields);
+                let sbr = decode_bin_record_atdf(&f, "SBIN_NUM", "SBIN_PF", "SBIN_NAM");
+                if let Some(name) = sbr.name { sbin_names.insert(sbr.bin, name); }
             }
             "SDR" => {
                 // Site description → ParsedStdf.sites, matching the STDF parser
@@ -443,7 +503,11 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
-    Ok(ParsedStdf { meta, wafers, test_defs, sites, warnings })
+    let hbin_defs = finish_bin_defs(hbin_names);
+    let sbin_defs = finish_bin_defs(sbin_names);
+    let mut pass_hbins: Vec<u32> = pass_hbins.into_iter().collect();
+    pass_hbins.sort_unstable();
+    Ok(ParsedStdf { meta, wafers, test_defs, sites, hbin_defs, sbin_defs, pass_hbins, warnings })
 }
 
 #[cfg(feature = "native")]
@@ -640,6 +704,21 @@ mod tests {
         format!("MIR:{}\n", fields.join("|"))
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn wcr(
+        wafr_siz: &str, die_ht: &str, die_wid: &str, wf_units: &str, wf_flat: &str,
+        center_x: &str, center_y: &str, pos_x: &str, pos_y: &str,
+    ) -> String {
+        format!("WCR:1||{wafr_siz}|{die_ht}|{die_wid}|{wf_units}|{wf_flat}|{center_x}|{center_y}|{pos_x}|{pos_y}\n")
+    }
+
+    fn hbr(bin: u32, cnt: u32, pf: &str, name: &str) -> String {
+        format!("HBR:1|255|{bin}|{cnt}|{pf}|{name}\n")
+    }
+    fn sbr(bin: u32, cnt: u32, pf: &str, name: &str) -> String {
+        format!("SBR:1|255|{bin}|{cnt}|{pf}|{name}\n")
+    }
+
     fn wir(id: &str) -> String { format!("WIR:1||1|{id}\n") }
     fn wrr(id: &str, part: u32, good: u32) -> String {
         format!("WRR:1||{part}|{id}||0|{good}\n")
@@ -678,6 +757,96 @@ mod tests {
         let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
         assert!(result.meta.get("lotId").is_none());
         assert!(result.meta.get("partType").is_none());
+    }
+
+    #[test]
+    fn wcr_fields_are_extracted_into_lot_meta() {
+        let text = format!(
+            "{}{}{}{}{}{}",
+            far(), mir_full(), wcr("300","17.6","17.6","3","D","0","0","R","U"),
+            wir("W1"), pir(1,1) + &prr(1,1,0,0,1,1), wrr("W1",1,1),
+        );
+        let path = tmp(&text);
+        let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
+        assert_eq!(result.meta.get("wafrSiz"), Some("300"));
+        assert_eq!(result.meta.get("dieHt"), Some("17.6"));
+        assert_eq!(result.meta.get("dieWid"), Some("17.6"));
+        assert_eq!(result.meta.get("wfUnits"), Some("3"));
+        assert_eq!(result.meta.get("wfFlat"), Some("D"));
+        assert_eq!(result.meta.get("centerX"), Some("0"));
+        assert_eq!(result.meta.get("centerY"), Some("0"));
+        assert_eq!(result.meta.get("posX"), Some("R"));
+        assert_eq!(result.meta.get("posY"), Some("U"));
+    }
+
+    #[test]
+    fn wcr_blank_fields_are_omitted_not_emitted() {
+        let text = format!(
+            "{}{}{}{}{}{}",
+            far(), mir_full(), wcr("","","","","","","","",""),
+            wir("W1"), pir(1,1) + &prr(1,1,0,0,1,1), wrr("W1",1,1),
+        );
+        let path = tmp(&text);
+        let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
+        assert_eq!(result.meta.get("wafrSiz"), None);
+        assert_eq!(result.meta.get("wfFlat"), None);
+        assert_eq!(result.meta.get("centerX"), None);
+    }
+
+    #[test]
+    fn wcr_wf_units_zero_is_still_emitted_as_a_real_value() {
+        // "0" (Unknown) is itself a meaningful enum value here, not a blank
+        // field — must not be treated the same as an omitted one.
+        let text = format!(
+            "{}{}{}{}{}{}",
+            far(), mir_full(), wcr("","","","0","","","","",""),
+            wir("W1"), pir(1,1) + &prr(1,1,0,0,1,1), wrr("W1",1,1),
+        );
+        let path = tmp(&text);
+        let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
+        assert_eq!(result.meta.get("wfUnits"), Some("0"));
+    }
+
+    #[test]
+    fn hbr_sbr_fields_are_extracted() {
+        let text = format!(
+            "{}{}{}{}{}{}{}{}",
+            far(), mir_full(),
+            hbr(1, 500, "P", "Pass"), hbr(2, 20, "F", "Fail"), sbr(10, 5, "F", "Leakage Fail"),
+            wir("W1"), pir(1,1) + &prr(1,1,0,0,1,1), wrr("W1",1,1),
+        );
+        let path = tmp(&text);
+        let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
+        assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 1).map(|d| d.name.as_str()), Some("Pass"));
+        assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 2).map(|d| d.name.as_str()), Some("Fail"));
+        assert_eq!(result.sbin_defs.iter().find(|d| d.bin == 10).map(|d| d.name.as_str()), Some("Leakage Fail"));
+        assert_eq!(result.pass_hbins, vec![1]);
+    }
+
+    #[test]
+    fn hbr_blank_name_is_omitted_but_still_counts_for_pass_hbins() {
+        let text = format!(
+            "{}{}{}{}{}{}",
+            far(), mir_full(), hbr(1, 500, "P", ""),
+            wir("W1"), pir(1,1) + &prr(1,1,0,0,1,1), wrr("W1",1,1),
+        );
+        let path = tmp(&text);
+        let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
+        assert!(result.hbin_defs.iter().find(|d| d.bin == 1).is_none());
+        assert_eq!(result.pass_hbins, vec![1]);
+    }
+
+    #[test]
+    fn hbr_sbr_fields_also_reach_the_filtered_parse_entry_point() {
+        let text = format!(
+            "{}{}{}{}{}{}",
+            far(), mir_full(), hbr(1, 500, "P", "Pass"),
+            wir("W1"), pir(1,1) + &prr(1,1,0,0,1,1), wrr("W1",1,1),
+        );
+        let bytes = text.as_bytes();
+        let result = parse_atdf_from_bytes_filtered(bytes, &std::collections::HashSet::new()).unwrap();
+        assert_eq!(result.hbin_defs[0].name, "Pass");
+        assert_eq!(result.pass_hbins, vec![1]);
     }
 
     #[test]

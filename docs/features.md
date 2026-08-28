@@ -106,7 +106,8 @@ own per-wafer view.
 ![Insights Overview grouped by Split](images/charts-grouped-by-split.png)
 ![Yield drilled into a single Split](images/yield-group-drilldown.png)
 
-See [Insights tab](user-guide.md#7-insights-tab) in the user guide.
+See [Grouping data in the Insights tab](user-guide.md#7-grouping-data-in-the-insights-tab) in
+the user guide.
 
 ## Export & desktop/browser parity
 
@@ -117,7 +118,8 @@ usable offline once loaded.
 
 ![Wafer map toolbar with the plot-mode dropdown open](images/wafer-map-toolbar.png)
 
-See [Exporting charts](user-guide.md#8-exporting-charts) and the full
+See [Exporting a chart](https://wafertools.github.io/wafermap/user-guide/) in the full wafer
+map guide, and the full
 [desktop vs browser comparison](web.md#differences-from-the-desktop-app) in the web app page.
 
 ## Open directly from your own systems

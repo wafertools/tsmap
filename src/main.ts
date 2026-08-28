@@ -2,33 +2,47 @@ declare const __APP_VERSION__: string;
 declare const __BUILD_DATE__: string;
 
 import { buildWaferMap } from '@wafertools/wafermap';
-import type { WaferMapResult } from '@wafertools/wafermap';
-import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf } from '@wafertools/wafermap/render';
+import type { WaferMapResult, BinDef } from '@wafertools/wafermap';
+import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide } from '@wafertools/wafermap/render';
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
+import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
-import { showTestSelectorOverlay, formatTestListCsv } from './testSelectorUI';
+import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
 import type { TestListEntry } from './testSelectorUI';
 import type { CsvMapping } from './mappingUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
-import type { ParsedFile, WaferData, TestDef, TestOverride } from './types';
+import type { ParsedFile, WaferData, TestDef, TestOverride, WaferSource } from './types';
 import { attachTooltip, upgradeTitleTooltips } from './tooltip';
 import { openAnchoredMenu, makeMenuRow } from './anchoredMenu';
-import { ICONS } from './icons';
 import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme } from './theme';
 import { makeMenuSelect } from './menuSelect';
+import { openModal, SECONDARY_BTN_CSS } from './modal';
 import { showSplitsModal } from './splitsUI';
+import { getEdgeExclusionMm, getWaferDiameterMm, normalizeWaferGeometry, setWaferGeometry } from './waferGeometry';
+import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
+import type { BinDefEntry } from './binDefs';
+import type { WaferGeometry } from './waferGeometry';
+import { showWaferGeometryDialog } from './waferGeometryUI';
+import type { InferredDiameterHint } from './waferGeometryUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
 import { showFileAssociationsModal } from './fileAssociationsUI';
+import { showDefinitionsTemplatesDialog } from './definitionsTemplatesUI';
 import { getSplitLabel, setSplitLabel, waferDisplayLabel, splitsFingerprint, parseSplitsCsv } from './splits';
 import { getRecentFiles, addRecentFiles, removeRecentFile, formatRecentTime } from './recentFiles';
-
+import { TSMAP_GUIDE_HTML } from './guideExtension';
 
 const platform = createPlatform();
+
+// Passed to every renderWaferMap/renderWaferGallery call as
+// `userGuideExtension`, and directly to `openWaferMapGuide` for the
+// nothing-loaded case — the SAME object both places, so tsmap's Help menu
+// shows identical combined content regardless of whether a map is currently
+// rendered. See WMAP_ISSUES.md #37 (2026-08-28 decision, reversing #32).
+const guideExtension = { title: 'tsmap — User Guide', html: TSMAP_GUIDE_HTML };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 
@@ -75,6 +89,14 @@ function setToolbarGroupVisible(visible: boolean): void {
 let currentWafers: WaferData[] = [];
 let currentFileName = 'wafermap';
 let currentTestDefs: Record<string, TestDef> = {};
+// From STDF/ATDF HBR/SBR — see ParsedFile.hbinDefs/sbinDefs/passHbins
+// (types.ts). Undefined for formats with no HBR/SBR equivalent, or a file
+// that had none; buildWaferMap call sites treat undefined the same as
+// "nothing to pass," falling back to wmap's own default (bare bin numbers,
+// passBins [1]).
+let currentHbinDefs: BinDef[] | undefined;
+let currentSbinDefs: BinDef[] | undefined;
+let currentPassHbins: number[] | undefined;
 
 // Tracks the most recently loaded STDF/ATDF files so "Filter tests…" can re-parse them.
 let currentBinaryFiles: FileHandle[] = [];
@@ -102,6 +124,20 @@ const analyzeOpts = () => ({ enableTestValueAnalysis: valueFindings });
 // split as a " · <split>" suffix (toggled in the splits modal). On by default
 // so assigning a split is immediately visible.
 let showSplitSuffix = true;
+
+// Wafer diameter and edge-exclusion band width in mm, passed to every
+// buildWaferMap call as `waferConfig.diameter`/`waferConfig.edgeExclusion`.
+// Unlike splits (per-wafer), these are single values applied uniformly to
+// whatever's currently loaded — initialized once from localStorage at
+// startup and updated in place by the Diameter & edge exclusion… dialog/CLI
+// flags, rather than re-read from storage on every render (which would mean
+// a localStorage.getItem per wafer inside buildLotStatsSummary's loop).
+// edgeExclusionMm is only ever non-undefined when waferDiameterMm is also
+// set — see waferGeometry.ts's normalizeWaferGeometry, the single place that
+// enforces this (an absolute mm exclusion value is only meaningful relative
+// to a confirmed diameter — WMAP_ISSUES.md #42).
+let waferDiameterMm: number | undefined = getWaferDiameterMm();
+let edgeExclusionMm: number | undefined = getEdgeExclusionMm();
 
 let cachedLotStats: ReturnType<typeof buildLotStatsSummary> | null = null;
 // The wmap controller for the map currently rendered into the main `container`
@@ -362,8 +398,19 @@ const WMAP_WARNING_LOG_LEVEL: Record<ReturnType<typeof severityOf>, LogLevel> = 
  * one-wafer load — the case where a geometry advisory is easiest to act on —
  * was the one that never showed it.
  */
+// Tracks warnings already logged since the last file load, so re-rendering
+// (a Splits change, the geometry dialog, or anything else that clears
+// cachedLotStats and re-runs buildWaferMap for every wafer) doesn't re-flood
+// the log panel with the same advisory shown moments ago. Cleared at the
+// start of every renderWafers — a genuinely new load should still show
+// everything, even a warning identical to one from the previous file.
+const loggedWmapWarnings = new Set<string>();
+
 function logWmapWarnings(waferId: string, waferMap: WaferMapResult, statsSummary?: StatsSummary | null) {
   for (const warning of collectWarnings({ result: waferMap, statsSummary })) {
+    const key = `${waferId}:${warning.code}:${warning.message}`;
+    if (loggedWmapWarnings.has(key)) continue;
+    loggedWmapWarnings.add(key);
     const conf = warning.confidence !== undefined ? ` (confidence ${(warning.confidence * 100).toFixed(0)}%)` : '';
     log(WMAP_WARNING_LOG_LEVEL[severityOf(warning)], `Wafer ${waferId} [${warning.code}]: ${warning.message}${conf}`);
   }
@@ -375,11 +422,60 @@ function logWmapWarnings(waferId: string, waferMap: WaferMapResult, statsSummary
 // annotation here would narrow them away for every caller, including the
 // Insights tab (via `lotStatsSummary`) and wmap's own Findings sidebar
 // report button, which reads `.label`/`.statsSummary` off the same items.
+/**
+ * Builds the `buildWaferMap` argument object for one wafer — shared by the
+ * single-wafer render path (`renderWaferView`) and the per-wafer loop in
+ * `buildLotStatsSummary`, which had each independently assembled the same
+ * `waferConfig`/`dieConfig`/bin-def fields. `wcr` is passed in already
+ * resolved (rather than computed here from `w.source`) so
+ * `buildLotStatsSummary` can keep caching it per `WaferSource` reference
+ * across many wafers sharing one WCR record.
+ */
+function buildWmapConfig(
+  w: WaferData,
+  displayId: string,
+  testDefs: ReturnType<typeof toWmapTestDefs>,
+  wcr: ReturnType<typeof wcrGeometryFrom> | undefined,
+) {
+  return {
+    results: w.results,
+    testDefs,
+    waferConfig: {
+      metadata: toWmapWaferMeta(w.source, displayId, w.fields),
+      // Precedence: user override > this file's own WCR record > wmap's own
+      // geometric inference (see waferGeometry.ts's module doc).
+      diameter: waferDiameterMm ?? wcr?.waferConfig.diameter,
+      center: wcr?.waferConfig.center,
+      notch: wcr?.waferConfig.notch,
+      edgeExclusion: edgeExclusionMm,
+    },
+    dieConfig: wcr?.dieConfig,
+    // From this file's HBR/SBR (see ParsedFile.hbinDefs/sbinDefs/passHbins,
+    // types.ts) — undefined falls back to wmap's own defaults (bare bin
+    // numbers, passBins [1]).
+    hbinDefs: currentHbinDefs,
+    sbinDefs: currentSbinDefs,
+    passBins: currentPassHbins,
+  };
+}
+
 function buildLotStatsSummary(wafers: WaferData[]) {
   const testDefs = toWmapTestDefs(currentTestDefs);
+  // WCR geometry is lot-level (one WCR record per file), and every wafer
+  // produced by the same file shares its WaferSource by reference (types.ts's
+  // own documented invariant), so wcrGeometryFrom's result is identical for
+  // every wafer in that file — cache by source reference (a Map handles the
+  // `undefined` source of a lot-metadata-less load fine too, as a real key
+  // distinct from "not yet computed") rather than recomputing per wafer.
+  const wcrCache = new Map<WaferSource | undefined, ReturnType<typeof wcrGeometryFrom>>();
+  const wcrFor = (source: WaferSource | undefined) => {
+    if (!wcrCache.has(source)) wcrCache.set(source, wcrGeometryFrom(source));
+    return wcrCache.get(source);
+  };
   const items = wafers.map(w => {
     const displayId = waferDisplayLabel(w, showSplitSuffix);
-    const waferMap = buildWaferMap({ results: w.results, testDefs, waferConfig: { metadata: toWmapWaferMeta(w.source, displayId, w.fields) } });
+    const wcr = wcrFor(w.source);
+    const waferMap = buildWaferMap(buildWmapConfig(w, displayId, testDefs, wcr));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     logWmapWarnings(w.waferId, waferMap, statsSummary);
     return { ...waferMap, label: displayId, statsSummary };
@@ -493,10 +589,17 @@ function saveSplits(wafers: WaferData[]): void {
   } catch { /* quota exceeded — silently skip */ }
 }
 
-function renderWafers(wafers: WaferData[], label: string, testDefs: Record<string, TestDef> = {}) {
+function renderWafers(
+  wafers: WaferData[], label: string, testDefs: Record<string, TestDef> = {},
+  binInfo: { hbinDefs?: BinDef[]; sbinDefs?: BinDef[]; passHbins?: number[] } = {},
+) {
   currentWafers = wafers;
   currentFileName = label;
   currentTestDefs = testDefs;
+  currentHbinDefs = binInfo.hbinDefs;
+  currentSbinDefs = binInfo.sbinDefs;
+  currentPassHbins = binInfo.passHbins;
+  loggedWmapWarnings.clear();
   const restoredSplits = loadSavedSplits(wafers);
   clearLotStatsCache();
   addBtn.disabled = wafers.length === 0;
@@ -565,7 +668,10 @@ function renderWaferView(wafers: WaferData[], label: string) {
   const wmapTestDefs = toWmapTestDefs(currentTestDefs);
   if (wafers.length === 1) {
     container.classList.remove('gallery');
-    const waferMap = buildWaferMap({ results: wafers[0].results, testDefs: wmapTestDefs, waferConfig: { metadata: toWmapWaferMeta(wafers[0].source, waferDisplayLabel(wafers[0], showSplitSuffix), wafers[0].fields) } });
+    const singleWcr = wcrGeometryFrom(wafers[0].source);
+    const waferMap = buildWaferMap(buildWmapConfig(
+      wafers[0], waferDisplayLabel(wafers[0], showSplitSuffix), wmapTestDefs, singleWcr,
+    ));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     logWmapWarnings(wafers[0].waferId, waferMap, statsSummary);
     mainViewController = renderWaferMap(container, waferMap, {
@@ -573,8 +679,10 @@ function renderWaferView(wafers: WaferData[], label: string) {
       summaryPanel: { placement: 'right', defaultOpen: true },
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
-      // button click. See WMAP_ISSUES.md #32.
+      // button click. tsmap's own guide content is folded into that same
+      // window via userGuideExtension below. See WMAP_ISSUES.md #37.
       showHelpButton: false,
+      userGuideExtension: guideExtension,
       downloadFilename: stem,
       onSaveImage,
       onSaveText,
@@ -600,8 +708,10 @@ function renderWaferView(wafers: WaferData[], label: string) {
       summaryPanel: { placement: 'right', defaultOpen: true },
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
-      // button click. See WMAP_ISSUES.md #32.
+      // button click. tsmap's own guide content is folded into that same
+      // window via userGuideExtension below. See WMAP_ISSUES.md #37.
       showHelpButton: false,
+      userGuideExtension: guideExtension,
       downloadFilename: stem,
       onSaveImage,
       onSaveText,
@@ -641,6 +751,9 @@ function showLoadingState(msg: string) {
 function showEmptyState() {
   currentWafers = [];
   currentTestDefs = {};
+  currentHbinDefs = undefined;
+  currentSbinDefs = undefined;
+  currentPassHbins = undefined;
   currentBinaryFiles = [];
   currentBinaryExt = '';
   currentTestNames = null;
@@ -960,7 +1073,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   const needsMapping = (e: string) => e === 'csv' || e === 'txt' || e === 'dat' || e === 'json' || e === 'parquet';
   const firstMappable = files.find(f => needsMapping(effectiveFileExtension(f.name)));
 
-  let mappingPromise: Promise<CsvMapping | null> = Promise.resolve(null);
+  let mappingPromise: Promise<{ mapping: CsvMapping; binDefs: BinDefEntry[] } | null> = Promise.resolve(null);
 
   if (firstMappable) {
     const firstExt = effectiveFileExtension(firstMappable.name);
@@ -982,16 +1095,19 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
 
     mappingPromise = new Promise(resolve => {
       showMappingOverlay(headersResult,
-        (mapping) => resolve(mapping),
-        () => { setIdle(); resolve(null); }
+        (mapping, binDefs) => resolve({ mapping, binDefs }),
+        () => { setIdle(); resolve(null); },
+        () => platform.pickTextFile().then(f => f?.content ?? null),
       );
     });
   }
 
-  const mapping = await mappingPromise;
-  if (mapping === null && firstMappable) {
+  const mappingResult = await mappingPromise;
+  if (mappingResult === null && firstMappable) {
     return; // cancelled
   }
+  const mapping = mappingResult?.mapping;
+  const mappingBinDefs = mappingResult?.binDefs ?? [];
 
   // ── Parse phase ──────────────────────────────────────────────────────────
   // For STDF/ATDF: first-pass scan to get testDefs cheaply, then filtered parse.
@@ -1038,6 +1154,15 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       const parsed: ParsedFile = fileExt === 'json' ? rustToLocal(await platform.parseJson(file, mapping!), file.name)
         : fileExt === 'parquet' ? rustToLocal(await platform.parseParquet(file, mapping!), file.name)
         : rustToLocal(await platform.parseCsv(file, mapping!), file.name);
+      // CSV/JSON/Parquet have no HBR/SBR-equivalent record — Rust always
+      // stubs hbinDefs/sbinDefs/passHbins empty for these formats, so this is
+      // purely additive, never an override of anything actually parsed.
+      if (mappingBinDefs.length > 0) {
+        const parts = applyBinDefOverrides({}, mappingBinDefs);
+        parsed.hbinDefs = parts.hbinDefs;
+        parsed.sbinDefs = parts.sbinDefs;
+        parsed.passHbins = parts.passHbins;
+      }
       preParsed.set(file.name, parsed);
       log('info', `Parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''}`);
       logWarnings(parsed);
@@ -1252,7 +1377,11 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
             ...currentWafers,
             ...renamed.map(toWaferData),
           ];
-          renderWafers(merged, currentFileName, { ...currentTestDefs, ...Object.assign({}, ...entries.map(e => e.parsed.testDefs)) });
+          renderWafers(merged, currentFileName, { ...currentTestDefs, ...Object.assign({}, ...entries.map(e => e.parsed.testDefs)) }, {
+            hbinDefs: mergeBinDefs([currentHbinDefs, ...entries.map(e => e.parsed.hbinDefs)]),
+            sbinDefs: mergeBinDefs([currentSbinDefs, ...entries.map(e => e.parsed.sbinDefs)]),
+            passHbins: mergePassHbins([currentPassHbins, ...entries.map(e => e.parsed.passHbins)]),
+          });
           log('info', `Added ${renamed.length} wafer${renamed.length !== 1 ? 's' : ''} — gallery now has ${merged.length}`);
           resolve();
         },
@@ -1263,7 +1392,12 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     renderWafers(
       renamed.map(toWaferData),
       entries.length === 1 ? entries[0].fileName : `${entries.length} files`,
-      Object.assign({}, ...entries.map(e => e.parsed.testDefs))
+      Object.assign({}, ...entries.map(e => e.parsed.testDefs)),
+      {
+        hbinDefs: mergeBinDefs(entries.map(e => e.parsed.hbinDefs)),
+        sbinDefs: mergeBinDefs(entries.map(e => e.parsed.sbinDefs)),
+        passHbins: mergePassHbins(entries.map(e => e.parsed.passHbins)),
+      },
     );
     if (originalPaths) { addRecentFiles(originalPaths); syncRecentBtn(); }
   }
@@ -1302,6 +1436,28 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     } catch (e) {
       log('error', `Failed to read tests file "${args.tests}": ${errMsg(e)}`);
     }
+  }
+  // Unlike splits/tests above, these are scalars applied directly rather than
+  // seeded-then-consumed at render time — they're not tied to matching
+  // per-wafer IDs, so there's nothing to wait for. Set before handleFiles
+  // below, so the very first render already reflects them.
+  //
+  // --wafer-diameter falls back to the already-persisted waferDiameterMm
+  // (not just args.waferDiameter) so a launch with only --edge-exclusion
+  // still applies cleanly when a diameter was already pinned in a previous
+  // session — the gate (normalizeWaferGeometry) only fires when NEITHER
+  // source has one, not merely because this launch's argv didn't repeat it.
+  if (args.waferDiameter != null || args.edgeExclusion != null) {
+    const normalized = normalizeWaferGeometry(
+      args.waferDiameter ?? waferDiameterMm,
+      args.edgeExclusion ?? edgeExclusionMm,
+    );
+    if (args.edgeExclusion != null && normalized.edgeExclusionMm === undefined) {
+      log('warn', '--edge-exclusion ignored: no wafer diameter is set — pass --wafer-diameter too, or set one via Lot ▾ → Diameter & edge exclusion… first');
+    }
+    waferDiameterMm = normalized.diameterMm;
+    edgeExclusionMm = normalized.edgeExclusionMm;
+    setWaferGeometry(normalized);
   }
   const files: FileHandle[] = args.files.map(p => ({
     name: basename(p),
@@ -1568,10 +1724,15 @@ async function openFilterTests() {
     }
     applyTestOverrides(filteredDefs, filterTestOverrides);
     log('info', `Test filter: ${testSelection.length} of ${Object.keys(selectorTestDefs).length} tests (in-memory)`);
+    // Bin catalog/pass-bins describe the whole file's HBR/SBR, independent of
+    // which tests are selected — carry the existing values through unchanged
+    // rather than defaulting to "none" (renderWafers' default for an omitted
+    // binInfo param).
     renderWafers(
       filteredWafers,
       currentFileName,
       filteredDefs,
+      { hbinDefs: currentHbinDefs, sbinDefs: currentSbinDefs, passHbins: currentPassHbins },
     );
     return;
   }
@@ -1608,6 +1769,11 @@ async function openFilterTests() {
     allWafers,
     entries.length === 1 ? entries[0].fileName : `${entries.length} files`,
     mergedDefs,
+    {
+      hbinDefs: mergeBinDefs(entries.map(e => e.parsed.hbinDefs)),
+      sbinDefs: mergeBinDefs(entries.map(e => e.parsed.sbinDefs)),
+      passHbins: mergePassHbins(entries.map(e => e.parsed.passHbins)),
+    },
   );
 }
 
@@ -1634,95 +1800,246 @@ function openSplitsDialog() {
   });
 }
 
+// Three-tier hint for the dialog's pre-fill/disagreement caption — see
+// InferredDiameterHint's doc. WCR (this file's own recorded geometry) wins
+// over wmap's own inference; the inference tier is only trusted when
+// buildWaferMap actually resolved real physical units (`units === 'mm'`) —
+// otherwise `.wafer.diameter` is a dimensionless grid-step count, not
+// millimetres (see WMAP_ISSUES.md's discussion in waferGeometry.ts's module
+// doc), and must never be shown as one.
+function inferredWaferDiameterHint(): InferredDiameterHint {
+  if (currentWafers.length === 0) return { source: 'none' };
+  const wcr = wcrGeometryFrom(currentWafers[0].source);
+  if (wcr?.waferConfig.diameter !== undefined) {
+    return { source: 'wcr', diameter: wcr.waferConfig.diameter };
+  }
+  // Throwaway call with no waferConfig override, purely to read back
+  // .wafer.diameter/.units/.inference.wafer.confidence — diameter inference
+  // only reads die X/Y positions, so testDefs/metadata are irrelevant here.
+  const waferMap = buildWaferMap({ results: currentWafers[0].results });
+  if (waferMap.units !== 'mm') return { source: 'none' };
+  return {
+    source: 'inferred',
+    diameter: waferMap.wafer.diameter,
+    confidencePercent: Math.round(waferMap.inference.wafer.confidence * 100),
+  };
+}
+
+// Same pattern as openSplitsDialog's onChange above: waferDiameterMm/
+// edgeExclusionMm feed directly into buildWaferMap (both call sites), so
+// cachedLotStats — which memoizes buildLotStatsSummary's own buildWaferMap
+// output — must be invalidated before re-rendering, or the gallery path
+// would silently keep showing the pre-change geometry.
+function openWaferGeometryDialog() {
+  if (currentWafers.length === 0) return;
+  const current: WaferGeometry = { diameterMm: waferDiameterMm, edgeExclusionMm };
+  showWaferGeometryDialog(current, inferredWaferDiameterHint(), (geometry) => {
+    const normalized = setWaferGeometry(geometry);
+    waferDiameterMm = normalized.diameterMm;
+    edgeExclusionMm = normalized.edgeExclusionMm;
+    clearLotStatsCache();
+    const label = currentFileName;
+    setBusy(`Rendering ${label}…`);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      renderWaferView(currentWafers, label);
+      setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
+    }));
+  });
+}
+
+/**
+ * Shared shell for the Lot ▾ "definitions" dialogs (Test/Bin definitions) —
+ * same modal chrome, button layout, save/load try-catch-log wrapping, and
+ * post-load re-render sequence. `onSave` returns the CSV text to write;
+ * `onLoad` parses+applies the loaded text and returns whether anything was
+ * applied (`false` leaves the dialog open — `onLoad` has already logged why,
+ * e.g. "file contained no valid rows"; `true` triggers the re-render and
+ * closes the dialog).
+ */
+function openSaveLoadDefinitionsDialog(opts: {
+  title: string;
+  errorLabel: string;
+  savedMessage: string;
+  description: string;
+  saveDisabled?: boolean;
+  saveFileName: string;
+  onSave: () => string;
+  onLoad: (text: string) => boolean;
+}): void {
+  const { title, errorLabel, savedMessage, description, saveDisabled, saveFileName, onSave, onLoad } = opts;
+  const secondaryBtnCss = SECONDARY_BTN_CSS;
+
+  const modalHandle = openModal({
+    title,
+    sizing: 'content',
+    contentSize: { width: 'min(90vw, 440px)', height: 'auto' },
+    mount(body) {
+      body.style.cssText += 'padding:16px;gap:12px;font-size:13px;color:var(--text-light)';
+
+      const descriptionEl = document.createElement('p');
+      descriptionEl.style.cssText = 'margin:0;color:var(--text-secondary)';
+      descriptionEl.textContent = description;
+
+      const buttonRow = document.createElement('div');
+      buttonRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Save…';
+      saveBtn.style.cssText = secondaryBtnCss;
+      saveBtn.disabled = !!saveDisabled;
+      saveBtn.style.opacity = saveBtn.disabled ? '0.5' : '';
+      saveBtn.addEventListener('click', async () => {
+        try {
+          await platform.saveTextFile(onSave(), saveFileName);
+          log('info', savedMessage);
+        } catch (e) {
+          log('error', `Failed to save ${errorLabel}: ${errMsg(e)}`);
+        }
+      });
+
+      const loadBtn = document.createElement('button');
+      loadBtn.textContent = 'Load…';
+      loadBtn.style.cssText = secondaryBtnCss;
+      loadBtn.addEventListener('click', async () => {
+        let text: string | null;
+        try {
+          text = (await platform.pickTextFile())?.content ?? null;
+        } catch (e) {
+          log('error', `Failed to load ${errorLabel}: ${errMsg(e)}`);
+          return;
+        }
+        if (text === null) return;
+        if (!onLoad(text)) return;
+        clearLotStatsCache();
+        const label = currentFileName;
+        setBusy(`Rendering ${label}…`);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          renderWaferView(currentWafers, label);
+          setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
+        }));
+        modalHandle.close();
+      });
+
+      buttonRow.append(saveBtn, loadBtn);
+      body.append(descriptionEl, buttonRow);
+    },
+  });
+}
+
+// Lightweight Save/Load for the current test list — no selection checkboxes,
+// unlike the full Test Selector overlay reached via "Filter tests…". Shares
+// parseTestListFile/formatTestListCsv/applyTestOverrides with the selector's
+// own Save/Load and with --tests, so there is exactly one implementation of
+// "apply a test-list file" regardless of entry point. Can only override
+// tests already imported into currentTestDefs (applyTestOverrides silently
+// ignores the rest) — importing a *new* test still requires "Filter tests…"'s
+// re-selection flow.
+function openTestDefinitionsDialog(): void {
+  if (currentWafers.length === 0 || Object.keys(currentTestDefs).length === 0) return;
+
+  const entries: TestListEntry[] = Object.entries(currentTestDefs).map(([key, def]) => ({
+    num: Number(key),
+    name: def.name,
+    loLimit: def.loLimit,
+    hiLimit: def.hiLimit,
+    units: def.units,
+    testType: def.testType,
+  }));
+
+  openSaveLoadDefinitionsDialog({
+    title: 'Test definitions',
+    errorLabel: 'test definitions',
+    savedMessage: 'Test definitions saved',
+    description:
+      `Save the ${entries.length} currently imported test${entries.length !== 1 ? 's' : ''} `
+      + '(names, limits, units, type) to a CSV, or load a CSV to update them in place. '
+      + 'Loading only overrides tests already imported here — to change which tests are '
+      + 'imported, use Filter tests… instead.',
+    saveFileName: 'test-list.csv',
+    onSave: () => formatTestListCsv(entries),
+    onLoad: (text) => {
+      const parsed = parseTestListFile(text, (lineNo, msg) => log('warn', `Test definitions line ${lineNo}: ${msg}`));
+      if (parsed.length === 0) { log('warn', 'Test definitions file contained no valid rows'); return false; }
+      const matched = parsed.filter(e => String(e.num) in currentTestDefs).length;
+      const unmatched = parsed.length - matched;
+      const overrides = new Map<number, TestOverride>(parsed.map(e => [e.num, e]));
+      applyTestOverrides(currentTestDefs, overrides);
+      log('info', `Test definitions loaded: ${matched} matched${unmatched > 0 ? `, ${unmatched} unmatched (not currently imported)` : ''}`);
+      return true;
+    },
+  });
+}
+
+// Same shape as openTestDefinitionsDialog above — Save/Load only, no
+// selection UI. Unlike test definitions, bin defs feed buildWaferMap
+// directly (hbinDefs/sbinDefs/passBins), so a Load re-renders rather than
+// just updating in-memory metadata for next render.
+function openBinDefinitionsDialog(): void {
+  if (currentWafers.length === 0) return;
+
+  const hbinCount = currentHbinDefs?.length ?? 0;
+  const sbinCount = currentSbinDefs?.length ?? 0;
+
+  openSaveLoadDefinitionsDialog({
+    title: 'Bin definitions',
+    errorLabel: 'bin definitions',
+    savedMessage: 'Bin definitions saved',
+    description: hbinCount === 0 && sbinCount === 0
+      ? 'This file has no hard/soft bin names recorded (no HBR/SBR record, or a CSV/JSON/Parquet load with none loaded via the mapping overlay). Load a bin definitions CSV to supply them.'
+      : `Save the ${hbinCount} hard bin${hbinCount !== 1 ? 's' : ''} and ${sbinCount} soft bin${sbinCount !== 1 ? 's' : ''} `
+        + 'currently named (and which hard bins count as pass) to a CSV, or load a CSV to update them in place.',
+    saveDisabled: hbinCount === 0 && sbinCount === 0,
+    saveFileName: 'bin-definitions.csv',
+    onSave: () => {
+      const passSet = new Set(currentPassHbins ?? []);
+      const entries: BinDefEntry[] = [
+        ...(currentHbinDefs ?? []).map(d => ({ bin: d.bin, type: 'hard' as const, name: d.name, pass: passSet.has(d.bin) })),
+        ...(currentSbinDefs ?? []).map(d => ({ bin: d.bin, type: 'soft' as const, name: d.name })),
+      ];
+      return formatBinDefsCsv(entries);
+    },
+    onLoad: (text) => {
+      const parsed = parseBinDefsFile(text, (lineNo, msg) => log('warn', `Bin definitions line ${lineNo}: ${msg}`));
+      if (parsed.length === 0) { log('warn', 'Bin definitions file contained no valid rows'); return false; }
+      const merged = applyBinDefOverrides(
+        { hbinDefs: currentHbinDefs, sbinDefs: currentSbinDefs, passHbins: currentPassHbins },
+        parsed,
+      );
+      currentHbinDefs = merged.hbinDefs;
+      currentSbinDefs = merged.sbinDefs;
+      currentPassHbins = merged.passHbins;
+      log('info', `Bin definitions loaded: ${parsed.length} entr${parsed.length !== 1 ? 'ies' : 'y'} applied`);
+      return true;
+    },
+  });
+}
+
 
 
 let closeHelpMenu: (() => void) | null = null;
 
 /**
- * Brief, self-dismissing "Opening…" confirmation shown near `anchor` — gives
- * immediate in-app feedback the instant a guide-opening row is clicked,
- * regardless of what happens to the external/popup/floating destination
- * afterward. Exists because tsmap's own guide (a real OS-opened browser
- * window on desktop) can silently reopen into an already-open but minimized
- * browser on some desktop window managers — nothing visibly changes, so
- * without this the user has no way to tell the click registered and may
- * click repeatedly. This toast lives in the main app window, which can never
- * itself end up minimized or missed.
+ * A single Help entry point, one destination: wmap's guide window, carrying
+ * BOTH tsmap's own guide content and wmap's built-in wafer-map reference in
+ * one combined document (`guideExtension`, folded in via `userGuideExtension`
+ * — see the render calls above). Mirrors openRecentMenu's anchored-popup
+ * pattern.
  *
- * Repeat clicks are therefore the *expected* input, not an edge case: only one
- * toast exists at a time (a second click replaces the first rather than
- * stacking an identically-positioned copy on top of it, which just rendered as
- * a subtly darker, un-dismissing box). `role="status"` + `aria-live="polite"`
- * announce it, since a confirmation no screen reader reports doesn't confirm
- * anything for the users most likely to miss the external window.
- */
-let activeToast: { el: HTMLElement; hideTimer: number; removeTimer: number } | null = null;
-
-function showToast(anchor: HTMLElement, text: string) {
-  if (activeToast) {
-    clearTimeout(activeToast.hideTimer);
-    clearTimeout(activeToast.removeTimer);
-    activeToast.el.remove();
-    activeToast = null;
-  }
-  const toast = document.createElement('div');
-  toast.textContent = text;
-  toast.setAttribute('role', 'status');
-  toast.setAttribute('aria-live', 'polite');
-  toast.style.cssText = [
-    'position:fixed', 'z-index:var(--z-tooltip)',
-    'background:var(--bg-overlay)', 'color:var(--text-secondary)',
-    'border:1px solid var(--border-mid)', 'border-radius:6px',
-    'box-shadow:0 6px 20px rgba(0,0,0,0.35)',
-    'padding:6px 10px', 'font-size:13px', 'font-family:system-ui,sans-serif',
-    'white-space:nowrap', 'opacity:0', 'transition:opacity 0.2s ease', 'pointer-events:none',
-  ].join(';');
-  document.body.appendChild(toast);
-  const r = anchor.getBoundingClientRect();
-  const margin = 8;
-  toast.style.top = `${r.bottom + 4}px`;
-  toast.style.left = `${r.left}px`;
-  requestAnimationFrame(() => {
-    toast.style.opacity = '1';
-    // Same edge-aware clamp as openHelpMenu's own popup below — the Help
-    // button sits at the far right of the toolbar, so a naive left-aligned
-    // toast clips off the viewport edge.
-    const tw = toast.offsetWidth;
-    let left = r.left;
-    if (left + tw + margin > window.innerWidth) left = window.innerWidth - tw - margin;
-    toast.style.left = `${Math.max(margin, left)}px`;
-  });
-  const entry: { el: HTMLElement; hideTimer: number; removeTimer: number } = {
-    el: toast,
-    hideTimer: window.setTimeout(() => {
-      toast.style.opacity = '0';
-      entry.removeTimer = window.setTimeout(() => {
-        toast.remove();
-        if (activeToast === entry) activeToast = null;
-      }, 250);
-    }, 1600),
-    removeTimer: 0,
-  };
-  activeToast = entry;
-}
-
-/**
- * A single Help entry point with two destinations: tsmap's own guide (always
- * available) and wmap's built-in wafer-map reference (only reachable once a
- * map/gallery is rendered, via mainViewController.openUserGuide() — wmap's
- * own help button is disabled entirely (showHelpButton: false) since this
- * menu is now the only entry point; see WMAP_ISSUES.md #32, resolved in wmap
- * v0.18.1+ by exporting openUserGuide() on both controllers). Mirrors
- * openRecentMenu's anchored-popup pattern.
+ * Used to be two rows (tsmap's own guide as a standalone page always
+ * available, "Wafer map reference" gated on a live render) — collapsed to one
+ * per WMAP_ISSUES.md #37's 2026-08-28 decision, reversing #32's 2026-07-12
+ * cutover. The old "gated on mainViewController" behaviour would have left
+ * the empty state (nothing loaded yet) with no guide access at all, since
+ * `mainViewController.openUserGuide()` needs a live render — closed by
+ * wmap's new controller-free `openWaferMapGuide` export (used only in that
+ * one case; the live-controller method is always preferred once one exists,
+ * since it reuses that controller's own live-demo bootstrap wiring).
  *
- * The two rows open in genuinely different ways (see CLAUDE.md's "How it's
- * opened" note) — "tsmap guide" always leaves the app for an external
- * browser, "Wafer map reference" tries a popup and falls back in-app. Rather
- * than unify the mechanics (both are deliberate, for good reasons), the
- * difference is made legible: an external-link icon marks the row that
- * leaves the app, and both rows show a brief `showToast` confirmation on
- * click so a minimized/backgrounded destination never reads as "nothing
- * happened."
+ * No `showToast` confirmation any more either — that existed specifically
+ * for the old guide row's `xdg-open`/external-browser path, where a
+ * mis-focused destination window could look like the click did nothing. The
+ * guide is now always an in-app modal/floating window that opens
+ * synchronously and visibly, so that risk doesn't apply.
  */
 function openHelpMenu(anchor: HTMLElement) {
   if (closeHelpMenu) { closeHelpMenu(); return; }
@@ -1732,24 +2049,23 @@ function openHelpMenu(anchor: HTMLElement) {
     { stack: true, onClose: () => { closeHelpMenu = null; } },
     (popup, close) => {
       popup.appendChild(makeMenuRow(close, {
-        label: 'tsmap guide',
-        hint: 'File loading, mapping, splits, test selector, and more — opens in your browser',
-        // Toast only if a separate window actually opened. It used to fire
-        // unconditionally, so a blocked popup produced "Opening in browser…"
-        // for a window that never appeared — the exact false reassurance this
-        // toast exists to prevent. openGuide() shows its own in-app fallback
-        // when it returns false, which needs no toast: the user can see it.
-        onClick: () => { if (platform.openGuide()) showToast(anchor, 'Opening in browser…'); },
-        icon: ICONS.externalLink,
+        label: 'User guide',
+        hint: 'File loading, mapping, splits, test selector, wafer map controls, Insights, and more',
+        onClick: () => {
+          if (mainViewController) mainViewController.openUserGuide();
+          else openWaferMapGuide(guideExtension, anchor);
+        },
       }));
 
       popup.appendChild(makeMenuRow(close, {
-        label: 'Wafer map reference',
-        hint: mainViewController
-          ? 'Wafer map/gallery controls, Findings/Insights panels, and more (wafermap’s own guide)'
-          : 'Load a file first to access the wafer map reference',
-        enabled: !!mainViewController,
-        onClick: () => { showToast(anchor, 'Opening guide…'); mainViewController?.openUserGuide(); },
+        label: 'Definitions file formats…',
+        hint: 'Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first',
+        onClick: () => {
+          showDefinitionsTemplatesDialog(
+            (content, fileName) => platform.saveTextFile(content, fileName),
+            (level, message) => log(level, message),
+          );
+        },
       }));
 
       // No such concept in a browser (there's no OS-level "default app for a file
@@ -1803,9 +2119,32 @@ function openLotMenu(anchor: HTMLElement) {
         onClick: () => { void openFilterTests(); },
       }));
       popup.appendChild(makeMenuRow(close, {
+        label: 'Test definitions…',
+        hint: hasTests
+          ? 'Save or load test names/limits (see also Filter tests… to change which tests are imported)'
+          : 'This file has no test data',
+        enabled: hasTests && !busy,
+        onClick: openTestDefinitionsDialog,
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Bin definitions…',
+        hint: (currentHbinDefs?.length || currentSbinDefs?.length)
+          ? `${currentHbinDefs?.length ?? 0} hard, ${currentSbinDefs?.length ?? 0} soft bin name${((currentHbinDefs?.length ?? 0) + (currentSbinDefs?.length ?? 0)) !== 1 ? 's' : ''} — save or load hard/soft bin names and pass/fail flags`
+          : 'Save or load hard/soft bin names and pass/fail flags (no HBR/SBR record found in this file)',
+        enabled: !busy,
+        onClick: openBinDefinitionsDialog,
+      }));
+      popup.appendChild(makeMenuRow(close, {
         label: 'Splits…',
         hint: 'Define and assign wafer splits (process corners, experiment groups, etc.)',
         onClick: openSplitsDialog,
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Diameter & edge exclusion…',
+        hint: waferDiameterMm !== undefined
+          ? `${waferDiameterMm} mm wafer${edgeExclusionMm !== undefined ? `, ${edgeExclusionMm} mm exclusion` : ''}`
+          : 'Set the wafer diameter and edge-exclusion band (mm), applied to every wafer in this lot',
+        onClick: openWaferGeometryDialog,
       }));
       // Moved out of the app bar, where it was a bare switch reading "Value
       // findings" with no indication of what it acted on. In a menu row there

@@ -18,7 +18,11 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, IsTerminal};
 use std::path::Path;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+// `Eq` was dropped from this derive when `edge_exclusion: Option<f64>` was
+// added — `f64` implements `PartialEq` but not `Eq` (NaN), so `Eq` no longer
+// derives. Nothing in this codebase relies on `CliArgs: Eq` (only
+// `assert_eq!`, which needs `PartialEq` + `Debug`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CliArgs {
     pub files: Vec<String>,
@@ -38,6 +42,25 @@ pub struct CliArgs {
     /// the URL — surfaced by the frontend via `log('error', ...)`, the same
     /// non-fatal treatment a bad `--splits`/`--tests` file already gets.
     pub url_error: Option<String>,
+    /// Edge-exclusion band width in mm, applied to every wafer in this launch
+    /// (`--edge-exclusion <MM>`) — the same value the "Diameter & edge
+    /// exclusion…" dialog's exclusion field sets, but as a scalar rather than
+    /// a file path, so it's parsed straight to `f64` here rather than
+    /// resolved against `cwd` like `tests`/`splits`. **Deliberately not
+    /// validated here against `wafer_diameter`** — whether a bare
+    /// `--edge-exclusion` is usable depends on whether a diameter is already
+    /// persisted from a previous session, which is frontend-only state Rust
+    /// has no visibility into. That gate lives in `waferGeometry.ts`'s
+    /// `normalizeWaferGeometry` (frontend), applied in `main.ts`'s
+    /// `applyCliArgs`; this struct only carries each flag's own syntactically
+    /// validated value.
+    pub edge_exclusion: Option<f64>,
+    /// Wafer diameter in mm, applied to every wafer in this launch
+    /// (`--wafer-diameter <MM>`) — the same value the "Diameter & edge
+    /// exclusion…" dialog's diameter field sets. Validated `> 0` (strict,
+    /// unlike `edge_exclusion`'s `>= 0`) since wmap's `createWafer` throws for
+    /// a non-positive diameter.
+    pub wafer_diameter: Option<f64>,
 }
 
 impl CliArgs {
@@ -51,8 +74,17 @@ impl CliArgs {
     /// silently dropped. `tests`/`splits` are deliberately not checked here
     /// — they're modifiers applied to files/url, not a data source on their
     /// own, and have no defined meaning in isolation.
+    ///
+    /// `wafer_diameter`/`edge_exclusion` ARE checked, unlike `tests`/`splits`
+    /// above: `main.ts`'s `applyCliArgs` applies them directly and
+    /// unconditionally regardless of whether any file is present ("these are
+    /// scalars applied directly... there's nothing to wait for" — they are
+    /// not modifiers of a load the way `tests`/`splits` are), so a
+    /// `--wafer-diameter`-only launch is exactly as real a payload as a
+    /// `--url`-only one and must not be misreported as empty.
     pub fn is_empty(&self) -> bool {
         self.files.is_empty() && self.url.is_none() && self.url_error.is_none()
+            && self.wafer_diameter.is_none() && self.edge_exclusion.is_none()
     }
 }
 
@@ -74,6 +106,17 @@ Options:
                          selector; it is still always shown for confirmation.
   --splits <FILE>       A wafer-splits CSV (same format the Splits… dialog
                          saves/loads) — applied automatically once loaded.
+  --wafer-diameter <MM> Wafer diameter in mm, applied to every wafer in this
+                         launch (same value the Diameter & edge exclusion…
+                         dialog's diameter field sets).
+  --edge-exclusion <MM> Edge-exclusion band width in mm, applied to every
+                         wafer in this launch (same value that dialog's
+                         exclusion field sets). Only takes effect once a
+                         wafer diameter is known, from --wafer-diameter in
+                         this same launch or already set from a previous
+                         session — otherwise it is ignored with a logged
+                         warning, never silently misapplied against an
+                         unconfirmed diameter.
   --url <URL>           A data URL to fetch and open, in place of (or
                          alongside) FILE/--list. Must be paired with
                          --url-format. Without --url-headers, the URL must be
@@ -97,20 +140,33 @@ A tsmap://open?url=<URL>&format=<FORMAT> link, registered as this app's URL
 scheme handler, is equivalent to --url/--url-format together (e.g. a link on
 a web page can launch tsmap this way) — cannot be combined with --url,
 --url-format, or another tsmap:// link.
+
+Long options may be abbreviated to any unambiguous prefix, e.g. --edge for
+--edge-exclusion. An ambiguous or unrecognized prefix is a hard error, never
+a silent guess.
 ";
 
 /// True if `args` (raw, unfiltered) requests help — checked first, before any
 /// other parsing, so `--help` always wins even alongside other/bad flags.
+/// Also recognizes an unambiguous prefix of `--help` (via `resolve_long_flag`,
+/// the same resolver `parse_args` uses) — without this, `--h` used to resolve
+/// to the bare `--help` flag as a silent no-op inside `parse_args` (nothing
+/// there prints help; it just falls into the "resolved to a bare flag —
+/// no-op" arm), which is exactly the silent guess this module's own prefix
+/// matching is supposed to never make. `.ok()` means a *genuinely ambiguous*
+/// prefix (ok's this out to `None`) still falls through to `parse_args`'s
+/// normal "ambiguous option" hard error instead of accidentally opening help.
 pub fn wants_help(args: &[String]) -> bool {
-    args.iter().any(|a| a == "--help" || a == "-h")
+    args.iter().any(|a| a == "-h" || resolve_long_flag(a).ok() == Some("--help"))
 }
 
 /// True if `args` (raw, unfiltered) requests the version. Checked alongside
 /// `wants_help`, before any other parsing, for the same reason: without it the
 /// unrecognized-flag rule below would reject `--version` outright, which is
-/// what it did until v0.1.24.
+/// what it did until v0.1.24. Same unambiguous-prefix recognition as
+/// `wants_help` above, and the same reason for it.
 pub fn wants_version(args: &[String]) -> bool {
-    args.iter().any(|a| a == "--version" || a == "-V")
+    args.iter().any(|a| a == "-V" || resolve_long_flag(a).ok() == Some("--version"))
 }
 
 /// The string printed by `--version`. `CARGO_PKG_VERSION` comes from
@@ -173,23 +229,101 @@ struct RawArgs {
     list: Option<String>,
     tests: Option<String>,
     splits: Option<String>,
+    edge_exclusion: Option<String>,
+    wafer_diameter: Option<String>,
     url: Option<String>,
     url_format: Option<String>,
     url_headers: Option<String>,
 }
 
-/// Recognized flags that take a value — `--list`/`--tests`/`--splits`/`--url`/
-/// `--url-format`/`--url-headers`.
-const VALUE_FLAGS: &[&str] =
-    &["--list", "--tests", "--splits", "--url", "--url-format", "--url-headers"];
+/// Recognized flags that take a value — `--list`/`--tests`/`--splits`/
+/// `--edge-exclusion`/`--wafer-diameter`/`--url`/`--url-format`/`--url-headers`.
+const VALUE_FLAGS: &[&str] = &[
+    "--list", "--tests", "--splits", "--edge-exclusion", "--wafer-diameter",
+    "--url", "--url-format", "--url-headers",
+];
 /// Recognized flags that take no value — handled elsewhere (`--new-instance`
 /// before this point, `--help`/`-h` and `--version`/`-V` via `wants_help`/
 /// `wants_version` before this point too) but still accepted here so they're
 /// never misreported as unrecognized.
 const BARE_FLAGS: &[&str] = &["--new-instance", "--help", "-h", "--version", "-V"];
 
+/// All long-form flags this app recognizes, for unambiguous-prefix matching
+/// (mirrors clap's `infer_long_args`) — value flags and the long forms of the
+/// bare flags together. Short flags (`-h`/`-V`) are excluded: prefix matching
+/// only ever applies to `--long` flags, matching clap's own documented
+/// caveat.
+fn all_long_flags() -> impl Iterator<Item = &'static str> {
+    VALUE_FLAGS.iter().copied().chain(BARE_FLAGS.iter().copied().filter(|f| f.starts_with("--")))
+}
+
+/// Resolves a `--`-prefixed token to one of the recognized long flags: an
+/// exact match wins outright (so `--url` itself is never mistaken for an
+/// ambiguous prefix of `--url-format`/`--url-headers`); otherwise, if `arg` is
+/// an unambiguous prefix of exactly one recognized flag, that flag is
+/// returned. Zero matches is "unrecognized option"; more than one is
+/// "ambiguous option", naming every candidate — never silently guesses.
+fn resolve_long_flag(arg: &str) -> Result<&'static str, String> {
+    if let Some(exact) = all_long_flags().find(|&f| f == arg) {
+        return Ok(exact);
+    }
+    let matches: Vec<&'static str> = all_long_flags().filter(|f| f.starts_with(arg)).collect();
+    match matches.as_slice() {
+        [one] => Ok(*one),
+        [] => Err(format!("unrecognized option '{arg}'\n\nRun 'tsmap --help' for usage.")),
+        many => Err(format!(
+            "'{arg}' is ambiguous — could match {}\n\nRun 'tsmap --help' for usage.",
+            many.join(", ")
+        )),
+    }
+}
+
+/// True if `v` looks like the *next* flag rather than the value belonging to
+/// the value flag just consumed — used to stop a value flag with nothing
+/// after it from silently swallowing the next flag as its value.
+///
+/// `numeric_value` scopes the one exception to this: for `--edge-exclusion`/
+/// `--wafer-diameter` specifically, a leading `-` followed by a digit is a
+/// negative number, not a flag (every real *flag* in this app is `--word`,
+/// never `-<digit>`) — needed so e.g. `--edge-exclusion -1` treats `-1` as
+/// the (invalid) value to reject with a clear "must be non-negative" error,
+/// rather than misreporting it as a missing value. This must stay scoped to
+/// just those two flags: a value flag whose value is a file path, URL, etc.
+/// (`--tests`, `--list`, `--url`, ...) has never had a reason to start with
+/// `-<digit>`, so treating e.g. `--tests -1` as swallowing `-1` as a literal
+/// path would silently defer a typo'd missing-argument error to a much more
+/// confusing "file not found" failure later.
+fn looks_like_next_flag(v: &str, numeric_value: bool) -> bool {
+    if !v.starts_with('-') || v.len() <= 1 { return false; }
+    if numeric_value && v[1..].starts_with(|c: char| c.is_ascii_digit()) { return false; }
+    true
+}
+
+/// Parses and bound-checks a numeric geometry flag's raw string value
+/// (`--edge-exclusion`/`--wafer-diameter`) — shared so the two flags' near-
+/// identical parse/validate/error-format blocks don't drift independently as
+/// more numeric flags are added. `min` is the lower bound; `min_inclusive`
+/// selects `>= min` (edge exclusion, where 0 is a legitimate value) vs
+/// `> min` (wafer diameter, which must be strictly positive).
+fn parse_geometry_flag(
+    flag: &str,
+    raw: Option<String>,
+    min: f64,
+    min_inclusive: bool,
+) -> Result<Option<f64>, String> {
+    let Some(s) = raw else { return Ok(None) };
+    let v: f64 = s.parse().map_err(|_| format!("{flag} value \"{s}\" is not a valid number"))?;
+    let out_of_range = !v.is_finite() || if min_inclusive { v < min } else { v <= min };
+    if out_of_range {
+        let bound = if min_inclusive { "non-negative" } else { "positive" };
+        return Err(format!("{flag} value \"{s}\" must be a {bound} number"));
+    }
+    Ok(Some(v))
+}
+
 /// Splits raw argv (already excluding argv[0]) into its parts. A token
-/// starting with `-` that isn't one of the flags above is a hard error
+/// starting with `-` that isn't one of the flags above (including an
+/// unambiguous abbreviation of one, see `resolve_long_flag`) is a hard error
 /// (`unrecognized option`), never silently dropped or treated as a file path
 /// — that includes single-dash typos of a double-dash flag. A value flag with
 /// nothing after it, or with another flag immediately after it, is also an
@@ -199,30 +333,43 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
     let mut list = None;
     let mut tests = None;
     let mut splits = None;
+    let mut edge_exclusion = None;
+    let mut wafer_diameter = None;
     let mut url = None;
     let mut url_format = None;
     let mut url_headers = None;
     let mut iter = args.iter().peekable();
     while let Some(arg) = iter.next() {
-        if let Some(pos) = VALUE_FLAGS.iter().position(|&f| f == arg.as_str()) {
-            let looks_like_flag = iter.peek().is_some_and(|v| v.starts_with('-') && v.len() > 1);
-            let value = if looks_like_flag { None } else { iter.next() };
-            let value = value.ok_or_else(|| format!("{arg} requires a value"))?;
-            match pos {
-                0 => list = Some(value.clone()),
-                1 => tests = Some(value.clone()),
-                2 => splits = Some(value.clone()),
-                3 => url = Some(value.clone()),
-                4 => url_format = Some(value.clone()),
-                _ => url_headers = Some(value.clone()),
+        let is_long = arg.starts_with("--") && arg.len() > 2;
+        let is_short = !is_long && arg.starts_with('-') && arg.len() > 1;
+        if is_long {
+            let resolved = resolve_long_flag(arg)?;
+            if let Some(pos) = VALUE_FLAGS.iter().position(|&f| f == resolved) {
+                let numeric_value = resolved == "--edge-exclusion" || resolved == "--wafer-diameter";
+                let looks_like_flag = iter.peek().is_some_and(|v| looks_like_next_flag(v, numeric_value));
+                let value = if looks_like_flag { None } else { iter.next() };
+                let value = value.ok_or_else(|| format!("{resolved} requires a value"))?;
+                match pos {
+                    0 => list = Some(value.clone()),
+                    1 => tests = Some(value.clone()),
+                    2 => splits = Some(value.clone()),
+                    3 => edge_exclusion = Some(value.clone()),
+                    4 => wafer_diameter = Some(value.clone()),
+                    5 => url = Some(value.clone()),
+                    6 => url_format = Some(value.clone()),
+                    _ => url_headers = Some(value.clone()),
+                }
             }
-        } else if BARE_FLAGS.contains(&arg.as_str()) {
+            // else: resolved to a bare flag (--new-instance/--help/--version)
+            // — no-op here, handled earlier or by the caller.
+        } else if is_short {
+            if !BARE_FLAGS.contains(&arg.as_str()) {
+                return Err(format!(
+                    "unrecognized option '{arg}'\n\nRun 'tsmap --help' for usage."
+                ));
+            }
             // No-op here — handled earlier (`--help`/`-h`) or by the caller
             // (`--new-instance`, stripped from `args` before this is called).
-        } else if arg.starts_with('-') && arg.len() > 1 {
-            return Err(format!(
-                "unrecognized option '{arg}'\n\nRun 'tsmap --help' for usage."
-            ));
         } else if arg.starts_with("tsmap://") {
             // Checks both fields, not just `url` — otherwise `--url-format
             // json tsmap://...&format=stdf` would silently let the link
@@ -241,7 +388,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
             files.push(arg.clone());
         }
     }
-    Ok(RawArgs { files, list, tests, splits, url, url_format, url_headers })
+    Ok(RawArgs { files, list, tests, splits, edge_exclusion, wafer_diameter, url, url_format, url_headers })
 }
 
 /// Parses and resolves `args` against `cwd`: `--list`'s lines are folded into
@@ -267,10 +414,21 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
     if raw.url_headers.is_some() && raw.url.is_none() {
         return Err("--url-headers requires --url".to_string());
     }
+    // Not a file path like tests/splits — a bare number, parsed and validated
+    // here (rather than deferred to the frontend) so a bad value fails fast
+    // in the invoking terminal, the same as every other syntax error above.
+    let edge_exclusion = parse_geometry_flag("--edge-exclusion", raw.edge_exclusion, 0.0, true)?;
+    // Strict `> 0` (not `>= 0` like edge_exclusion above) — wmap's
+    // `createWafer` throws for a non-positive diameter, so 0/negative is
+    // never a meaningful value here, unlike edge exclusion where 0 is a
+    // legitimate "no exclusion" no-op.
+    let wafer_diameter = parse_geometry_flag("--wafer-diameter", raw.wafer_diameter, 0.0, false)?;
     Ok(CliArgs {
         files,
         tests: raw.tests.map(|t| resolve_path(&t, cwd)),
         splits: raw.splits.map(|s| resolve_path(&s, cwd)),
+        edge_exclusion,
+        wafer_diameter,
         // Not resolved against cwd like the file-path flags above — a URL
         // (and its format tag) is not a local path.
         url: raw.url,
@@ -333,6 +491,123 @@ mod tests {
         assert_eq!(resolved.tests.as_deref(), Some("/cwd/t.csv"));
         assert_eq!(resolved.splits.as_deref(), Some("/abs/s.csv"));
         assert!(resolved.files.is_empty());
+    }
+
+    #[test]
+    fn edge_exclusion_flag_resolved() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--edge-exclusion", "3.2", "a.stdf"]), cwd).unwrap();
+        assert_eq!(resolved.edge_exclusion, Some(3.2));
+    }
+
+    #[test]
+    fn edge_exclusion_non_numeric_value_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--edge-exclusion", "abc"]), cwd).unwrap_err();
+        assert!(err.contains("--edge-exclusion"), "error was: {err}");
+    }
+
+    #[test]
+    fn edge_exclusion_negative_value_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--edge-exclusion", "-1"]), cwd).unwrap_err();
+        assert!(err.contains("non-negative"), "error was: {err}");
+    }
+
+    #[test]
+    fn wafer_diameter_flag_resolved() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--wafer-diameter", "300", "a.stdf"]), cwd).unwrap();
+        assert_eq!(resolved.wafer_diameter, Some(300.0));
+    }
+
+    #[test]
+    fn wafer_diameter_non_numeric_value_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--wafer-diameter", "abc"]), cwd).unwrap_err();
+        assert!(err.contains("--wafer-diameter"), "error was: {err}");
+    }
+
+    #[test]
+    fn wafer_diameter_zero_is_an_error() {
+        // Strict > 0, unlike edge_exclusion's >= 0 — wmap's createWafer
+        // throws for a non-positive diameter, so 0 has no meaningful use here.
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--wafer-diameter", "0"]), cwd).unwrap_err();
+        assert!(err.contains("positive"), "error was: {err}");
+    }
+
+    #[test]
+    fn wafer_diameter_negative_value_is_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--wafer-diameter", "-1"]), cwd).unwrap_err();
+        assert!(err.contains("positive"), "error was: {err}");
+    }
+
+    #[test]
+    fn wafer_diameter_and_edge_exclusion_combine() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--wafer-diameter", "300", "--edge-exclusion", "3"]), cwd).unwrap();
+        assert_eq!(resolved.wafer_diameter, Some(300.0));
+        assert_eq!(resolved.edge_exclusion, Some(3.0));
+    }
+
+    #[test]
+    fn wafer_diameter_alone_is_valid_with_no_edge_exclusion() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--wafer-diameter", "300"]), cwd).unwrap();
+        assert_eq!(resolved.wafer_diameter, Some(300.0));
+        assert_eq!(resolved.edge_exclusion, None);
+    }
+
+    #[test]
+    fn unambiguous_long_flag_abbreviation_is_accepted() {
+        // --edge is a unique prefix of --edge-exclusion today — no other
+        // recognized flag starts with "--edge".
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--edge", "3.2"]), cwd).unwrap();
+        assert_eq!(resolved.edge_exclusion, Some(3.2));
+    }
+
+    #[test]
+    fn wafer_diameter_abbreviation_is_accepted() {
+        // --wafer is a unique prefix of --wafer-diameter today.
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--wafer", "300", "--edge", "3"]), cwd).unwrap();
+        assert_eq!(resolved.wafer_diameter, Some(300.0));
+        assert_eq!(resolved.edge_exclusion, Some(3.0));
+    }
+
+    #[test]
+    fn ambiguous_long_flag_prefix_is_an_error() {
+        // --u is genuinely 3-way ambiguous: --url, --url-format, and
+        // --url-headers all start with it.
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--u", "https://example.com/lot.stdf"]), cwd).unwrap_err();
+        assert!(err.contains("ambiguous"), "error was: {err}");
+        assert!(err.contains("--url"), "error was: {err}");
+        assert!(err.contains("--url-format"), "error was: {err}");
+        assert!(err.contains("--url-headers"), "error was: {err}");
+    }
+
+    #[test]
+    fn unrecognized_long_flag_abbreviation_is_still_an_error() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--zz", "a.stdf"]), cwd).unwrap_err();
+        assert!(err.contains("--zz"), "error was: {err}");
+    }
+
+    #[test]
+    fn exact_match_wins_over_prefix_ambiguity() {
+        // --url is itself an exact flag name and must not be rejected as an
+        // ambiguous prefix of --url-format/--url-headers.
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(
+            &args(&["--url", "https://example.com/lot.stdf", "--url-format", "stdf"]),
+            cwd,
+        )
+        .unwrap();
+        assert_eq!(resolved.url.as_deref(), Some("https://example.com/lot.stdf"));
     }
 
     #[test]
@@ -399,11 +674,53 @@ mod tests {
     }
 
     #[test]
+    fn a_negative_number_shaped_value_does_not_swallow_the_next_flag_for_non_numeric_flags() {
+        // Regression test: the negative-number exemption added for
+        // --edge-exclusion/--wafer-diameter used to apply to every value
+        // flag, so `--tests -1` silently accepted "-1" as the tests path
+        // instead of reporting the missing value.
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--tests", "-1", "a.stdf"]), cwd).unwrap_err();
+        assert!(err.contains("--tests"), "error was: {err}");
+    }
+
+    #[test]
+    fn edge_exclusion_negative_value_is_not_mistaken_for_the_next_flag() {
+        // The numeric flags are the one deliberate exception to the test
+        // above — a negative number is a real (if invalid) value for them.
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--edge-exclusion", "-1", "--wafer-diameter", "300"]), cwd).unwrap_err();
+        assert!(err.contains("non-negative"), "error was: {err}");
+    }
+
+    #[test]
     fn wants_help_detects_long_and_short_form() {
         assert!(wants_help(&args(&["--help"])));
         assert!(wants_help(&args(&["-h"])));
         assert!(wants_help(&args(&["a.stdf", "--help"])));
         assert!(!wants_help(&args(&["a.stdf"])));
+    }
+
+    #[test]
+    fn wants_help_detects_an_unambiguous_abbreviation() {
+        // Regression test: --h used to resolve to the bare --help flag as a
+        // silent no-op inside parse_args (nothing there prints help), since
+        // wants_help only ever matched the exact string "--help".
+        assert!(wants_help(&args(&["--h"])));
+    }
+
+    #[test]
+    fn wants_version_detects_an_unambiguous_abbreviation() {
+        assert!(wants_version(&args(&["--vers"])));
+    }
+
+    #[test]
+    fn wants_help_does_not_fire_on_an_ambiguous_prefix() {
+        // "--h" is unambiguous today (only --help starts with it), but this
+        // guards the general rule: an ambiguous prefix must never silently
+        // resolve to help — it should fall through to parse_args's own
+        // "ambiguous option" hard error instead.
+        assert!(!wants_help(&args(&["--u"])));
     }
 
     #[test]
@@ -494,6 +811,32 @@ mod tests {
             cwd,
         )
         .unwrap();
+        assert!(!resolved.is_empty());
+    }
+
+    #[test]
+    fn wafer_diameter_only_launch_is_not_reported_empty() {
+        // Regression test: same failure mode as url_only_launch_is_not_reported_empty
+        // above, for the two new scalar flags. Unlike --tests/--splits (pure
+        // modifiers of a load, no meaning alone), main.ts's applyCliArgs
+        // applies wafer_diameter/edge_exclusion directly and unconditionally
+        // regardless of whether any file is present — so a
+        // `--wafer-diameter`-only launch is a real payload, not nothing, and
+        // must not be misreported as empty (which silently drops it in
+        // get_startup_files.rs's set_startup_args, and on a relaunch to an
+        // already-running instance, drops it with no error logged at all).
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--wafer-diameter", "300"]), cwd).unwrap();
+        assert!(!resolved.is_empty());
+    }
+
+    #[test]
+    fn edge_exclusion_only_launch_is_not_reported_empty() {
+        let cwd = Path::new("/cwd");
+        // Needs a diameter too, per normalizeWaferGeometry's gate (frontend
+        // side) — but is_empty() itself must not depend on that; it only
+        // needs to know a real CLI payload was given.
+        let resolved = resolve(&args(&["--wafer-diameter", "300", "--edge-exclusion", "3"]), cwd).unwrap();
         assert!(!resolved.is_empty());
     }
 

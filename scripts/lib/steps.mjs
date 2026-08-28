@@ -367,16 +367,22 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
 
     case 'expandChartByTitle': {
       // wmap's chart cards carry no class/id on the card or the Expand button
-      // (it's `title = 'Expand'`, not aria-label) — match the card by its
-      // heading text, then find the Expand button among that heading's
-      // siblings. Always throws on a miss (see file header).
+      // — match the card by its heading text, then find the Expand button
+      // among that heading's siblings by its `aria-label` (was matched on a
+      // native `title="Expand"` attribute, but wmap's `attachChartTip`
+      // — themed tooltips replacing native `title` on chart-card header
+      // controls, wmap 0.25.0 — removed that attribute entirely, so every
+      // capture through this matcher started failing at once; `aria-label`
+      // was always present alongside it and is the more robust choice
+      // anyway, being semantic rather than a tooltip implementation detail).
+      // Always throws on a miss (see file header).
       const wanted = args[0];
       const expanded = await page.evaluate((titleText) => {
         const headings = [...document.querySelectorAll('div')]
           .filter(d => d.children.length === 0 && d.textContent?.trim().startsWith(titleText));
         for (const h of headings) {
           const headingRow = h.parentElement;
-          const btn = headingRow && [...headingRow.querySelectorAll('button')].find(b => b.title === 'Expand');
+          const btn = headingRow && [...headingRow.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'Expand');
           if (btn) { btn.click(); return true; }
         }
         return false;

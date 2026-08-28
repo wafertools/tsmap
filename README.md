@@ -132,6 +132,8 @@ src/
   parserWorker.ts     — web-only module worker running the WASM parsers off the UI thread
   lib.ts              — pure, DOM-free helpers extracted from main.ts for testability
   types.ts            — shared types: ParsedFile, WaferData, TestDef, LotMeta
+  guideExtension.ts   — GENERATED (scripts/build-user-guide.mjs): tsmap's own guide
+                        content, folded into wmap's guide window via userGuideExtension
 
   mappingUI.ts        — CSV/JSON/Parquet column mapping overlay
   multiFileUI.ts      — multi-file rename and append confirmation
@@ -140,6 +142,9 @@ src/
   filterTable.ts      — generic sortable/filterable table behind the file filter
   fileAssociationsUI.ts — "File associations…" dialog (Tauri only)
   splits.ts / splitsUI.ts — wafer splits: a user-assigned grouping axis over metadata
+  waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
+  binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
+  definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
 

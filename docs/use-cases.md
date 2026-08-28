@@ -28,7 +28,7 @@ a scatter plot of the two tests and confirm the relationship visually.
 ![Test scatter](images/scatter.png)
 
 See [The wafer map view](user-guide.md#5-the-wafer-map-view) and
-[Insights tab](user-guide.md#7-insights-tab).
+[Grouping data in the Insights tab](user-guide.md#7-grouping-data-in-the-insights-tab).
 
 ## Comparing process corners with splits
 

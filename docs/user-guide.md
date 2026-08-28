@@ -19,13 +19,10 @@ interactive yield maps, parametric heat maps, and statistical charts. It runs as
 desktop application on Linux, macOS, and Windows, and as a browser app at
 [wafertools.github.io/tsmap/app/](https://wafertools.github.io/tsmap/app/).
 
-This guide covers tsmap's own side of the workflow: opening files, column mapping, test
-filtering, splits, and the command line. The wafer map itself, its toolbar, and every
-Insights tab panel (yield, bin pareto, process capability, boxplot, histogram, correlation,
-scatter) are a separate library, [wafermap](https://github.com/wafertools/wafermap), with its
-own built-in guide covering all of that in full — open it any time via the toolbar's **?**
-menu → **Wafer map reference** (enabled once a file is loaded). This guide doesn't repeat
-that material.
+This section covers opening files, column mapping, test filtering, splits, and the command
+line. The wafer map view itself — the toolbar, plot modes, and every Insights tab panel
+(yield, bin pareto, process capability, boxplot, histogram, correlation, scatter) — is
+covered in the [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
 
 ## 1. Supported file formats
 
@@ -166,6 +163,8 @@ tsmap --list files.txt                     # a text file of paths, one per line
 cat files.txt | tsmap                      # or piped via stdin
 tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
+tsmap lot1.stdf --wafer-diameter 300       # sets the wafer diameter (mm) for this launch
+tsmap lot1.stdf --wafer-diameter 300 --edge-exclusion 3   # plus an edge-exclusion band (mm)
 tsmap --url https://.../lot.stdf --url-format stdf   # fetch and open a URL — see below
 tsmap --help                               # full usage
 tsmap --version                            # print the version and exit
@@ -178,6 +177,13 @@ renames, and optionally spec limits/test type (see
 pre-fills the selector's checkboxes, renames, and limit/type overrides — the overlay still
 always appears and still needs a confirm click, the same as any other load; it just saves
 re-picking (and re-entering limits for) tests you already set up before.
+
+`--wafer-diameter`/`--edge-exclusion` set the same values as the
+[Diameter & edge exclusion… dialog](#12-wafer-diameter-and-edge-exclusion) — a bare number in mm,
+not a file path. `--edge-exclusion` only takes effect once a diameter is known, from
+`--wafer-diameter` in the same launch or one already persisted from a previous session; given
+with no diameter available from either source, it's ignored with a logged warning rather than
+silently applied against whatever tsmap would otherwise infer.
 
 If tsmap is already running, launching it again with files hands them to the running window
 instead of opening a second blank one: with nothing currently loaded they open right away;
@@ -475,6 +481,13 @@ The **Pass bin(s)** field at the bottom of the overlay specifies which hard bin 
 treated as pass for yield calculation. Default is `1`. Enter multiple bin numbers separated
 by commas (e.g. `1,7`).
 
+CSV/JSON/Parquet have no equivalent of STDF/ATDF's HBR/SBR records, so bins have no names —
+just numbers — unless you supply them. The **Load bin definitions…** button next to the
+Pass bin(s) field loads a bin-definitions CSV (real hard/soft bin names, and pass/fail flags
+that override this field) before you continue. See [Bin definitions](#11-bin-definitions)
+below for the file format, and for STDF/ATDF's own version of this (overriding what HBR/SBR
+already supplied, once loaded).
+
 ### Saved mappings
 
 Once you click **Continue →**, the mapping is saved and automatically restored the next
@@ -629,46 +642,26 @@ toggle if you didn't widen the scan at load time.
 After parsing, tsmap renders the wafer map. A single-wafer file shows one full-screen map
 with the summary panel open by default; a multi-wafer lot shows a side-by-side gallery.
 
-The map is delivered by the wafermap rendering engine. For a full walkthrough of toolbar
-controls, plot modes, overlays, zoom and pan, die hover tooltips, findings panel, summary
-panel, and gallery controls, open tsmap's **?** Help menu → **Wafer map reference**.
+For a full walkthrough of toolbar controls, plot modes, overlays, zoom and pan, die hover
+tooltips, the findings panel, the summary panel, and gallery controls, see the
+[full wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
 
 ### 5.1 Dies with no reported position
 
 Not every file reports an X/Y position for every die — see
 [Dies with no reported position](#dies-with-no-reported-position) in the column mapping
-section for how that's assigned (or left unassigned) at load time. What you see afterwards
-depends on how much of a wafer is affected:
-
-- **A fully coordinate-less wafer** never renders as a map or gallery mosaic — showing dies
-  at fabricated positions would risk being misread as real spatial layout. Instead the card
-  shows a compact summary matching the current plot mode: a **bin breakdown** (colour-coded
-  the same as a positioned card's own bin legend) for hard/soft-bin modes, or a small
-  **histogram** for value mode — coloured through the same colour scheme, log-scale, and
-  spec/data-range settings the map itself uses, so switching those in the toolbar updates the
-  chart the same way it would a real map. A **View die list** toggle switches to the full
-  per-die table (one row per die, site/index, hard bin, soft bin, every test value) with its
-  own **Export CSV** button; from there, **View chart** switches back.
-- **A mixed wafer** — some dies positioned, some not — renders its normal wafer map for the
-  positioned dies, plus an expandable **"+N dies without position data"** footer beneath the
-  card (click the footer, or its chevron, to expand/collapse). Expanding it shows the same
-  chart/die-list toggle, scoped to just the unpositioned subset.
-- The toolbar's spatial-only controls (zoom, pan, select, download, orientation, overlays,
-  legend position) are hidden on a fully coordinate-less card, since there's no map for them
-  to act on. Plot mode and colour scheme stay — both drive what the summary shows.
-- A **lot-level die list** combining every wafer (with a wafer-id column) is available from
-  the toolbar's **Lot ▾** menu for multi-wafer loads, with its own CSV export covering the
-  whole lot.
+section for how that's assigned (or left unassigned) at load time. What a resulting
+positionless or mixed wafer looks like on screen, which toolbar controls it hides, and how
+findings treat it, is covered in the
+[full wafer map guide](https://wafertools.github.io/wafermap/user-guide/) ("Wafers and dies
+with no position data") — the same behaviour whether the file arrived as STDF, ATDF, CSV,
+JSON, or Parquet.
 
 `sample_data/COORDLESS-LOT-01.stdf` demonstrates all three wafer states in one lot: `W01` is
 fully positioned, `W02` is a mixed wafer (~15% of dies unpositioned), and `W03` is fully
-coordinate-less.
-
-Findings that depend on physical layout — edge ring, quadrants, sectors, reticle position,
-cluster and pattern detection — only ever consider positioned dies, so a coordinate-less
-wafer contributes none of these. Everything else — yield, bin counts, per-test statistics,
-and the Insights tab's histograms/correlation/scatter — still includes every die, positioned
-or not.
+coordinate-less. A **lot-level die list** combining every wafer (with a wafer-id column) is
+available from the toolbar's **Lot ▾** menu for multi-wafer loads, with its own CSV export
+covering the whole lot.
 
 ### Value findings
 
@@ -677,17 +670,18 @@ patterns: regions of the wafer (edge ring, quadrants, clusters, test sites) with
 low yield or distinctive bin patterns. These yield and bin findings are fast to compute and
 **always on**.
 
-The **Value findings** toolbar control is a **toggle** (shown with a ☐ / ☑ checkbox) that
-adds one more category to that same Findings list: regions that read unusually high or low on
-a specific *test value*, or fail spec more often there than elsewhere ("the edge ring reads
-8% high on VDD_CORE"). This is the **only** thing it changes. It does **not** affect:
+**Show test-value findings**, in the toolbar's **Lot ▾** menu, is a **toggle** (shown with a
+☐ / ☑ checkbox) that adds one more category to that same Findings list: regions that read
+unusually high or low on a specific *test value*, or fail spec more often there than elsewhere
+("the edge ring reads 8% high on VDD_CORE"). This is the **only** thing it changes. It does
+**not** affect:
 
 - the panel's per-test Min/Mean/Max statistics (always shown),
 - test-value maps or stacked value maps,
-- the [Insights tab](#7-insights-tab) (boxplots, histograms, scatter, correlation — all independent).
+- the [Insights tab](#7-grouping-data-in-the-insights-tab) (boxplots, histograms, scatter, correlation — all independent).
 
 Because this regional value pass scales with regions × tests × dies, it is **off by default**
-to keep loads fast. The toggle appears once a file with test values is loaded; switch it on
+to keep loads fast. The item is enabled once a file with test values is loaded; switch it on
 and the maps re-render with the extra findings in the panel — the wafer's data is already in
 memory, so this recomputes in place with no reload. Switch it off to remove them. It resets to
 off each time you load a new file, and is disabled while the Insights tab is open (it only
@@ -701,9 +695,14 @@ A **split** is a name you assign to a wafer that isn't in the file at all — mo
 process corner (`TT`, `FF`, `SS`, `FS`, `SF`), but it can be anything: an experiment
 condition, a test-temperature group, anything you want to compare wafers by that your
 tester didn't record. Once assigned, splits behave exactly like any other metadata field
-in the [Insights tab's Group by dropdown](#7-insights-tab) — split-vs-split
+in the [Insights tab's Group by dropdown](#7-grouping-data-in-the-insights-tab) — split-vs-split
 yield, boxplots, histograms, correlation, and scatter all work immediately with no extra
 setup — and they can optionally be shown right on the wafer map/gallery labels too.
+
+Splits are one of tsmap's three kinds of definitions file, alongside
+[test definitions](#10-test-definitions) and [bin definitions](#11-bin-definitions) — see those
+sections for the other two, and [Definitions file formats](#13-definitions-file-formats) for a
+filled-in template of all three.
 
 Once a file is loaded, open the toolbar's **Lot ▾** menu and choose **Splits…** to open the
 assignment dialog.
@@ -772,17 +771,16 @@ rather than silently changing chart groupings and map labels behind your back.
 
 ---
 
-## 7. Insights tab
+## 7. Grouping data in the Insights tab
 
 The **Insights** button in the map toolbar (both the single-wafer view and the gallery have
-their own) switches to wafermap's own grid of statistical panels — yield, bin pareto, process
-capability, boxplot, histogram, correlation, and scatter — sharing the same parsed,
-in-memory data as the map, so switching never re-parses.
+their own) switches to a grid of statistical panels — yield, bin pareto, process capability,
+boxplot, histogram, correlation, and scatter — sharing the same parsed, in-memory data as the
+map, so switching never re-parses.
 
-**This is entirely a wafermap feature.** Every panel, its controls, and its grouping/drill-down
-behaviour are documented in full in wafermap's own built-in guide — see the note at the top of
-this document for how to open it. This section covers only the two things that are
-tsmap-specific:
+**Every panel, its controls, and its grouping/drill-down behaviour are documented in full in
+the [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/).** This section
+covers only the two things that are specific to how tsmap feeds data into it:
 
 - **Where the "Group by" field list comes from.** Grouping is driven by metadata attached
   to each wafer at load time, plus any [wafer splits](#6-wafer-splits) you've assigned.
@@ -795,25 +793,7 @@ tsmap-specific:
 
 ---
 
-## 8. Exporting charts
-
-Every chart panel has a **camera** button that saves the current view as a PNG at the
-displayed resolution. To get a clean full-resolution render, use the expand (corner-arrows)
-button first to open the panel in the fullscreen modal, then click the camera button.
-
-Each exported PNG includes a header strip above the chart with the panel title, source
-filename, wafer and die counts, the active test name (where applicable), and the time of
-export. The live card UI is unchanged — the header appears only in the saved file.
-
-On the desktop, PNG saves open a native save dialog. In the browser, the file goes to your
-downloads folder.
-
-For map PNG export, use the **camera** button in the map toolbar — see **Wafer map reference**
-(tsmap's **?** Help menu) for details.
-
----
-
-## 9. The log panel
+## 8. The log panel
 
 A collapsible log panel sits at the bottom of the window. It shows timestamped messages
 from the parser and renderer: file load events, parse warnings, and any errors.
@@ -834,7 +814,7 @@ applied. If soft bin data is not meaningful for your product, this warning can b
 
 ---
 
-## 10. Desktop vs browser differences
+## 9. Desktop vs browser differences
 
 | Feature | Desktop | Browser |
 |---------|---------|---------|
@@ -851,3 +831,120 @@ The browser version is functionally identical to the desktop app. Files are pars
 in your browser — nothing is sent to a server.
 
 Browser requirements: Chrome 80+, Firefox 113+, Safari 16.4+, Edge 80+.
+
+---
+
+## 10. Test definitions
+
+tsmap has **three kinds of definitions file** — test definitions, [wafer splits](#6-wafer-splits),
+and [bin definitions](#11-bin-definitions) — each a small CSV round-trip for one axis of a lot's
+metadata that either isn't in the raw data at all, or that you want to correct/extend after
+parsing. This section and the next cover the two reached from the same place; splits get their
+own fuller section back at [§6](#6-wafer-splits) since assigning them is an interactive workflow
+of its own, not just a file round-trip.
+
+Once a file is loaded, open the toolbar's **Lot ▾** menu and choose **Test definitions…** for a
+lighter-weight companion to the [test selector](#4-test-selector-stdf-and-atdf)'s own Save/Load —
+no selection checkboxes, no search, just the current test list:
+
+- **Save…** writes every currently imported test's number, name, and current effective
+  limits/units/type to a CSV.
+- **Load…** reads a CSV back and applies it as an override on top of the parsed data, then
+  re-renders immediately. It's the same file, read by the same parser
+  (`parseTestListFile`/`applyTestOverrides`), as the test selector's own
+  [Save list / Load list](#test-lists-save-load) buttons — a file prepared with either works
+  identically in the other.
+- **This dialog can only override tests already imported** — a row whose test number isn't
+  currently in the loaded set is silently ignored. To change *which* tests are imported (add one
+  that wasn't selected, or drop one), use **Lot ▾ → Filter tests…** instead, which re-opens the
+  full test selector.
+
+See [Test lists (Save / Load)](#test-lists-save-load) above for the CSV format itself — this
+dialog and the test selector's own Save/Load buttons read and write exactly the same file.
+
+---
+
+## 11. Bin definitions
+
+A **bin definition** is a human-readable name for a hard or soft bin number, plus (for hard
+bins) whether it counts as pass or fail. STDF and ATDF already carry this in their own HBR/SBR
+records, so a bin like `2` shows up as "Contact Open" without any extra step. CSV, JSON, and
+Parquet have no equivalent record at all — every bin is just a bare number — unless you supply
+definitions yourself.
+
+**For CSV/JSON/Parquet**, load a bin-definitions file in the column mapping overlay's
+**Load bin definitions…** button (next to [Pass bin(s)](#pass-bins)), before you continue past
+mapping.
+
+**For any format, once loaded**, open the toolbar's **Lot ▾** menu and choose
+**Bin definitions…** — the same lightweight Save/Load shape as
+[Test definitions](#10-test-definitions): no selection UI, an override on top of whatever's
+already there, and Load re-renders immediately once applied. For STDF/ATDF this overrides the
+names/pass-flags HBR/SBR supplied; for CSV/JSON/Parquet with nothing loaded yet, it supplies them
+outright.
+
+The file is a CSV with a required header row:
+
+    # tsmap bin definitions
+    # Saved: 2026-08-20T09:15:00.000Z
+    bin,type,name,pass
+    1,hard,Pass,P
+    2,hard,Contact Open,F
+    10,soft,Leakage Fail,F
+
+- **Header required** — `bin,type,name,pass`, any order, any subset, case-insensitive, with
+  recognised synonyms (`hbin`/`hardbin`, `sbin`/`softbin`, `binnum`, `pf`, etc.). A header cell
+  of `hbin` or `sbin` also implies that row's `type`, so a file naming only hard bins doesn't
+  need a separate `type` column at all.
+- **`type`** is `hard` or `soft` (`h`/`s` also accepted). Hard bin 1 and soft bin 1 are
+  independent entries — the same rule STDF/ATDF's own HBR/SBR follow. Defaults to `hard` when
+  omitted, since most single-axis CSV/JSON/Parquet loads only map one bin column.
+- **`pass`** accepts `P`/`F`, `Y`/`N`, `true`/`false`, or `1`/`0`. Only meaningful for hard
+  bins in practice — a soft-bin row's `pass` value is still read, but wmap's own pass/fail
+  logic looks at hard bin membership.
+- A blank `name` or `pass` cell leaves whatever's already set for that bin alone; it never
+  clears an existing value. Only a row whose bin number is unreadable is dropped entirely — a
+  bad `type` or `pass` cell drops just that field, with a warning, and the rest of the row
+  still applies.
+
+---
+
+## 12. Wafer diameter and edge exclusion
+
+tsmap normally works out each wafer's physical size from the die positions in the file, or
+(for STDF/ATDF) from the file's own WCR record when present. Open the toolbar's **Lot ▾** menu
+and choose **Diameter & edge exclusion…** when you need to override that — most commonly for
+data too sparse to infer a diameter from (a handful of dies near the centre, say), or to add an
+**edge-exclusion band**: a ring near the wafer edge, measured in from the physical boundary,
+whose dies are excluded from yield and shown dimmed on the map.
+
+- **Wafer diameter (mm)** pre-fills from whichever source tsmap trusts most for the currently
+  loaded file: a WCR record's own diameter (real data, shown with no confidence figure), or
+  wmap's own geometric inference — but only when that inference actually resolved physical
+  units; a dimensionless grid-step count is never shown as if it were millimetres. If a value
+  is already pinned and it disagrees with what the current file/wmap now say (for example, a
+  different lot loaded since), a caption flags the mismatch without blocking Apply.
+- **Edge exclusion width (mm)** is only meaningful relative to a confirmed diameter, so the
+  field stays disabled — greyed out, with a "Set a diameter first" hint — until the diameter
+  field holds a valid value. This is enforced live while typing, not just on Apply.
+- **Apply** takes effect immediately, without reloading the file. **Clear** resets both fields
+  together — leaving a pinned exclusion behind after the diameter reverts to auto-inferred
+  would put the exclusion in an under-defined state, so the two always clear as a pair.
+
+Once set, both values persist across restarts (like the theme picker) and apply to every wafer
+in whatever's currently loaded — they're treated as fixed properties of your process, not
+something that varies per wafer the way [splits](#6-wafer-splits) do. They stay in effect for
+the next file you open too, until changed or cleared. `--wafer-diameter`/`--edge-exclusion` set
+the same values from the command line at launch — see [Command line](#command-line) above.
+
+---
+
+## 13. Definitions file formats
+
+**Help → Definitions file formats…** is reachable at any time, including with nothing loaded
+yet — unlike every Lot ▾ dialog above, which needs a file open first. Each row (test
+definitions, splits, bin definitions) has a **Save template…** button that writes a realistic,
+filled-in example of that file, using the exact same formatter its real Save button uses — so
+the column layout is discoverable without reading this guide, and without loading any data
+first. Useful for preparing a definitions file ahead of time (e.g. from a fab's lot traveler or
+a product's bin-name table) before you have real tsmap data to save one from.

@@ -384,7 +384,7 @@ fn parse_wide_format(
 
     let mut warnings = mismatch_warnings(&mismatches, &test_defs);
     warnings.extend(position_warnings(&wafers));
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings })
+    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings })
 }
 
 /// Long/pivot format: one row per (die, test) rather than one column per test.
@@ -565,7 +565,7 @@ fn parse_long_format(
     }
 
     let warnings = position_warnings(&wafers);
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], warnings })
+    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings })
 }
 
 #[cfg(test)]

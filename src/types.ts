@@ -1,4 +1,4 @@
-import type { DieResult } from '@wafertools/wafermap';
+import type { DieResult, BinDef } from '@wafertools/wafermap';
 
 export interface TestDef {
   name: string;
@@ -87,6 +87,17 @@ export interface ParsedFile {
   meta: LotMeta;
   wafers: WaferData[];
   testDefs: Record<string, TestDef>;
+  /** Hard/soft bin names from STDF/ATDF HBR/SBR — wmap's `hbinDefs`/`sbinDefs`
+   *  input, one entry per distinct bin number that had a non-empty name.
+   *  Absent (not just empty) for formats with no HBR/SBR equivalent (CSV/
+   *  JSON/Parquet). */
+  hbinDefs?: BinDef[];
+  sbinDefs?: BinDef[];
+  /** Hard bin numbers HBR marks Pass — feeds wmap's `waferConfig.passBins`,
+   *  which otherwise defaults to `[1]` regardless of whether bin 1 is
+   *  actually this file's pass bin. Absent/empty means "no usable Pass flag
+   *  found," in which case wmap's own default is left in place. */
+  passHbins?: number[];
   /** Non-fatal parser advisories to surface in the log panel. */
   warnings?: string[];
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
+import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -473,6 +473,85 @@ describe('toWmapWaferMeta', () => {
   });
 });
 
+// ── wcrGeometryFrom ──────────────────────────────────────────────────────────
+
+describe('wcrGeometryFrom', () => {
+  it('returns null when there is no source', () => {
+    expect(wcrGeometryFrom(undefined)).toBeNull();
+  });
+
+  it('returns null when the source has no WCR fields', () => {
+    expect(wcrGeometryFrom(source({ lotId: 'LOT1' }))).toBeNull();
+  });
+
+  it('converts mm units (wfUnits=3) straight through', () => {
+    const g = wcrGeometryFrom(source({ wafrSiz: '300', dieHt: '10', dieWid: '12', wfUnits: '3' }))!;
+    expect(g.waferConfig.diameter).toBe(300);
+    expect(g.dieConfig.height).toBe(10);
+    expect(g.dieConfig.width).toBe(12);
+  });
+
+  it('converts inch units (wfUnits=1) to mm', () => {
+    const g = wcrGeometryFrom(source({ wafrSiz: '12', wfUnits: '1' }))!;
+    expect(g.waferConfig.diameter).toBeCloseTo(304.8, 5);
+  });
+
+  it('converts cm units (wfUnits=2) to mm', () => {
+    const g = wcrGeometryFrom(source({ wafrSiz: '30', wfUnits: '2' }))!;
+    expect(g.waferConfig.diameter).toBe(300);
+  });
+
+  it('converts mil units (wfUnits=4) to mm', () => {
+    const g = wcrGeometryFrom(source({ dieWid: '1000', wfUnits: '4' }))!;
+    expect(g.dieConfig.width).toBeCloseTo(25.4, 5);
+  });
+
+  it('never uses wafrSiz/dieHt/dieWid when units are unknown (wfUnits=0)', () => {
+    const g = wcrGeometryFrom(source({ wafrSiz: '300', dieHt: '10', dieWid: '12', wfUnits: '0' }));
+    expect(g).toBeNull();
+  });
+
+  it('never uses wafrSiz/dieHt/dieWid when wfUnits is entirely absent', () => {
+    const g = wcrGeometryFrom(source({ wafrSiz: '300', centerX: '0', centerY: '0' }))!;
+    expect(g.waferConfig.diameter).toBeUndefined();
+    expect(g.waferConfig.center).toEqual({ x: 0, y: 0 });
+  });
+
+  it('maps centerX/centerY to waferConfig.center with no unit conversion', () => {
+    const g = wcrGeometryFrom(source({ centerX: '3', centerY: '-2' }))!;
+    expect(g.waferConfig.center).toEqual({ x: 3, y: -2 });
+  });
+
+  it('requires both centerX and centerY — a lone one is not emitted', () => {
+    const g = wcrGeometryFrom(source({ centerX: '3' }));
+    expect(g).toBeNull();
+  });
+
+  it('maps wfFlat to waferConfig.notch.type', () => {
+    expect(wcrGeometryFrom(source({ wfFlat: 'U' }))!.waferConfig.notch).toEqual({ type: 'top' });
+    expect(wcrGeometryFrom(source({ wfFlat: 'D' }))!.waferConfig.notch).toEqual({ type: 'bottom' });
+    expect(wcrGeometryFrom(source({ wfFlat: 'L' }))!.waferConfig.notch).toEqual({ type: 'left' });
+    expect(wcrGeometryFrom(source({ wfFlat: 'R' }))!.waferConfig.notch).toEqual({ type: 'right' });
+  });
+
+  it('maps posX/posY to dieConfig axis directions', () => {
+    const g = wcrGeometryFrom(source({ posX: 'L', posY: 'D' }))!;
+    expect(g.dieConfig.xAxisDirection).toBe('left');
+    expect(g.dieConfig.yAxisDirection).toBe('down');
+  });
+
+  it('maps every field together from a full WCR record', () => {
+    const g = wcrGeometryFrom(source({
+      wafrSiz: '300', dieHt: '10', dieWid: '12', wfUnits: '3', wfFlat: 'D',
+      centerX: '0', centerY: '0', posX: 'R', posY: 'U',
+    }))!;
+    expect(g).toEqual({
+      waferConfig: { diameter: 300, center: { x: 0, y: 0 }, notch: { type: 'bottom' } },
+      dieConfig: { width: 12, height: 10, xAxisDirection: 'right', yAxisDirection: 'up' },
+    });
+  });
+});
+
 // ── stableTestNumber ─────────────────────────────────────────────────────────
 // Mirrors testdata-parser's Rust test_identity.rs — same algorithm (FNV-1a,
 // reserved-band floor, collision-probe), independent implementation. See that
@@ -587,5 +666,39 @@ describe('testNumberForColumn', () => {
     const used = new Set<number>();
     testNumberForColumn('1001', used);
     expect(used.has(1001)).toBe(true);
+  });
+});
+
+// ── mergeBinDefs / mergePassHbins ────────────────────────────────────────────
+
+describe('mergeBinDefs', () => {
+  it('returns undefined when every input is empty or absent', () => {
+    expect(mergeBinDefs([undefined, [], undefined])).toBeUndefined();
+  });
+
+  it('merges bin defs from multiple files, sorted by bin number', () => {
+    const merged = mergeBinDefs([
+      [{ bin: 2, name: 'Fail' }],
+      [{ bin: 1, name: 'Pass' }],
+    ]);
+    expect(merged).toEqual([{ bin: 1, name: 'Pass' }, { bin: 2, name: 'Fail' }]);
+  });
+
+  it('a later list wins for the same bin number', () => {
+    const merged = mergeBinDefs([
+      [{ bin: 1, name: 'Pass (old)' }],
+      [{ bin: 1, name: 'Pass' }],
+    ]);
+    expect(merged).toEqual([{ bin: 1, name: 'Pass' }]);
+  });
+});
+
+describe('mergePassHbins', () => {
+  it('returns undefined when every input is empty or absent', () => {
+    expect(mergePassHbins([undefined, [], undefined])).toBeUndefined();
+  });
+
+  it('unions and dedupes across files, sorted', () => {
+    expect(mergePassHbins([[3], [1, 3], undefined])).toEqual([1, 3]);
   });
 });

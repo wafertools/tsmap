@@ -2,6 +2,7 @@
 // Mirrors the wmap showcase mapping phase.
 
 import { escapeHtml as esc, testNumberForColumn } from './lib';
+import { parseBinDefsFile, type BinDefEntry } from './binDefs';
 
 export interface CsvTestCol {
   col: string;
@@ -417,8 +418,9 @@ function showLongFormatModal(): Promise<boolean> {
 
 export async function showMappingOverlay(
   result: HeadersResult,
-  onConfirm: (mapping: CsvMapping) => void,
+  onConfirm: (mapping: CsvMapping, binDefs: BinDefEntry[]) => void,
   onCancel: () => void,
+  onLoadBinDefs: () => Promise<string | null>,
 ): Promise<void> {
   const { headers, sample, rowCount } = result;
   const saved = loadSavedMapping(headers);
@@ -520,6 +522,9 @@ export async function showMappingOverlay(
           <input id="pass-bin-input" type="text" value="${savedPassBins}"
                  title="Comma-separated hard bin numbers counted as pass, e.g. 1 or 1,2">
           <span class="muted">(hard bins, comma-separated)</span>
+          <button id="map-load-bindefs" type="button" class="tool-btn"
+                  title="Load a bin-definitions CSV for real bin names (and pass/fail flags) instead of typing bare numbers">Load bin definitions…</button>
+          <span id="map-bindefs-status" class="muted"></span>
         </div>
         <span id="map-validation" class="mapping-validation" role="alert"></span>
         <button id="map-render" class="btn-primary">Continue →</button>
@@ -614,6 +619,32 @@ export async function showMappingOverlay(
 
   const passBinInput = overlay.querySelector<HTMLInputElement>('#pass-bin-input')!;
 
+  // Bin names have no source in CSV/JSON/Parquet the way STDF/ATDF's HBR/SBR
+  // supply them — this is the only way these formats can get any at all.
+  // Kept separate from `passBinInput`/CsvMapping.passBins (which still works
+  // standalone, unaffected): bin *names* are irrelevant to parsing itself,
+  // so there's no reason to route them through the Rust-bound CsvMapping.
+  let loadedBinDefs: BinDefEntry[] = [];
+  const bindefsStatus = overlay.querySelector<HTMLElement>('#map-bindefs-status')!;
+  overlay.querySelector('#map-load-bindefs')!.addEventListener('click', async () => {
+    let text: string | null;
+    try {
+      text = await onLoadBinDefs();
+    } catch {
+      bindefsStatus.textContent = 'Failed to load';
+      return;
+    }
+    if (text === null) return;
+    const warnings: string[] = [];
+    const parsed = parseBinDefsFile(text, (lineNo, msg) => warnings.push(`line ${lineNo}: ${msg}`));
+    if (parsed.length === 0) {
+      bindefsStatus.textContent = 'No valid rows found';
+      return;
+    }
+    loadedBinDefs = parsed;
+    bindefsStatus.textContent = `${parsed.length} bin definition${parsed.length !== 1 ? 's' : ''} loaded`;
+  });
+
   const closeOverlay = () => {
     document.removeEventListener('keydown', onKeyDown);
     overlay.remove();
@@ -680,6 +711,6 @@ export async function showMappingOverlay(
 
     saveMapping(headers, mapping);
     closeOverlay();
-    onConfirm(mapping);
+    onConfirm(mapping, loadedBinDefs);
   });
 }

@@ -3,6 +3,7 @@
 
 import type { CsvMapping } from './mappingUI';
 import type { LotMeta, WaferData, TestDef } from './types';
+import type { BinDef } from '@wafertools/wafermap';
 import { openModal } from './modal';
 
 export interface RustParsedFile {
@@ -10,6 +11,12 @@ export interface RustParsedFile {
   wafers: WaferData[];
   testDefs: Record<string, TestDef>;
   sites?: unknown[];
+  /** From STDF/ATDF HBR/SBR — see `ParsedFile.hbinDefs`/`sbinDefs`/`passHbins`
+   *  (types.ts) for the full doc; `rustToLocal` (lib.ts) carries these
+   *  straight through unchanged. */
+  hbinDefs?: BinDef[];
+  sbinDefs?: BinDef[];
+  passHbins?: number[];
   /** Non-fatal advisories from the parser (e.g. fabricated soft bins). */
   warnings?: string[];
 }
@@ -69,6 +76,18 @@ export interface CliStartupArgs {
   files: string[];
   tests?: string;
   splits?: string;
+  /** `--edge-exclusion <MM>` (cli_files.rs) — a scalar mm value, already
+   *  parsed and validated (non-negative, finite) on the Rust side, unlike
+   *  `tests`/`splits` which are file paths resolved but not read there.
+   *  Only takes effect once a wafer diameter is known (see `waferDiameter`
+   *  below and `waferGeometry.ts`'s `normalizeWaferGeometry`) — Rust
+   *  validates this flag's own syntax but has no visibility into whether a
+   *  diameter is already persisted from a previous session, so that gate is
+   *  enforced in the frontend (`applyCliArgs`), not here. */
+  edgeExclusion?: number;
+  /** `--wafer-diameter <MM>` (cli_files.rs) — a scalar mm value, validated
+   *  `> 0` (strict, unlike `edgeExclusion`'s `>= 0`) on the Rust side. */
+  waferDiameter?: number;
   /** Set when `--url`/`--url-format` (cli_files.rs) failed to fetch — the
    *  Rust side resolves the URL to a real local file *before* the frontend
    *  ever runs (see fetch_url.rs's module doc for why), so `files` already
@@ -97,19 +116,6 @@ export interface Platform {
   openReport(html: string): void;
   /** Opens an external URL in the system browser (Tauri) / a new tab (web). */
   openExternal(url: string): void;
-  /**
-   * Opens the bundled user guide (built by scripts/build-user-guide.mjs from
-   * docs/user-guide.md — see public/guide/). Tauri: the guide is bundled as a
-   * resource (tauri.conf.json) and opened as a local file in the system
-   * browser, so it works fully offline. Web: it's served from the same
-   * origin as the app (Vite copies public/ into the build output), so it's
-   * just a relative link — no bundling step needed there.
-   *
-   * Returns whether the guide opened in a *separate window*. False means the
-   * web build fell back to an in-app modal because the popup was refused —
-   * still shown, but the caller must not claim "opening in your browser".
-   */
-  openGuide(): boolean;
   confirm(message: string): Promise<boolean>;
   stdfTestNames(file: FileHandle): Promise<ScanResult>;
   atdfTestNames(file: FileHandle): Promise<ScanResult>;
@@ -291,16 +297,6 @@ function makeTauriPlatform(): Platform {
 
     openExternal(url) {
       getOpener().then(({ openUrl }) => openUrl(url));
-    },
-
-    openGuide() {
-      import('@tauri-apps/api/path').then(async ({ resolveResource }) => {
-        const { openPath } = await getOpener();
-        const path = await resolveResource('guide/index.html');
-        await openPath(path);
-      });
-      // Always a real system-browser window here — no popup blocker involved.
-      return true;
     },
 
     async confirm(message) {
@@ -727,25 +723,6 @@ function makeWebPlatform(): Platform {
       // frame-ancestors), so the recovery here is a link the user clicks —
       // that click is a fresh user gesture, which the blocker allows.
       if (!openPopup(url, 'noopener')) openBlockedLinkNotice(url);
-    },
-
-    openGuide() {
-      // public/guide/ is copied verbatim into the build output by Vite, so
-      // it's reachable at a plain same-origin relative URL — no bundling or
-      // reachability probing needed (unlike the old GitHub-Pages-hosted
-      // version, this ships with the web build itself). Resolved against the
-      // current page URL (not a hardcoded base) so it works whether the app
-      // is served from `/` (dev) or a subpath (e.g. GitHub Pages `/tsmap/app/`).
-      // The filename must be explicit (`guide/index.html`, not `guide/`) —
-      // Vite's dev server doesn't resolve directory-index requests the way a
-      // production static host does, so a trailing-slash URL silently falls
-      // through to the app's own SPA shell instead of the guide.
-      const href = new URL('guide/index.html', window.location.href).href;
-      // Popup first, for the same printing reason as openReport above. The
-      // guide is same-origin, so the fallback can iframe it directly.
-      if (openPopup(href, 'noopener')) return true;
-      openFramedModal('tsmap guide', { src: href });
-      return false;
     },
 
     async confirm(message) {

@@ -104,6 +104,47 @@ fn decode_wrr(b: &[u8], o: ByteOrder) -> WrrData {
     WrrData { wafer_id, part_cnt, good_cnt, fields }
 }
 
+/// WCR record body (2·30): HEAD_NUM(U1) SITE_GRP(U1) WAFR_SIZ(R4) DIE_HT(R4)
+/// DIE_WID(R4) WF_UNITS(U1) WF_FLAT(C1) CENTER_X(I2) CENTER_Y(I2) POS_X(C1) POS_Y(C1).
+/// Fully fixed-width, no Cn run — unlike MIR. STDF's own missing-value
+/// conventions are applied before emitting (0 for R4, `SENTINEL_I2` for I2,
+/// blank for C1), so a field the tester's software never populated is
+/// omitted, not emitted as literal zero/sentinel data — the frontend treats
+/// an omitted field as "nothing known," never as "this file says zero."
+/// `wfUnits` is the one exception: `0` ("Unknown") is itself a meaningful
+/// enum value here, not a missing-value sentinel, so it's always emitted
+/// when present; the frontend decides not to use the accompanying
+/// measurements when it sees `0`.
+fn wcr_fields(b: &[u8], o: ByteOrder) -> Vec<MetaField> {
+    let mut f = Vec::new();
+    let r4_present = |v: Option<f32>| v.filter(|&x| x > 0.0);
+    push_field(&mut f, "wafrSiz", r4_present(read_f32(b, 2, o)).map(|v| v.to_string()));
+    push_field(&mut f, "dieHt",   r4_present(read_f32(b, 6, o)).map(|v| v.to_string()));
+    push_field(&mut f, "dieWid",  r4_present(read_f32(b, 10, o)).map(|v| v.to_string()));
+    push_field(&mut f, "wfUnits", b.get(14).map(|v| v.to_string()));
+    push_field(&mut f, "wfFlat",  read_c1(b, 15));
+    let i2_present = |v: Option<i16>| v.filter(|&x| x != SENTINEL_I2);
+    push_field(&mut f, "centerX", i2_present(read_i2(b, 16, o)).map(|v| v.to_string()));
+    push_field(&mut f, "centerY", i2_present(read_i2(b, 18, o)).map(|v| v.to_string()));
+    push_field(&mut f, "posX", read_c1(b, 20));
+    push_field(&mut f, "posY", read_c1(b, 21));
+    f
+}
+
+/// HBR (1·40) / SBR (1·50) body — identical layout for both:
+/// HEAD_NUM(U1) SITE_NUM(U1) BIN_NUM(U2) BIN_CNT(U4) BIN_PF(C1) BIN_NAM(Cn).
+/// A real file commonly has several records per bin (one per site, plus a
+/// lot-wide summary at HEAD_NUM/SITE_NUM 255) — callers accumulate into a
+/// `HashMap<bin, name>` keyed by bin number, so a later record simply
+/// overwrites an earlier one. Names aren't expected to vary across those
+/// (they describe the bin, not the site), but nothing here assumes it.
+fn decode_bin_record(b: &[u8], o: ByteOrder) -> BinRecord {
+    let bin = read_u2(b, 2, o).unwrap_or(0) as u32;
+    let pass = read_c1(b, 8).as_deref() == Some("P");
+    let (name, _) = read_cn_str(b, 9);
+    BinRecord { bin, name: nonempty(name), pass }
+}
+
 /// SDR record body (1·80): HEAD_NUM(U1) SITE_GRP(U1) SITE_CNT(U1) then
 /// SITE_NUM array of SITE_CNT × U1, followed by descriptor Cn fields we ignore.
 /// Returns (head_num, [site_num…]).
@@ -171,6 +212,15 @@ fn read_i2(b: &[u8], pos: usize, o: ByteOrder) -> Option<i16> {
 fn read_f32(b: &[u8], pos: usize, o: ByteOrder) -> Option<f32> {
     let bits = read_u4(b, pos, o)?;
     Some(f32::from_bits(bits))
+}
+
+/// Reads a single-character C*1 field (not a Cn string — no length prefix, just
+/// one raw ASCII byte), treating blank (space or null) as absent — STDF's own
+/// "unknown" convention for these fields (WCR's WF_FLAT/POS_X/POS_Y).
+#[inline(always)]
+fn read_c1(b: &[u8], pos: usize) -> Option<String> {
+    let c = *b.get(pos)?;
+    if c == 0 || c == b' ' { None } else { Some((c as char).to_string()) }
 }
 
 // ── Record framing ────────────────────────────────────────────────────────────
@@ -517,6 +567,9 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
 
     let mut meta = LotMeta::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
+    let mut hbin_names: HashMap<u32, String> = HashMap::new();
+    let mut sbin_names: HashMap<u32, String> = HashMap::new();
+    let mut pass_hbins: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut test_defs: HashMap<String, TestDef> = HashMap::new();
     // test_num → string key (cached to avoid re-formatting on every PTR)
     let mut test_num_to_key: HashMap<u32, String> = HashMap::new();
@@ -697,6 +750,13 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
             (1, 10) => { // MIR
                 meta.fields = mir_fields(b, order);
             }
+            // WCR conventionally follows MIR in the stream (SEMI E10/STDF V4:
+            // "may appear anywhere between the MIR and the MRR, typically near
+            // the beginning") — extend rather than replace, so it never
+            // depends on arriving before MIR's own assignment above.
+            (2, 30) => { // WCR
+                meta.fields.extend(wcr_fields(b, order));
+            }
             (1, 80) => { // SDR
                 let (head, site_nums) = decode_sdr(b);
                 for site in site_nums {
@@ -736,6 +796,15 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
                     wafers.push(wafer);
                 }
             }
+            (1, 40) => { // HBR
+                let hbr = decode_bin_record(b, order);
+                if let Some(name) = hbr.name { hbin_names.insert(hbr.bin, name); }
+                if hbr.pass { pass_hbins.insert(hbr.bin); }
+            }
+            (1, 50) => { // SBR
+                let sbr = decode_bin_record(b, order);
+                if let Some(name) = sbr.name { sbin_names.insert(sbr.bin, name); }
+            }
             _ => {}
         }
     }
@@ -748,7 +817,11 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
-    Ok(ParsedStdf { meta, wafers, test_defs, sites, warnings })
+    let hbin_defs = finish_bin_defs(hbin_names);
+    let sbin_defs = finish_bin_defs(sbin_names);
+    let mut pass_hbins: Vec<u32> = pass_hbins.into_iter().collect();
+    pass_hbins.sort_unstable();
+    Ok(ParsedStdf { meta, wafers, test_defs, sites, hbin_defs, sbin_defs, pass_hbins, warnings })
 }
 
 #[cfg(feature = "native")]
@@ -906,6 +979,9 @@ pub fn parse_stdf_from_bytes_filtered(
 
     let mut meta = LotMeta::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
+    let mut hbin_names: HashMap<u32, String> = HashMap::new();
+    let mut sbin_names: HashMap<u32, String> = HashMap::new();
+    let mut pass_hbins: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut test_defs: HashMap<String, TestDef> = HashMap::new();
     let mut test_num_to_key: HashMap<u32, String> = HashMap::new();
     let mut limits_resolved: std::collections::HashSet<u32> = std::collections::HashSet::new();
@@ -1071,6 +1147,9 @@ pub fn parse_stdf_from_bytes_filtered(
             (1, 10) => { // MIR
                 meta.fields = mir_fields(b, order);
             }
+            (2, 30) => { // WCR — see the full-parse dispatch's own comment on ordering.
+                meta.fields.extend(wcr_fields(b, order));
+            }
             (1, 80) => { // SDR
                 let (head, site_nums) = decode_sdr(b);
                 for site in site_nums {
@@ -1108,6 +1187,15 @@ pub fn parse_stdf_from_bytes_filtered(
                     wafers.push(wafer);
                 }
             }
+            (1, 40) => { // HBR
+                let hbr = decode_bin_record(b, order);
+                if let Some(name) = hbr.name { hbin_names.insert(hbr.bin, name); }
+                if hbr.pass { pass_hbins.insert(hbr.bin); }
+            }
+            (1, 50) => { // SBR
+                let sbr = decode_bin_record(b, order);
+                if let Some(name) = sbr.name { sbin_names.insert(sbr.bin, name); }
+            }
             _ => {}
         }
     }
@@ -1118,7 +1206,11 @@ pub fn parse_stdf_from_bytes_filtered(
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
-    Ok(ParsedStdf { meta, wafers, test_defs, sites, warnings })
+    let hbin_defs = finish_bin_defs(hbin_names);
+    let sbin_defs = finish_bin_defs(sbin_names);
+    let mut pass_hbins: Vec<u32> = pass_hbins.into_iter().collect();
+    pass_hbins.sort_unstable();
+    Ok(ParsedStdf { meta, wafers, test_defs, sites, hbin_defs, sbin_defs, pass_hbins, warnings })
 }
 
 // ── Phased timing (bench feature only) ───────────────────────────────────────
@@ -1324,7 +1416,10 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
-    Ok((ParsedStdf { meta, wafers, test_defs, sites, warnings }, timing))
+    // Bench-only path deliberately skips HBR/SBR (and WIR/WRR field
+    // extraction, see above) — it measures raw parse throughput, not
+    // metadata completeness.
+    Ok((ParsedStdf { meta, wafers, test_defs, sites, hbin_defs: Vec::new(), sbin_defs: Vec::new(), pass_hbins: Vec::new(), warnings }, timing))
 }
 
 #[cfg(test)]
@@ -1342,6 +1437,40 @@ mod tests {
     // See WMAP_ISSUES.md #39.
     const COORDLESS_LOT: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/COORDLESS-LOT-01.stdf");
+    // Generated by scripts/generate_stdf_corner_lot.py, which writes a WCR
+    // record (see that script) — the one real-fixture regression check that
+    // WCR parsing reaches an actual committed file, not just the hand-built
+    // bytes in the byte_order::wcr_* tests below.
+    const PVT_LOT_05: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/PVT-LOT-05.stdf");
+
+    #[test]
+    fn pvt_lot_05_has_wcr_fields() {
+        let result = parse_stdf_sync(PVT_LOT_05.to_string()).unwrap();
+        assert_eq!(result.meta.get("wafrSiz"), Some("300"));
+        assert_eq!(result.meta.get("dieHt"), Some("16.9"));
+        assert_eq!(result.meta.get("dieWid"), Some("16.9"));
+        assert_eq!(result.meta.get("wfUnits"), Some("3"));
+        assert_eq!(result.meta.get("wfFlat"), Some("D"));
+        assert_eq!(result.meta.get("centerX"), Some("0"));
+        assert_eq!(result.meta.get("centerY"), Some("0"));
+        assert_eq!(result.meta.get("posX"), Some("R"));
+        assert_eq!(result.meta.get("posY"), Some("U"));
+        assert_eq!(result.wafers.len(), 13);
+    }
+
+    #[test]
+    fn pvt_lot_05_has_hbr_sbr_fields() {
+        let result = parse_stdf_sync(PVT_LOT_05.to_string()).unwrap();
+        assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 1).map(|d| d.name.as_str()), Some("Pass"));
+        assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 2).map(|d| d.name.as_str()), Some("Fail (1 test)"));
+        assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 3).map(|d| d.name.as_str()), Some("Fail (multi)"));
+        assert_eq!(result.sbin_defs.iter().find(|d| d.bin == 1).map(|d| d.name.as_str()), Some("Pass"));
+        assert_eq!(result.pass_hbins, vec![1]);
+        // Sanity check the counts sum to the total die count (2873).
+        let total: u32 = result.wafers.iter().map(|w| w.results.len() as u32).sum();
+        assert_eq!(total, 2873);
+    }
 
     #[test]
     fn coordless_lot_w01_is_fully_positioned() {
@@ -1923,6 +2052,214 @@ mod tests {
             assert_eq!(bd.test_values.get("1000"), Some(&1.25));
             assert_eq!(le.test_defs.get("1000").map(|d| d.name.as_str()), Some("VDD"));
             assert_eq!(be.test_defs.get("1000").map(|d| d.name.as_str()), Some("VDD"));
+        }
+
+        // ── WCR (wafer geometry) ────────────────────────────────────────────────
+
+        /// Minimal FAR + MIR + WCR file — no dies needed, this only exercises
+        /// lot-level metadata extraction.
+        fn build_with_wcr(order: ByteOrder, wcr_body: &[u8]) -> Vec<u8> {
+            let b = Builder::new(order);
+            let mut out = Builder::new(order);
+            let cpu = match order { ByteOrder::Little => 2u8, ByteOrder::Big => 1u8 };
+            out.rec(0, 10, &[cpu, 4]); // FAR
+            let mut mir = Vec::new();
+            mir.extend_from_slice(&b.u4(0));
+            mir.extend_from_slice(&b.u4(0));
+            mir.push(1);
+            mir.extend_from_slice(b" \0\0");
+            mir.extend_from_slice(&b.u2(0));
+            mir.push(b' ');
+            mir.extend_from_slice(&b.cn("LOT-WCR"));
+            out.rec(1, 10, &mir);
+            out.rec(2, 30, wcr_body); // WCR
+            out.buf
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn wcr_body(
+            b: &Builder, wafr_siz: f32, die_ht: f32, die_wid: f32, wf_units: u8,
+            wf_flat: u8, center_x: i16, center_y: i16, pos_x: u8, pos_y: u8,
+        ) -> Vec<u8> {
+            let mut v = vec![1, 0]; // HEAD_NUM, SITE_GRP
+            v.extend_from_slice(&b.f32(wafr_siz));
+            v.extend_from_slice(&b.f32(die_ht));
+            v.extend_from_slice(&b.f32(die_wid));
+            v.push(wf_units);
+            v.push(wf_flat);
+            v.extend_from_slice(&b.i2(center_x));
+            v.extend_from_slice(&b.i2(center_y));
+            v.push(pos_x);
+            v.push(pos_y);
+            v
+        }
+
+        #[test]
+        fn wcr_fields_are_extracted_into_lot_meta() {
+            let b = Builder::new(ByteOrder::Little);
+            let wcr = wcr_body(&b, 300.0, 17.6, 17.6, 3, b'D', 0, 0, b'R', b'U');
+            let result = parse_stdf_from_bytes(&build_with_wcr(ByteOrder::Little, &wcr)).unwrap();
+            assert_eq!(result.meta.get("wafrSiz"), Some("300"));
+            assert_eq!(result.meta.get("dieHt"), Some("17.6"));
+            assert_eq!(result.meta.get("dieWid"), Some("17.6"));
+            assert_eq!(result.meta.get("wfUnits"), Some("3"));
+            assert_eq!(result.meta.get("wfFlat"), Some("D"));
+            assert_eq!(result.meta.get("centerX"), Some("0"));
+            assert_eq!(result.meta.get("centerY"), Some("0"));
+            assert_eq!(result.meta.get("posX"), Some("R"));
+            assert_eq!(result.meta.get("posY"), Some("U"));
+        }
+
+        #[test]
+        fn wcr_missing_value_conventions_are_omitted_not_emitted() {
+            let b = Builder::new(ByteOrder::Little);
+            // WAFR_SIZ/DIE_HT/DIE_WID = 0 (R4 missing convention); WF_UNITS = 0
+            // is itself a real "Unknown" enum value, so it's still emitted;
+            // WF_FLAT/POS_X/POS_Y = blank (C1 missing convention);
+            // CENTER_X/CENTER_Y = -32768 (I2 missing convention, SENTINEL_I2).
+            let wcr = wcr_body(&b, 0.0, 0.0, 0.0, 0, 0, -32768, -32768, 0, 0);
+            let result = parse_stdf_from_bytes(&build_with_wcr(ByteOrder::Little, &wcr)).unwrap();
+            assert_eq!(result.meta.get("wafrSiz"), None);
+            assert_eq!(result.meta.get("dieHt"), None);
+            assert_eq!(result.meta.get("dieWid"), None);
+            assert_eq!(result.meta.get("wfUnits"), Some("0"));
+            assert_eq!(result.meta.get("wfFlat"), None);
+            assert_eq!(result.meta.get("centerX"), None);
+            assert_eq!(result.meta.get("centerY"), None);
+            assert_eq!(result.meta.get("posX"), None);
+            assert_eq!(result.meta.get("posY"), None);
+        }
+
+        #[test]
+        fn wcr_fields_decode_identically_in_big_endian() {
+            let le_b = Builder::new(ByteOrder::Little);
+            let be_b = Builder::new(ByteOrder::Big);
+            let le_bytes = build_with_wcr(ByteOrder::Little, &wcr_body(&le_b, 300.0, 17.6, 17.6, 3, b'D', 1, -1, b'R', b'U'));
+            let be_bytes = build_with_wcr(ByteOrder::Big, &wcr_body(&be_b, 300.0, 17.6, 17.6, 3, b'D', 1, -1, b'R', b'U'));
+            let le = parse_stdf_from_bytes(&le_bytes).unwrap();
+            let be = parse_stdf_from_bytes(&be_bytes).unwrap();
+            assert_eq!(le.meta.get("wafrSiz"), be.meta.get("wafrSiz"));
+            assert_eq!(le.meta.get("centerX"), be.meta.get("centerX"));
+            assert_eq!(le.meta.get("centerY"), be.meta.get("centerY"));
+        }
+
+        #[test]
+        fn wcr_fields_also_reach_the_filtered_parse_entry_point() {
+            let b = Builder::new(ByteOrder::Little);
+            let wcr = wcr_body(&b, 300.0, 17.6, 17.6, 3, b'D', 0, 0, b'R', b'U');
+            let bytes = build_with_wcr(ByteOrder::Little, &wcr);
+            let result = parse_stdf_from_bytes_filtered(&bytes, &std::collections::HashSet::new()).unwrap();
+            assert_eq!(result.meta.get("wafrSiz"), Some("300"));
+        }
+
+        // ── HBR/SBR (bin names + pass bins) ─────────────────────────────────────
+
+        /// Minimal FAR + MIR + HBR/SBR file, mirroring build_with_wcr above.
+        fn build_with_bins(order: ByteOrder, hbrs: &[Vec<u8>], sbrs: &[Vec<u8>]) -> Vec<u8> {
+            let b = Builder::new(order);
+            let mut out = Builder::new(order);
+            let cpu = match order { ByteOrder::Little => 2u8, ByteOrder::Big => 1u8 };
+            out.rec(0, 10, &[cpu, 4]); // FAR
+            let mut mir = Vec::new();
+            mir.extend_from_slice(&b.u4(0));
+            mir.extend_from_slice(&b.u4(0));
+            mir.push(1);
+            mir.extend_from_slice(b" \0\0");
+            mir.extend_from_slice(&b.u2(0));
+            mir.push(b' ');
+            mir.extend_from_slice(&b.cn("LOT-BINS"));
+            out.rec(1, 10, &mir);
+            for hbr in hbrs { out.rec(1, 40, hbr); }
+            for sbr in sbrs { out.rec(1, 50, sbr); }
+            out.buf
+        }
+
+        fn bin_body(b: &Builder, bin_num: u16, bin_cnt: u32, pf: u8, name: &str) -> Vec<u8> {
+            let mut v = vec![1u8, 255]; // HEAD_NUM, SITE_NUM (255 = lot-wide summary)
+            v.extend_from_slice(&b.u2(bin_num));
+            v.extend_from_slice(&b.u4(bin_cnt));
+            v.push(pf);
+            v.extend_from_slice(&b.cn(name));
+            v
+        }
+
+        #[test]
+        fn hbr_sbr_fields_are_extracted() {
+            let b = Builder::new(ByteOrder::Little);
+            let hbrs = vec![
+                bin_body(&b, 1, 500, b'P', "Pass"),
+                bin_body(&b, 2, 20, b'F', "Fail"),
+            ];
+            let sbrs = vec![bin_body(&b, 10, 5, b'F', "Leakage Fail")];
+            let bytes = build_with_bins(ByteOrder::Little, &hbrs, &sbrs);
+            let result = parse_stdf_from_bytes(&bytes).unwrap();
+
+            assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 1).map(|d| d.name.as_str()), Some("Pass"));
+            assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 2).map(|d| d.name.as_str()), Some("Fail"));
+            assert_eq!(result.sbin_defs.iter().find(|d| d.bin == 10).map(|d| d.name.as_str()), Some("Leakage Fail"));
+            assert_eq!(result.pass_hbins, vec![1]);
+        }
+
+        #[test]
+        fn hbr_with_no_name_is_omitted_but_still_counts_for_pass_hbins() {
+            let b = Builder::new(ByteOrder::Little);
+            let hbrs = vec![bin_body(&b, 1, 500, b'P', "")];
+            let bytes = build_with_bins(ByteOrder::Little, &hbrs, &[]);
+            let result = parse_stdf_from_bytes(&bytes).unwrap();
+            assert!(result.hbin_defs.iter().find(|d| d.bin == 1).is_none());
+            assert_eq!(result.pass_hbins, vec![1]);
+        }
+
+        #[test]
+        fn hbin_defs_are_sorted_by_bin_number_regardless_of_record_order() {
+            let b = Builder::new(ByteOrder::Little);
+            let hbrs = vec![
+                bin_body(&b, 3, 1, b' ', "Third"),
+                bin_body(&b, 1, 1, b'P', "First"),
+                bin_body(&b, 2, 1, b' ', "Second"),
+            ];
+            let bytes = build_with_bins(ByteOrder::Little, &hbrs, &[]);
+            let result = parse_stdf_from_bytes(&bytes).unwrap();
+            let bins: Vec<u32> = result.hbin_defs.iter().map(|d| d.bin).collect();
+            assert_eq!(bins, vec![1, 2, 3]);
+        }
+
+        #[test]
+        fn a_later_hbr_for_the_same_bin_overwrites_the_earlier_name() {
+            // Real files commonly write one HBR per site plus a lot-wide
+            // summary for the same bin number — last-wins, matching how WRR
+            // already overwrites fields set by an earlier WIR.
+            let b = Builder::new(ByteOrder::Little);
+            let hbrs = vec![
+                bin_body(&b, 1, 100, b'P', "Pass (site 1)"),
+                bin_body(&b, 1, 400, b'P', "Pass"),
+            ];
+            let bytes = build_with_bins(ByteOrder::Little, &hbrs, &[]);
+            let result = parse_stdf_from_bytes(&bytes).unwrap();
+            assert_eq!(result.hbin_defs.len(), 1);
+            assert_eq!(result.hbin_defs[0].name, "Pass");
+        }
+
+        #[test]
+        fn hbr_sbr_fields_decode_identically_in_big_endian() {
+            let le_b = Builder::new(ByteOrder::Little);
+            let be_b = Builder::new(ByteOrder::Big);
+            let le_bytes = build_with_bins(ByteOrder::Little, &[bin_body(&le_b, 1, 500, b'P', "Pass")], &[]);
+            let be_bytes = build_with_bins(ByteOrder::Big, &[bin_body(&be_b, 1, 500, b'P', "Pass")], &[]);
+            let le = parse_stdf_from_bytes(&le_bytes).unwrap();
+            let be = parse_stdf_from_bytes(&be_bytes).unwrap();
+            assert_eq!(le.hbin_defs.len(), be.hbin_defs.len());
+            assert_eq!(le.hbin_defs[0].name, be.hbin_defs[0].name);
+            assert_eq!(le.pass_hbins, be.pass_hbins);
+        }
+
+        #[test]
+        fn hbr_sbr_fields_also_reach_the_filtered_parse_entry_point() {
+            let b = Builder::new(ByteOrder::Little);
+            let bytes = build_with_bins(ByteOrder::Little, &[bin_body(&b, 1, 500, b'P', "Pass")], &[]);
+            let result = parse_stdf_from_bytes_filtered(&bytes, &std::collections::HashSet::new()).unwrap();
+            assert_eq!(result.hbin_defs[0].name, "Pass");
+            assert_eq!(result.pass_hbins, vec![1]);
         }
 
         #[test]
