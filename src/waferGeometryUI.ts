@@ -4,7 +4,7 @@
 // diameter-gates-exclusion rule live in waferGeometry.ts; this module only
 // owns the dialog.
 
-import { openModal, SECONDARY_BTN_CSS } from './modal';
+import { openModal } from './modal';
 import { normalizeWaferGeometry, type WaferGeometry } from './waferGeometry';
 
 // Three-tier hint, in order of trust: a WCR (Wafer Configuration Record)
@@ -24,10 +24,9 @@ export function showWaferGeometryDialog(
   inferredHint: InferredDiameterHint,
   onApply: (geometry: WaferGeometry) => void,
 ): void {
-  const secondaryBtnCss = SECONDARY_BTN_CSS;
   const fieldInputCss = [
-    'padding:6px 8px;border:1px solid var(--border-mid);border-radius:4px',
-    'background:var(--bg-input);color:var(--text-secondary);font-size:13px',
+    'padding:6px 8px;border:1px solid var(--border-mid);border-radius:var(--radius-control)',
+    'background:var(--bg-input);color:var(--text-secondary);font-size:12px',
   ].join(';');
 
   const modalHandle = openModal({
@@ -35,7 +34,7 @@ export function showWaferGeometryDialog(
     sizing: 'content',
     contentSize: { width: 'min(90vw, 440px)', height: 'auto' },
     mount(body) {
-      body.style.cssText += 'padding:16px;gap:12px;font-size:13px;color:var(--text-light)';
+      body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light)';
 
       // ── Diameter ──────────────────────────────────────────────────────────
       const diameterLabel = document.createElement('label');
@@ -136,6 +135,10 @@ export function showWaferGeometryDialog(
 
       const errorText = document.createElement('div');
       errorText.style.cssText = 'font-size:12px;color:var(--error-text);min-height:16px';
+      // Announced, like mappingUI's own validation line. Without this the
+      // message is visible-only: Apply appears to do nothing to a screen
+      // reader, since focus never moves and nothing is spoken.
+      errorText.setAttribute('role', 'alert');
 
       function readValidated():
         | { ok: true; diameterMm: number | undefined; edgeExclusionMm: number | undefined }
@@ -181,7 +184,7 @@ export function showWaferGeometryDialog(
 
       const clearBtn = document.createElement('button');
       clearBtn.textContent = 'Clear';
-      clearBtn.style.cssText = secondaryBtnCss;
+      clearBtn.className = 'btn-secondary';
       clearBtn.addEventListener('mouseenter', () => { clearBtn.style.borderColor = 'var(--error-text)'; clearBtn.style.color = 'var(--error-text)'; });
       clearBtn.addEventListener('mouseleave', () => { clearBtn.style.borderColor = 'var(--border-mid)'; clearBtn.style.color = 'var(--text-secondary)'; });
       clearBtn.addEventListener('click', () => {
@@ -196,15 +199,12 @@ export function showWaferGeometryDialog(
 
       const cancelBtn = document.createElement('button');
       cancelBtn.textContent = 'Cancel';
-      cancelBtn.style.cssText = secondaryBtnCss;
+      cancelBtn.className = 'btn-secondary';
       cancelBtn.addEventListener('click', () => modalHandle.close());
 
       const applyBtn = document.createElement('button');
       applyBtn.textContent = 'Apply';
-      applyBtn.style.cssText = [
-        'padding:6px 16px;border-radius:4px;border:none',
-        'background:var(--btn-primary-bg);color:var(--btn-primary-text);cursor:pointer;font-size:13px;font-weight:600',
-      ].join(';');
+      applyBtn.className = 'btn-primary';
       applyBtn.addEventListener('click', doApply);
 
       rightGroup.append(cancelBtn, applyBtn);

@@ -29,9 +29,10 @@ function getTooltip(): HTMLElement {
       color: '#f0f0f2',
       border: '1px solid rgba(255,255,255,0.10)',
       padding: '7px 11px',
-      borderRadius: '5px',
-      fontSize: '13px',
-      lineHeight: '1.55',
+      borderRadius: 'var(--radius-control)',
+      fontSize: '13px',   // matches wmap's own getTooltip (toolbar.ts), deliberately
+                          // outside the 12px body tier — see UI_STANDARDS.md
+      lineHeight: 'var(--leading-base)',
       maxWidth: '280px',
       whiteSpace: 'pre-wrap',
       // pre-wrap alone only breaks at existing whitespace/newlines — a long
@@ -44,7 +45,6 @@ function getTooltip(): HTMLElement {
       // band, so the hint is never clipped behind the chrome it annotates.
       zIndex: 'var(--z-tooltip)',
       display: 'none',
-      fontFamily: 'system-ui, sans-serif',
       boxShadow: '0 3px 10px rgba(0,0,0,0.45)',
     } as Partial<CSSStyleDeclaration>);
     sharedTooltip = el;

@@ -6,7 +6,9 @@
 // module only owns the assignment UI.
 
 import type { WaferData } from './types';
-import { openModal, SECONDARY_BTN_CSS } from './modal';
+import { createRangeSelection } from './listSelection';
+import { attachTooltip } from './tooltip';
+import { openModal } from './modal';
 import { getSplitLabel, setSplitLabel, clearAllSplits, listSplitValues, parseSplitsCsv, formatSplitsCsv } from './splits';
 
 export interface SplitsUIOptions {
@@ -27,17 +29,14 @@ export interface SplitsUIOptions {
 
 export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): void {
   const selected = new Set<number>(); // indices into `wafers`
-  let lastClickedVisibleIndex: number | null = null;
   let searchQuery = '';
-
-  const secondaryBtnCss = SECONDARY_BTN_CSS;
 
   const modalHandle = openModal({
     title: `Wafer splits (${wafers.length} wafer${wafers.length !== 1 ? 's' : ''})`,
     sizing: 'content',
     bodyOverflow: 'hidden',
     mount(body) {
-      body.style.cssText += 'padding:16px;gap:10px;font-size:13px;color:var(--text-light)';
+      body.style.cssText += 'padding:16px;gap:10px;font-size:12px;color:var(--text-light)';
 
       // Status banner. Empty state (no wafer has a split yet): guidance + a
       // Load shortcut — the moment a first-time user (fresh off the test
@@ -48,17 +47,14 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       const statusBanner = document.createElement('div');
       statusBanner.style.cssText = [
         'display:flex;align-items:center;gap:10px;flex-wrap:wrap',
-        'border:1px solid var(--border-mid);border-radius:4px;padding:8px 10px',
+        'border:1px solid var(--border-mid);border-radius:var(--radius-control);padding:8px 10px',
         'font-size:12px;color:var(--text-secondary)',
       ].join(';');
       const statusBannerText = document.createElement('span');
       statusBannerText.style.cssText = 'flex:1;min-width:200px';
       const statusBannerLoadBtn = document.createElement('button');
       statusBannerLoadBtn.textContent = 'Load splits…';
-      statusBannerLoadBtn.style.cssText = [
-        'padding:3px 10px;border-radius:4px;border:1px solid var(--border-mid)',
-        'background:none;color:var(--accent);cursor:pointer;font-size:12px;flex-shrink:0',
-      ].join(';');
+      statusBannerLoadBtn.className = 'btn-secondary';
       statusBannerLoadBtn.addEventListener('click', () => { void loadSplits(); });
       statusBanner.append(statusBannerText, statusBannerLoadBtn);
 
@@ -66,13 +62,13 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       searchInput.type = 'search';
       searchInput.placeholder = 'Filter by wafer ID or source file…';
       searchInput.style.cssText = [
-        'padding:5px 8px;border:1px solid var(--border-mid);border-radius:4px',
-        'background:var(--bg-input);color:var(--text-secondary);font-size:13px',
+        'padding:5px 8px;border:1px solid var(--border-mid);border-radius:var(--radius-control)',
+        'background:var(--bg-input);color:var(--text-secondary);font-size:12px',
       ].join(';');
       searchInput.addEventListener('input', () => { searchQuery = searchInput.value.trim().toLowerCase(); renderList(); });
 
       const suffixLabel = document.createElement('label');
-      suffixLabel.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text-secondary)';
+      suffixLabel.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-secondary)';
       const suffixCb = document.createElement('input');
       suffixCb.type = 'checkbox';
       suffixCb.checked = options.showSplitSuffix;
@@ -87,20 +83,35 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       bulkRow.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap';
       const selectAllBtn = document.createElement('button');
       selectAllBtn.textContent = 'Select all';
-      selectAllBtn.style.cssText = secondaryBtnCss;
+      selectAllBtn.className = 'btn-secondary';
       selectAllBtn.addEventListener('click', () => { for (const [i] of getVisible()) selected.add(i); renderList(); });
       const selectNoneBtn = document.createElement('button');
       selectNoneBtn.textContent = 'Select none';
-      selectNoneBtn.style.cssText = secondaryBtnCss;
+      selectNoneBtn.className = 'btn-secondary';
       selectNoneBtn.addEventListener('click', () => { for (const [i] of getVisible()) selected.delete(i); renderList(); });
       bulkRow.append(selectAllBtn, selectNoneBtn);
 
       const listContainer = document.createElement('div');
       listContainer.style.cssText = [
         'overflow-y:auto;flex:1;min-height:0',
-        'border:1px solid var(--border-mid);border-radius:4px',
+        'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
         'font-family:ui-monospace,"Cascadia Code","Segoe UI Mono",monospace;font-size:12px',
       ].join(';');
+
+      /** Range selection — shared with the file filter table and test selector
+       *  (listSelection.ts). Replaces a local `lastClickedVisibleIndex`, which
+       *  anchored on a POSITION in the visible array and so pointed at the wrong
+       *  wafer once the search box narrowed the list. */
+      const rangeSel = createRangeSelection<number>({
+        visibleIds: () => getVisible().map(([i]) => i),
+        isSelected: (i) => selected.has(i),
+        setSelected: (i, on) => { if (on) selected.add(i); else selected.delete(i); },
+        onChanged: () => { renderList(); updateUi(); },
+        focusRow: (n) => {
+          const boxes = listContainer.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+          boxes[n]?.focus();
+        },
+      });
 
       function getVisible(): Array<[number, WaferData]> {
         return wafers
@@ -132,20 +143,14 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
           cb.style.cssText = 'flex-shrink:0;cursor:pointer';
           cb.addEventListener('change', () => {
             if (cb.checked) selected.add(i); else selected.delete(i);
-            lastClickedVisibleIndex = vi;
+            rangeSel.setAnchor(i);   // only a plain toggle moves the anchor
             updateUi();
           });
           cb.addEventListener('click', (evt) => {
-            if (evt.shiftKey && lastClickedVisibleIndex !== null) {
-              evt.preventDefault();
-              const lo = Math.min(lastClickedVisibleIndex, vi);
-              const hi = Math.max(lastClickedVisibleIndex, vi);
-              const shouldSelect = selected.has(visible[lastClickedVisibleIndex][0]);
-              for (let k = lo; k <= hi; k++) {
-                if (shouldSelect) selected.add(visible[k][0]); else selected.delete(visible[k][0]);
-              }
-              renderList();
-            }
+            if (rangeSel.handleClick(i, evt)) evt.preventDefault();
+          });
+          cb.addEventListener('keydown', (evt) => {
+            if (rangeSel.handleKeydown(i, evt)) evt.preventDefault();
           });
 
           const idSpan = document.createElement('span');
@@ -175,8 +180,8 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       splitInput.placeholder = 'Split name (e.g. TT, FF, FS)…';
       splitInput.style.cssText = [
         'flex:1;min-width:140px;padding:5px 8px',
-        'border:1px solid var(--border-mid);border-radius:4px',
-        'background:var(--bg-input);color:var(--text-secondary);font-size:13px',
+        'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
+        'background:var(--bg-input);color:var(--text-secondary);font-size:12px',
       ].join(';');
 
       // Quick-fill chips for split names already in use. Sits directly under the
@@ -198,18 +203,15 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
 
         const caption = document.createElement('span');
         caption.textContent = 'In use:';
-        caption.style.cssText = 'font-size:11px;color:var(--text-dim)';
+        caption.style.cssText = 'font-size:12px;color:var(--text-dim)';
         existingRow.appendChild(caption);
 
         for (const v of values) {
           const chip = document.createElement('button');
           chip.type = 'button';
           chip.textContent = v;
-          chip.title = `Use “${v}” as the split name`;
-          chip.style.cssText = [
-            'padding:2px 8px;border-radius:10px;border:1px solid var(--border-mid)',
-            'background:none;color:var(--text-secondary);cursor:pointer;font-size:11px',
-          ].join(';');
+          attachTooltip(chip, `Use “${v}” as the split name`);
+          chip.className = 'btn-chip';
           chip.addEventListener('click', () => { splitInput.value = v; splitInput.focus(); });
           existingRow.appendChild(chip);
         }
@@ -221,7 +223,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       // plus the hint line below makes that legible instead of a silent no-op.
       const assignBtn = document.createElement('button');
       assignBtn.textContent = 'Assign to selected';
-      assignBtn.style.cssText = secondaryBtnCss;
+      assignBtn.className = 'btn-secondary';
       const doAssign = () => {
         const label = splitInput.value.trim();
         if (!label || selected.size === 0) return;
@@ -244,7 +246,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
 
       const clearBtn = document.createElement('button');
       clearBtn.textContent = 'Clear split';
-      clearBtn.style.cssText = secondaryBtnCss;
+      clearBtn.className = 'btn-secondary';
       clearBtn.addEventListener('click', () => {
         if (selected.size === 0) return;
         // Logged like every other mutating action here (assign, clear all,
@@ -265,7 +267,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       // main toolbar's Clear/reset button) rather than living in the bulk row.
       const clearAllBtn = document.createElement('button');
       clearAllBtn.textContent = 'Clear all';
-      clearAllBtn.style.cssText = secondaryBtnCss;
+      clearAllBtn.className = 'btn-secondary';
       clearAllBtn.addEventListener('mouseenter', () => { clearAllBtn.style.borderColor = 'var(--error-text)'; clearAllBtn.style.color = 'var(--error-text)'; });
       clearAllBtn.addEventListener('mouseleave', () => { clearAllBtn.style.borderColor = 'var(--border-mid)'; clearAllBtn.style.color = 'var(--text-secondary)'; });
       clearAllBtn.addEventListener('click', async () => {
@@ -314,7 +316,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
 
       const saveBtn = document.createElement('button');
       saveBtn.textContent = 'Save splits…';
-      saveBtn.style.cssText = secondaryBtnCss;
+      saveBtn.className = 'btn-secondary';
       saveBtn.addEventListener('click', async () => {
         try {
           await options.onSave(formatSplitsCsv(wafers));
@@ -352,7 +354,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
 
       const loadBtn = document.createElement('button');
       loadBtn.textContent = 'Load splits…';
-      loadBtn.style.cssText = secondaryBtnCss;
+      loadBtn.className = 'btn-secondary';
       loadBtn.addEventListener('click', () => { void loadSplits(); });
 
       ioRow.append(saveBtn, loadBtn);
@@ -370,10 +372,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
 
       const doneBtn = document.createElement('button');
       doneBtn.textContent = 'Done';
-      doneBtn.style.cssText = [
-        'padding:6px 16px;border-radius:4px;border:none',
-        'background:var(--btn-primary-bg);color:var(--btn-primary-text);cursor:pointer;font-size:13px;font-weight:600',
-      ].join(';');
+      doneBtn.className = 'btn-primary';
       doneBtn.addEventListener('click', () => modalHandle.close());
 
       footerRow.append(footerNote, doneBtn);

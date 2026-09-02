@@ -1,4 +1,5 @@
 import type { TestDef, TestOverride } from './types';
+import { createRangeSelection } from './listSelection';
 import { ICONS } from './icons';
 import { attachTooltip } from './tooltip';
 
@@ -32,7 +33,7 @@ export interface TestSelectorOptions {
   onSave?: (entries: TestListEntry[]) => Promise<void>;
   onLoad?: () => Promise<string | null>;
   /**
-   * Same file format the "Load list" button accepts — applied once, before
+   * Same file format the "Load definitions" button accepts — applied once, before
    * the overlay's first render, so the selection/renames are already checked
    * when the user sees it (used for a CLI-supplied `--tests` file). The
    * overlay is always still shown; this only pre-fills it, per CLAUDE.md's
@@ -180,7 +181,7 @@ export function parseTestListFile(
 export function formatTestListCsv(entries: TestListEntry[]): string {
   const clean = (s: string) => s.replace(/,/g, ' ');
   const lines = [
-    '# tsmap test list',
+    '# tsmap test definitions',
     `# Saved: ${new Date().toISOString()}`,
     'num,name,loLimit,hiLimit,units,testType',
     ...entries.map(e => [
@@ -288,6 +289,83 @@ export function resolveLoadedTestList(
   return { overrides, selectedNums, unknownCount, recoveredByNameCount, ambiguousCount, limitOnFunctionalCount };
 }
 
+/** One entry as `matchTestRange` needs it — the sorted list the selector builds. */
+export type RangeMatchEntry = { num: number; def: { name: string } };
+
+/**
+ * Every entry a range expression names, ignoring any filter.
+ *
+ * The grammar: comma-separated segments, each either a single value or `X-Y`.
+ * X and Y are a test number or a test name. `" - "` (spaced) splits
+ * unambiguously; otherwise the LAST `-` splits, so `test_005-test_050` reads as
+ * a range rather than as one odd name. A name-based range takes everything
+ * between the first and last match **by list position**, not alphabetically —
+ * the list is in test order, which is what "from here to there" means on screen.
+ *
+ * Deliberately kept separate from "what may be selected": the selector only ever
+ * ticks entries the search/type filter is currently showing, and knowing the
+ * difference between the two sets is what lets it distinguish "that range names
+ * nothing" from "those tests exist but the filter is hiding them" — which used
+ * to be one silent no-op.
+ */
+export function matchTestRange(rawInput: string, entries: RangeMatchEntry[]): Set<number> {
+  const matched = new Set<number>();
+  const segments = rawInput.split(',').map(s => s.trim()).filter(Boolean);
+
+  for (const seg of segments) {
+    let beforeDash: string | null = null;
+    let afterDash: string | null = null;
+
+    const spacedDash = seg.indexOf(' - ');
+    if (spacedDash !== -1) {
+      beforeDash = seg.slice(0, spacedDash).trim();
+      afterDash = seg.slice(spacedDash + 3).trim();
+    } else {
+      const lastDash = seg.lastIndexOf('-');
+      if (lastDash > 0 && lastDash < seg.length - 1) {
+        beforeDash = seg.slice(0, lastDash).trim();
+        afterDash = seg.slice(lastDash + 1).trim();
+      }
+    }
+
+    if (beforeDash !== null && afterDash !== null) {
+      const loNum = parseInt(beforeDash, 10);
+      const hiNum = parseInt(afterDash, 10);
+
+      if (!isNaN(loNum) && !isNaN(hiNum)) {
+        for (const e of entries) {
+          if (e.num >= loNum && e.num <= hiNum) matched.add(e.num);
+        }
+      } else {
+        const loLower = beforeDash.toLowerCase();
+        const hiLower = afterDash.toLowerCase();
+        const loIdx = entries.findIndex(e => e.def.name.toLowerCase().startsWith(loLower) || e.def.name.toLowerCase() === loLower);
+        let hiIdx = -1;
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const n = entries[i].def.name.toLowerCase();
+          if (n.startsWith(hiLower) || n === hiLower) { hiIdx = i; break; }
+        }
+        if (loIdx !== -1 && hiIdx !== -1 && loIdx <= hiIdx) {
+          for (let i = loIdx; i <= hiIdx; i++) matched.add(entries[i].num);
+        }
+      }
+    } else {
+      const n = parseInt(seg, 10);
+      if (!isNaN(n)) {
+        if (entries.some(e => e.num === n)) matched.add(n);
+      } else {
+        const segLower = seg.toLowerCase();
+        for (const e of entries) {
+          if (e.def.name.toLowerCase() === segLower || e.def.name.toLowerCase().startsWith(segLower)) {
+            matched.add(e.num);
+          }
+        }
+      }
+    }
+  }
+  return matched;
+}
+
 export function showTestSelectorOverlay(
   testDefs: Record<string, TestDef>,
   onConfirm: (selected: number[], testOverrides: Map<number, TestOverride>) => void,
@@ -350,11 +428,10 @@ export function showTestSelectorOverlay(
   panel.tabIndex = -1;
   panel.style.cssText = [
     'background:var(--bg-modal)', 'border:1px solid var(--border-mid)',
-    'border-radius:8px', 'padding:20px',
+    'border-radius:var(--radius-container)', 'padding:20px',
     'width:min(640px,90vw)', 'max-height:80vh',
     'display:flex', 'flex-direction:column', 'gap:12px',
-    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
-    'font-size:14px', 'color:var(--text-light)',
+    'font-size:12px', 'color:var(--text-light)',
   ].join(';');
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -364,17 +441,13 @@ export function showTestSelectorOverlay(
 
   const title = document.createElement('div');
   title.id = 'tsmap-test-selector-title';
-  title.style.cssText = 'font-size:16px;font-weight:600';
+  title.style.cssText = 'font-size:15px;font-weight:600';
   title.textContent = `Select tests to import (${entries.length} found)`;
 
   const closeBtn = document.createElement('button');
   closeBtn.innerHTML = ICONS.close;
   closeBtn.setAttribute('aria-label', 'Close');
-  closeBtn.style.cssText = [
-    'background:none', 'border:none', 'color:var(--text-dim)',
-    'cursor:pointer', 'padding:2px 6px', 'line-height:1',
-    'display:flex', 'align-items:center', 'justify-content:center',
-  ].join(';');
+  closeBtn.className = 'btn-icon';
   closeBtn.addEventListener('click', () => { cleanup(); onCancel(); });
 
   header.append(title, closeBtn);
@@ -389,9 +462,9 @@ export function showTestSelectorOverlay(
   searchInput.placeholder = 'Search by name or number…';
   searchInput.style.cssText = [
     'flex:1;min-width:160px;padding:5px 8px',
-    'border:1px solid var(--border-mid);border-radius:4px',
+    'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
     'background:var(--bg-input);color:var(--text-secondary)',
-    'font-size:13px',
+    'font-size:12px',
   ].join(';');
 
   const typeFilter = document.createElement('div');
@@ -403,129 +476,86 @@ export function showTestSelectorOverlay(
     const btn = document.createElement('button');
     btn.textContent = label;
     btn.dataset.type = val;
-    btn.style.cssText = [
-      'padding:4px 10px;border-radius:4px;border:1px solid var(--border-mid)',
-      'cursor:pointer;font-size:12px',
-      // Filled when active: --btn-primary-bg / --btn-primary-text are the
-      // tokens paired for a filled control (each theme guarantees they pass
-      // AA together); --accent is a text/border colour and white is not safe
-      // on it in every theme. Previously both were hardcoded hex fallbacks.
-      val === 'all' ? 'background:var(--btn-primary-bg);color:var(--btn-primary-text)' : 'background:none;color:var(--text-secondary)',
-    ].join(';');
+    // Marked below, once every button exists — `activeType` starts at 'all', and
+    // nothing used to reflect that until the first click, so the filter row
+    // opened with no selection shown at all.
+    btn.className = 'btn-secondary';
+    btn.setAttribute('aria-pressed', String(val === activeType));
     btn.addEventListener('click', () => {
       activeType = val;
+      setRangeMsg('');   // the reachable set just changed — the message is stale
       typeBtns.forEach(b => {
         const active = b.dataset.type === val;
-        b.style.background = active ? 'var(--btn-primary-bg)' : 'none';
-        b.style.color = active ? 'var(--btn-primary-text)' : 'var(--text-secondary)';
+        b.classList.toggle('is-on', active);
+        b.setAttribute('aria-pressed', String(active));
       });
       renderList();
     });
     typeBtns.push(btn);
+    btn.classList.toggle('is-on', val === activeType);
     typeFilter.appendChild(btn);
   }
 
   controls.append(searchInput, typeFilter);
 
-  // ── Range row ─────────────────────────────────────────────────────────────
-
-  const rangeRow = document.createElement('div');
-  rangeRow.style.cssText = 'display:flex;gap:8px;align-items:center';
+  // ── Range control (lives in the bulk-select row, below) ───────────────────
 
   const rangeInput = document.createElement('input');
   rangeInput.type = 'text';
-  rangeInput.placeholder = 'e.g. test_005-test_050 or 1000-1099';
+  rangeInput.placeholder = 'or a range: 1000-1099, test_005-test_050';
   rangeInput.style.cssText = [
     'flex:1;padding:5px 8px',
-    'border:1px solid var(--border-mid);border-radius:4px',
+    'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
     'background:var(--bg-input);color:var(--text-secondary)',
-    'font-size:13px',
+    'font-size:12px',
   ].join(';');
+
+  /** Inline outcome/scoping feedback for the range box. The range acts only on
+   *  entries the search + type filter currently show (same as Select all/none
+   *  beside it), so a range naming real tests can legitimately select nothing.
+   *  That used to happen silently — the button appeared dead. It now says what
+   *  it did, and when the filter is what blocked it, says so explicitly. */
+  const rangeMsg = document.createElement('div');
+  rangeMsg.style.cssText = 'font-size:12px;color:var(--text-muted);min-height:0';
+  rangeMsg.setAttribute('role', 'status');
+  rangeMsg.setAttribute('aria-live', 'polite');
+  const setRangeMsg = (text: string, warn = false): void => {
+    rangeMsg.textContent = text;
+    rangeMsg.style.color = warn ? 'var(--warn-text)' : 'var(--text-muted)';
+  };
 
   const applyRangeBtn = document.createElement('button');
   applyRangeBtn.textContent = 'Select range';
-  applyRangeBtn.style.cssText = [
-    'padding:5px 12px;border-radius:4px;border:1px solid var(--border-mid)',
-    'background:none;color:var(--text-secondary);cursor:pointer;font-size:13px',
-  ].join(';');
+  applyRangeBtn.className = 'btn-secondary';
   applyRangeBtn.addEventListener('click', () => {
-    const visible = getVisible();
-    const visibleSet = new Set(visible.map(e => e.num));
     const rawInput = rangeInput.value.trim();
-    if (!rawInput) return;
+    if (!rawInput) { setRangeMsg(''); return; }
 
-    // Split on commas, but only commas not inside a name segment.
-    // Each segment is either "X-Y" (range) or "X" (single).
-    // X and Y can be numeric (test number) or a name string.
-    const segments = rawInput.split(',').map(s => s.trim()).filter(Boolean);
+    const visibleSet = new Set(getVisible().map(e => e.num));
+    const matched = matchTestRange(rawInput, entries);
+    const reachable = [...matched].filter(n => visibleSet.has(n));
+    const hidden = matched.size - reachable.length;
 
-    for (const seg of segments) {
-      // Split a "from - to" range. Strategy:
-      //   1. Try splitting on " - " (dash with spaces on both sides) — unambiguous.
-      //   2. Fall back to last '-' in the segment (handles "test_005-test_050").
-      let beforeDash: string | null = null;
-      let afterDash: string | null = null;
+    for (const n of reachable) selected.add(n);
 
-      const spacedDash = seg.indexOf(' - ');
-      if (spacedDash !== -1) {
-        beforeDash = seg.slice(0, spacedDash).trim();
-        afterDash = seg.slice(spacedDash + 3).trim();
-      } else {
-        const lastDash = seg.lastIndexOf('-');
-        if (lastDash > 0 && lastDash < seg.length - 1) {
-          beforeDash = seg.slice(0, lastDash).trim();
-          afterDash = seg.slice(lastDash + 1).trim();
-        }
-      }
-
-      if (beforeDash !== null && afterDash !== null) {
-
-        const loNum = parseInt(beforeDash, 10);
-        const hiNum = parseInt(afterDash, 10);
-
-        if (!isNaN(loNum) && !isNaN(hiNum)) {
-          // Numeric range: select all entries with num in [loNum, hiNum]
-          for (const e of entries) {
-            if (e.num >= loNum && e.num <= hiNum && visibleSet.has(e.num)) selected.add(e.num);
-          }
-        } else {
-          // Name-based range: find entries whose name matches (prefix/substring)
-          // and select everything between the first and last match by sorted position.
-          const loLower = beforeDash.toLowerCase();
-          const hiLower = afterDash.toLowerCase();
-          const loIdx = entries.findIndex(e => e.def.name.toLowerCase().startsWith(loLower) || e.def.name.toLowerCase() === loLower);
-          // Find last entry matching hiLower
-          let hiIdx = -1;
-          for (let i = entries.length - 1; i >= 0; i--) {
-            const n = entries[i].def.name.toLowerCase();
-            if (n.startsWith(hiLower) || n === hiLower) { hiIdx = i; break; }
-          }
-          if (loIdx !== -1 && hiIdx !== -1 && loIdx <= hiIdx) {
-            for (let i = loIdx; i <= hiIdx; i++) {
-              if (visibleSet.has(entries[i].num)) selected.add(entries[i].num);
-            }
-          }
-        }
-      } else {
-        // Single value: numeric test number or exact/prefix name match
-        const n = parseInt(seg, 10);
-        if (!isNaN(n)) {
-          if (visibleSet.has(n)) selected.add(n);
-        } else {
-          const segLower = seg.toLowerCase();
-          for (const e of entries) {
-            if (visibleSet.has(e.num) && (e.def.name.toLowerCase() === segLower || e.def.name.toLowerCase().startsWith(segLower))) {
-              selected.add(e.num);
-            }
-          }
-        }
-      }
+    const filterOn = searchInput.value.trim() !== '' || activeType !== 'all';
+    if (matched.size === 0) {
+      setRangeMsg(`No test matches “${rawInput}”.`, true);
+    } else if (reachable.length === 0) {
+      setRangeMsg(
+        `No shown test in “${rawInput}” — ${hidden} ${hidden === 1 ? 'is' : 'are'} hidden by the current filter. Clear it to reach ${hidden === 1 ? 'it' : 'them'}.`,
+        true,
+      );
+    } else if (hidden > 0) {
+      setRangeMsg(`Selected ${reachable.length}. ${hidden} more ${hidden === 1 ? 'matches' : 'match'} but ${hidden === 1 ? 'is' : 'are'} hidden by the current filter.`);
+    } else {
+      setRangeMsg(`Selected ${reachable.length} test${reachable.length !== 1 ? 's' : ''}${filterOn ? ' from those shown' : ''}.`);
     }
+
     renderList();
     updateFooter();
   });
 
-  rangeRow.append(rangeInput, applyRangeBtn);
 
   // ── Select all / none ─────────────────────────────────────────────────────
 
@@ -534,7 +564,7 @@ export function showTestSelectorOverlay(
 
   const selectAllBtn = document.createElement('button');
   selectAllBtn.textContent = 'Select all';
-  selectAllBtn.style.cssText = 'padding:4px 10px;border-radius:4px;border:1px solid var(--border-mid);background:none;color:var(--text-secondary);cursor:pointer;font-size:12px';
+  selectAllBtn.className = 'btn-secondary';
   selectAllBtn.addEventListener('click', () => {
     for (const e of getVisible()) selected.add(e.num);
     renderList();
@@ -543,29 +573,50 @@ export function showTestSelectorOverlay(
 
   const selectNoneBtn = document.createElement('button');
   selectNoneBtn.textContent = 'Select none';
-  selectNoneBtn.style.cssText = 'padding:4px 10px;border-radius:4px;border:1px solid var(--border-mid);background:none;color:var(--text-secondary);cursor:pointer;font-size:12px';
+  selectNoneBtn.className = 'btn-secondary';
   selectNoneBtn.addEventListener('click', () => {
     for (const e of getVisible()) selected.delete(e.num);
     renderList();
     updateFooter();
   });
 
-  bulkRow.append(selectAllBtn, selectNoneBtn);
+  // The range box lives here, beside Select all/none, because all three do the
+  // same thing — tick checkboxes among the entries the filter currently shows.
+  // It used to sit in its own row directly under the search box, which grouped
+  // it by "is a text input" with the one control it shares no behaviour with,
+  // and read as a second search field narrowing the list rather than a
+  // selection action. Grouping by verb makes the shared scoping self-evident.
+  const bulkSpacer = document.createElement('div');
+  bulkSpacer.style.cssText = 'width:1px;align-self:stretch;background:var(--border-dim);margin:0 2px';
+  bulkSpacer.setAttribute('aria-hidden', 'true');
+
+  rangeInput.setAttribute('aria-label', 'Select a range of tests, within those shown');
+
+  bulkRow.append(selectAllBtn, selectNoneBtn, bulkSpacer, rangeInput, applyRangeBtn);
 
   // ── List ──────────────────────────────────────────────────────────────────
 
   const listContainer = document.createElement('div');
   listContainer.style.cssText = [
     'overflow-y:auto;max-height:40vh',
-    'border:1px solid var(--border-mid);border-radius:4px',
+    'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
     'font-family:ui-monospace,"Cascadia Code","Segoe UI Mono",monospace',
     'font-size:12px',
   ].join(';');
 
   let searchDebounce: ReturnType<typeof setTimeout> | null = null;
   searchInput.addEventListener('input', () => {
+    setRangeMsg('');   // as above: the filter moved, so the last outcome no longer describes it
     if (searchDebounce) clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => { renderList(); }, 150);
+  });
+
+  rangeInput.addEventListener('input', () => setRangeMsg(''));
+  // Enter applies, rather than doing nothing next to a button labelled with the
+  // verb the user just typed an argument for. Not a form submit — this dialog
+  // has its own Import/Cancel footer and Enter must not reach it.
+  rangeInput.addEventListener('keydown', (evt) => {
+    if (evt.key === 'Enter') { evt.preventDefault(); evt.stopPropagation(); applyRangeBtn.click(); }
   });
 
   function getVisible(): Array<{ num: number; def: TestDef }> {
@@ -581,7 +632,22 @@ export function showTestSelectorOverlay(
     });
   }
 
-  let lastClickedVisibleIndex: number | null = null;
+  /** Range selection — shared with the file filter table and splits dialog
+   *  (listSelection.ts). Replaces a local `lastClickedVisibleIndex`, which
+   *  anchored on a POSITION in the visible array: narrowing the list with the
+   *  search box left it pointing at whatever row had moved into that slot, so
+   *  the next shift-click extended from a row the user never clicked. Anchoring
+   *  on the test number can't go stale — it either still resolves or it doesn't. */
+  const rangeSel = createRangeSelection<number>({
+    visibleIds: () => getVisible().map(e => e.num),
+    isSelected: (num) => selected.has(num),
+    setSelected: (num, on) => { if (on) selected.add(num); else selected.delete(num); },
+    onChanged: () => { renderList(); updateFooter(); },
+    focusRow: (i) => {
+      const boxes = listContainer.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+      boxes[i]?.focus();
+    },
+  });
 
   function renderList(): void {
     listContainer.innerHTML = '';
@@ -603,23 +669,17 @@ export function showTestSelectorOverlay(
       cb.style.cssText = 'flex-shrink:0;cursor:pointer';
       cb.addEventListener('change', () => {
         if (cb.checked) selected.add(e.num); else selected.delete(e.num);
-        lastClickedVisibleIndex = vi;
+        rangeSel.setAnchor(e.num);   // only a plain toggle moves the anchor
         updateFooter();
       });
       cb.addEventListener('click', (evt) => {
-        if (evt.shiftKey && lastClickedVisibleIndex !== null) {
-          evt.preventDefault();
-          const lo = Math.min(lastClickedVisibleIndex, vi);
-          const hi = Math.max(lastClickedVisibleIndex, vi);
-          const shouldSelect = selected.has(visible[lastClickedVisibleIndex].num);
-          for (let i = lo; i <= hi; i++) {
-            if (shouldSelect) selected.add(visible[i].num);
-            else selected.delete(visible[i].num);
-          }
-          renderList();
-          updateFooter();
-        }
-        // non-shift clicks: let the browser toggle cb.checked, change handler syncs selected
+        // preventDefault so the browser's own toggle doesn't flip this row on
+        // top of the range just applied to it. Non-shift clicks fall through:
+        // the browser toggles cb.checked and the change handler syncs.
+        if (rangeSel.handleClick(e.num, evt)) evt.preventDefault();
+      });
+      cb.addEventListener('keydown', (evt) => {
+        if (rangeSel.handleKeydown(e.num, evt)) evt.preventDefault();
       });
 
       const numSpan = document.createElement('span');
@@ -642,7 +702,7 @@ export function showTestSelectorOverlay(
       nameInput.setAttribute('aria-label', `Display name for test ${e.num}`);
       nameInput.style.cssText = [
         'flex:1;min-width:0;font:inherit;color:inherit',
-        'background:none;border:1px solid transparent;border-radius:3px',
+        'background:none;border:1px solid transparent;border-radius:var(--radius-control)',
         'padding:1px 4px;margin:-1px -4px',
         'overflow:hidden;text-overflow:ellipsis',
       ].join(';');
@@ -698,7 +758,7 @@ export function showTestSelectorOverlay(
       const eff = effectiveLimits(e.num, e.def);
 
       const limitsSpan = document.createElement('span');
-      limitsSpan.style.cssText = 'color:var(--text-dim);font-size:11px;flex-shrink:0;min-width:120px;text-align:right';
+      limitsSpan.style.cssText = 'color:var(--text-dim);font-size:12px;flex-shrink:0;min-width:130px;text-align:right';
       const limitParts: string[] = [];
       if (eff.loLimit != null) limitParts.push(`≥${eff.loLimit}`);
       if (eff.hiLimit != null) limitParts.push(`≤${eff.hiLimit}`);
@@ -706,7 +766,7 @@ export function showTestSelectorOverlay(
       limitsSpan.textContent = limitParts.join(' ');
 
       const typeSpan = document.createElement('span');
-      typeSpan.style.cssText = 'color:var(--text-dim);font-size:11px;flex-shrink:0;min-width:14px;text-align:center';
+      typeSpan.style.cssText = 'color:var(--text-dim);font-size:12px;flex-shrink:0;min-width:16px;text-align:center';
       typeSpan.textContent = eff.testType;
 
       const ov = testOverrides.get(e.num);
@@ -737,18 +797,15 @@ export function showTestSelectorOverlay(
     const scopeNote = document.createElement('span');
     scopeNote.style.cssText = 'font-size:12px;color:var(--text-dim);opacity:0.8';
     scopeNote.textContent = options.scanScope === 'all'
-      ? `Test list merged from all ${fileCount} files.`
-      : 'Test list from the largest file.';
+      ? `Test definitions merged from all ${fileCount} files.`
+      : 'Test definitions from the largest file.';
     scopeRow.appendChild(scopeNote);
 
     if (options.scanScope === 'largest' && options.onScanAll) {
       const scanAllBtn = document.createElement('button');
       scanAllBtn.textContent = `Scan all ${fileCount} files`;
-      scanAllBtn.style.cssText = [
-        'padding:3px 10px;border-radius:4px;border:1px solid var(--border-mid)',
-        'background:none;color:var(--accent);cursor:pointer;font-size:12px',
-      ].join(';');
-      attachTooltip(scanAllBtn, 'Re-scan every file and merge the full test list (use when a test only appears in a smaller file). Your current selection is kept.');
+      scanAllBtn.className = 'btn-secondary';
+      attachTooltip(scanAllBtn, 'Re-scan every file and merge the full test definitions (use when a test only appears in a smaller file). Your current selection is kept.');
       scanAllBtn.addEventListener('click', () => {
         cleanup();
         options.onScanAll!(Array.from(selected).sort((a, b) => a - b), new Map(testOverrides));
@@ -770,20 +827,15 @@ export function showTestSelectorOverlay(
   footerRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px';
 
   const countLabel = document.createElement('span');
-  countLabel.style.cssText = 'font-size:13px;color:var(--text-dim)';
+  countLabel.style.cssText = 'font-size:12px;color:var(--text-dim)';
 
   const btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:8px';
 
-  const secondaryBtnCss = [
-    'padding:6px 16px;border-radius:4px;border:1px solid var(--border-mid)',
-    'background:none;color:var(--text-secondary);cursor:pointer;font-size:13px',
-  ].join(';');
-
   if (options.onSave) {
     const saveBtn = document.createElement('button');
-    saveBtn.textContent = 'Save list';
-    saveBtn.style.cssText = secondaryBtnCss;
+    saveBtn.textContent = 'Save definitions';
+    saveBtn.className = 'btn-secondary';
     saveBtn.addEventListener('click', async () => {
       // Iterate `entries` (already sorted by order, see above) rather than
       // `Array.from(selected).sort by number` — a saved list a user might
@@ -804,23 +856,23 @@ export function showTestSelectorOverlay(
         });
       try {
         await options.onSave!(saveEntries);
-        options.onLog?.('info', `Test list saved: ${saveEntries.length} test${saveEntries.length !== 1 ? 's' : ''}`);
+        options.onLog?.('info', `Test definitions saved: ${saveEntries.length} test${saveEntries.length !== 1 ? 's' : ''}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        options.onLog?.('error', `Failed to save test list: ${msg}`);
+        options.onLog?.('error', `Failed to save test definitions: ${msg}`);
       }
     });
     btnRow.appendChild(saveBtn);
   }
 
-  // Shared by the interactive "Load list" button and a CLI-supplied
+  // Shared by the interactive "Load definitions" button and a CLI-supplied
   // `preloadListText` (applied once before the overlay's first render) — same
   // parsing, unknown-test validation, and log messages either way.
   function applyLoadedList(text: string): void {
     let malformedCount = 0;
     const parsed = parseTestListFile(text, () => { malformedCount++; });
     if (parsed.length === 0) {
-      options.onLog?.('warn', 'Test list file contained no valid entries');
+      options.onLog?.('warn', 'Test definitions file contained no valid entries');
       return;
     }
     const currentNames = new Map(entries.map(e => [e.num, displayName(e.num, e.def)]));
@@ -860,21 +912,21 @@ export function showTestSelectorOverlay(
       options.onLog?.('warn', msg);
       notes.push(`${msg}.`);
     }
-    options.onLog?.('info', `Test list loaded: ${selected.size} test${selected.size !== 1 ? 's' : ''} selected`);
+    options.onLog?.('info', `Test definitions loaded: ${selected.size} test${selected.size !== 1 ? 's' : ''} selected`);
     setFooterNotes(notes.length ? notes.join(' ') : undefined);
   }
 
   if (options.onLoad) {
     const loadBtn = document.createElement('button');
-    loadBtn.textContent = 'Load list';
-    loadBtn.style.cssText = secondaryBtnCss;
+    loadBtn.textContent = 'Load definitions';
+    loadBtn.className = 'btn-secondary';
     loadBtn.addEventListener('click', async () => {
       let text: string | null;
       try {
         text = await options.onLoad!();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        options.onLog?.('error', `Failed to load test list: ${msg}`);
+        options.onLog?.('error', `Failed to load test definitions: ${msg}`);
         return;
       }
       if (text === null) return;
@@ -887,14 +939,11 @@ export function showTestSelectorOverlay(
 
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
-  cancelBtn.style.cssText = secondaryBtnCss;
+  cancelBtn.className = 'btn-secondary';
   cancelBtn.addEventListener('click', () => { cleanup(); onCancel(); });
 
   const confirmBtn = document.createElement('button');
-  confirmBtn.style.cssText = [
-    'padding:6px 16px;border-radius:4px;border:none',
-    'background:var(--btn-primary-bg);color:var(--btn-primary-text);cursor:pointer;font-size:13px;font-weight:600',
-  ].join(';');
+  confirmBtn.className = 'btn-primary';   // the dialog's primary action, not a peer of Cancel
 
   // ── Memory advisory ────────────────────────────────────────────────────────
   // Thresholds in die×test pairs. Calibrated against known-good behaviour:
@@ -979,7 +1028,7 @@ export function showTestSelectorOverlay(
 
   // ── Assemble ──────────────────────────────────────────────────────────────
 
-  panel.append(header, controls, rangeRow, bulkRow, listContainer, footer);
+  panel.append(header, controls, bulkRow, rangeMsg, listContainer, footer);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
   panel.focus(); // move focus into the dialog so Esc and SR navigation work

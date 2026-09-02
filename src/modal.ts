@@ -86,7 +86,7 @@ const CONTENT = { width: 'min(90vw, 860px)', height: 'min(88vh, 900px)' };
 // cssVar() would freeze the colours at the startup theme and never follow a
 // theme switch. var() lets the browser re-resolve on every theme change.
 const btnStyle: Partial<CSSStyleDeclaration> = {
-  border: '1px solid var(--border-mid)', borderRadius: '4px',
+  border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-control)',
   background: 'var(--bg-input)', cursor: 'pointer',
   color: 'var(--text-muted)', padding: '0', lineHeight: '1',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -106,8 +106,8 @@ const btnStyle: Partial<CSSStyleDeclaration> = {
  * was extracted to fix (see this repo's own CLAUDE.md on that).
  */
 export const SECONDARY_BTN_CSS = [
-  'padding:6px 14px;border-radius:4px;border:1px solid var(--border-mid)',
-  'background:none;color:var(--text-secondary);cursor:pointer;font-size:13px',
+  'padding:6px 14px;border-radius:var(--radius-control);border:1px solid var(--border-mid)',
+  'background:none;color:var(--text-secondary);cursor:pointer;font-size:12px',
 ].join(';');
 
 /**
@@ -155,10 +155,10 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   Object.assign(box.style, {
     background: cssVar('--bg-overlay'),
     border: `1px solid ${cssVar('--border-subtle')}`,
-    borderRadius: '10px',
+    borderRadius: 'var(--radius-container)',
     overflow: 'hidden',
     display: 'flex', flexDirection: 'column',
-    boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+    boxShadow: 'var(--shadow-modal)',
     maxWidth: '100vw', maxHeight: '100vh',
     ...(resizable
       ? { ...RESIZABLE, resize: 'both', minWidth: '400px', minHeight: '300px' }
@@ -176,7 +176,7 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   titleEl.id = titleId;
   titleEl.textContent = title;
   Object.assign(titleEl.style, {
-    flex: '1', fontWeight: '600', fontSize: '13px', color: cssVar('--text-primary'),
+    flex: '1', fontWeight: '600', fontSize: '15px', color: cssVar('--text-primary'),
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   } as Partial<CSSStyleDeclaration>);
 
@@ -294,7 +294,7 @@ export function openModal(options: OpenModalOptions): ModalHandle {
       box.style.width = '100vw'; box.style.height = '100vh';
     } else {
       const size = resizable ? RESIZABLE : contentBox;
-      box.style.borderRadius = '10px';
+      box.style.borderRadius = 'var(--radius-container)';   // must match openModal's own value
       box.style.resize = resizable ? 'both' : 'none';
       box.style.width = size.width;
       box.style.height = size.height;

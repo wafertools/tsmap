@@ -66,6 +66,7 @@
         --bg-row-border:   #3a3a3e;
         --bg-modal:        #37373b;
         --bg-accent-hover: #2b3a4f;
+        --bg-selected:     #3a4b64;
 
         --border-strong:   #333;
         /* --border-mid is the default border for buttons/inputs/dropdowns/
@@ -145,6 +146,7 @@
         --bg-row-border:   #e8e8e8;
         --bg-modal:        #fff;
         --bg-accent-hover: #dbeafe;
+        --bg-selected:     #bcd1e7;
 
         --border-strong:   #ccc;
         --border-mid:      #bbb;
@@ -182,55 +184,69 @@
         --error-border:    #fecaca;
       }
 
-      /* Colour token set — LIGHT GREEN. Light surfaces with a subtle green
-         tint, #8DC63F as the accent (active/selected states, links, primary
-         buttons, focus/active chrome), and a deep navy (#192136) as the
-         secondary accent-hover. Dark #2a2a2a text on near-white for legibility. */
+      /* Colour token set — LIGHT GREEN. Modelled on a real green+navy brand
+         (#8DC63F primary accent, #489636 as its own darker hover shade,
+         #192136 deep navy, #3A3A3A/#54595F neutral greys, #0C4186 blue) —
+         reproduced here as an unnamed inspiration, not a literal reskin.
+         Surfaces are neutral white/grey (that brand uses colour only as an
+         accent on white, never a tinted background wash); #8DC63F is the
+         accent/button colour with its own #489636 as the hover shade, navy
+         doubles as the near-black heading/primary-text colour instead of
+         plain black, and blue is reserved for the info/secondary semantic —
+         mirroring how that brand keeps a separate blue family for form
+         chrome, distinct from its green CTAs. Previous version of this
+         theme tinted every surface pale green and invented its own accent
+         and hover colours, several of which measured well under WCAG AA
+         (border-mid 1.30:1, accent-as-text 2.72:1, text-veryfaint 1.83:1
+         against its own app background) — this rewrite fixes both the
+         inauthenticity and the contrast failures at once. */
       :root[data-theme="light-green"] {
         color-scheme: light;
-        --bg-app:          #f4f8ee;   /* faintest green-grey app canvas */
-        --bg-toolbar:      #e8f0dc;   /* slightly greener toolbar */
-        --bg-overlay:      #f7fbf1;   /* panels/cards */
+        --bg-app:          #fafafa;
+        --bg-toolbar:      #f0f0f0;
+        --bg-overlay:      #ffffff;
         --bg-input:        #ffffff;
-        --bg-hover-row:    #eef5e2;   /* pale green hover */
-        --bg-row-border:   #e4eed4;
+        --bg-hover-row:    #f0f0f0;
+        --bg-row-border:   #eaeaea;
         --bg-modal:        #ffffff;
-        --bg-accent-hover: #e2f0cc;   /* green-tinted selection */
+        --bg-accent-hover: #e8f5d9;
+        --bg-selected:     #c9d9c5;   /* pale tint of the #8DC63F accent */
 
-        --border-strong:   #c2d3a8;
-        --border-mid:      #cfe0b5;
-        --border-subtle:   #e0ead0;
-        --border-muted:    #c2d3a8;
-        --border-dim:      #b3c795;
+        --border-strong:   #cccccc;
+        --border-mid:      #8a8a8a;
+        --border-subtle:   #e0e0e0;
+        --border-muted:    #c8c8c8;
+        --border-dim:      #a0a0a0;
 
-        --text-primary:    #1c2412;   /* near-black with a green-brown warmth */
-        --text-secondary:  #2a3320;
-        --text-tertiary:   #3f4a30;
-        --text-muted:      #5f6b4c;
-        --text-dim:        #7d886a;
-        --text-faint:      #97a186;
-        --text-veryfaint:  #b3bca4;
-        --text-subdued:    #4a5638;
-        --text-light:      #222a16;
-        --text-lighter:    #3f4a30;
+        --text-primary:    #192136;   /* the brand's own navy, standing in for near-black */
+        --text-secondary:  #3a3a3a;   /* the brand's own body-text grey */
+        --text-tertiary:   #54595f;   /* the brand's own secondary grey */
+        --text-muted:      #6b6f75;
+        --text-dim:        #707478;
+        --text-faint:      #6b6f73;
+        --text-veryfaint:  #65696d;
+        --text-subdued:    #55595e;
+        --text-light:      #192136;
+        --text-lighter:    #4a4e52;
         --text-white:      #fff;
 
-        --accent:          #6fa62e;   /* #8DC63F darkened for AA contrast on light */
-        --btn-primary-bg:  #7ab52f;
-        --btn-primary-hover: #6fa62e;
-        /* White-on-#7ab52f measures only 2.48:1 (see CLAUDE.md's Theming
-           section) — this theme's own dark text passes at 6.47:1 instead. */
-        --btn-primary-text: #1c2412;
+        --accent:          #2e6e1f;   /* the brand's own darker green shade — clears AA as bare text where #8DC63F itself (2.04:1) can't */
+        --btn-primary-bg:  #8dc63f;
+        --btn-primary-hover: #489636; /* the brand's own hover shade for this exact accent */
+        /* White fails on both (#fff/#8dc63f 2.04:1, #fff/#489636 3.69:1) —
+           black clears AA against both instead (10.28:1 / 5.69:1), and is
+           also one of the brand's own palette colours. */
+        --btn-primary-text: #000;
 
         --warn-bg:         #fff8e1;
         --warn-text:       #92400e;
         --warn-border:     #fcd34d;
         --warn-btn-bg:     #b45309;
         --warn-btn-hover:  #92400e;
-        --info-bg:         #ecf5dc;   /* green-tinted info */
-        --info-text:       #4d6b1f;
-        --info-border:     #cfe0b5;
-        --ok-text:         #4d7a1f;
+        --info-bg:         #eaf1fb;   /* the brand keeps a separate blue family for form/info chrome, apart from its green CTAs */
+        --info-text:       #0c4186;
+        --info-border:     #b8d0ea;
+        --ok-text:         #2e6e1f;
         --error-text:      #b91c1c;
         --error-bg:        #fef2f2;
         --error-border:    #fecaca;
@@ -249,6 +265,7 @@
         --bg-row-border:   #434c5e;
         --bg-modal:        #3b4252;
         --bg-accent-hover: #3b4a58;
+        --bg-selected:     #485b6a;
 
         --border-strong:   #4c566a;
         --border-mid:      #808da5;
@@ -299,6 +316,263 @@
         --error-border:    #4a3236;
       }
 
+      /* Colour token set — DRACULA. Deep purple-grey base (#282a36 / #343646),
+         off-white foreground (#f8f8f2), purple accent (#bd93f9) with its own
+         signature pink/cyan/green family for the semantic colours. */
+      :root[data-theme="dracula"] {
+        color-scheme: dark;
+        --bg-app:          #282a36;
+        --bg-toolbar:      #21222c;
+        --bg-overlay:      #2b2d3a;
+        --bg-input:        #343646;
+        --bg-hover-row:    #343646;
+        --bg-row-border:   #3b3d4d;
+        --bg-modal:        #343646;
+        --bg-accent-hover: #3a3355;
+        --bg-selected:     #51486c;
+
+        --border-strong:   #44475a;
+        --border-mid:      #7a7f9a;
+        --border-subtle:   #343646;
+        --border-muted:    #4a4d5f;
+        --border-dim:      #565a6e;
+
+        --text-primary:    #f8f8f2;
+        --text-secondary:  #e6e6e0;
+        --text-tertiary:   #d0d0ce;
+        --text-muted:      #a8a8b3;
+        --text-dim:        #a8acc0;
+        --text-faint:      #9ea2b8;
+        --text-veryfaint:  #9ca0b6;
+        --text-subdued:    #c0c0c8;
+        --text-light:      #f0f0ec;
+        --text-lighter:    #d6d6d2;
+        --text-white:      #fff;
+
+        --accent:          #bd93f9;
+        --btn-primary-bg:  #6b4fbb;
+        --btn-primary-hover: #7c5cd1;
+
+        --warn-bg:         #3a2e12;
+        --warn-text:       #ffb86c;
+        --warn-border:     #4a3a18;
+        --warn-btn-bg:     #96580c;
+        --warn-btn-hover:  #a8630f;
+        --info-bg:         #13323a;
+        --info-text:       #8be9fd;
+        --info-border:     #1f4a54;
+        --ok-text:         #50fa7b;
+        --error-text:      #ff5555;
+        --error-bg:        #3a1414;
+        --error-border:    #4a1f1f;
+      }
+
+      /* Colour token set — TOKYO NIGHT. Cool blue-purple dark base
+         (#1a1b26 / #292e42), blue accent (#7aa2f7), magenta/cyan/green family
+         for the semantic colours. */
+      :root[data-theme="tokyo-night"] {
+        color-scheme: dark;
+        --bg-app:          #1a1b26;
+        --bg-toolbar:      #16161e;
+        --bg-overlay:      #1f2335;
+        --bg-input:        #292e42;
+        --bg-hover-row:    #292e42;
+        --bg-row-border:   #34395a;
+        --bg-modal:        #292e42;
+        --bg-accent-hover: #263457;
+        --bg-selected:     #374467;
+
+        --border-strong:   #3b4261;
+        --border-mid:      #7c84a8;
+        --border-subtle:   #1f2335;
+        --border-muted:    #414868;
+        --border-dim:      #545c7e;
+
+        --text-primary:    #c0caf5;
+        --text-secondary:  #b7c1ea;
+        --text-tertiary:   #a9b1d6;
+        --text-muted:      #7982a9;
+        --text-dim:        #a3aacb;
+        --text-faint:      #959cbe;
+        --text-veryfaint:  #8f97ba;
+        --text-subdued:    #8992b8;
+        --text-light:      #cdd6f9;
+        --text-lighter:    #aab1d9;
+        --text-white:      #fff;
+
+        --accent:          #7aa2f7;
+        --btn-primary-bg:  #446dc7;
+        --btn-primary-hover: #4a63a8;
+
+        --warn-bg:         #362f1c;
+        --warn-text:       #e0af68;
+        --warn-border:     #4a3f22;
+        --warn-btn-bg:     #86611f;
+        --warn-btn-hover:  #96701f;
+        --info-bg:         #16232f;
+        --info-text:       #7dcfff;
+        --info-border:     #223447;
+        --ok-text:         #9ece6a;
+        --error-text:      #f7768e;
+        --error-bg:        #34191f;
+        --error-border:    #452530;
+      }
+
+      /* Colour token set — GITHUB DARK. Near-black base (#0d1117 / #161b22),
+         blue accent (#58a6ff) matching GitHub's own UI. */
+      :root[data-theme="github-dark"] {
+        color-scheme: dark;
+        --bg-app:          #0d1117;
+        --bg-toolbar:      #010409;
+        --bg-overlay:      #161b22;
+        --bg-input:        #161b22;
+        --bg-hover-row:    #161b22;
+        --bg-row-border:   #21262d;
+        --bg-modal:        #161b22;
+        --bg-accent-hover: #1c2b41;
+        --bg-selected:     #273f5b;
+
+        --border-strong:   #30363d;
+        --border-mid:      #6e7681;
+        --border-subtle:   #21262d;
+        --border-muted:    #30363d;
+        --border-dim:      #484f58;
+
+        --text-primary:    #e6edf3;
+        --text-secondary:  #c9d1d9;
+        --text-tertiary:   #b1bac4;
+        --text-muted:      #8b949e;
+        --text-dim:        #9aa2ac;
+        --text-faint:      #8f97a1;
+        --text-veryfaint:  #848c96;
+        --text-subdued:    #9198a1;
+        --text-light:      #d0d7de;
+        --text-lighter:    #b1bac4;
+        --text-white:      #fff;
+
+        --accent:          #58a6ff;
+        --btn-primary-bg:  #1f6feb;
+        --btn-primary-hover: #2d6dc4;
+
+        --warn-bg:         #2b2111;
+        --warn-text:       #d29922;
+        --warn-border:     #3a2e14;
+        --warn-btn-bg:     #9e6a03;
+        --warn-btn-hover:  #8a5c02;
+        --info-bg:         #0d2036;
+        --info-text:       #58a6ff;
+        --info-border:     #1c3a5e;
+        --ok-text:         #3fb950;
+        --error-text:      #f85149;
+        --error-bg:        #2e1214;
+        --error-border:    #45191c;
+      }
+
+      /* Colour token set — GRUVBOX DARK. Warm, retro-contrast dark base
+         (#282828 / #3c3836), orange accent (#fe8019), earthy red/green/yellow
+         family for the semantic colours. */
+      :root[data-theme="gruvbox-dark"] {
+        color-scheme: dark;
+        --bg-app:          #282828;
+        --bg-toolbar:      #1d2021;
+        --bg-overlay:      #32302f;
+        --bg-input:        #3c3836;
+        --bg-hover-row:    #3c3836;
+        --bg-row-border:   #504945;
+        --bg-modal:        #3c3836;
+        --bg-accent-hover: #3a2c1c;
+        --bg-selected:     #674529;
+
+        --border-strong:   #504945;
+        --border-mid:      #a89984;
+        --border-subtle:   #32302f;
+        --border-muted:    #504945;
+        --border-dim:      #665c54;
+
+        --text-primary:    #fbf1c7;
+        --text-secondary:  #ebdbb2;
+        --text-tertiary:   #d5c4a1;
+        --text-muted:      #a89984;
+        --text-dim:        #b8ab90;
+        --text-faint:      #b0a288;
+        --text-veryfaint:  #afa18a;
+        --text-subdued:    #bdae93;
+        --text-light:      #f2e5bc;
+        --text-lighter:    #d5c4a1;
+        --text-white:      #fff;
+
+        --accent:          #fe8019;
+        --btn-primary-bg:  #d65d0e;
+        --btn-primary-hover: #fe8019;
+        /* White fails against both (#fff/#d65d0e 3.87:1, #fff/#fe8019 lower
+           still) — black clears AA against both instead (5.43:1 / 8.32:1). */
+        --btn-primary-text: #000;
+
+        --warn-bg:         #332b1a;
+        --warn-text:       #fabd2f;
+        --warn-border:     #4a3c22;
+        --warn-btn-bg:     #966010;
+        --warn-btn-hover:  #9c6710;
+        --info-bg:         #1d2a2b;
+        --info-text:       #83a598;
+        --info-border:     #2d3b3d;
+        --ok-text:         #b8bb26;
+        --error-text:      #fb6a4d;
+        --error-bg:        #33201c;
+        --error-border:    #4a2c26;
+      }
+
+      /* Colour token set — CATPPUCCIN MOCHA. Soft dark base (#1e1e2e /
+         #313244), mauve accent (#cba6f7), pastel red/green/yellow/blue family
+         for the semantic colours. */
+      :root[data-theme="catppuccin-mocha"] {
+        color-scheme: dark;
+        --bg-app:          #1e1e2e;
+        --bg-toolbar:      #181825;
+        --bg-overlay:      #232336;
+        --bg-input:        #313244;
+        --bg-hover-row:    #313244;
+        --bg-row-border:   #45475a;
+        --bg-modal:        #313244;
+        --bg-accent-hover: #322a42;
+        --bg-selected:     #4f4568;
+
+        --border-strong:   #45475a;
+        --border-mid:      #9399b2;
+        --border-subtle:   #232336;
+        --border-muted:    #45475a;
+        --border-dim:      #585b70;
+
+        --text-primary:    #cdd6f4;
+        --text-secondary:  #bac2de;
+        --text-tertiary:   #a6adc8;
+        --text-muted:      #9399b2;
+        --text-dim:        #a6adc8;
+        --text-faint:      #9ba2be;
+        --text-veryfaint:  #979dba;
+        --text-subdued:    #9399b2;
+        --text-light:      #cdd6f4;
+        --text-lighter:    #bac2de;
+        --text-white:      #fff;
+
+        --accent:          #cba6f7;
+        --btn-primary-bg:  #8452c7;
+        --btn-primary-hover: #8a58cc;
+
+        --warn-bg:         #332419;
+        --warn-text:       #f9e2af;
+        --warn-border:     #4a3322;
+        --warn-btn-bg:     #a05a19;
+        --warn-btn-hover:  #8a4d15;
+        --info-bg:         #1c2b40;
+        --info-text:       #89b4fa;
+        --info-border:     #2d3f5c;
+        --ok-text:         #a6e3a1;
+        --error-text:      #f38ba8;
+        --error-bg:        #33202a;
+        --error-border:    #4a2c38;
+      }
+
       /* Colour token set — SOLARIZED DARK (Ethan Schoonover). Warm teal-dark
          base (#002b36 / #073642), blue-grey text (#839496 / #93a1a1), blue
          accent (#268bd2). The classic designed palette. */
@@ -312,6 +586,7 @@
         --bg-row-border:   #0e4653;
         --bg-modal:        #073642;
         --bg-accent-hover: #0a3f52;
+        --bg-selected:     #0f4c67;
 
         --border-strong:   #12586b;
         --border-mid:      #647e85;
@@ -374,6 +649,7 @@
         --bg-row-border:   #e6dfc8;
         --bg-modal:        #fffcf0;
         --bg-accent-hover: #e3ecdf;
+        --bg-selected:     #c5dadf;
 
         --border-strong:   #d3cbb0;
         --border-mid:      #ded7bd;
@@ -414,6 +690,158 @@
         --error-border:    #f0c4ba;
       }
 
+      /* Colour token set — GRUVBOX LIGHT. Warm cream base (#fbf1c7 / #fefbf0),
+         dark-orange accent (#af3a03), the light-side counterpart to Gruvbox
+         Dark's earthy palette. */
+      :root[data-theme="gruvbox-light"] {
+        color-scheme: light;
+        --bg-app:          #fbf1c7;
+        --bg-toolbar:      #f2e5bc;
+        --bg-overlay:      #fbf1c7;
+        --bg-input:        #fefbf0;
+        --bg-hover-row:    #f2e5bc;
+        --bg-row-border:   #ebdbb2;
+        --bg-modal:        #fefbf0;
+        --bg-accent-hover: #f5e3d3;
+        --bg-selected:     #e7c194;
+
+        --border-strong:   #d5c4a1;
+        --border-mid:      #7c6f64;
+        --border-subtle:   #ebdbb2;
+        --border-muted:    #bdae93;
+        --border-dim:      #a89984;
+
+        --text-primary:    #282828;
+        --text-secondary:  #3c3836;
+        --text-tertiary:   #504945;
+        --text-muted:      #665c54;
+        --text-dim:        #5c5347;
+        --text-faint:      #655c4f;
+        --text-veryfaint:  #6e6457;
+        --text-subdued:    #504945;
+        --text-light:      #282828;
+        --text-lighter:    #3c3836;
+        --text-white:      #fff;
+
+        --accent:          #af3a03;
+        --btn-primary-bg:  #af3a03;
+        --btn-primary-hover: #9d3200;
+
+        --warn-bg:         #f7ecc7;
+        --warn-text:       #8f5c10;
+        --warn-border:     #d79921;
+        --warn-btn-bg:     #8f5c10;
+        --warn-btn-hover:  #7a4d0d;
+        --info-bg:         #eaf1ee;
+        --info-text:       #076678;
+        --info-border:     #a8c5c9;
+        --ok-text:         #5f5a0b;
+        --error-text:      #9d0006;
+        --error-bg:        #fbeee8;
+        --error-border:    #e8c2ba;
+      }
+
+      /* Colour token set — GITHUB LIGHT. Clean white/grey base (#ffffff /
+         #f6f8fa), blue accent (#0969da) matching GitHub's own UI. */
+      :root[data-theme="github-light"] {
+        color-scheme: light;
+        --bg-app:          #ffffff;
+        --bg-toolbar:      #f6f8fa;
+        --bg-overlay:      #ffffff;
+        --bg-input:        #ffffff;
+        --bg-hover-row:    #f6f8fa;
+        --bg-row-border:   #eaeef2;
+        --bg-modal:        #ffffff;
+        --bg-accent-hover: #ddf4ff;
+        --bg-selected:     #bfd8f5;
+
+        --border-strong:   #d0d7de;
+        --border-mid:      #818a94;
+        --border-subtle:   #eaeef2;
+        --border-muted:    #d8dee4;
+        --border-dim:      #8c959f;
+
+        --text-primary:    #1f2328;
+        --text-secondary:  #424a53;
+        --text-tertiary:   #57606a;
+        --text-muted:      #656d76;
+        --text-dim:        #57606a;
+        --text-faint:      #5d6670;
+        --text-veryfaint:  #68707a;
+        --text-subdued:    #57606a;
+        --text-light:      #1f2328;
+        --text-lighter:    #424a53;
+        --text-white:      #fff;
+
+        --accent:          #0969da;
+        --btn-primary-bg:  #0969da;
+        --btn-primary-hover: #0550ae;
+
+        --warn-bg:         #fff8c5;
+        --warn-text:       #7d4e00;
+        --warn-border:     #d4a72c;
+        --warn-btn-bg:     #9a6700;
+        --warn-btn-hover:  #7d4e00;
+        --info-bg:         #ddf4ff;
+        --info-text:       #0969da;
+        --info-border:     #b6e3ff;
+        --ok-text:         #1a7f37;
+        --error-text:      #d1242f;
+        --error-bg:        #ffebe9;
+        --error-border:    #ffc1bc;
+      }
+
+      /* Colour token set — CATPPUCCIN LATTE. Soft light base (#eff1f5 /
+         #ffffff), mauve accent (#8839ef), the light-side counterpart to
+         Catppuccin Mocha's pastel palette. */
+      :root[data-theme="catppuccin-latte"] {
+        color-scheme: light;
+        --bg-app:          #eff1f5;
+        --bg-toolbar:      #e6e9ef;
+        --bg-overlay:      #f5f6f9;
+        --bg-input:        #ffffff;
+        --bg-hover-row:    #e6e9ef;
+        --bg-row-border:   #ccd0da;
+        --bg-modal:        #ffffff;
+        --bg-accent-hover: #f0e3ff;
+        --bg-selected:     #d9c5f6;
+
+        --border-strong:   #ccd0da;
+        --border-mid:      #767a8f;
+        --border-subtle:   #e6e9ef;
+        --border-muted:    #bcc0cc;
+        --border-dim:      #acb0be;
+
+        --text-primary:    #4c4f69;
+        --text-secondary:  #5c5f77;
+        --text-tertiary:   #6c6f85;
+        --text-muted:      #7c7f93;
+        --text-dim:        #666a80;
+        --text-faint:      #63667c;
+        --text-veryfaint:  #5c5f77;
+        --text-subdued:    #6c6f85;
+        --text-light:      #4c4f69;
+        --text-lighter:    #5c5f77;
+        --text-white:      #fff;
+
+        --accent:          #8839ef;
+        --btn-primary-bg:  #8839ef;
+        --btn-primary-hover: #7228c9;
+
+        --warn-bg:         #fbf1de;
+        --warn-text:       #93590a;
+        --warn-border:     #e6c78a;
+        --warn-btn-bg:     #93590a;
+        --warn-btn-hover:  #7a4a08;
+        --info-bg:         #e6edff;
+        --info-text:       #0c4fc9;
+        --info-border:     #b8cdf5;
+        --ok-text:         #297a1a;
+        --error-text:      #d20f39;
+        --error-bg:        #fceaee;
+        --error-border:    #f0b8c5;
+      }
+
       /* Colour token set — HIGH CONTRAST (light). Pure white surfaces, near-black
          text, a strong saturated blue accent. For bright rooms / projectors /
          accessibility — maximum legibility, not subtlety. */
@@ -427,6 +855,7 @@
         --bg-row-border:   #d0d0d0;
         --bg-modal:        #ffffff;
         --bg-accent-hover: #d6e4ff;
+        --bg-selected:     #bdd2f1;
 
         --border-strong:   #666;
         --border-mid:      #999;
@@ -477,6 +906,7 @@
           --bg-row-border:   #e8e8e8;
           --bg-modal:        #fff;
           --bg-accent-hover: #dbeafe;
+          --bg-selected:     #bcd1e7;
 
           --border-strong:   #ccc;
           --border-mid:      #bbb;
@@ -517,6 +947,45 @@
 
       /* ── Theme-independent tokens (defined once, apply to every theme) ──── */
       :root {
+        /* Corner radius as three roles, not a spread of near-identical values.
+           Was 3/4/6/8/10px chosen per element — see UI_STANDARDS.md "Radius". */
+        --radius-control:   4px;   /* buttons, inputs, menu rows, toggles */
+        --radius-container: 6px;   /* cards, panels, menus, modals */
+        --radius-pill:      999px; /* badges, chips, count pills */
+
+        /* Spacing scale — every padding, gap and margin should be one of these.
+           Derived from the values already in use, not imposed: they clustered
+           at 2/4/6/8/10/12/16/24 with a thin tail of one-off values, and the
+           clusters are the scale. See UI_STANDARDS.md "Spacing". */
+        --space-xxs:  2px;
+        --space-xs:   4px;
+        --space-sm:   6px;
+        --space-md:   8px;
+        --space-lg:  10px;
+        --space-xl:  12px;
+        --space-xxl: 16px;
+        --space-xxxl:24px;
+
+        /* Elevation. Fourteen distinct box-shadow literals existed across both
+           repos with no rule for which belonged where. Three tiers is what the
+           values actually clustered into. */
+        --shadow-panel: 0 1px 4px rgba(0,0,0,0.10);
+        --shadow-menu:  0 4px 12px rgba(0,0,0,0.15);
+        --shadow-modal: 0 20px 60px rgba(0,0,0,0.40);
+
+        /* Motion. One duration for state changes, one for movement the eye
+           follows. Ten different transition literals is not expressiveness. */
+        --motion-fast: 0.12s ease;
+        --motion-base: 0.2s ease;
+
+        /* Line height, opacity, tracking — one value per job. */
+        --leading-none:  1;
+        --leading-tight: 1.2;
+        --leading-base:  1.45;
+        --alpha-muted:    0.85;
+        --alpha-disabled: 0.4;
+        --tracking:       0.05em;
+
         /* Stacking order. tsmap's overlays layer against wmap's map-toolbar
            overlays (--wmap-z, default 6000, +2). Single source of truth; every
            overlay references a tier (CSS var() / JS cssVar) — no bare numbers.
@@ -566,6 +1035,11 @@
            left unmapped: it's wmap's own toolbar-overlay z-index band (default
            6000), and tsmap's --z-modal/--z-tooltip scale is defined ABOVE it on
            purpose (see the block below) rather than substituted for it. */
+        /* wmap inherits the host's typeface rather than imposing its own — the
+           library carried three different hardcoded stacks, none matching this
+           one, so the same data in its panel and its Insights tables rendered in
+           different faces. */
+        --wmap-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
         --wmap-canvas-bg:   var(--bg-app);
         --wmap-surface:     var(--bg-overlay);
         --wmap-panel-bg:    var(--bg-app);
@@ -580,10 +1054,17 @@
            just on the rare active icon. */
         --wmap-icon-hover:  var(--accent);
         --wmap-icon-active: var(--accent);
-        --wmap-bg-hover:    var(--bg-accent-hover);
-        --wmap-bg-active:   var(--bg-accent-hover);
-        --wmap-menu-hover:  var(--bg-accent-hover);
-        --wmap-menu-active: var(--bg-accent-hover);
+        /* Hover and selected must NOT be the same value. All four of these
+           mapped to --bg-accent-hover, so inside tsmap every wmap toolbar
+           menu, dropdown row and option list rendered its hovered row and its
+           selected row identically — the "three states, no fourth" rule in
+           UI_STANDARDS.md collapsed to two. Hover is the transient neutral
+           (--bg-hover-row, what tsmap's own anchoredMenu rows use); selected
+           is the persistent accent tint. */
+        --wmap-bg-hover:    var(--bg-hover-row);
+        --wmap-bg-active:   var(--bg-selected);
+        --wmap-menu-hover:  var(--bg-hover-row);
+        --wmap-menu-active: var(--bg-selected);
         --wmap-separator:   var(--border-subtle);
         --wmap-warn-bg:     var(--warn-bg);
         --wmap-warn-border: var(--warn-border);
@@ -618,10 +1099,32 @@
          :focus-visible, not :focus — mouse clicks shouldn't leave a ring.
          The outer box-shadow gives a light "halo" so the accent stays visible
          against surfaces that happen to be close to it in tone. */
+      /* Hover feedback for every button, by the same reasoning as the
+         :focus-visible rule below: most of tsmap's controls are built in JS with
+         inline styles and none of them opt in, so one unscoped element rule
+         reaches all of them. Without it a bordered control is indistinguishable
+         from a bordered label — it has the shape of a button and does nothing
+         when you point at it. An audit found only 29% of tsmap's interactive
+         elements had any hover affordance.
+
+         Deliberately low specificity: `.tb-btn:hover` and `.btn-primary:hover`
+         are class selectors and still win, so the toolbar keeps its accent
+         treatment and this is only the floor. */
+      /* `:where()` contributes ZERO specificity, so this whole selector is
+         (0,1,1) and any component class beats it. Written as
+         `button:not(:disabled):hover` it was (0,2,1) and outranked
+         `.btn-primary:hover` (0,2,0) — every primary CTA lost its accent fill on
+         hover, leaving white text on the hover grey at about 1.1:1 in the five
+         themes that don't override --btn-primary-text. A floor must be
+         unable to win. */
+      button:where(:not(:disabled)):hover {
+        background: var(--bg-hover-row);
+      }
+
       :focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 2px;
-        border-radius: 3px;
+        border-radius: var(--radius-control);
         box-shadow: 0 0 0 4px var(--bg-accent-hover);
       }
       /* Overlay panels take focus programmatically so Esc and screen-reader
@@ -678,7 +1181,7 @@
          the cursor:pointer margin was inert. */
       #drop-zone {
         display: flex; align-items: center; gap: 8px;
-        padding: 4px 10px; border: 1px dashed var(--border-muted); border-radius: 4px;
+        padding: 4px 10px; border: 1px dashed var(--border-muted); border-radius: var(--radius-control);
         cursor: pointer; transition: border-color 0.15s, background 0.15s;
       }
       #drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: var(--bg-accent-hover); }
@@ -693,11 +1196,16 @@
          toolbar button is correctly styled by construction. Only genuinely
          different COLOUR intents get a modifier below. */
       .tb-btn {
-        background: none; border: 1px solid var(--border-dim); border-radius: 4px;
+        background: none; border: 1px solid var(--border-dim); border-radius: var(--radius-control);
         color: var(--text-muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
         white-space: nowrap; user-select: none;
       }
-      .tb-btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); background: var(--bg-accent-hover); }
+      /* Accent border + accent text is the affordance; the ground stays NEUTRAL.
+         On --bg-accent-hover this was accent-on-accent-tint, measuring 4.41 and
+         4.42 in Light and Catppuccin Latte — under AA. Same pairing rule as the
+         selected menu row: a tint carries state, it does not also host text of
+         its own hue. */
+      .tb-btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover-row); }
       .tb-btn:disabled { opacity: 0.4; cursor: default; }
       /* Primary (the one entry action) — accent-outlined at rest, not just on hover. */
       .tb-btn--primary { border-color: var(--accent); color: var(--accent); }
@@ -709,7 +1217,23 @@
       /* Group divider. Toggled with the group it frames (setToolbarGroupVisible,
          main.ts) — a divider with nothing beside it reads as a rendering bug. */
       .tb-sep { width: 1px; align-self: stretch; margin: 3px 2px; background: var(--border-dim); flex-shrink: 0; }
-      .tb-caret { opacity: 0.7; font-size: 10px; }
+      .tb-caret { opacity: 0.7; font-size: 12px; }
+      /* Split button: the verb (Open/Add) and a caret that chooses HOW to pick
+         files. Two real <button>s — a click target nested inside a button is
+         invalid HTML and unreachable by keyboard — joined visually so they read
+         as one control. The seam is a single shared border rather than two
+         adjacent ones, which would render 2px thick. */
+      .tb-split { display: inline-flex; align-items: stretch; }
+      .tb-split > .tb-btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+      .tb-split > .tb-btn + .tb-btn {
+        border-top-left-radius: 0; border-bottom-left-radius: 0;
+        border-left: none; padding-left: var(--space-sm); padding-right: var(--space-sm);
+      }
+      .tb-split > .tb-btn + .tb-btn::before {
+        content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
+        border-left: 1px solid var(--border-dim);
+      }
+      .tb-split > .tb-btn + .tb-btn { position: relative; }
       #drop-hint { white-space: nowrap; flex-shrink: 0; }
       /* Shrinks to an ellipsis, but never below a width that can still show
          something. Without the floor it collapsed to a single character plus
@@ -760,14 +1284,17 @@
       .mapping-tools input[type="search"] {
         flex: 1; min-width: 160px; max-width: 320px;
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
-        padding: 4px 8px; border-radius: 4px; font-size: 12px;
+        padding: 4px 8px; border-radius: var(--radius-control); font-size: 12px;
       }
-      .mapping-tools .tool-btn {
-        background: none; border: 1px solid var(--border-mid); border-radius: 4px;
-        color: var(--text-secondary); font-size: 12px; padding: 4px 10px; cursor: pointer;
-        white-space: nowrap;
-      }
-      .mapping-tools .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+      /* `.tool-btn` used to live here — a fourth definition of the secondary
+         button, identical to `.btn-secondary` in every property but padding.
+         Being descendant-scoped to `.mapping-tools` it also silently failed to
+         reach the one `.tool-btn` outside that row (the footer's "Load bin
+         definitions…"), which rendered as an unstyled native button ignoring
+         the theme. Both problems disappear with the class: the buttons now use
+         `.btn-secondary` like every other secondary button in the app. What is
+         left here is layout only, which is genuinely local to this row. */
+      .mapping-tools .btn-secondary { white-space: nowrap; }
       .mapping-tools .tool-sep { margin-left: auto; }
       .mapping-tools .tool-count { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
       .mapping-scroll { flex: 1; overflow-y: auto; padding: 0 8px; }
@@ -791,7 +1318,7 @@
          from running underneath it. */
       .mapping-table select {
         background-color: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
-        padding: 2px 22px 2px 4px; border-radius: 3px; font-size: 12px; width: 100%;
+        padding: 2px 22px 2px 4px; border-radius: var(--radius-control); font-size: 12px; width: 100%;
         -webkit-appearance: none; appearance: none;
         background-image:
           linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
@@ -812,7 +1339,7 @@
       .type-mismatch-hint { color: var(--warn-text); font-size: 13px; flex-shrink: 0; cursor: help; }
       .test-name-input {
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
-        padding: 2px 6px; border-radius: 3px; font-size: 12px; width: 180px;
+        padding: 2px 6px; border-radius: var(--radius-control); font-size: 12px; width: 180px;
       }
       .split-cell { white-space: nowrap; }
       .split-label { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-muted); font-size: 12px; }
@@ -825,14 +1352,122 @@
       /* Sized to hold the duplicate-role message, which names every clashing
          column and so can run long — it must wrap rather than squeeze the
          footer's buttons off the row. */
-      .mapping-validation { font-size: 12px; color: var(--error-text); max-width: 46ch; line-height: 1.4; }
+      .mapping-validation { font-size: 12px; color: var(--error-text); max-width: 46ch; line-height: var(--leading-base); }
       .mapping-validation:empty { display: none; }
       .pass-bin-group { display: flex; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; color: var(--text-muted); }
-      .pass-bin-group input { background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary); padding: 2px 6px; border-radius: 3px; font-size: 12px; width: 80px; }
-      .btn-primary { background: var(--btn-primary-bg); border: none; color: var(--btn-primary-text); padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+      .pass-bin-group input { background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary); padding: 2px 6px; border-radius: var(--radius-control); font-size: 12px; width: 80px; }
+      /* THE primary button — same story as .btn-secondary: this class existed
+         and dialogs rebuilt it inline anyway (splitsUI's Done, waferGeometryUI's
+         Apply). Body tier, padding on the scale. */
+      .btn-primary {
+        background: var(--btn-primary-bg); border: none; color: var(--btn-primary-text);
+        padding: var(--space-sm) var(--space-xxl); border-radius: var(--radius-control);
+        cursor: pointer; font-size: 12px; font-weight: 600;
+      }
       .btn-primary:hover { background: var(--btn-primary-hover); }
-      .btn-secondary { background: none; border: 1px solid var(--border-muted); color: var(--text-muted); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
-      .btn-secondary:hover { border-color: var(--border-dim); color: var(--text-lighter); }
+      .btn-primary:disabled { opacity: 0.4; cursor: default; }
+
+      /* Sortable column header. Deliberately inherits the header cell's own font
+         and colour — it is the header, made pressable, not a control placed in
+         one. A shared button shape would fight the table's typography. */
+      .btn-header {
+        display: flex; align-items: center; gap: var(--space-xs); flex: 1;
+        border: none; background: none; padding: 0; cursor: pointer;
+        font: inherit; color: inherit; text-align: left; white-space: nowrap;
+      }
+      .btn-header:hover { color: var(--accent); background: none; }
+
+      /* The ▾ that opens a column's filter popover. `.is-on` marks a column
+         that currently has a filter applied. */
+      .btn-caret {
+        margin-left: auto; border: none; background: none; cursor: pointer;
+        font-size: 12px; color: var(--text-muted); padding: 0 var(--space-xxs);
+        border-radius: var(--radius-control);
+      }
+      .btn-caret:hover { color: var(--accent); background: var(--bg-hover-row); }
+      .btn-caret.is-on { color: var(--accent); }
+
+      /* Inline text action — reads as a link, behaves as a button (Select all,
+         Select none, Clear). Borderless by design; the colour and underline on
+         hover are its whole affordance. */
+      .btn-link {
+        background: none; border: none; padding: 0; cursor: pointer;
+        font-size: 12px; color: var(--accent);
+      }
+      .btn-link:hover { text-decoration: underline; background: none; }
+      .btn-link:disabled { opacity: 0.4; cursor: default; text-decoration: none; }
+      /* Muted variant for a secondary action in the same row (Clear). */
+      .btn-link--muted { color: var(--text-muted); }
+
+      /* Selected state for a segmented/filter button. A class, not an inline
+         style: the previous version wrote `style.background` directly on click,
+         which permanently outranked `.btn-secondary:hover` — so once any filter
+         had been clicked, none of them reacted to the pointer again. */
+      .btn-secondary.is-on {
+        background: var(--btn-primary-bg);
+        border-color: var(--btn-primary-bg);
+        color: var(--btn-primary-text);
+        font-weight: 600;
+      }
+      .btn-secondary.is-on:hover { background: var(--btn-primary-hover); border-color: var(--btn-primary-hover); color: var(--btn-primary-text); }
+
+      /* Recent-file row: a wide, two-line button listing a file set. Its own
+         shape (block layout, left-aligned) but it is a button and must react. */
+      .btn-row {
+        flex: 1; min-width: 0; text-align: left; background: none;
+        border: 1px solid var(--border-dim); border-radius: var(--radius-control);
+        color: var(--text-secondary); font-size: 12px;
+        padding: var(--space-xs) var(--space-md); cursor: pointer;
+        display: flex; flex-direction: column; gap: 1px; overflow: hidden;
+      }
+      .btn-row:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover-row); }
+
+      /* Menu row inside an anchored dropdown (Recent, Help, Lot ▾). Full-width,
+         borderless; the hover background IS its affordance. */
+      .menu-row {
+        display: flex; align-items: center; gap: var(--space-sm); width: 100%;
+        text-align: left; background: none; border: none;
+        border-radius: var(--radius-control);
+        padding: var(--space-sm) var(--space-lg); font-size: 12px;
+        color: var(--text-secondary); cursor: pointer;
+      }
+      .menu-row:hover:not(:disabled) { background: var(--bg-hover-row); }
+      .menu-row:disabled { color: var(--text-veryfaint); cursor: default; }
+
+      /* Chip — a small selectable pill (the Splits dialog's quick-fill names).
+         Distinct from .btn-secondary: fully rounded, smaller, meta-tier text.
+         It IS a button element, which is why an automated "is this a button?"
+         check wrongly gave it the secondary-button style. */
+      .btn-chip {
+        background: none; border: 1px solid var(--border-mid); color: var(--text-secondary);
+        padding: var(--space-xxs) var(--space-md); border-radius: var(--radius-pill);
+        cursor: pointer; font-size: 12px;
+      }
+      .btn-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover-row); }
+
+      /* Bare icon button (dialog close, inline actions). Was rebuilt inline at
+         several sites, none of which agreed on the hover treatment. */
+      .btn-icon {
+        background: none; border: none; color: var(--text-dim); cursor: pointer;
+        padding: var(--space-xs); border-radius: var(--radius-control);
+        display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+      }
+      .btn-icon:hover { color: var(--accent); background: var(--bg-hover-row); }
+      .btn-icon:disabled { opacity: 0.4; cursor: default; }
+      /* THE secondary button. There were two: this class and a SECONDARY_BTN_CSS
+         string in modal.ts used at 25 sites, differing in border, colour,
+         padding and size — and only this one had a hover state, so half the
+         app's buttons reacted to the pointer and half didn't. The constant is
+         gone; this is the single definition. Values: body tier (12px), padding
+         on the spacing scale, --border-mid/--text-secondary from the constant
+         (the more legible pair of the two). */
+      .btn-secondary {
+        background: none; border: 1px solid var(--border-mid); color: var(--text-secondary);
+        padding: var(--space-sm) var(--space-xl); border-radius: var(--radius-control);
+        cursor: pointer; font-size: 12px;
+      }
+      .btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover-row); }
+      .btn-secondary:disabled { opacity: 0.4; cursor: default; }
 
       /* Rename overlay — reuses mapping-panel styles */
       #tsmap-rename-overlay {
@@ -844,14 +1479,14 @@
       .rename-arrow { color: var(--text-veryfaint); text-align: center; padding: 0 8px; }
       .rename-input {
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
-        padding: 3px 8px; border-radius: 3px; font-size: 13px; width: 200px;
+        padding: 3px 8px; border-radius: var(--radius-control); font-size: 13px; width: 200px;
       }
       .rename-count { color: var(--text-faint); font-size: 12px; padding-left: 12px; }
 
       /* Append confirmation */
       .append-summary { margin-bottom: 14px; font-size: 13px; color: var(--text-tertiary); }
       .append-warnings { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
-      .append-warning { display: flex; gap: 8px; font-size: 12px; padding: 6px 10px; border-radius: 4px; }
+      .append-warning { display: flex; gap: 8px; font-size: 12px; padding: 6px 10px; border-radius: var(--radius-control); }
       .append-warn { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
       .append-info { background: var(--info-bg); color: var(--info-text); border: 1px solid var(--info-border); }
       .warn-icon { flex-shrink: 0; }
@@ -866,11 +1501,11 @@
         display: flex; align-items: center; justify-content: center;
       }
       .tsmap-modal {
-        background: var(--bg-modal); border: 1px solid var(--border-mid); border-radius: 6px;
+        background: var(--bg-modal); border: 1px solid var(--border-mid); border-radius: var(--radius-container);
         padding: 24px; max-width: 420px; color: var(--text-light);
       }
       .tsmap-modal h3 { margin-bottom: 10px; font-size: 15px; }
-      .tsmap-modal p  { margin-bottom: 20px; font-size: 13px; color: var(--text-subdued); line-height: 1.5; }
+      .tsmap-modal p  { margin-bottom: 20px; font-size: 13px; color: var(--text-subdued); line-height: var(--leading-base); }
       .tsmap-modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
       .muted { color: var(--text-faint); font-size: 12px; }
 
@@ -926,7 +1561,7 @@
       #log-panel.open { display: block; border-top: 1px solid var(--border-subtle); }
       .log-entry {
         font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
-        font-size: 12px; line-height: 1.6;
+        font-size: 12px; line-height: var(--leading-base);
         white-space: pre-wrap; word-break: break-all;
         color: var(--text-muted);
       }
@@ -940,13 +1575,20 @@
       <div id="toolbar">
         <span id="toolbar-title">tsmap</span>
         <div id="drop-zone" title="Open wafer-map files — or drop them anywhere">
-          <button id="open-btn" class="tb-btn tb-btn--primary" title="Open wafer-map files — or drop them anywhere">Open files</button>
+          <span class="tb-split">
+            <button id="open-btn" class="tb-btn tb-btn--primary" title="Open wafer-map files — or drop them anywhere">Open files</button>
+            <button id="open-more-btn" class="tb-btn tb-btn--primary" aria-haspopup="menu" aria-expanded="false"
+              aria-label="Choose how to pick files to open" title="Pick files, or scan a whole folder"><span class="tb-caret">▾</span></button>
+          </span>
           <input id="file-input" type="file" multiple
             accept=".stdf,.std,.atdf,.atd,.csv,.json,.parquet,.gz,.zip,.txt,.dat"
             style="display:none" />
         </div>
-        <button id="filter-files-btn" class="tb-btn" title="Scan many files for lot/wafer metadata, then filter and select which to load">Filter files…</button>
-        <button id="add-btn" class="tb-btn" disabled title="Append more files to the current view">Add files</button>
+        <span class="tb-split">
+          <button id="add-btn" class="tb-btn" disabled title="Append more files to the current view">Add files</button>
+          <button id="add-more-btn" class="tb-btn" disabled aria-haspopup="menu" aria-expanded="false"
+            aria-label="Choose how to pick files to add" title="Pick files, or scan a whole folder"><span class="tb-caret">▾</span></button>
+        </span>
         <button id="recent-btn" class="tb-btn" style="display:none" title="Recently opened files"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/></svg> Recent</button>
         <span class="tb-sep" style="display:none"></span>
         <button id="lot-btn" class="tb-btn" style="display:none" aria-haspopup="menu" aria-expanded="false"
@@ -956,11 +1598,11 @@
         <span id="drop-hint">or drop a file anywhere</span>
         <span id="busy-spinner"></span>
         <span id="file-label"></span>
-        <button id="help-btn" aria-label="Help" title="Help"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+        <button id="help-btn" class="btn-icon" aria-label="Help" title="Help"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
       </div>
       <div id="map-container"></div>
       <div id="log-bar">
-        <button id="log-toggle" aria-expanded="false" title="Show the log panel">Log</button>
+        <button id="log-toggle" class="btn-secondary" aria-expanded="false" title="Show the log panel">Log</button>
         <div id="log-panel">
           <div id="log-list"></div>
         </div>

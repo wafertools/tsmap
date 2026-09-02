@@ -215,10 +215,14 @@ export const scenario = {
       checks: [
         {
           name: 'group-by-select-is-on-split',
+          // wmap 0.27.0 made this a trigger button + popup listbox, not a
+          // native <select>, so there is no `selectedOptions` to read — the
+          // current label is the trigger's first <span> (the second is its
+          // caret). `data-wmap-select` still marks the same control.
           get: (page) => page.$eval('[data-wmap-select="group-by"]', (el) =>
-            el.selectedOptions[0]?.textContent ?? null),
+            el.querySelector('span')?.textContent ?? null),
           expect: (text) => text?.startsWith('Split') ?? false,
-          describe: 'the Group by select (found via data-wmap-select="group-by") is set to Split',
+          describe: 'the Group by picker (found via data-wmap-select="group-by") is set to Split',
         },
       ],
       shot: 'demo-05-grouped-by-split',

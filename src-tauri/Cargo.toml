@@ -25,6 +25,20 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Stays on the default GTK3 backend (not the "xdg-portal" feature) even
+# though switching to it visibly fixed a blank-rows rendering bug in the
+# filter-type dropdown on Ubuntu (isolated via zenity — same theme, same
+# filter names, clean render, so the bug is specific to rfd's GTK3 combo
+# code, not tsmap or the system theme). Reverted anyway: rfd's xdg-portal
+# backend needs libdbus, an actual portal backend (GTK/GNOME/KDE flavour)
+# installed at runtime, and falls back to shelling out to `zenity` if the
+# portal call fails — none of which is guaranteed on the AppImage's "other"
+# distro audience (tiling-WM/minimal setups without a desktop portal
+# daemon). GTK3 itself is already a hard dependency via WebKitGTK, so it's
+# the only backend that imposes nothing extra. Trading a cosmetic dropdown
+# glitch for a real risk of Open/Filter files failing outright on some
+# installs is the wrong trade — the blank rows are a known cosmetic
+# limitation, not fixed here.
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-single-instance = "2"

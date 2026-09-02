@@ -35,16 +35,16 @@ export function showFileAssociationsModal(options: FileAssociationsUIOptions): v
     contentSize: { width: 'min(90vw, 420px)', height: 'min(80vh, 360px)' },
     bodyOverflow: 'auto',
     mount(body) {
-      body.style.cssText += 'padding:16px;gap:12px;font-size:13px;color:var(--text-light)';
+      body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light)';
 
       const intro = document.createElement('p');
       intro.textContent = 'Open these file types in tsmap automatically when double-clicked in a file manager. Changing your mind later is fine — this can be toggled anytime.';
-      intro.style.cssText = 'margin:0;color:var(--text-secondary);line-height:1.4;';
+      intro.style.cssText = 'margin:0;color:var(--text-secondary);line-height:var(--leading-base);';
       body.appendChild(intro);
 
       const errorBanner = document.createElement('div');
       errorBanner.style.cssText = [
-        'display:none;padding:8px 10px;border-radius:4px;font-size:12px;line-height:1.4',
+        'display:none;padding:8px 10px;border-radius:var(--radius-control);font-size:12px;line-height:var(--leading-base)',
         'background:var(--bg-input);border:1px solid var(--error-text);color:var(--error-text)',
       ].join(';');
       body.appendChild(errorBanner);
@@ -102,7 +102,7 @@ export function showFileAssociationsModal(options: FileAssociationsUIOptions): v
         // its own, or a silently-successful toggle reads the same as a
         // silently-ignored one).
         const status = document.createElement('span');
-        status.style.cssText = 'font-size:11px;color:var(--text-muted);min-width:52px;text-align:right;';
+        status.style.cssText = 'font-size:12px;color:var(--text-muted);min-width:56px;text-align:right;';
         let statusFadeTimer: ReturnType<typeof setTimeout> | undefined;
 
         row.appendChild(checkbox);
@@ -120,7 +120,7 @@ export function showFileAssociationsModal(options: FileAssociationsUIOptions): v
         // register…" line instead of being left empty.
         const pathLine = document.createElement('div');
         pathLine.style.cssText =
-          'font-size:11px;font-family:ui-monospace,"Cascadia Code","Segoe UI Mono",monospace;' +
+          'font-size:12px;font-family:ui-monospace,"Cascadia Code","Segoe UI Mono",monospace;' +
           'padding-left:24px;word-break:break-all;';
         container.appendChild(pathLine);
 

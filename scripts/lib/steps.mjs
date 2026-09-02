@@ -299,13 +299,16 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
     }
 
     case 'filterFiles': {
-      // Same filechooser interception as loadFile/addFiles, but against
-      // #filter-files-btn, which opens fileFilterUI's own dedicated hidden
-      // input rather than the shared #file-input.
+      // The standalone "Filter files…" toolbar button is gone — it was a third
+      // sibling to Open/Add that differed on a different axis (how to pick, not
+      // what to do). The filter table is now reached by scanning a folder, so
+      // this drives the empty state's #scan-folder-btn instead. Playwright's
+      // setFiles supplies the folder's contents directly, which is what the web
+      // build's `webkitdirectory` input would have produced.
       const files = Array.isArray(args[0]) ? args[0] : [args[0]];
       const [chooser] = await Promise.all([
         page.waitForEvent('filechooser'),
-        page.click('#filter-files-btn'),
+        page.click('#scan-folder-btn'),
       ]);
       await chooser.setFiles(files);
       break;
@@ -468,23 +471,31 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
     }
 
     case 'setInsightsGroupBy': {
-      // The Insights "Group by:" <select> is a child of its own <label>
-      // (chartShell.ts makeLabeledSelect) — find the label whose text starts
-      // with "Group by:" and read its nested select. Always throws on a miss.
+      // The Insights "Group by:" picker is a themed button + popup listbox
+      // (chartShell.ts makeListSelect, reached via makeLabeledSelect), NOT a
+      // native <select> — it stopped being one when wmap converted these so
+      // they'd follow the host theme on WebKitGTK. So it has to be *driven*,
+      // not assigned: click the trigger, then click the option row by its
+      // text. Always throws on a miss.
       const label = args[0];
-      const grouped = await page.evaluate((optionLabel) => {
+      const opened = await page.evaluate(() => {
         const labels = [...document.querySelectorAll('label')];
-        const groupByLabel = labels.find(l => l.querySelector('select') && l.textContent?.trim().startsWith('Group by:'));
-        const select = groupByLabel?.querySelector('select');
-        if (!select) return 'no-select';
-        const opt = [...select.options].find(o => o.textContent?.trim().startsWith(optionLabel));
-        if (!opt) return 'no-option';
-        select.value = opt.value;
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        return 'ok';
+        const groupByLabel = labels.find(l => l.textContent?.trim().startsWith('Group by:'));
+        const trigger = groupByLabel?.querySelector('button');
+        if (!trigger) return false;
+        trigger.click();
+        return true;
+      });
+      if (!opened) throw new Error('Insights "Group by:" trigger not found (renamed/restructured in wmap?)');
+      await page.waitForTimeout(150);
+      const picked = await page.evaluate((optionLabel) => {
+        const row = [...document.querySelectorAll('[role="option"]')]
+          .find(o => o.textContent?.trim().startsWith(optionLabel));
+        if (!row) return false;
+        row.click();
+        return true;
       }, label);
-      if (grouped === 'no-select') throw new Error('Insights "Group by:" select not found (renamed/restructured in wmap?)');
-      if (grouped === 'no-option') throw new Error(`Insights "Group by:" option not found: "${label}"`);
+      if (!picked) throw new Error(`Insights "Group by:" option not found: "${label}"`);
       await page.waitForTimeout(600);
       break;
     }

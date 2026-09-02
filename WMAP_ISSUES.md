@@ -1110,3 +1110,89 @@ so an exclusion-exceeds-radius input degrades to "every die is excluded" — cor
 **Update (2026-08-28):** Published as wafermap **v0.26.0** and adopted here. Closed.
 
 `get` returning `undefined` renders an empty cell, which is the documented behaviour. The limits are that it is one column, it is forced to the leading position, and the value arrives as `unknown` so the host casts or stringifies it itself.
+
+### 43. Insights tab's native `<select>` pickers (Group by, per-panel test/wafer selectors) ignore theming entirely on Linux WebKitGTK (fixed in wmap, not yet published)
+
+**Where:** `makeTestSelect`, `makeWaferSelect`, `makeLabeledSelect` (`packages/canvas-adapter/charts/chartShell.ts`) — the "which test" picker (boxplot/histogram/scatter), the histogram wafer picker, and the Analysis tab's "Group by:" field selector plus every per-panel "Group: `<value>` ▾" dropdown.
+
+**Problem:** all three built a plain native `<select>` styled only via `background`/`color`/`border` (`CLR.menuBg`/`CLR.text`/`CLR.menuBorder`, which resolve to `var(--wmap-surface, #fff)` etc.). Most engines respect that on a native `<select>`, but WebKitGTK — the Linux Tauri WebView tsmap ships in — paints the closed box with native GTK chrome regardless, ignoring the resolved CSS colour entirely: every one of these selects rendered generic OS light/dark grey no matter which of tsmap's 16 themes was active. Found via tsmap's own Insights tab "Group by" selector after the tsmap theme-system work above; confirmed the `--wmap-*` token chain itself was resolving correctly (verified computed style in headless Chrome — `background: rgb(43, 45, 58)` etc., matching the active theme exactly) before narrowing it down to WebKitGTK-specific native-control rendering, distinct from (and broader than) the already-known "native popup ignores `color-scheme`" limitation (tsmap's own `CLAUDE.md`), which is about the *open* option list, not the closed box.
+
+**Fix:** `appearance: none` (+ `-webkit-`/`-moz-` prefixes) opts the closed box back into CSS-painted chrome in every engine including WebKitGTK, restoring theming. Since that also removes the native dropdown arrow, a small hand-drawn chevron is re-added via `background-image` (a static `#888` SVG data URI — an embedded data URI can't resolve a `var(--wmap-*)` reference, so it isn't itself theme-reactive, but reads acceptably against both light and dark surfaces). Extracted into one shared `styleNativeSelect(select, maxWidth)` helper used by all three call sites rather than patching the same inline-style block three times independently (it had already drifted into three near-identical copies).
+
+**Known residual limitation, not fixed and not fixable via CSS:** the *open* option-list popup remains OS-native styled in every browser, not just WebKitGTK — no CSS reaches it in any engine. Confirmed acceptable in practice (visible only for the instant the menu is open).
+
+**Status: superseded and fully fixed, 2026-08-31 — not yet published.** The `appearance: none` fix above was only ever half of it (it reached the closed box, never the popup). All three pickers are now built by a new shared `makeListSelect` in `chartShell.ts` — a themed trigger button plus a popup `listbox`, generalised from the long-list combobox that already backed `makeTestSelect` past `MENU_SEARCH_THRESHOLD` — so the searchable and short-list paths became one implementation, and `styleNativeSelect` plus its hand-drawn arrow SVG are deleted. The "known residual limitation" below is therefore **gone**: there is no native option list left to be OS-styled. Verified in tsmap against the linked build — zero `<select>` elements remain in the Insights tab and the picker renders in the host's theme. Two consequences worth carrying forward: `makeWaferSelect` now returns `HTMLElement & { value: string }` rather than `HTMLSelectElement` (no public API change — none of the three builders is exported), and **any host driving these in automation must click the trigger and the option row rather than assigning `select.value` + dispatching `change`** — tsmap's own `scripts/lib/steps.mjs` `setInsightsGroupBy` was updated in the same pass, and `data-wmap-select` still marks the same control, now on the trigger button. See also issue #45 below: this is the wmap half of a cross-repo convergence, and the rule it now follows lives in `UI_STANDARDS.md`.
+
+**Possible future subject — why this is structurally different from tsmap's own colour-theme picker:** tsmap's theme picker (`menuSelect.ts`) has a fully themed open list because it was never a native `<select>` to begin with — it's a hand-built `<button>` trigger + `<div role="option">` popup, so ordinary CSS reaches every row. wmap's three pickers above are real native `<select>` elements; `appearance: none` (this issue's fix) only reaches the *closed* box — the open `<option>` list is OS-rendered chrome in every browser, not just WebKitGTK, and no CSS selector in any engine can style inside it. Matching tsmap's picker exactly (a themed open list too) would mean porting the same custom-widget approach into wmap itself — its own popup, `role="listbox"`/`role="option"` rows, full keyboard handling per `UI_STANDARDS.md` — real feature work, not a follow-up CSS tweak. Not scoped or prioritized yet; noted here so it isn't rediscovered from scratch next time someone asks "why does the theme picker look more polished than the Group by dropdown."
+
+### 44. `inferred-pitch` advisory was classified `severity: 'error'`, making the supported diameter-only path show a permanent red banner (fixed in wmap, not yet published)
+
+**Where:** `buildWarnings` (`packages/renderer/buildWaferMap.ts`), which promotes the deprecated `inference.warnings` string channel into structured `WaferWarning[]`. It mapped every advisory to `severity: 'error' as const` with a comment asserting "all three are errors".
+
+**Problem:** the blanket `'error'` contradicted both wmap's own severity contract and the site that raises this particular advisory. Per the `WaferWarning.severity` docs, `'error'` means the map may be *positionally wrong*; `'warning'` means what is drawn is correct but something is degraded. But the `inferred-pitch` push site (the `else if (!pitchWasSupplied)` branch, same file) documents in its own comment that containment is *guaranteed* — `resolveGridPitch` clamps the pitch to fit the diameter — and that the only unverified quantity is the assumed **aspect ratio**, which is skewed solely when edge dies are absent from the data (a reticle-complete map, or partial dies filtered upstream). It is an assumption made on the caller's behalf, not a detected contradiction, unlike `partial-coverage` and `geometry-conflict`, which both genuinely mean dies may be drawn in the wrong place.
+
+The user-visible consequence in tsmap: supplying `waferConfig.diameter` without a `dieConfig` pitch is a documented, supported input, and it is exactly what tsmap's **Lot ▾ → Diameter & edge exclusion…** dialog and `--wafer-diameter` produce. Only `generate_stdf_corner_lot.py` emits a WCR record, so for every other file `wcrGeometryFrom` returns no `dieConfig` and `buildWmapConfig` (`main.ts`) passes `dieConfig: undefined`. Any user who set a diameter therefore got a red error banner, on every wafer, with no field anywhere in tsmap that could clear it — and the perverse shape of it was that supplying *more* correct information (the true diameter) is what turned the map red; leaving diameter unset renders clean.
+
+**Fix:** `buildWarnings` now derives the code first and maps severity per code — `'inferred-pitch'` → `'warning'`, `partial-coverage`/`geometry-conflict` unchanged at `'error'` — with both comments corrected so the classification site and the push site no longer contradict each other. tsmap needs no change: `logWmapWarnings` already maps severity to log level via `WMAP_WARNING_LOG_LEVEL`/`severityOf`, and wmap's own ⚠ indicator colours from the same field, so the downgrade flows through both surfaces automatically.
+
+**Status:** fixed directly in wmap (both repos are ours) — not yet published; tsmap picks it up via the `npm run wmap:link` symlink. Publish alongside the next batch per the usual link workflow (issue #43 is queued in the same batch), then strike this through with the version.
+
+#### Considered and declined: a die width/height input in tsmap
+
+The obvious companion fix — add die pitch fields to `waferGeometryUI.ts`, persist them in `waferGeometry.ts`, add `--die-width`/`--die-height`, splice them into `buildWmapConfig`'s `dieConfig` — was scoped and **deliberately not built**. Recorded here so it isn't re-derived from scratch.
+
+Grepped what actually consumes die pitch downstream before deciding:
+
+- **`clusterDetection.ts`** (the only stats consumer) uses pitch purely as a *ratio* — `neighbourRadius = max(pitchX, pitchY) * 1.5`, then `ceil(neighbourRadius / pitch)`. Scale-invariant; an inferred pitch changes its results not at all.
+- **Rendering** is scale-invariant too — the map is drawn to fit its container regardless of the absolute mm figure.
+- **Edge exclusion** (`applyEdgeExclusion`, called from `buildWaferMap`) is the single genuinely scale-sensitive consumer, because it is an absolute mm band measured against physical die positions.
+
+So the real exposure is one narrow case: a user sets an edge exclusion **and** their data doesn't span the full wafer. `resolveGridPitch` stretches the grid to fill the supplied diameter, so the band gets measured against positions that are systematically too spread out, excluding dies that aren't really at the edge. Everything else is unaffected.
+
+That is thin justification for a new persisted setting, two dialog fields, two CLI flags, a `check:docs` row, guide prose and a screenshot recapture. It also cuts against itself: supplying a pitch is precisely what makes `geometry-conflict` reachable (that advisory is only raised when the pitch *was* supplied), so the feature's main new capability would be giving users a fresh way to type a wrong number and get back the red banner this issue just removed. It grows the option matrix to buy back a problem.
+
+**Revisit when** someone actually reports an edge-exclusion ring that looks wrong on a map whose grid doesn't reach the wafer edge. Even then the narrower fix is probably wmap-side — widening the existing `edge-exclusion-exceeds-radius` advisory (issue #42) into a companion "edge exclusion applied against an inferred pitch" warning, so the user is told the band is approximate — rather than a tsmap input field. A pitch input in tsmap is the last resort, not the first.
+
+### 45. Four separate option-list implementations across the two repos had drifted into three visible styles (converged 2026-08-31, wmap half not yet published)
+
+**Where:** `makeDropdown` (`packages/canvas-adapter/toolbar.ts`) and the Insights pickers (`packages/canvas-adapter/charts/chartShell.ts`) in wmap; `menuSelect.ts` and `anchoredMenu.ts` in tsmap.
+
+**Problem:** reported from the user's side as "the plot mode dropdown, the Lot ▾ menu and the theme dropdown are three different list styles — it's not good", which is exactly what it was. The four implementations had each answered the same questions independently:
+
+| List | Pattern | Rows take DOM focus? | Keyboard indicator |
+| --- | --- | --- | --- |
+| wmap toolbar (`makeDropdown`) | `menu` + `menuitemradio`, roving `tabIndex=-1` | yes | browser `:focus-visible` ring |
+| wmap Insights (`styleNativeSelect`) | native `<select>` | n/a | OS-drawn |
+| tsmap `anchoredMenu` | `<button>` rows | yes | browser ring |
+| tsmap `menuSelect` | `listbox` + `option`, `aria-activedescendant` | **no** | hand-drawn accent left-bar |
+
+The visible oddity — an accent bar on the theme picker's rows and nowhere else — was not a style choice but a *consequence of the ARIA pattern*. `menuSelect` was the only one of the four using `aria-activedescendant`, where focus stays on the trigger and rows are merely pointed at; with no DOM focus there is no `:focus-visible` ring, so it had to draw its own indicator (a background swap alone measured ~1.2:1 on the Dark theme, below WCAG 1.4.11's 3:1). It then wired `mouseenter` to the same "set active" path as the arrow keys, so the focus treatment followed the mouse. Both patterns are valid APG; they simply cannot coexist in one application.
+
+**Fix (all three parts landed):**
+
+1. **The contract is written down** in `UI_STANDARDS.md` — "Option lists and menus: one visual contract", in the shared copy so it binds both repos. Two widget classes decided by what the items *are* (value pickers → `listbox`/`option`; command menus → `menu`/`menuitem`), exactly three visual states (selected / hover / focus ring), rows on roving `tabIndex = -1` so the **browser** draws the ring, and `aria-activedescendant` reserved for the single case that requires it (focus must stay in a text input — a true editable combobox). Added to the new-widget checklist too.
+2. **tsmap `menuSelect` → roving tabindex**; the accent bar is deleted, hover no longer moves focus, and the selected row uses `--bg-accent-hover` (the same token `filterTable.ts` already uses for a selected row).
+3. **wmap Insights pickers → the shared themed `makeListSelect`** — see issue #43 above, which this supersedes.
+
+**Follow-up, same root cause one level up (tsmap, 2026-09-01):** with the rows
+consistent, the picker's *trigger* was then the only control in tsmap's toolbar
+that didn't match its neighbours — it hardcoded `background: var(--bg-input)` +
+`--border-mid` (input chrome) while every other toolbar button is `.tb-btn`
+(`background: none`, `--border-dim`, `--text-muted`), so it rendered as a filled
+pill in a row of transparent outlined buttons. `makeMenuSelect` now sets no
+colours whatsoever: it takes `opts.className` and `main.ts` passes `tb-btn`, so
+the trigger inherits the shared button styling including its accent hover. The
+caret moved from a hardcoded `--text-muted` to `color: inherit` for the same
+reason — it would otherwise stay grey while the label went accent. Verified in
+Catppuccin Mocha: `#theme-select`'s computed background/border/colour are now
+identical to `filter-files-btn`, `add-btn`, `recent-btn` and `lot-btn`.
+`UI_STANDARDS.md` gained a matching rule ("The trigger takes the host's own
+button styling, not its own") and a checklist line, since this is the second
+time the same mistake — a widget choosing its own colours instead of taking the
+host's — has shipped in the same component.
+
+**Deliberately NOT done: wmap exporting a general dropdown widget.** It is a wafermap and analysis library, not a UI library, and its API is already wide. The two repos keep separate implementations bound by the written contract rather than one importing the other. Revisit only if a third consumer appears.
+
+**Deferred (low value, opportunistic):** `makeDropdown` still labels value pickers `menu` + `menuitemradio` rather than `listbox` + `option`. It is invisible on screen and changes only what assistive tech announces; do it if you are in that function anyway. Deep screen-reader support is not a goal for either tool — spatial wafer data doesn't survive being announced — which is why this is the one part of the convergence left undone. The parts that *were* done are justified by consistency and by removing hand-maintained code, not by conformance.
+
+**Status:** tsmap side complete (`menuSelect.ts`); wmap side complete but **not yet published** — publish with the #43/#44 batch, then strike this through with the version.

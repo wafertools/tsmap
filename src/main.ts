@@ -7,7 +7,7 @@ import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWa
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
-import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs } from './platform';
+import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
 import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
@@ -20,7 +20,7 @@ import { attachTooltip, upgradeTitleTooltips } from './tooltip';
 import { openAnchoredMenu, makeMenuRow } from './anchoredMenu';
 import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme } from './theme';
 import { makeMenuSelect } from './menuSelect';
-import { openModal, SECONDARY_BTN_CSS } from './modal';
+import { openModal } from './modal';
 import { showSplitsModal } from './splitsUI';
 import { getEdgeExclusionMm, getWaferDiameterMm, normalizeWaferGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
@@ -57,9 +57,10 @@ const container       = document.getElementById('map-container')!;
 const dropZone        = document.getElementById('drop-zone')!;
 const openBtn         = document.getElementById('open-btn')!;
 const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
+const openMoreBtn     = document.getElementById('open-more-btn') as HTMLButtonElement;
+const addMoreBtn      = document.getElementById('add-more-btn') as HTMLButtonElement;
 const recentBtn       = document.getElementById('recent-btn') as HTMLButtonElement;
 const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
-const filterFilesBtn  = document.getElementById('filter-files-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
 const fileLabel       = document.getElementById('file-label')!;
@@ -243,14 +244,34 @@ if (isTauri) {
     listen<{ paths: string[] }>('tauri://drag-drop', event => {
       setDragActive(false);
       const paths = event.payload.paths ?? [];
-      if (paths.length > 0) {
-        const files: FileHandle[] = paths.map(p => ({
+      if (paths.length === 0) return;
+      void (async () => {
+        // A dropped FOLDER is the natural "where?" gesture, and it used to be
+        // silently broken: the directory path was wrapped as a FileHandle and
+        // sent to the parser, which can only fail. Route it to the same scan
+        // the empty state's "Scan a folder…" uses instead. This is also what
+        // makes folder scanning reachable once data is loaded, where the empty
+        // state is gone.
+        const dirs: string[] = [];
+        const filePaths: string[] = [];
+        for (const p of paths) {
+          if (platform.isDirectory && await platform.isDirectory(p)) dirs.push(p);
+          else filePaths.push(p);
+        }
+        if (dirs.length > 0) {
+          if (filePaths.length > 0) {
+            log('info', `Dropped ${dirs.length} folder${dirs.length === 1 ? '' : 's'} and ${filePaths.length} file${filePaths.length === 1 ? '' : 's'} — scanning the folder${dirs.length === 1 ? '' : 's'}; drop the files on their own to load them directly.`);
+          }
+          await scanDroppedFolders(dirs);
+          return;
+        }
+        const files: FileHandle[] = filePaths.map(p => ({
           name: basename(p),
           bytes: new Uint8Array(0),
           path: p,
         }));
         handleFiles(files, false);
-      }
+      })();
     }).catch(e => log('warn', `File drop listener failed: ${e}`));
 
     // Files forwarded from a second `tsmap <files>` launch (see
@@ -603,6 +624,7 @@ function renderWafers(
   const restoredSplits = loadSavedSplits(wafers);
   clearLotStatsCache();
   addBtn.disabled = wafers.length === 0;
+  addMoreBtn.disabled = addBtn.disabled;
   // One trigger for every lot-scoped dialog (see openLotMenu). Its rows
   // handle their own availability — "Filter tests…" greys out for a file with
   // no test data — so this only needs the "is anything loaded at all" gate.
@@ -642,7 +664,7 @@ function renderWafers(
 const onSaveImage = isTauri
   ? (blob: Blob, suggestedName: string) => {
       const stem = suggestedName.replace(/\.png$/i, '');
-      platform.savePng(blob, stem)
+      platform.savePng(blob, stem, 'Save image')
         .then(() => log('info', `PNG saved: ${suggestedName}`))
         .catch((err: unknown) => log('error', `PNG save failed: ${err}`));
     }
@@ -653,7 +675,7 @@ const onSaveImage = isTauri
 // onSaveImage — see WMAP_ISSUES.md #33.
 const onSaveText = isTauri
   ? (text: string, suggestedName: string) => {
-      platform.saveTextFile(text, suggestedName)
+      platform.saveTextFile(text, suggestedName, 'Save exported data')
         .then(() => log('info', `Saved: ${suggestedName}`))
         .catch((err: unknown) => log('error', `Save failed: ${err}`));
     }
@@ -760,6 +782,7 @@ function showEmptyState() {
   binaryScanScope = 'largest';
   clearLotStatsCache();
   addBtn.disabled = true;
+  addMoreBtn.disabled = true;
   setToolbarGroupVisible(false);
   destroyMainView();
   container.classList.remove('gallery');
@@ -831,8 +854,8 @@ function showEmptyState() {
   // it as a real bundled resource path, web fetches it as a static asset.
   const sampleBtn = document.createElement('button');
   sampleBtn.type = 'button';
-  sampleBtn.style.cssText = 'margin-top:4px;background:none;border:1px solid var(--border-dim);' +
-    'border-radius:4px;color:var(--text-muted);font-size:12px;padding:4px 12px;cursor:pointer;';
+  sampleBtn.className = 'btn-secondary';
+  sampleBtn.style.cssText = 'margin-top:4px;';   // layout only
   sampleBtn.textContent = 'Load sample data';
   sampleBtn.addEventListener('click', async () => {
     if (busy) return;
@@ -850,6 +873,21 @@ function showEmptyState() {
   });
   column.appendChild(sampleBtn);
 
+  // The discovery moment for "I have a directory of files and don't know which
+  // I want". It lives here rather than in the toolbar because it is a way of
+  // CHOOSING files, not a third thing to do with them — the toolbar's two
+  // buttons are the two operations (replace, append), and a third button beside
+  // them implied a third operation that never existed.
+  const scanFolderBtn = document.createElement('button');
+  scanFolderBtn.type = 'button';
+  scanFolderBtn.id = 'scan-folder-btn';
+  scanFolderBtn.className = 'btn-secondary';
+  scanFolderBtn.style.cssText = 'margin-top:4px;';   // layout only
+  scanFolderBtn.textContent = 'Scan a folder…';
+  attachTooltip(scanFolderBtn, 'Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load');
+  scanFolderBtn.addEventListener('click', () => void scanFolderAndFilter(false));
+  column.appendChild(scanFolderBtn);
+
   // Recent files needs a persistent native path to reopen without the picker —
   // only available on desktop (webPlatform's File objects have no path). Also
   // reachable from the toolbar's Recent button once data is loaded (openRecentMenu).
@@ -857,8 +895,8 @@ function showEmptyState() {
     const wrap = document.createElement('div');
     wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:4px;width:320px;';
     const heading = document.createElement('div');
-    heading.style.cssText = 'font-size:11px;color:var(--text-veryfaint);text-transform:uppercase;' +
-      'letter-spacing:.04em;margin-bottom:2px;text-align:center;';
+    heading.style.cssText = 'font-size:12px;color:var(--text-veryfaint);text-transform:uppercase;' +
+      'letter-spacing:var(--tracking);margin-bottom:2px;text-align:center;';
     heading.textContent = 'Recent';
     wrap.appendChild(heading);
     wrap.appendChild(buildRecentRows(() => {}, () => { showEmptyState(); }));
@@ -884,14 +922,12 @@ function buildRecentRows(onOpen: () => void, onRemove: () => void): HTMLElement 
 
     const rowOpenBtn = document.createElement('button');
     rowOpenBtn.type = 'button';
-    rowOpenBtn.style.cssText = 'flex:1;min-width:0;text-align:left;background:none;' +
-      'border:1px solid var(--border-dim);border-radius:4px;color:var(--text-secondary);' +
-      'font-size:12px;padding:4px 8px;cursor:pointer;display:flex;flex-direction:column;gap:1px;overflow:hidden;';
+    rowOpenBtn.className = 'btn-row';
     const nameLine = document.createElement('div');
     nameLine.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
     nameLine.textContent = entry.label;  // textContent: file names are untrusted
     const timeLine = document.createElement('div');
-    timeLine.style.cssText = 'font-size:10px;color:var(--text-veryfaint);';
+    timeLine.style.cssText = 'font-size:12px;color:var(--text-veryfaint);';
     timeLine.textContent = formatRecentTime(entry.time);
     rowOpenBtn.append(nameLine, timeLine);
     // Dynamically-created element — upgradeTitleTooltips only runs once at
@@ -909,8 +945,8 @@ function buildRecentRows(onOpen: () => void, onRemove: () => void): HTMLElement 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.setAttribute('aria-label', `Remove ${entry.label} from recent files`);
-    removeBtn.style.cssText = 'flex-shrink:0;background:none;border:none;color:var(--text-veryfaint);' +
-      'cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;';
+    removeBtn.className = 'btn-icon';
+    removeBtn.style.cssText = 'flex-shrink:0;font-size:14px;';   // layout only
     removeBtn.textContent = '×';
     removeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -950,8 +986,8 @@ function openRecentMenu(anchor: HTMLElement) {
     },
     (popup, close) => {
       const heading = document.createElement('div');
-      heading.style.cssText = 'font-size:11px;color:var(--text-veryfaint);text-transform:uppercase;' +
-        'letter-spacing:.04em;margin-bottom:6px;';
+      heading.style.cssText = 'font-size:12px;color:var(--text-veryfaint);text-transform:uppercase;' +
+        'letter-spacing:var(--tracking);margin-bottom:6px;';
       heading.textContent = 'Recent';
       popup.appendChild(heading);
 
@@ -979,9 +1015,9 @@ function setBusy(msg: string) {
   openBtn.style.pointerEvents = 'none';
   openBtn.style.opacity = '0.5';
   addBtn.disabled = true;
-  // Filter files… guards on `busy` in its own handler, so it was inert while
-  // busy but still looked live — the one file-entry button that didn't say so.
-  filterFilesBtn.disabled = true;
+  addMoreBtn.disabled = true;
+  openMoreBtn.style.pointerEvents = 'none';
+  openMoreBtn.style.opacity = '0.5';
 }
 
 function setIdle(msg = '') {
@@ -990,8 +1026,9 @@ function setIdle(msg = '') {
   busySpinner.classList.remove('active');
   openBtn.style.pointerEvents = '';
   openBtn.style.opacity = '';
-  filterFilesBtn.disabled = false;
-  if (currentWafers.length > 0) addBtn.disabled = false;
+  openMoreBtn.style.pointerEvents = '';
+  openMoreBtn.style.opacity = '';
+  if (currentWafers.length > 0) { addBtn.disabled = false; addMoreBtn.disabled = false; }
 }
 
 /**
@@ -1097,7 +1134,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       showMappingOverlay(headersResult,
         (mapping, binDefs) => resolve({ mapping, binDefs }),
         () => { setIdle(); resolve(null); },
-        () => platform.pickTextFile().then(f => f?.content ?? null),
+        () => platform.pickTextFile('Select a bin definitions file to load').then(f => f?.content ?? null),
       );
     });
   }
@@ -1231,9 +1268,9 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
             preloadListText: testListPreload ?? undefined,
             capacity: totalDieCount > 0 ? { dieCount: totalDieCount, totalTests: allTestNums.size } : undefined,
             onSave: async (saveEntries: TestListEntry[]) => {
-              await platform.saveTextFile(formatTestListCsv(saveEntries), 'test-list.csv');
+              await platform.saveTextFile(formatTestListCsv(saveEntries), 'test-definitions.csv', 'Save these test definitions to a file');
             },
-            onLoad: async () => (await platform.pickTextFile())?.content ?? null,
+            onLoad: async () => (await platform.pickTextFile('Select a test definitions file to load'))?.content ?? null,
             onLog: log,
             onAsk: (msg) => platform.confirm(msg),
           },
@@ -1493,10 +1530,159 @@ async function offerFilterFirst(picked: PickedFile[], isAppend: boolean, prevLab
   setIdle(prevLabel);
   void openFileFilterDialog(platform, {
     onConfirmedLoad: (chosen, chosenAppend) => handleFiles(chosen, chosenAppend),
+    isAppend,
     confirm: (msg) => platform.confirm(msg),
     log,
   }, picked);
   return true;
+}
+
+/**
+ * The "where?" entry: pick a folder, then let the filter table answer "which?".
+ *
+ * This is the whole point of having it. Picking files in the OS dialog and then
+ * filtering them in the table meant answering the same question twice — the
+ * native dialog asked which files, and the table asked again. A folder picker
+ * asks something the table cannot ("where should I look"), so the two steps
+ * stop overlapping.
+ *
+ * Subfolders are opt-in and only offered when there are any: a recursive walk
+ * of a mistaken pick (a home directory, a network mount) is the one thing here
+ * that could take real time, so it is never the silent default. On the web
+ * there is no choice to offer — `webkitdirectory` returns the whole subtree —
+ * so the prompt is desktop-only by construction.
+ */
+/** Scan one or more dropped folders into the filter table. Shares the whole
+ *  tail of `scanFolderAndFilter` — subfolder prompt, truncation notice, empty
+ *  result — via `openScanInFilter`; only the "how did we get a folder" half
+ *  differs (a drop, versus a native picker). */
+async function scanDroppedFolders(dirs: string[]) {
+  if (busy || !platform.rescanFolder) return;
+  const prevLabel = fileLabel.textContent ?? '';
+  setBusy(`Scanning ${dirs.length === 1 ? 'folder' : `${dirs.length} folders`}…`);
+  const scans: FolderScan[] = [];
+  for (const d of dirs) {
+    try {
+      const scan = await platform.rescanFolder(d, false);
+      if (scan) scans.push(scan);
+    } catch (e) {
+      log('error', `Could not scan "${d}": ${errMsg(e)}`);
+    }
+  }
+  if (scans.length === 0) { setIdle(prevLabel); return; }
+  // A dropped folder always replaces, matching a dropped file — drag-and-drop
+  // has no way to express "append", and inventing one silently would be worse
+  // than the Add files button already being there for that.
+  await openScanInFilter(mergeScans(scans), false, prevLabel);
+}
+
+/** Combine several folder scans into one listing, de-duplicating by path — two
+ *  dropped folders can legitimately contain the same file via a symlink. */
+function mergeScans(scans: FolderScan[]): FolderScan {
+  const seen = new Set<string>();
+  const files: FileHandle[] = [];
+  for (const s of scans) {
+    for (const f of s.files) {
+      const key = f.path ?? f.name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      files.push(f);
+    }
+  }
+  return {
+    dirPath: scans[0].dirPath,
+    dirName: scans.length === 1 ? scans[0].dirName : `${scans.length} folders`,
+    files,
+    hasSubdirs: scans.some(s => s.hasSubdirs),
+    truncated: scans.some(s => s.truncated),
+  };
+}
+
+/** The shared tail: offer subfolders where relevant, report a capped or empty
+ *  scan, then hand the result to the filter table. */
+async function openScanInFilter(scan: FolderScan, isAppend: boolean, prevLabel: string) {
+  if (scan.hasSubdirs && platform.rescanFolder && scan.dirPath) {
+    setBusy('Waiting for confirmation…');
+    const deep = await platform.confirm(`"${scan.dirName}" has subfolders. Include them in the scan?`);
+    if (deep) {
+      setBusy('Scanning subfolders…');
+      try { scan = await platform.rescanFolder(scan.dirPath, true) ?? scan; }
+      catch (e) { log('error', `Subfolder scan failed: ${errMsg(e)}`); }
+    }
+  }
+  if (scan.truncated) {
+    log('info', `Folder scan stopped at a safety limit — showing the first ${scan.files.length} files found. Narrow the folder to see the rest.`);
+  }
+  if (scan.files.length === 0) {
+    log('error', `No wafer test data files found in "${scan.dirName}".`);
+    setIdle(prevLabel);
+    return;
+  }
+  log('info', `Scanning ${scan.files.length} file${scan.files.length === 1 ? '' : 's'} from "${scan.dirName}"…`);
+  setIdle(prevLabel);
+  void openFileFilterDialog(platform, {
+    onConfirmedLoad: (chosen, chosenAppend) => handleFiles(chosen, chosenAppend),
+    isAppend,
+    confirm: (msg) => platform.confirm(msg),
+    log,
+  }, scan.files.map(pickedFromHandle));
+}
+
+let closePickMenu: (() => void) | null = null;
+
+/**
+ * The caret half of Open/Add — "how should I find the files?", for a verb the
+ * button has already answered.
+ *
+ * This is the whole reason the toolbar has two buttons rather than three. The
+ * old "Filter files…" was a third sibling that answered a *different* question
+ * from its neighbours (how to pick, not what to do), so it read as a third
+ * operation and then had to re-ask the verb at the end. Keeping the verb on the
+ * button and putting the picking method behind its caret separates the two axes
+ * without a button per combination.
+ */
+function openPickMenu(anchor: HTMLElement, isAppend: boolean) {
+  if (closePickMenu) { closePickMenu(); return; }
+  anchor.setAttribute('aria-expanded', 'true');
+  closePickMenu = openAnchoredMenu(
+    anchor,
+    {
+      stack: true, minWidth: '260px',
+      onClose: () => { closePickMenu = null; anchor.setAttribute('aria-expanded', 'false'); },
+    },
+    (popup, close) => {
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Choose files…',
+        hint: 'Pick individual files in the usual dialog',
+        enabled: !busy,
+        onClick: () => startFilePick(isAppend),
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Scan a folder…',
+        hint: 'Read every wafer-map file in a folder, then filter by lot metadata and pick from a table',
+        enabled: !busy,
+        onClick: () => { void scanFolderAndFilter(isAppend); },
+      }));
+    },
+  );
+}
+
+async function scanFolderAndFilter(isAppend: boolean) {
+  if (busy) return;
+  const prevLabel = fileLabel.textContent ?? '';
+  setBusy('Waiting for folder selection…');
+  let scan;
+  try {
+    scan = await platform.pickFolder(
+      isAppend ? 'Select a folder to scan and add from' : 'Select a folder to scan and load from',
+    );
+  } catch (e) {
+    log('error', `Folder picker failed: ${errMsg(e)}`);
+    setIdle(prevLabel);
+    return;
+  }
+  if (!scan) { setIdle(prevLabel); return; }
+  await openScanInFilter(scan, isAppend, prevLabel);
 }
 
 async function pickAndHandle(isAppend: boolean) {
@@ -1505,7 +1691,9 @@ async function pickAndHandle(isAppend: boolean) {
   setBusy('Waiting for file selection…');
   let files: FileHandle[];
   try {
-    files = await platform.pickFiles();
+    files = await platform.pickFiles(isAppend
+      ? 'Select one or more wafer test data files to add'
+      : 'Select one or more wafer test data files to open');
   } catch (e) {
     log('error', `File picker failed: ${errMsg(e)}`);
     setIdle(prevLabel);
@@ -1520,9 +1708,17 @@ async function pickAndHandle(isAppend: boolean) {
   handleFiles(files, isAppend);
 }
 
+/** Start the ordinary "pick individual files" flow for a verb. Assigned below
+ *  per platform — desktop goes through the native dialog, the browser through
+ *  the hidden `#file-input` (whose click must stay in the user-gesture chain).
+ *  Both the toolbar buttons and the caret menu's "Choose files…" row call this,
+ *  so the menu is not silently desktop-only. */
+let startFilePick: (isAppend: boolean) => void = () => {};
+
 if (isTauri) {
-  openBtn.addEventListener('click', () => pickAndHandle(false));
-  addBtn.addEventListener('click', () => pickAndHandle(true));
+  startFilePick = (isAppend) => { void pickAndHandle(isAppend); };
+  openBtn.addEventListener('click', () => startFilePick(false));
+  addBtn.addEventListener('click', () => startFilePick(true));
   recentBtn.addEventListener('click', () => openRecentMenu(recentBtn));
   syncRecentBtn();
 } else {
@@ -1555,22 +1751,24 @@ if (isTauri) {
   // (Chrome 113+, Firefox 121+, Safari 16.4+) fires in exactly that case.
   fileInput.addEventListener('cancel', () => setIdle(prevLabelOnPick));
 
-  openBtn.addEventListener('click', () => {
+  startFilePick = (isAppend) => {
     if (busy) return;
-    appendOnPick = false;
+    appendOnPick = isAppend;
     prevLabelOnPick = fileLabel.textContent ?? '';
     setBusy('Waiting for file selection…');
     fileInput.click();
-  });
+  };
 
-  addBtn.addEventListener('click', () => {
-    if (busy) return;
-    appendOnPick = true;
-    prevLabelOnPick = fileLabel.textContent ?? '';
-    setBusy('Waiting for file selection…');
-    fileInput.click();
-  });
+  openBtn.addEventListener('click', () => startFilePick(false));
+  addBtn.addEventListener('click', () => startFilePick(true));
 }
+
+// Platform-independent: both rows the caret menu offers work on either platform
+// (`startFilePick` is assigned above, `scanFolderAndFilter` handles both), so
+// this is wired once rather than inside each branch — which is how the carets
+// ended up desktop-only on the first attempt.
+openMoreBtn.addEventListener('click', () => openPickMenu(openMoreBtn, false));
+addMoreBtn.addEventListener('click', () => openPickMenu(addMoreBtn, true));
 
 /** Toggle regional test-value findings and re-analyse. Reached from the Lot ▾
  *  menu (`openLotMenu`); a named function rather than an inline listener so the
@@ -1670,9 +1868,9 @@ async function openFilterTests() {
           // window.confirm on one path and not the other.
           capacity: filterCapacity(),
           onSave: async (entries: TestListEntry[]) => {
-            await platform.saveTextFile(formatTestListCsv(entries), 'test-list.csv');
+            await platform.saveTextFile(formatTestListCsv(entries), 'test-definitions.csv', 'Save these test definitions to a file');
           },
-          onLoad: async () => (await platform.pickTextFile())?.content ?? null,
+          onLoad: async () => (await platform.pickTextFile('Select a test definitions file to load'))?.content ?? null,
           onLog: log,
           onAsk: (msg) => platform.confirm(msg),
         },
@@ -1781,8 +1979,8 @@ async function openFilterTests() {
 function openSplitsDialog() {
   if (currentWafers.length === 0) return;
   showSplitsModal(currentWafers, {
-    onSave: (csv) => platform.saveTextFile(csv, 'wafer-splits.csv'),
-    onLoad: () => platform.pickTextFile().then(f => f?.content ?? null),
+    onSave: (csv) => platform.saveTextFile(csv, 'wafer-splits.csv', 'Save wafer splits to a file'),
+    onLoad: () => platform.pickTextFile('Select a wafer splits file to load').then(f => f?.content ?? null),
     onLog: log,
     onAsk: (msg) => platform.confirm(msg),
     showSplitSuffix,
@@ -1867,14 +2065,13 @@ function openSaveLoadDefinitionsDialog(opts: {
   onLoad: (text: string) => boolean;
 }): void {
   const { title, errorLabel, savedMessage, description, saveDisabled, saveFileName, onSave, onLoad } = opts;
-  const secondaryBtnCss = SECONDARY_BTN_CSS;
 
   const modalHandle = openModal({
     title,
     sizing: 'content',
     contentSize: { width: 'min(90vw, 440px)', height: 'auto' },
     mount(body) {
-      body.style.cssText += 'padding:16px;gap:12px;font-size:13px;color:var(--text-light)';
+      body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light)';
 
       const descriptionEl = document.createElement('p');
       descriptionEl.style.cssText = 'margin:0;color:var(--text-secondary)';
@@ -1885,12 +2082,12 @@ function openSaveLoadDefinitionsDialog(opts: {
 
       const saveBtn = document.createElement('button');
       saveBtn.textContent = 'Save…';
-      saveBtn.style.cssText = secondaryBtnCss;
+      saveBtn.className = 'btn-secondary';
       saveBtn.disabled = !!saveDisabled;
       saveBtn.style.opacity = saveBtn.disabled ? '0.5' : '';
       saveBtn.addEventListener('click', async () => {
         try {
-          await platform.saveTextFile(onSave(), saveFileName);
+          await platform.saveTextFile(onSave(), saveFileName, `Save ${errorLabel} to a file`);
           log('info', savedMessage);
         } catch (e) {
           log('error', `Failed to save ${errorLabel}: ${errMsg(e)}`);
@@ -1899,11 +2096,11 @@ function openSaveLoadDefinitionsDialog(opts: {
 
       const loadBtn = document.createElement('button');
       loadBtn.textContent = 'Load…';
-      loadBtn.style.cssText = secondaryBtnCss;
+      loadBtn.className = 'btn-secondary';
       loadBtn.addEventListener('click', async () => {
         let text: string | null;
         try {
-          text = (await platform.pickTextFile())?.content ?? null;
+          text = (await platform.pickTextFile(`Select a ${errorLabel} file to load`))?.content ?? null;
         } catch (e) {
           log('error', `Failed to load ${errorLabel}: ${errMsg(e)}`);
           return;
@@ -1955,7 +2152,7 @@ function openTestDefinitionsDialog(): void {
       + '(names, limits, units, type) to a CSV, or load a CSV to update them in place. '
       + 'Loading only overrides tests already imported here — to change which tests are '
       + 'imported, use Filter tests… instead.',
-    saveFileName: 'test-list.csv',
+    saveFileName: 'test-definitions.csv',
     onSave: () => formatTestListCsv(entries),
     onLoad: (text) => {
       const parsed = parseTestListFile(text, (lineNo, msg) => log('warn', `Test definitions line ${lineNo}: ${msg}`));
@@ -2062,7 +2259,7 @@ function openHelpMenu(anchor: HTMLElement) {
         hint: 'Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first',
         onClick: () => {
           showDefinitionsTemplatesDialog(
-            (content, fileName) => platform.saveTextFile(content, fileName),
+            (content, fileName, label) => platform.saveTextFile(content, fileName, `Save ${label.toLowerCase()} example file`),
             (level, message) => log(level, message),
           );
         },
@@ -2168,15 +2365,6 @@ function openLotMenu(anchor: HTMLElement) {
 helpBtn.addEventListener('click', () => openHelpMenu(helpBtn));
 lotBtn.addEventListener('click', () => openLotMenu(lotBtn));
 
-filterFilesBtn.addEventListener('click', () => {
-  if (busy) return;
-  void openFileFilterDialog(platform, {
-    onConfirmedLoad: (files, isAppend) => handleFiles(files, isAppend),
-    confirm: (msg) => platform.confirm(msg),
-    log,
-  });
-});
-
 // Replace the native `title` tooltips on tsmap's top-toolbar chrome with the
 // themed, instant tooltip (see tooltip.ts) so they match the wmap map toolbar
 // rather than the OS's slow black hint. Static-text buttons are upgraded from
@@ -2205,14 +2393,15 @@ function refreshCurrentView(): void {
 }
 
 // Grouped theme picker. Uses the custom menuSelect (not a native <select>):
-// with 8 themes it sits top-right where the native GTK popup clips off-screen
-// on the Linux WebView, and that popup ignores the theme's color-scheme. The
-// custom menu flips/scrolls to fit and is fully themed. See menuSelect.ts.
+// with this many themes it sits top-right where the native GTK popup clips
+// off-screen on the Linux WebView, and that popup ignores the theme's
+// color-scheme. The custom menu flips/scrolls to fit and is fully themed.
+// See menuSelect.ts.
 const themeSelect = makeMenuSelect(
   THEME_GROUPS.map(g => ({ group: g.group, options: g.themes.map(t => ({ value: t.value, label: t.label })) })),
   getTheme(),
   v => setTheme(v as Theme),
-  { ariaLabel: 'Colour theme' },
+  { ariaLabel: 'Colour theme', className: 'tb-btn' },
 );
 themeSelect.id = 'theme-select';
 attachTooltip(themeSelect, 'Colour theme (Auto follows your system)');

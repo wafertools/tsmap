@@ -6,7 +6,7 @@
 // column layout tsmap reads — without reading docs, and without having
 // loaded any data first.
 
-import { openModal, SECONDARY_BTN_CSS } from './modal';
+import { openModal } from './modal';
 import { formatTestListCsv } from './testSelectorUI';
 import { formatSplitsCsv, setSplitLabel } from './splits';
 import { formatBinDefsCsv } from './binDefs';
@@ -32,7 +32,7 @@ const ROWS: TemplateRow[] = [
   {
     label: 'Test definitions',
     description: 'Test names, spec limits, units, and parametric/functional type — see Lot ▾ → Test definitions… and the test selector\'s Save/Load list.',
-    fileName: 'test-list-template.csv',
+    fileName: 'test-definitions-template.csv',
     content: () => formatTestListCsv([
       { num: 1001, name: 'Vdd', loLimit: 1.6, hiLimit: 2.0, units: 'V', testType: 'P' },
       { num: 1002, name: 'Idsat', units: 'mA', testType: 'P' },
@@ -58,19 +58,18 @@ const ROWS: TemplateRow[] = [
 ];
 
 export function showDefinitionsTemplatesDialog(
-  onSave: (content: string, fileName: string) => Promise<void>,
+  onSave: (content: string, fileName: string, label: string) => Promise<void>,
   onLog: (level: 'info' | 'error', message: string) => void,
 ): void {
   // flex-shrink:0 on top of the shared base — this dialog's rows are flex
   // rows where the button must never shrink to fit the label/description.
-  const secondaryBtnCss = SECONDARY_BTN_CSS + ';flex-shrink:0';
 
   openModal({
     title: 'Definitions file formats',
     sizing: 'content',
     contentSize: { width: 'min(90vw, 480px)', height: 'auto' },
     mount(body) {
-      body.style.cssText += 'padding:16px;gap:14px;font-size:13px;color:var(--text-light)';
+      body.style.cssText += 'padding:16px;gap:14px;font-size:12px;color:var(--text-light)';
 
       const intro = document.createElement('p');
       intro.style.cssText = 'margin:0;color:var(--text-secondary)';
@@ -95,10 +94,10 @@ export function showDefinitionsTemplatesDialog(
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = 'Save template…';
-        saveBtn.style.cssText = secondaryBtnCss;
+        saveBtn.className = 'btn-secondary';
         saveBtn.addEventListener('click', async () => {
           try {
-            await onSave(row.content(), row.fileName);
+            await onSave(row.content(), row.fileName, row.label);
             onLog('info', `${row.label} template saved`);
           } catch (e) {
             onLog('error', `Failed to save ${row.label.toLowerCase()} template: ${e instanceof Error ? e.message : String(e)}`);

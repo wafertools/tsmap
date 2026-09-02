@@ -2,6 +2,7 @@
 // main.ts calls platform.* for all I/O; render/chart code is untouched.
 
 import type { CsvMapping } from './mappingUI';
+import { DATA_FILE_EXTENSIONS } from './lib';
 import type { LotMeta, WaferData, TestDef } from './types';
 import type { BinDef } from '@wafertools/wafermap';
 import { openModal } from './modal';
@@ -97,8 +98,43 @@ export interface CliStartupArgs {
   urlError?: string;
 }
 
+export interface FolderScan {
+  /** The chosen directory, for display and for `rescanFolder`. Empty on web,
+   *  which exposes no directory path. */
+  dirPath: string;
+  /** Human-readable folder name, for the dialog title. */
+  dirName: string;
+  files: FileHandle[];
+  hasSubdirs: boolean;
+  truncated: boolean;
+}
+
 export interface Platform {
-  pickFiles(): Promise<FileHandle[]>;
+  /** `title` (desktop only — ignored on web, which has no native dialog to
+   *  title) replaces the OS's own generic default ("Open File" or similar)
+   *  with copy naming what's expected — one or more wafer test data files,
+   *  and for the filter dialog specifically, that a multi-select is wanted.
+   *  Without this, "Open file" and "Filter files…" opened dialogs that
+   *  looked identical, and neither hinted that multi-select was expected. */
+  pickFiles(title?: string): Promise<FileHandle[]>;
+  /** Pick a DIRECTORY and return the data files in it.
+   *
+   *  This is the "where?" question, as distinct from `pickFiles`'s "which?".
+   *  The filter table then answers "which?" — so the two dialogs a scan-and-load
+   *  passes through ask different questions, instead of both asking the same one.
+   *
+   *  `recursive` descends into subfolders (bounded in Rust by a depth and file
+   *  cap). `hasSubdirs` lets the caller offer that choice only when there is
+   *  something to descend into; `truncated` says the listing hit a cap and is
+   *  partial. Returns `null` if the user cancelled. */
+  pickFolder(title?: string, recursive?: boolean): Promise<FolderScan | null>;
+  /** Whether a dropped path is a directory. Desktop only — the browser's drop
+   *  gives File objects, never paths. */
+  isDirectory?(path: string): Promise<boolean>;
+  /** Re-list a folder already chosen via `pickFolder`, without re-prompting —
+   *  used to answer "include subfolders?" without a second native dialog.
+   *  Web has no persistent directory handle, so it returns null there. */
+  rescanFolder?(dirPath: string, recursive: boolean): Promise<FolderScan | null>;
   expandArchives(files: FileHandle[]): Promise<FileHandle[]>;
   parseStdf(file: FileHandle): Promise<RustParsedFile>;
   parseAtdf(file: FileHandle): Promise<RustParsedFile>;
@@ -112,7 +148,9 @@ export interface Platform {
    *  pure-JS shortcut — this always goes through the WASM worker on web, and
    *  through the native command on Tauri. */
   parquetHeaders(file: FileHandle): Promise<HeadersResult>;
-  savePng(blob: Blob, stem: string): Promise<void>;
+  /** `title` — see `pickFiles`'s doc: desktop-only, replaces the OS's own
+   *  generic default with copy naming what's being saved. */
+  savePng(blob: Blob, stem: string, title?: string): Promise<void>;
   openReport(html: string): void;
   /** Opens an external URL in the system browser (Tauri) / a new tab (web). */
   openExternal(url: string): void;
@@ -125,8 +163,10 @@ export interface Platform {
   atdfFileMeta(file: FileHandle): Promise<FileMeta>;
   parseStdfFiltered(file: FileHandle, selected: number[]): Promise<RustParsedFile>;
   parseAtdfFiltered(file: FileHandle, selected: number[]): Promise<RustParsedFile>;
-  saveTextFile(content: string, defaultName: string): Promise<void>;
-  pickTextFile(): Promise<{ content: string; name: string } | null>;
+  /** `title`s — see `pickFiles`'s doc: desktop-only, name what's being
+   *  saved/loaded rather than leaving the OS's generic default in place. */
+  saveTextFile(content: string, defaultName: string, title?: string): Promise<void>;
+  pickTextFile(title?: string): Promise<{ content: string; name: string } | null>;
   /** Returns a FileHandle for the bundled synthetic demo lot (13 wafers, 5
    *  process corners), for the empty state's "Load sample data" action. */
   getSampleFile(): Promise<FileHandle>;
@@ -176,6 +216,9 @@ export interface FileAssociationStatus {
 
 // ── Tauri platform ────────────────────────────────────────────────────────────
 
+/** Last path segment, for either separator (Windows paths come back with `\\`). */
+const baseName = (p: string): string => p.split(/[/\\]/).filter(Boolean).pop() ?? p;
+
 function makeTauriPlatform(): Platform {
   // Lazy imports so the module never fails to load in the browser
   const getInvoke = () => import('@tauri-apps/api/core').then(m => m.invoke);
@@ -183,19 +226,75 @@ function makeTauriPlatform(): Platform {
   const getFs = () => import('@tauri-apps/plugin-fs');
   const getOpener = () => import('@tauri-apps/plugin-opener');
 
+  /** Shared by `pickFolder` and `rescanFolder`. A local function, not a
+   *  Platform method: listing a known directory is an implementation detail of
+   *  those two, not something a caller should reach for on its own. */
+  async function listFolder(dirPath: string, recursive: boolean): Promise<FolderScan> {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const listing = await invoke<{ files: string[]; hasSubdirs: boolean; truncated: boolean }>(
+      'list_dir_files',
+      { path: dirPath, extensions: [...DATA_FILE_EXTENSIONS], recursive },
+    );
+    const { stat } = await import('@tauri-apps/plugin-fs');
+    const files: FileHandle[] = await Promise.all(listing.files.map(async (path) => {
+      // Same shape pickFiles produces: no bytes are read, since every Tauri
+      // parse and metadata command works from `path`. A 5,000-file folder
+      // therefore costs one stat each, not one read each.
+      let size: number | undefined;
+      let lastModified: number | undefined;
+      try {
+        const st = await stat(path);
+        size = st.size ?? undefined;
+        lastModified = st.mtime ? new Date(st.mtime).getTime() : undefined;
+      } catch { /* still listed — the metadata scan reports its own error per file */ }
+      return { name: baseName(path), bytes: new Uint8Array(), path, size: size ?? 0, lastModified };
+    }));
+    return { dirPath, dirName: baseName(dirPath), files, hasSubdirs: listing.hasSubdirs, truncated: listing.truncated };
+  }
+
   return {
-    async pickFiles() {
+    async pickFolder(title, recursive = false) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { open: dialogOpen } = await import('@tauri-apps/plugin-dialog');
+      const lastDir = await invoke<string | null>('get_last_dir').catch(() => null);
+      const picked = await dialogOpen({
+        title, directory: true, multiple: false, defaultPath: lastDir ?? undefined,
+      });
+      const dirPath = Array.isArray(picked) ? picked[0] : picked;
+      if (!dirPath) return null;
+      invoke('set_last_dir', { path: dirPath }).catch(() => {});
+      return listFolder(dirPath, recursive);
+    },
+
+    async rescanFolder(dirPath, recursive) {
+      return listFolder(dirPath, recursive);
+    },
+
+    async isDirectory(path) {
+      try {
+        const { stat } = await import('@tauri-apps/plugin-fs');
+        return (await stat(path)).isDirectory === true;
+      } catch { return false; }
+    },
+
+    async pickFiles(title) {
       const { invoke } = await import('@tauri-apps/api/core');
       const { open: dialogOpen } = await import('@tauri-apps/plugin-dialog');
       const lastDir = await invoke<string | null>('get_last_dir').catch(() => null);
       const result = await dialogOpen({
+        title,
         multiple: true,
         defaultPath: lastDir ?? undefined,
+        // One entry per format so the dialog's own type dropdown can narrow
+        // to exactly one — split out from a former combined "CSV / JSON /
+        // Parquet" entry, which couldn't isolate just one of those three.
         filters: [
           { name: 'Wafer map files', extensions: ['stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet', 'gz', 'zip'] },
           { name: 'STDF', extensions: ['stdf', 'std'] },
           { name: 'ATDF', extensions: ['atdf', 'atd'] },
-          { name: 'CSV / JSON / Parquet', extensions: ['csv', 'json', 'parquet'] },
+          { name: 'CSV', extensions: ['csv'] },
+          { name: 'JSON', extensions: ['json'] },
+          { name: 'Parquet', extensions: ['parquet'] },
           { name: 'Archives', extensions: ['gz', 'zip'] },
         ],
       });
@@ -278,10 +377,11 @@ function makeTauriPlatform(): Platform {
       return invoke<HeadersResult>('parquet_headers', { path: file.path });
     },
 
-    async savePng(blob, stem) {
+    async savePng(blob, stem, title) {
       const { save: dialogSave } = await getDialog();
       const { writeFile } = await getFs();
       const path = await dialogSave({
+        title,
         defaultPath: `${stem}.png`,
         filters: [{ name: 'PNG image', extensions: ['png'] }],
       });
@@ -334,22 +434,31 @@ function makeTauriPlatform(): Platform {
       return invoke<RustParsedFile>('parse_atdf_filtered', { path: file.path, selected });
     },
 
-    async saveTextFile(content, defaultName) {
+    async saveTextFile(content, defaultName, title) {
       const { save: dialogSave } = await getDialog();
       const { writeTextFile } = await getFs();
+      // Derive the filter from what is actually being saved. This was hardcoded
+      // to CSV/TXT back when test definitions were the only caller; the file
+      // filter's own `filter.json` now goes through here too, and a native save
+      // dialog constrains — and appends — the offered extension, producing
+      // `filter.json.csv`.
+      const ext = defaultName.includes('.') ? defaultName.split('.').pop()!.toLowerCase() : 'csv';
+      const FILTER_NAMES: Record<string, string> = { csv: 'CSV', txt: 'Text', json: 'JSON' };
       const path = await dialogSave({
+        title,
         defaultPath: defaultName,
-        filters: [{ name: 'Test list', extensions: ['csv', 'txt'] }],
+        filters: [{ name: FILTER_NAMES[ext] ?? ext.toUpperCase(), extensions: [ext] }],
       });
       if (path) await writeTextFile(path, content);
     },
 
-    async pickTextFile() {
+    async pickTextFile(title) {
       const { open: dialogOpen } = await getDialog();
       const { readTextFile } = await getFs();
       const path = await dialogOpen({
+        title,
         multiple: false,
-        filters: [{ name: 'Test list', extensions: ['csv', 'txt', '*'] }],
+        filters: [{ name: 'Test definitions', extensions: ['csv', 'txt', '*'] }],
       });
       if (!path || Array.isArray(path)) return null;
       const content = await readTextFile(path);
@@ -473,13 +582,13 @@ function openBlockedLinkNotice(url: string): void {
     mount(body) {
       const p = document.createElement('p');
       p.textContent = 'Your browser blocked the new window. Open the link directly:';
-      p.style.cssText = 'margin:0 0 12px;font-size:13px;color:var(--text-secondary)';
+      p.style.cssText = 'margin:0 0 12px;font-size:12px;color:var(--text-secondary)';
       const a = document.createElement('a');
       a.href = url;
       a.target = '_blank';
       a.rel = 'noopener';
       a.textContent = url;
-      a.style.cssText = 'font-size:13px;color:var(--accent);word-break:break-all';
+      a.style.cssText = 'font-size:12px;color:var(--accent);word-break:break-all';
       body.append(p, a);
       a.focus();
     },
@@ -641,11 +750,72 @@ function parseJsonHeaders(bytes: Uint8Array): HeadersResult {
 }
 
 
+/** Dedicated hidden directory input — `webkitdirectory`, which every current
+ *  browser supports and which returns the folder's whole subtree as ordinary
+ *  lazy File handles (no bytes read until something asks). Kept separate from
+ *  the shared `#file-input` so neither steals the other's `change` event, and
+ *  created once rather than per pick. */
+let folderInput: HTMLInputElement | null = null;
+function getFolderInput(): HTMLInputElement {
+  if (folderInput) return folderInput;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  // Not in the TS DOM lib as a property — it is a real, widely-supported
+  // attribute, so set it as one.
+  input.setAttribute('webkitdirectory', '');
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  folderInput = input;
+  return input;
+}
+
 function makeWebPlatform(): Platform {
   return {
     // Web file picking is handled directly in main.ts via <input id="file-input">
     // so the click stays in the synchronous user-gesture chain.
     async pickFiles() { return []; },
+
+    // The browser has no directory path and no persistent handle, so `recursive`
+    // is not ours to control: `webkitdirectory` always returns the whole subtree,
+    // and `webkitRelativePath` is what tells us a subtree existed at all. The
+    // caller therefore never gets a subfolder prompt on web — there is nothing
+    // to opt into, it already happened.
+    async pickFolder(_title, _recursive) {
+      const input = getFolderInput();
+      const picked = await new Promise<File[]>((resolve) => {
+        const done = (files: File[]) => {
+          input.removeEventListener('change', onChange);
+          input.removeEventListener('cancel', onCancel);
+          input.value = '';
+          resolve(files);
+        };
+        const onChange = () => done(Array.from(input.files ?? []));
+        const onCancel = () => done([]);
+        input.addEventListener('change', onChange);
+        input.addEventListener('cancel', onCancel);
+        input.click();
+      });
+      if (picked.length === 0) return null;
+
+      const wanted = picked.filter(f => {
+        const lower = f.name.toLowerCase();
+        return DATA_FILE_EXTENSIONS.some(e => lower.endsWith(`.${e}`));
+      });
+      const rel = picked[0].webkitRelativePath || picked[0].name;
+      const dirName = rel.includes('/') ? rel.split('/')[0] : '';
+      const files: FileHandle[] = await Promise.all(
+        wanted.map(async f => ({ name: f.name, bytes: new Uint8Array(), size: f.size, lastModified: f.lastModified, webFile: f })),
+      );
+      return {
+        dirPath: '',
+        dirName,
+        files,
+        hasSubdirs: wanted.some(f => (f.webkitRelativePath.match(/\//g)?.length ?? 0) > 1),
+        truncated: false,
+      };
+    },
+
 
     async expandArchives(files) {
       const expanded: FileHandle[] = [];

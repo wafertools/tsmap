@@ -44,13 +44,12 @@ export function openAnchoredMenu(
   popup.style.cssText = [
     'position:fixed', 'z-index:var(--z-tooltip)',
     'background:var(--bg-overlay)', 'color:var(--text-secondary)',
-    'border:1px solid var(--border-mid)', 'border-radius:6px',
-    'box-shadow:0 6px 20px rgba(0,0,0,0.35)',
+    'border:1px solid var(--border-mid)', 'border-radius:var(--radius-container)',
+    'box-shadow:var(--shadow-menu)',
     `padding:${options.padding ?? '6px'}`,
     `min-width:${options.minWidth ?? '200px'}`,
     ...(options.maxWidth ? [`max-width:${options.maxWidth}`] : []),
     `font-size:${options.fontSize ?? '13px'}`,
-    'font-family:system-ui,sans-serif',
     ...(options.stack ? ['display:flex', 'flex-direction:column', 'gap:2px'] : []),
   ].join(';');
 
@@ -151,9 +150,7 @@ export function makeMenuRow(close: () => void, opts: MenuRowOptions): HTMLButton
   const row = document.createElement('button');
   row.type = 'button';
   row.disabled = !enabled;
-  row.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:none;border-radius:4px;' +
-    `padding:6px 10px;font-size:13px;color:${enabled ? 'var(--text-secondary)' : 'var(--text-veryfaint)'};` +
-    `cursor:${enabled ? 'pointer' : 'default'};`;
+  row.className = 'menu-row';
 
   if (opts.checked !== undefined) {
     row.setAttribute('role', 'menuitemcheckbox');
@@ -180,8 +177,6 @@ export function makeMenuRow(close: () => void, opts: MenuRowOptions): HTMLButton
   }
 
   if (enabled) {
-    row.addEventListener('mouseenter', () => { row.style.background = 'var(--bg-hover-row)'; });
-    row.addEventListener('mouseleave', () => { row.style.background = 'none'; });
     row.addEventListener('click', () => { close(); opts.onClick(); });
   }
   if (opts.hint) attachTooltip(row, opts.hint);

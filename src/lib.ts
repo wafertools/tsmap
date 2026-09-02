@@ -45,6 +45,19 @@ export function checkSameExtension(names: string[], relaxed = false): string | n
  *  `effectiveExt`-based dispatch in `handleFiles` (main.ts) already handles.
  *  Backs both `--url-format` (desktop CLI) and `dataFormat` (web query param)
  *  — an explicit hint is required in both cases, never sniffed. */
+/** Every extension tsmap can open, as the folder scan needs them — including
+ *  the double forms, since a `.stdf.gz` is a data file and a bare `.gz` from
+ *  somewhere else is not necessarily. Sent to the Rust `list_dir_files`
+ *  command so this list stays the one source of truth rather than being
+ *  restated there. (The `<input accept>` strings and the native dialog's own
+ *  filter list still restate it — worth consolidating, but they take different
+ *  shapes and neither drives the scan.) */
+export const DATA_FILE_EXTENSIONS = [
+  'stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet',
+  'stdf.gz', 'std.gz', 'atdf.gz', 'atd.gz', 'csv.gz', 'json.gz', 'parquet.gz',
+  'zip',
+] as const;
+
 export const URL_IMPORT_FORMATS = ['stdf', 'atdf', 'csv', 'json', 'parquet'] as const;
 export type UrlImportFormat = typeof URL_IMPORT_FORMATS[number];
 

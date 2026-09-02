@@ -19,7 +19,7 @@
     "check": "tsc --noEmit",
     "check:drift": "node scripts/check-drift.mjs",
     "help": "node scripts/help.mjs",
-    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/help.mjs --check",
+    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/help.mjs --check && node scripts/check-button-styles.mjs && node scripts/check-style-scales.mjs",
     "verify": "npm run check && npm run lint && npm run check:docs && npm test && npm run check:rust && npm run test:rust",
     "preversion": "npm run verify && node scripts/check-wmap-published.js && node scripts/check-testdata-parser-published.js",
     "version": "node scripts/check-changelog.mjs && node scripts/sync-rust-version.mjs",
@@ -45,7 +45,9 @@
     "screenshots:only": "node scripts/capture-screenshots.mjs --only",
     "demo:data": "python3 scripts/generate_edge_corner_lot.py --seed 12345 --out testdata/edge-corner-lot",
     "demo:build": "npm run predev && tsc && vite build",
-    "demo:test": "node scripts/run-scenario.mjs"
+    "demo:test": "node scripts/run-scenario.mjs",
+    "check:buttons": "node scripts/check-button-styles.mjs",
+    "check:styles": "node scripts/check-style-scales.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

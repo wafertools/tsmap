@@ -4,7 +4,7 @@
 // HBR/SBR equivalent at all — see WCR/HBR/SBR work in packages/parsers).
 //
 // TypeScript-only, the same fixed-schema config-list pattern as
-// testSelectorUI.ts's test list and splits.ts's splits CSV — not routed
+// testSelectorUI.ts's test definitions and splits.ts's splits CSV — not routed
 // through the Rust testdata-parser crate, which exists for large
 // arbitrary-column die-data imports, not this.
 

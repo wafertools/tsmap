@@ -65,9 +65,9 @@ worth asserting on:
 checks: [
   {
     name: 'group-by-select-is-on-split',
-    get: (page) => page.$eval('[data-wmap-select="group-by"]', (el) => el.selectedOptions[0]?.textContent),
+    get: (page) => page.$eval('[data-wmap-select="group-by"]', (el) => el.querySelector('span')?.textContent),
     expect: (text) => text?.startsWith('Split') ?? false,
-    describe: 'the Group by select is set to Split',
+    describe: 'the Group by picker is set to Split',
   },
 ],
 ```

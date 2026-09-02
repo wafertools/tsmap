@@ -21,7 +21,7 @@ export interface TestDef {
 }
 
 /**
- * A per-test override loaded from (or destined for) a "test list" file —
+ * A per-test override loaded from (or destined for) a "test definitions" file —
  * only fields actually present are ever applied; absent/undefined fields
  * leave whatever was already parsed/overridden alone. See
  * `applyTestOverrides`/`diffTestOverride` in `lib.ts`.

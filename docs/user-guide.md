@@ -19,10 +19,15 @@ interactive yield maps, parametric heat maps, and statistical charts. It runs as
 desktop application on Linux, macOS, and Windows, and as a browser app at
 [wafertools.github.io/tsmap/app/](https://wafertools.github.io/tsmap/app/).
 
-This section covers opening files, column mapping, test filtering, splits, and the command
-line. The wafer map view itself — the toolbar, plot modes, and every Insights tab panel
-(yield, bin pareto, process capability, boxplot, histogram, correlation, scatter) — is
-covered in the [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
+This guide covers opening files, column mapping, test filtering, splits, wafer-view
+integration specific to tsmap (dies with no reported position, value findings), how splits
+and metadata feed the Insights tab's grouping, and the command line. **In the app**, this
+guide continues straight into the full wafer map guide in the same window — the wafer map
+toolbar, its plot modes, and every Insights tab panel (yield, per-test pass rate, bin pareto,
+process capability, boxplot, histogram, wafer-to-wafer trend, correlation, scatter) are covered
+there, with no separate page to open.
+Reading this outside the app (e.g. the docs site), see the
+[wafer map guide](https://wafertools.github.io/wafermap/user-guide/) directly for that part.
 
 ## 1. Supported file formats
 
@@ -72,11 +77,19 @@ browser download nag. For the AppImage, mark it executable first:
     chmod +x tsmap-*-linux-x86_64.AppImage
     ./tsmap-*-linux-x86_64.AppImage
 
-![Empty-state toolbar — Open files, Filter files, Add files, Recent, theme picker, help](images/empty-toolbar.png)
+![Empty-state toolbar — Open files, Add files, Recent, theme picker, help](images/empty-toolbar.png)
 
 The **colour theme** picker sits at the right end of the toolbar, next to the help button. Choose
-Auto to follow your system's light/dark setting, or pick a theme explicitly — Light, Light green,
-Solarized Light, High contrast, Dark, Nord, Solarized Dark. Your choice is remembered.
+Auto to follow your system's light/dark setting, or pick a theme explicitly. The list is grouped
+light-first:
+
+- **Light** — Light, Light green, Solarized Light, Gruvbox Light, GitHub Light,
+  Catppuccin Latte, High contrast.
+- **Dark** — Dark, Nord, Solarized Dark, Dracula, Tokyo Night, GitHub Dark, Gruvbox Dark,
+  Catppuccin Mocha.
+
+Your choice is remembered. The theme applies to the whole app including the wafer map and
+its Insights charts, which follow tsmap's colours rather than keeping their own.
 
 ### Open files
 
@@ -84,15 +97,37 @@ Click **Open files** in the toolbar to open a file picker. You can select one fi
 multiple files at once. On the desktop the picker opens a native OS dialog; in the browser
 it opens the browser file dialog.
 
-### Filter files
+### Scanning a folder
 
 When you have far more files than you want to load — a directory of hundreds of lots, say —
-**Filter files…** lets you narrow them down before anything is parsed. Pick the whole set,
-and tsmap reads just the *header* metadata from each one: lot ID, part type, tester, job
-name and whatever else the file carries, plus wafer count, earliest start, latest finish and
-site count for STDF/ATDF. No die data is read, so scanning a large batch is quick.
+you don't have to pick them in the file dialog at all. Point tsmap at the folder and let it
+tell you what's in there.
 
-![Filter files dialog — four scanned STDF files with their lot metadata as columns](images/file-filter.png)
+Both **Open files** and **Add files** carry a **▾** beside them offering *Choose files…* or
+*Scan a folder…*, so you can scan a folder whether you're replacing what's loaded or adding
+to it. The start screen also has a **Scan a folder…** button, and **dropping a folder onto
+the window** does the same thing (dropping *files* still loads them directly; a dropped
+folder always replaces, since a drag can't say "add").
+
+However you get there, tsmap reads just the *header* metadata from every data file it finds:
+lot ID, part type, tester, job name and whatever else the file carries, plus wafer count,
+earliest start, latest finish and site count for STDF/ATDF. No die data is read, so scanning
+a large batch is quick.
+
+If the folder has subfolders, you're asked once whether to include them. They're left out by
+default — a recursive scan of a large tree is the one part of this that can take real time —
+and the scan stops at a safety limit on very large folders, saying so in the log rather than
+quietly showing you part of the answer.
+
+The same table also appears when you pick a lot of files through **Open files** or **Add
+files**: over a handful, tsmap offers to filter them first.
+
+> The two dialogs deliberately ask different questions. The folder picker asks **where** to
+> look; the table below asks **which** files you want. Whichever way you got here, whether the
+> chosen files replace what's loaded or are added to it was already decided by the button you
+> pressed — the table doesn't ask again.
+
+![The file filter table — four scanned STDF files with their lot metadata as columns](images/file-filter.png)
 
 The results appear in a table, one row per file, with a column for every metadata field
 found across the batch (alongside Name, Size and Modified). From there you can:
@@ -105,12 +140,21 @@ found across the batch (alongside Name, Size and Modified). From there you can:
 - **Hide columns** you don't care about with **Columns ▾** — a batch can easily produce
   twenty-odd metadata columns. Hiding one only affects the display; if it has a filter set,
   that filter still applies (the picker marks it as filtered so you can tell).
+- **Resize a column** by dragging the divider on the right edge of its heading. Columns
+  auto-fit their content on each scan (filenames get the most room, since they are what the
+  table exists to compare), but a column you have resized yourself keeps your width through
+  the next scan rather than being re-fitted. The divider is focusable — **Left/Right arrows**
+  resize it from the keyboard.
 - **Search** across all columns with the search box.
-- **Select** rows by clicking them or their checkbox; **Select all**, **Select none** and
-  **Invert** apply to the rows currently shown, so they respect the filter.
+- **Select** rows by clicking them or their checkbox. **Shift-click** a second row to apply
+  the first row's state across everything between them — so shift-clicking after *un*ticking
+  a row clears the range instead of selecting it. From the keyboard, **Shift+↑/↓** extends,
+  **Shift+Space** extends to the focused row, and **Ctrl/Cmd+A** selects everything shown.
+- **Select all**, **Select none** and **Invert** apply to the rows currently shown, so they
+  respect the filter — as does Ctrl/Cmd+A, and as does a shift-click range.
 
-**Load selection…** replaces whatever is currently loaded with the files you've ticked;
-**Add selection…** appends them instead. Both confirm first. The selected files then go
+**Load selected…** (or **Add selected…**, if you got here from **Add files**) takes the files
+you've ticked. It confirms first. The selected files then go
 through the normal load flow — column mapping, test selector, wafer rename and so on — just
 as if you had picked them directly.
 
@@ -170,9 +214,9 @@ tsmap --help                               # full usage
 tsmap --version                            # print the version and exit
 ```
 
-`--tests` takes the same file a test selector's **Save list** button produces — selection,
+`--tests` takes the same file a test selector's **Save definitions** button produces — selection,
 renames, and optionally spec limits/test type (see
-[Test lists](#test-lists-save-load) above) — and `--splits` the same CSV the
+[Test definitions](#test-definitions-save-load) above) — and `--splits` the same CSV the
 [Splits… dialog](#63-saving-and-loading-split-definitions-csv) saves and loads. `--tests` only
 pre-fills the selector's checkboxes, renames, and limit/type overrides — the overlay still
 always appears and still needs a confirm click, the same as any other load; it just saves
@@ -514,19 +558,30 @@ of all 500 reduces the in-memory dataset by roughly 25×.
 
 ### Controls
 
+The first row **narrows what you see**; the second row **selects from what's shown**.
+
 - **Search** — Filter the list by test name or test number. Results update as you type.
 - **Type filter** — Show all tests, only Parametric (PTR), or only Functional (FTR).
   The count per type is shown on each button.
-- **Range select** — Type a numeric range (`1000-1099`) or a name-based range
-  (`Idsat_vg1-Idsat_vg5`) in the range input and click **Select range**. Matching tests
-  are added to the selection.
-- **Select all / Select none** — Apply to the currently visible list (respects any active
-  search filter).
+
+The three controls in the second row all act on the tests currently listed, so a search or
+type filter narrows what they can reach:
+
+- **Select all / Select none** — Tick or untick everything currently shown.
+- **Range select** — Type a numeric range (`1000-1099`), a name-based range
+  (`Idsat_vg1-Idsat_vg5`), or a comma-separated mix of ranges and single tests
+  (`1001-1010, 1050, vth_n`), then press **Enter** or click **Select range**. A name range
+  runs between the first and last match *in list order*, not alphabetically. Because it
+  only reaches shown tests, a range naming real tests can select fewer than you expect —
+  the dialog says so when that happens, and tells you how many the filter is hiding.
 - **Shift-click** — Click one checkbox, then Shift-click another to select or deselect
-  the entire range between them.
+  the entire range between them. Which of the two it does follows the *first* checkbox: tick
+  it and the range is selected, untick it and the range is cleared. From the keyboard,
+  **Shift+↑/↓** extends, **Shift+Space** extends to the focused row, and **Ctrl/Cmd+A**
+  selects every test currently shown.
 
 Each test row shows the test number (in dim monospace), the test name, and — where defined
-in the file — the units and spec limits. If a **Load list** (or `--tests`) has overridden a
+in the file — the units and spec limits. If a **Load definitions** (or `--tests`) has overridden a
 test's limits, units, or type, the row shows those overridden values, with a tooltip noting
 they were loaded from file.
 
@@ -537,16 +592,16 @@ hover or focus it. Press **Enter** or click away to commit the new name; press *
 discard the edit and restore the previous name. Renaming only changes the display name —
 nothing in the underlying data file changes — and the new name appears everywhere that test
 is shown: the selector, the map tooltip, and chart axis labels. Renames persist across
-**Filter tests…** re-opens and are included when you **Save list**.
+**Filter tests…** re-opens and are included when you **Save definitions**.
 
-### Test lists (Save / Load)
+### Test definitions (Save / Load)
 
-The **Save list** and **Load list** buttons let you persist a selection and reuse it across
-sessions or files from the same product. Beyond just the selection and display names, a test
-list can also carry **spec limits and test type** — useful when a test program ships without
-limits (common for characterisation/test-vehicle work, where limits come from simulation or
-are defined and adjusted separately), or when you need to correct a test's parametric/
-functional classification. In effect, the file doubles as a lightweight test-definitions file.
+The **Save definitions** and **Load definitions** buttons let you persist a selection and reuse
+it across sessions or files from the same product. Beyond just the selection and display names,
+a test definitions file can also carry **spec limits and test type** — useful when a test
+program ships without limits (common for characterisation/test-vehicle work, where limits come
+from simulation or are defined and adjusted separately), or when you need to correct a test's
+parametric/functional classification.
 
 **Saving** writes a plain-text `.csv` file with every selected test's number, current display
 name, and current effective limits/units/type. **Loading** reads that file back, restores the
@@ -556,7 +611,7 @@ with (or fill in limits it didn't have at all).
 
 The saved format is one test per line, with a header naming the columns:
 
-    # tsmap test list
+    # tsmap test definitions
     # Saved: 2026-06-15T10:00:00.000Z
     num,name,loLimit,hiLimit,units,testType
     1000,Idsat_vg1,0.1,1.5,mA,P
@@ -629,10 +684,10 @@ re-parsed with the new selection — bin and yield data is preserved regardless 
 tests you select.
 
 For multi-file batches, the selector is shown once and the same selection is applied to
-all files. By default the test list is scanned from the **largest file only** — a fast,
+all files. By default the test definitions are scanned from the **largest file only** — a fast,
 representative default. If a test appears only in a smaller file (so it's missing from the
 list), click **Scan all N files** in the selector to re-scan every file and merge the full
-test list; your current selection is preserved. The "Filter tests…" dialog offers the same
+test definitions; your current selection is preserved. The "Filter tests…" dialog offers the same
 toggle if you didn't widen the scan at load time.
 
 ---
@@ -644,7 +699,20 @@ with the summary panel open by default; a multi-wafer lot shows a side-by-side g
 
 For a full walkthrough of toolbar controls, plot modes, overlays, zoom and pan, die hover
 tooltips, the findings panel, the summary panel, and gallery controls, see the
-[full wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
+[full wafer map guide](https://wafertools.github.io/wafermap/user-guide/) — in the app it
+follows immediately below in this same window, not a separate page.
+
+### Zooming the interface
+
+**Ctrl** and **+** / **−** scale the whole interface — menus, panels, tables and the map
+together — and **Ctrl+0** returns to 100%. On macOS use **Cmd**. This is the app's own
+chrome zoom, and it is a different control from the wafer map's zoom described in the guide
+above: that one magnifies the map inside its panel and leaves the surrounding UI alone,
+while this one resizes everything, which is what you want on a high-DPI display or when
+showing the app to a room.
+
+In the browser version this is simply the browser's own page zoom, so it works the same way
+without tsmap doing anything.
 
 ### 5.1 Dies with no reported position
 
@@ -723,7 +791,9 @@ input to reuse an existing name, avoiding accidental near-duplicates like `TT` v
 and click **Assign to selected**. **Clear split** removes the assignment from just the
 checked rows; **Clear all** removes every wafer's assignment at once (after a confirmation,
 since it's not scoped to your current selection). Every action applies immediately — there
-is no separate save step, and **Done** just closes the window.
+is no separate save step, and **Done** just closes the window. The same keyboard gestures
+work here as in the test selector: **Shift+↑/↓**, **Shift+Space**, and **Ctrl/Cmd+A** for
+everything shown.
 
 Unlike the test selector, ticking wafers here is never required to proceed — it only
 scopes the **Assign to selected** and **Clear split** buttons, which stay disabled until
@@ -774,13 +844,14 @@ rather than silently changing chart groupings and map labels behind your back.
 ## 7. Grouping data in the Insights tab
 
 The **Insights** button in the map toolbar (both the single-wafer view and the gallery have
-their own) switches to a grid of statistical panels — yield, bin pareto, process capability,
-boxplot, histogram, correlation, and scatter — sharing the same parsed, in-memory data as the
-map, so switching never re-parses.
+their own) switches to a grid of statistical panels — yield, per-test pass rate, bin pareto,
+process capability, boxplot, histogram, wafer-to-wafer trend, correlation, and scatter — sharing
+the same parsed, in-memory data as the map, so switching never re-parses.
 
 **Every panel, its controls, and its grouping/drill-down behaviour are documented in full in
-the [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/).** This section
-covers only the two things that are specific to how tsmap feeds data into it:
+the [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/)** — in the app,
+further down this same window. This section covers only the two things that are specific to
+how tsmap feeds data into it:
 
 - **Where the "Group by" field list comes from.** Grouping is driven by metadata attached
   to each wafer at load time, plus any [wafer splits](#6-wafer-splits) you've assigned.
@@ -790,6 +861,12 @@ covers only the two things that are specific to how tsmap feeds data into it:
   actually *vary* across the loaded wafers appear in the dropdown.
 - A single-wafer load has nothing to group by, so every panel simply shows that one
   wafer's own data and the **Group by** control doesn't appear.
+
+If you loaded wafers to compare two process arms, the panel to reach for is **per-test pass
+rate** on the Overview: with **Group by** set to your split, it ranks the tests worst-first
+with one sub-bar per arm, which is the question a split experiment is usually run to answer.
+It reports rates rather than counts, so arms with different wafer counts stay comparable. The
+same comparison is written into the **lot summary report**, so it can leave the app.
 
 ---
 
@@ -821,9 +898,10 @@ applied. If soft bin data is not meaningful for your product, this warning can b
 | File parsing | Native Rust (fast, off UI thread) | WASM in a Web Worker (same logic) |
 | File picker | Native OS dialog | Browser dialog |
 | Drag and drop | Yes | Yes |
-| Filter files | Yes | Yes (scans at most 4 files at a time to bound memory) |
+| Folder scan and file filter | Yes (native folder picker or a dropped folder) | Yes (folder picker; scans at most 4 files at a time to bound memory) |
 | PNG save | Native save dialog | Browser download folder |
 | Zip extraction | Native Rust | In-browser (fflate) |
+| Interface zoom (Ctrl +/−/0) | Yes | Yes (the browser's own page zoom) |
 | Offline use | Yes | Yes (once page loaded) |
 | Opening data from a URL | `--url`/`--url-format` CLI flags | `?dataUrl=&dataFormat=` query params (subject to the target server's CORS policy) |
 
@@ -845,21 +923,21 @@ of its own, not just a file round-trip.
 
 Once a file is loaded, open the toolbar's **Lot ▾** menu and choose **Test definitions…** for a
 lighter-weight companion to the [test selector](#4-test-selector-stdf-and-atdf)'s own Save/Load —
-no selection checkboxes, no search, just the current test list:
+no selection checkboxes, no search, just the current test definitions:
 
 - **Save…** writes every currently imported test's number, name, and current effective
   limits/units/type to a CSV.
 - **Load…** reads a CSV back and applies it as an override on top of the parsed data, then
   re-renders immediately. It's the same file, read by the same parser
   (`parseTestListFile`/`applyTestOverrides`), as the test selector's own
-  [Save list / Load list](#test-lists-save-load) buttons — a file prepared with either works
-  identically in the other.
+  [Save definitions / Load definitions](#test-definitions-save-load) buttons — a file prepared
+  with either works identically in the other.
 - **This dialog can only override tests already imported** — a row whose test number isn't
   currently in the loaded set is silently ignored. To change *which* tests are imported (add one
   that wasn't selected, or drop one), use **Lot ▾ → Filter tests…** instead, which re-opens the
   full test selector.
 
-See [Test lists (Save / Load)](#test-lists-save-load) above for the CSV format itself — this
+See [Test definitions (Save / Load)](#test-definitions-save-load) above for the CSV format itself — this
 dialog and the test selector's own Save/Load buttons read and write exactly the same file.
 
 ---

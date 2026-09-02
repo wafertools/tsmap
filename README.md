@@ -17,7 +17,7 @@ Discussions](https://github.com/wafertools/.github/discussions).
 ## Features
 
 - **Open** STDF, ATDF, CSV, JSON, and Parquet wafer map files, including `.gz` and `.zip` containers
-- **Filter files** — point tsmap at a directory of hundreds of files and it scans only their header metadata (lot ID, part type, tester, wafer count, dates) into a sortable, filterable table, so you load just the handful you actually want. Mixed formats scan together, and a filter can be saved and reloaded
+- **Scan a folder** — point tsmap at a directory of hundreds of files (or drop the folder on the window) and it scans only their header metadata (lot ID, part type, tester, wafer count, dates) into a sortable, filterable table, so you load just the handful you actually want. Subfolders are opt-in; mixed formats scan together; a filter can be saved and reloaded
 - **Multi-wafer** — all formats support multiple wafers; renders as a gallery automatically
 - **Stats & findings** — yield, bin breakdown, ring/quadrant analysis, and spatial findings
 - **Coordinate-less dies** — X/Y position is optional; a wafer with no reported position shows a CSV-exportable die list instead of a fabricated map, and a partly-positioned wafer shows both
@@ -138,8 +138,9 @@ src/
   mappingUI.ts        — CSV/JSON/Parquet column mapping overlay
   multiFileUI.ts      — multi-file rename and append confirmation
   testSelectorUI.ts   — test selector overlay for large STDF/ATDF files
-  fileFilterUI.ts     — "Filter files…": header-only metadata scan of a large batch
+  fileFilterUI.ts     — folder/batch scan: header-only metadata into a filter table
   filterTable.ts      — generic sortable/filterable table behind the file filter
+  listSelection.ts    — shared multi-row range selection (shift-click, keyboard)
   fileAssociationsUI.ts — "File associations…" dialog (Tauri only)
   splits.ts / splitsUI.ts — wafer splits: a user-assigned grouping axis over metadata
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
@@ -176,13 +177,14 @@ src-tauri/src/
     parse_{stdf,atdf,csv,json,parquet}.rs   — per-format parse + header commands
     parse_{stdf,atdf}_filtered.rs           — filtered parse for a chosen test subset
     {stdf,atdf}_test_names.rs               — first-pass test name scan
-    {stdf,atdf}_file_meta.rs                — header-only metadata scan for Filter files
+    {stdf,atdf}_file_meta.rs                — header-only metadata scan for the file filter
     fetch_url.rs        — fetch --url / tsmap:// data to a temp file before the window opens
     file_associations.rs — register/unregister default handler (Windows registry, xdg-mime)
     extract_archive.rs  — extract_archive(path), cleanup_extract()
     read_file.rs        — re-exports the shared crate's read_bytes / read_text
     read_text_file.rs   — plain text file read for the frontend
     last_dir.rs         — remembers the last directory used in a file dialog
+    list_dir_files.rs   — lists the data files in a folder, for "Scan a folder…"
     get_startup_files.rs — files passed on the command line at launch
     respawn_new_instance.rs — relaunch for the single-instance handler
     write_temp_html.rs  — opens wmap HTML reports

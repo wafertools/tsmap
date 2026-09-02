@@ -13,7 +13,9 @@
 export type Theme =
   | 'auto'
   | 'light' | 'light-green' | 'solarized-light' | 'high-contrast'
-  | 'dark' | 'nord' | 'solarized-dark';
+  | 'gruvbox-light' | 'github-light' | 'catppuccin-latte'
+  | 'dark' | 'nord' | 'solarized-dark'
+  | 'dracula' | 'tokyo-night' | 'github-dark' | 'gruvbox-dark' | 'catppuccin-mocha';
 
 /** Themes grouped for the picker's <optgroup>s, in display order. */
 export const THEME_GROUPS: ReadonlyArray<{
@@ -24,15 +26,23 @@ export const THEME_GROUPS: ReadonlyArray<{
     { value: 'auto', label: 'Auto (system)' },
   ] },
   { group: 'Light', themes: [
-    { value: 'light',           label: 'Light' },
-    { value: 'light-green',     label: 'Light green' },
-    { value: 'solarized-light', label: 'Solarized Light' },
-    { value: 'high-contrast',   label: 'High contrast' },
+    { value: 'light',             label: 'Light' },
+    { value: 'light-green',       label: 'Light green' },
+    { value: 'solarized-light',   label: 'Solarized Light' },
+    { value: 'gruvbox-light',     label: 'Gruvbox Light' },
+    { value: 'github-light',      label: 'GitHub Light' },
+    { value: 'catppuccin-latte',  label: 'Catppuccin Latte' },
+    { value: 'high-contrast',     label: 'High contrast' },
   ] },
   { group: 'Dark', themes: [
-    { value: 'dark',           label: 'Dark' },
-    { value: 'nord',           label: 'Nord' },
-    { value: 'solarized-dark', label: 'Solarized Dark' },
+    { value: 'dark',              label: 'Dark' },
+    { value: 'nord',              label: 'Nord' },
+    { value: 'solarized-dark',    label: 'Solarized Dark' },
+    { value: 'dracula',           label: 'Dracula' },
+    { value: 'tokyo-night',       label: 'Tokyo Night' },
+    { value: 'github-dark',       label: 'GitHub Dark' },
+    { value: 'gruvbox-dark',      label: 'Gruvbox Dark' },
+    { value: 'catppuccin-mocha',  label: 'Catppuccin Mocha' },
   ] },
 ];
 

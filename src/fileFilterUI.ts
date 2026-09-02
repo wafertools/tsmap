@@ -183,7 +183,7 @@ function getFilterFileInput(): HTMLInputElement {
  *  dialog via `platform.pickFiles()` — no bytes needed there, since Tauri's
  *  file-meta commands read straight from `path`). */
 function pickFilesForFilter(platform: Platform): Promise<PickedFile[]> {
-  if (isTauri) return platform.pickFiles().then(hs => hs.map(pickedFromHandle));
+  if (isTauri) return platform.pickFiles('Select multiple files to scan and filter').then(hs => hs.map(pickedFromHandle));
   return new Promise((resolve) => {
     const input = getFilterFileInput();
     const onChange = () => {
@@ -325,6 +325,9 @@ export interface FileFilterHandlers {
    *  rename/mismatch-detection is unchanged. Both require the caller to
    *  confirm first (per the confirm-before-load decision). */
   onConfirmedLoad: (files: FileHandle[], isAppend: boolean) => void;
+  /** Replace (false) or append (true) — fixed by the caller, since the button
+   *  the user pressed already answered it. The dialog never re-asks. */
+  isAppend: boolean;
   /** Wraps `platform.confirm` so this module doesn't need its own dialog. */
   confirm: (message: string) => Promise<boolean>;
   log: (level: 'info' | 'error', message: string) => void;
@@ -339,6 +342,12 @@ export async function openFileFilterDialog(
   handlers: FileFilterHandlers,
   prePicked?: PickedFile[],
 ): Promise<void> {
+  // Whether this run replaces or appends is decided by the button that opened
+  // it (Open files vs Add files) and never re-asked here. It used to offer both
+  // "Load selection…" and "Add selection…", which meant the user answered the
+  // same replace-or-append question twice — once in the toolbar, once again at
+  // the end — in two different vocabularies ("Open"/"Add" then "Load"/"Add").
+  const isAppend = handlers.isAppend;
   const rawPicked = prePicked ?? await pickFilesForFilter(platform);
   if (rawPicked.length === 0) return;
 
@@ -369,6 +378,7 @@ export async function openFileFilterDialog(
       // Inline problem line — a refusal to load has to be visible in the dialog
       // that stays open, not only in the log panel behind it.
       const notice = el('div', { fontSize: '12px', color: 'var(--error-text)', display: 'none' });
+      notice.setAttribute('role', 'alert');   // see waferGeometryUI — visible-only errors aren't announced
       body.appendChild(notice);
       const showNotice = (msg: string | null) => {
         notice.textContent = msg ?? '';
@@ -438,33 +448,25 @@ export async function openFileFilterDialog(
         }
       });
 
-      const loadBtn = el('button', {
-        fontSize: '12px', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer',
-        border: '1px solid var(--accent)', background: 'none', color: 'var(--accent)',
-      }, 'Load selection…');
+      // One action, matching the verb already chosen in the toolbar.
+      const loadBtn = el('button', {}, isAppend ? 'Add selected…' : 'Load selected…');
       loadBtn.type = 'button';
-      loadBtn.addEventListener('click', () => confirmAndLoad(false));
-      const addBtn = el('button', {
-        fontSize: '12px', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer',
-        border: '1px solid var(--border-dim)', background: 'none', color: 'var(--text-secondary)',
-      }, 'Add selection…');
-      addBtn.type = 'button';
-      addBtn.addEventListener('click', () => confirmAndLoad(true));
+      loadBtn.className = 'btn-primary';
+      loadBtn.addEventListener('click', () => confirmAndLoad(isAppend));
       const saveFilterBtn = el('button', {
-        fontSize: '12px', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer',
-        border: '1px solid var(--border-dim)', background: 'none', color: 'var(--text-secondary)', marginRight: 'auto',
+        marginRight: 'auto',
       }, 'Save filter…');
       saveFilterBtn.type = 'button';
+      saveFilterBtn.className = 'btn-secondary';
       saveFilterBtn.addEventListener('click', () => {
-        if (table) void platform.saveTextFile(formatFilterFile(table.getCriteria()), 'filter.json');
+        if (table) void platform.saveTextFile(formatFilterFile(table.getCriteria()), 'filter.json', 'Save this filter to a file');
       });
       const loadFilterBtn = el('button', {
-        fontSize: '12px', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer',
-        border: '1px solid var(--border-dim)', background: 'none', color: 'var(--text-secondary)',
       }, 'Load filter…');
       loadFilterBtn.type = 'button';
+      loadFilterBtn.className = 'btn-secondary';
       loadFilterBtn.addEventListener('click', async () => {
-        const chosenFile = await platform.pickTextFile();
+        const chosenFile = await platform.pickTextFile('Select a saved filter file to load');
         if (!chosenFile || !table) return;
         const parsed = parseFilterFile(chosenFile.content);
         if ('error' in parsed) {
@@ -532,7 +534,6 @@ export async function openFileFilterDialog(
 
       footer.appendChild(saveFilterBtn);
       footer.appendChild(loadFilterBtn);
-      footer.appendChild(addBtn);
       footer.appendChild(loadBtn);
     },
   });

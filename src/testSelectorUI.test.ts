@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTestListFile, formatTestListCsv, resolveLoadedTestList } from './testSelectorUI';
+import { parseTestListFile, formatTestListCsv, resolveLoadedTestList, matchTestRange } from './testSelectorUI';
 import type { TestListEntry } from './testSelectorUI';
 import type { TestDef } from './types';
 
@@ -338,5 +338,80 @@ describe('resolveLoadedTestList', () => {
     expect(result.selectedNums.sort((a, b) => a - b)).toEqual([1, 99]);
     expect(result.recoveredByNameCount).toBe(1);
     expect(result.unknownCount).toBe(1);
+  });
+});
+
+describe('matchTestRange', () => {
+  // Test order, not numeric order — name ranges walk list position, so the
+  // fixture has to be able to tell the two apart.
+  const E = [
+    { num: 1001, def: { name: 'vth_n_mV' } },
+    { num: 1002, def: { name: 'vth_p_mV' } },
+    { num: 1050, def: { name: 'idsat_n_uA' } },
+    { num: 1051, def: { name: 'idsat_p_uA' } },
+    { num: 2000, def: { name: 'cont_check' } },
+  ];
+  const got = (s: string) => [...matchTestRange(s, E)].sort((a, b) => a - b);
+
+  it('matches a numeric range inclusively at both ends', () => {
+    expect(got('1001-1050')).toEqual([1001, 1002, 1050]);
+  });
+
+  it('matches a single test number', () => {
+    expect(got('1050')).toEqual([1050]);
+  });
+
+  it('ignores a number no test has', () => {
+    expect(got('9999')).toEqual([]);
+  });
+
+  it('matches a bare name by prefix', () => {
+    expect(got('vth')).toEqual([1001, 1002]);
+  });
+
+  it('splits a name range on the last dash, not the first', () => {
+    // The whole reason for the last-dash rule: these names contain dashes'
+    // moral equivalent (underscores) but a naive first-dash split on a name
+    // like "a-b - c-d" would take the wrong halves.
+    expect(got('vth_n_mV-idsat_n_uA')).toEqual([1001, 1002, 1050]);
+  });
+
+  it('prefers an explicit spaced dash over the last-dash fallback', () => {
+    expect(got('vth_n_mV - idsat_p_uA')).toEqual([1001, 1002, 1050, 1051]);
+  });
+
+  it('takes a name range by list position, not alphabetically', () => {
+    // Alphabetically cont_check sorts before idsat/vth; by position it is last.
+    expect(got('idsat_n_uA - cont_check')).toEqual([1050, 1051, 2000]);
+  });
+
+  it('unions comma-separated segments', () => {
+    expect(got('1001, 2000')).toEqual([1001, 2000]);
+  });
+
+  it('mixes ranges and singles across segments, de-duplicating', () => {
+    expect(got('1001-1002, 1002, cont_check')).toEqual([1001, 1002, 2000]);
+  });
+
+  it('returns nothing for an empty or whitespace expression', () => {
+    expect(got('')).toEqual([]);
+    expect(got('   ,  , ')).toEqual([]);
+  });
+
+  it('returns nothing when a name range resolves backwards', () => {
+    // last-before-first: no sensible span, so select nothing rather than guess.
+    expect(got('cont_check - vth_n_mV')).toEqual([]);
+  });
+
+  it('is case-insensitive on names', () => {
+    expect(got('VTH_N_MV')).toEqual([1001]);
+  });
+
+  it('matches over ALL entries, leaving filter scoping to the caller', () => {
+    // The selector intersects this with what the search/type filter shows. The
+    // matcher itself must stay filter-blind, or the caller cannot tell "matches
+    // nothing" from "matches, but hidden" — which is the distinction the
+    // dialog's inline message depends on.
+    expect(got('1001-2000')).toEqual([1001, 1002, 1050, 1051, 2000]);
   });
 });

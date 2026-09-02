@@ -328,7 +328,21 @@ change — noted per item.
       toolbar-restructuring commit already noted elsewhere in this file), and the list predated
       **Filter files…** (the file-triage feature) entirely. Current buttons: Open files, Filter
       files…, Add files, Recent, Lot ▾, Value findings, Clear, theme picker, Help — a wash on
-      net count (two buttons collapsed into one menu, one new button added). Re-verified the
+      net count (two buttons collapsed into one menu, one new button added).
+      Note (2026-09-02): stale again — **Filter files…** has since been removed (it answered a
+      different question from its neighbours; see CHANGELOG 0.1.33), and Open files/Add files
+      each gained a caret half, so the row is now: Open files ▾, Add files ▾, Recent, Lot ▾,
+      Value findings, Clear, theme picker, Help. Net width is roughly unchanged — one button
+      gone, two narrow carets added — and the overflow defence was re-verified against this
+      set the same way as the 2026-08-16 pass, in the widest (loaded) state where Lot ▾ and
+      Clear are both visible: no overflow at 1100, 900, 780 or 640px (`toolbarScrollWidth`
+      equalled `toolbarClientWidth` at each), with `help-btn` and the theme picker fully
+      on-screen throughout.
+      Method note, because the first attempt got it wrong: measure by resizing the **viewport**,
+      not by setting `#toolbar`'s own width. The defence leans on media queries that hide
+      `#drop-hint` (≤1100px) and `#toolbar-title` (≤700px), and those key off the viewport — so
+      narrowing only the element leaves both still rendered and reports a phantom overflow
+      (795px against a 780px toolbar) that does not happen to a real user. Re-verified the
       overflow defence itself against this current set, not just assumed it still held: no
       overflow at any of the same four breakpoints (1100/900/780/640px — `toolbarScrollWidth`
       never exceeded `toolbarClientWidth` at any of them), `help-btn`/`filter-files-btn` stay

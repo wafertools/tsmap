@@ -12,6 +12,8 @@
 // *list*, adapted here for a *table* with per-column filtering.
 
 import { openAnchoredMenu } from './anchoredMenu';
+import { createRangeSelection } from './listSelection';
+import { attachTooltip } from './tooltip';
 
 export interface FilterTableColumn {
   key: string;
@@ -187,6 +189,30 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 type SortDir = 'asc' | 'desc' | null;
 
+/** Default and minimum column widths (px) for the resizable header. Filenames
+ *  are the whole reason this table exists (fileFilterUI.ts), and 180px
+ *  truncates most of them — wider than the old fixed 260px *max-width* cap,
+ *  since that was a ceiling shared by every column, not a per-column start
+ *  point a user can grow from. */
+const DEFAULT_COL_WIDTH = 180;
+const MIN_COL_WIDTH = 60;
+const SELECT_COL_WIDTH = 24;
+/** Arrow-key resize step, mirrored from the pointer-drag experience. */
+const RESIZE_KEY_STEP = 16;
+/** Ceiling for auto-sizing — a single very long value (a long path, a stray
+ *  sentence in an error column) shouldn't be able to blow one column out to
+ *  fill the whole table. A user can still drag past this manually. */
+const AUTO_SIZE_MAX_WIDTH = 420;
+/** "A bit of margin" beyond the tightest fit, so text doesn't sit flush
+ *  against the next column's sort/filter controls. */
+const AUTO_SIZE_MARGIN = 16;
+/** Cell padding (both th and td use 6px horizontal padding — see below). */
+const AUTO_SIZE_CELL_PADDING = 12;
+/** Reserved width for a header's sort button + filter ▾ button + the gaps
+ *  between them — these sit next to the label text, not on top of it, so an
+ *  auto-fit header needs room for both or the controls get squeezed. */
+const AUTO_SIZE_HEADER_CHROME = 50;
+
 /** Long enough to swallow a burst of typing, short enough not to feel laggy. */
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -202,6 +228,15 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   let sortDir: SortDir = null;
   // Pending coalesced body rebuild from addRow (see the handle's addRow below).
   let pendingAddFrame: number | null = null;
+  // column key -> width in px. Missing = DEFAULT_COL_WIDTH. Not persisted with
+  // saved filters (same reasoning as hiddenColumns above) — column widths are
+  // a per-session display preference, not part of what a filter means.
+  const columnWidths = new Map<string, number>();
+  const colEls = new Map<string, HTMLTableColElement>();
+  // Columns the user has actually dragged/keyboard-resized — autoSizeColumns
+  // (below) skips these on a later setRows, so a manual resize survives a
+  // fresh data load instead of being clobbered by the next auto-fit.
+  const userResizedColumns = new Set<string>();
 
   const root = el('div', { display: 'flex', flexDirection: 'column', gap: '8px', flex: '1', minHeight: '0' });
 
@@ -211,7 +246,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   });
   const searchInput = el('input', {
     flex: '1', minWidth: '160px', padding: '4px 8px', fontSize: '12px',
-    border: '1px solid var(--border-dim)', borderRadius: '4px',
+    border: '1px solid var(--border-dim)', borderRadius: 'var(--radius-control)',
     background: 'var(--bg-overlay)', color: 'var(--text-primary)',
   }) as HTMLInputElement;
   searchInput.type = 'text';
@@ -229,11 +264,8 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   toolbar.appendChild(searchInput);
 
   function toolbarBtn(label: string, onClick: () => void): HTMLButtonElement {
-    const btn = el('button', {
-      fontSize: '12px', padding: '3px 10px', borderRadius: '4px', cursor: 'pointer',
-      border: '1px solid var(--border-dim)', background: 'none', color: 'var(--text-secondary)',
-      whiteSpace: 'nowrap',
-    }, label);
+    const btn = el('button', { whiteSpace: 'nowrap' }, label);
+    btn.className = 'btn-secondary';
     btn.type = 'button';
     btn.addEventListener('click', onClick);
     toolbar.appendChild(btn);
@@ -282,7 +314,8 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
 
       const actions = el('div', { display: 'flex', gap: '6px', marginTop: '6px', borderTop: '1px solid var(--border-dim)', paddingTop: '6px' });
       const linkBtn = (label: string, onClick: () => void) => {
-        const b = el('button', { fontSize: '12px', border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer' }, label);
+        const b = el('button', {}, label);
+        b.className = 'btn-link';
         b.type = 'button';
         b.addEventListener('click', onClick);
         actions.appendChild(b);
@@ -291,9 +324,9 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       linkBtn('All', () => { for (const c of boxes) c.box.checked = true; });
       linkBtn('None', () => { for (const c of boxes) c.box.checked = false; });
       const okBtn = el('button', {
-        marginLeft: 'auto', fontSize: '12px', padding: '2px 10px', borderRadius: '4px', cursor: 'pointer',
-        border: '1px solid var(--accent)', background: 'none', color: 'var(--accent)',
+        marginLeft: 'auto',
       }, 'OK');
+      okBtn.className = 'btn-secondary';
       okBtn.type = 'button';
       okBtn.addEventListener('click', () => {
         hiddenColumns.clear();
@@ -317,20 +350,80 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   // ── Scroll body ───────────────────────────────────────────────────────────
   const scrollWrap = el('div', {
     flex: '1', minHeight: '0', overflow: 'auto',
-    border: '1px solid var(--border-dim)', borderRadius: '4px',
+    border: '1px solid var(--border-dim)', borderRadius: 'var(--radius-control)',
   });
-  const table = el('table', { width: '100%', borderCollapse: 'collapse', fontSize: '12px' });
+  // table-layout:fixed makes column widths come from <colgroup>/the first
+  // row's <th> widths rather than content — the standard technique for both
+  // reliable truncation (the ellipsis below only clips at a size the browser
+  // isn't also trying to grow to fit content) and resizability (there is a
+  // single per-column width to drag, not a content-driven one the drag would
+  // fight).
+  const table = el('table', { width: '100%', borderCollapse: 'collapse', fontSize: '12px', tableLayout: 'fixed' });
   table.setAttribute('aria-label', options.ariaLabel ?? 'Filterable table');
+  const colgroup = el('colgroup');
   const thead = el('thead');
   const tbody = el('tbody');
+  table.appendChild(colgroup);
   table.appendChild(thead);
   table.appendChild(tbody);
   scrollWrap.appendChild(table);
   root.appendChild(scrollWrap);
 
+  // Single offscreen canvas context reused for every measurement — creating
+  // one per call is wasteful, and font metrics don't change between calls.
+  let measureCtx: CanvasRenderingContext2D | null | undefined;
+  function measureTextWidth(text: string): number {
+    if (measureCtx === undefined) {
+      measureCtx = document.createElement('canvas').getContext('2d');
+      if (measureCtx) {
+        measureCtx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+      }
+    }
+    // No 2d context (e.g. a test environment with no canvas backing) — fall
+    // back to a rough monospace-ish estimate rather than leaving every
+    // column at DEFAULT_COL_WIDTH regardless of content.
+    return measureCtx ? measureCtx.measureText(text).width : text.length * 7;
+  }
+
+  /** Fits every column not already manually resized to its content — the
+   *  widest of its header label (plus room for the sort/filter buttons) and
+   *  every row's value in that column, capped at AUTO_SIZE_MAX_WIDTH so one
+   *  outlier value can't dominate the table. Called after each fresh
+   *  setRows, so a table that's had columns hand-resized keeps those on a
+   *  later reload while still fitting whatever is new. */
+  function autoSizeColumns(): void {
+    for (const col of columns) {
+      if (userResizedColumns.has(col.key)) continue;
+      let widest = measureTextWidth(col.label) + AUTO_SIZE_HEADER_CHROME;
+      for (const row of rows) {
+        const w = measureTextWidth(row.columns[col.key] ?? '');
+        if (w > widest) widest = w;
+      }
+      const fitted = Math.round(widest) + AUTO_SIZE_CELL_PADDING + AUTO_SIZE_MARGIN;
+      columnWidths.set(col.key, Math.min(AUTO_SIZE_MAX_WIDTH, Math.max(MIN_COL_WIDTH, fitted)));
+    }
+  }
+
+  /** Rebuilds <colgroup> to match the current visible columns — must run
+   *  whenever the visible column set changes (Columns ▾), since table-layout
+   *  fixed reads column widths from these <col> elements, not from the <th>s. */
+  function buildColGroup(): void {
+    colgroup.replaceChildren();
+    colEls.clear();
+    const selectCol = el('col');
+    selectCol.style.width = `${SELECT_COL_WIDTH}px`;
+    colgroup.appendChild(selectCol);
+    for (const col of visibleColumns()) {
+      const c = el('col');
+      c.style.width = `${columnWidths.get(col.key) ?? DEFAULT_COL_WIDTH}px`;
+      colEls.set(col.key, c);
+      colgroup.appendChild(c);
+    }
+  }
+
   const headerCheckbox = el('input') as HTMLInputElement;
   headerCheckbox.type = 'checkbox';
-  headerCheckbox.title = 'Select all / none (of the rows currently shown)';
+  attachTooltip(headerCheckbox, 'Select all / none (of the rows currently shown)');
   headerCheckbox.setAttribute('aria-label', 'Select all rows currently shown');
   // Wired once, here — NOT inside buildHeaderRow(), which re-runs on every
   // render() (each search keystroke, sort, and selection change) and would
@@ -341,6 +434,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   });
 
   function buildHeaderRow(): void {
+    buildColGroup();
     thead.replaceChildren();
     const tr = el('tr');
     // left:'0' in addition to top:'0' — sticky on BOTH axes, so the select
@@ -350,7 +444,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     // case, and losing sight of the checkbox column there was the bug.
     const thSelect = el('th', {
       position: 'sticky', top: '0', left: '0', zIndex: '2', background: 'var(--bg-overlay)', padding: '4px 6px',
-      borderBottom: '1px solid var(--border-dim)', textAlign: 'left', width: '24px',
+      borderBottom: '1px solid var(--border-dim)', textAlign: 'left', width: `${SELECT_COL_WIDTH}px`,
     });
     thSelect.scope = 'col';
     thSelect.appendChild(headerCheckbox);
@@ -360,6 +454,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       const th = el('th', {
         position: 'sticky', top: '0', background: 'var(--bg-overlay)', padding: '4px 6px',
         borderBottom: '1px solid var(--border-dim)', textAlign: 'left', whiteSpace: 'nowrap',
+        overflow: 'hidden', textOverflow: 'ellipsis',
       });
       th.scope = 'col';
       // aria-sort belongs on the header cell, and must be present on the sorted
@@ -371,16 +466,13 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       // A real <button>, not a click handler on the <th>: sorting has to be
       // reachable and operable from the keyboard, and needs to announce itself
       // as a control. It's styled flat so the header still reads as a header.
-      const sortBtn = el('button', {
-        display: 'flex', alignItems: 'center', gap: '4px', flex: '1',
-        border: 'none', background: 'none', padding: '0', cursor: 'pointer',
-        font: 'inherit', color: 'inherit', textAlign: 'left', whiteSpace: 'nowrap',
-      });
+      const sortBtn = el('button', {});
+      sortBtn.className = 'btn-header';
       sortBtn.type = 'button';
       sortBtn.appendChild(el('span', {}, col.label));
       sortBtn.appendChild(el('span', { fontSize: '12px', color: 'var(--text-muted)' },
         sorted ? (sortDir === 'asc' ? '▲' : '▼') : ''));
-      sortBtn.title = `Sort by ${col.label}`;
+      attachTooltip(sortBtn, `Sort by ${col.label}`);
       sortBtn.setAttribute('aria-label',
         `Sort by ${col.label}${sorted ? (sortDir === 'asc' ? ' (currently ascending)' : ' (currently descending)') : ''}`);
       sortBtn.addEventListener('click', () => {
@@ -392,12 +484,10 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       inner.appendChild(sortBtn);
 
       const activeFilter = columnFilters.get(col.key)?.size;
-      const filterBtn = el('button', {
-        marginLeft: 'auto', fontSize: '12px', border: 'none', background: 'none', cursor: 'pointer',
-        color: activeFilter ? 'var(--accent)' : 'var(--text-muted)', padding: '0 2px',
-      }, '▾');
+      const filterBtn = el('button', {}, '▾');
+      filterBtn.className = activeFilter ? 'btn-caret is-on' : 'btn-caret';
       filterBtn.type = 'button';
-      filterBtn.title = `Filter by ${col.label}`;
+      attachTooltip(filterBtn, `Filter by ${col.label}`);
       // The glyph alone carries "filtered" only in colour; name the state so it
       // isn't colour-only information (WCAG 1.4.1).
       filterBtn.setAttribute('aria-label',
@@ -409,9 +499,72 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       });
       inner.appendChild(filterBtn);
       th.appendChild(inner);
+      th.appendChild(buildResizeHandle(col));
       tr.appendChild(th);
     }
     thead.appendChild(tr);
+  }
+
+  /** A draggable divider on a header cell's trailing edge — mouse drag and
+   *  Left/Right arrow keys both adjust the column's stored width, which is
+   *  applied live to the matching <col> (table-layout:fixed means that's the
+   *  only element that needs to change; no full re-render mid-drag). Modeled
+   *  as a WAI-ARIA separator (APG "window splitter" pattern) since it's a
+   *  draggable boundary between two regions, not a button or slider. */
+  function buildResizeHandle(col: FilterTableColumn): HTMLDivElement {
+    const handle = el('div', {
+      position: 'absolute', top: '0', right: '0', bottom: '0', width: '6px',
+      cursor: 'col-resize', touchAction: 'none',
+    });
+    handle.setAttribute('role', 'separator');
+    handle.setAttribute('aria-orientation', 'vertical');
+    handle.setAttribute('aria-label', `Resize ${col.label} column`);
+    handle.tabIndex = 0;
+    // A focusable separator is a WINDOW SPLITTER in APG terms, and a splitter
+    // without aria-value* announces no position and no range — the arrow keys
+    // below change something the user cannot hear. Kept in step by applyWidth.
+    handle.setAttribute('aria-valuemin', String(MIN_COL_WIDTH));
+    handle.setAttribute('aria-valuemax', String(AUTO_SIZE_MAX_WIDTH));
+
+    const currentWidth = () => columnWidths.get(col.key) ?? DEFAULT_COL_WIDTH;
+    const applyWidth = (px: number) => {
+      const clamped = Math.max(MIN_COL_WIDTH, px);
+      handle.setAttribute('aria-valuenow', String(Math.round(clamped)));
+      userResizedColumns.add(col.key);
+      columnWidths.set(col.key, clamped);
+      const c = colEls.get(col.key);
+      if (c) c.style.width = `${clamped}px`;
+    };
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handle.setPointerCapture(e.pointerId);
+      const startX = e.clientX;
+      const startWidth = currentWidth();
+      const onMove = (ev: PointerEvent) => applyWidth(startWidth + (ev.clientX - startX));
+      // `pointercancel` too, not just `pointerup`: a cancelled drag (the browser
+      // taking over the gesture, the pointer leaving the window, a touch being
+      // interrupted) fires cancel and NOT up. Without it `onMove` stayed
+      // attached, so afterwards merely hovering the handle resized the column
+      // using a stale startX/startWidth — and every subsequent drag stacked
+      // another live listener on top.
+      const onUp = () => {
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onUp);
+      };
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    });
+
+    handle.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); applyWidth(currentWidth() - RESIZE_KEY_STEP); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); applyWidth(currentWidth() + RESIZE_KEY_STEP); }
+    });
+
+    return handle;
   }
 
   // `onlyValue`, when passed, opens the popup pre-set to that single value
@@ -447,22 +600,25 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
         else columnFilters.set(col.key, values);
         render();
       };
-      const allBtn = el('button', { fontSize: '12px', border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer' }, 'All');
+      const allBtn = el('button', {}, 'All');
+      allBtn.className = 'btn-link';
       allBtn.type = 'button';
       allBtn.addEventListener('click', () => { for (const c of checkboxes) c.box.checked = true; });
-      const noneBtn = el('button', { fontSize: '12px', border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer' }, 'None');
+      const noneBtn = el('button', {}, 'None');
+      noneBtn.className = 'btn-link';
       noneBtn.type = 'button';
       noneBtn.addEventListener('click', () => { for (const c of checkboxes) c.box.checked = false; });
       // Distinct from "All" + OK (functionally equivalent, but explicit and
       // immediate) — removes this column's filter entirely and closes
       // without needing a separate OK click.
-      const clearBtn = el('button', { fontSize: '12px', border: 'none', background: 'none', color: 'var(--text-muted)', cursor: 'pointer' }, 'Clear');
+      const clearBtn = el('button', {}, 'Clear');
+      clearBtn.className = 'btn-link btn-link--muted';
       clearBtn.type = 'button';
       clearBtn.addEventListener('click', () => { apply(null); close(); });
       const okBtn = el('button', {
-        marginLeft: 'auto', fontSize: '12px', padding: '2px 10px', borderRadius: '4px', cursor: 'pointer',
-        border: '1px solid var(--accent)', background: 'none', color: 'var(--accent)',
+        marginLeft: 'auto',
       }, 'OK');
+      okBtn.className = 'btn-secondary';
       okBtn.type = 'button';
       okBtn.addEventListener('click', () => { apply(new Set(checkboxes.filter(c => c.box.checked).map(c => c.value))); close(); });
       actions.appendChild(clearBtn);
@@ -485,10 +641,11 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       // The whole row is tinted when selected, not just the checkbox — so
       // selection state reads at a glance without needing to see column 0
       // at all (belt-and-suspenders with the sticky checkbox column below).
-      const rowBg = isSelected ? 'var(--bg-accent-hover)' : 'transparent';
+      const rowBg = isSelected ? 'var(--bg-selected)' : 'transparent';
       const tr = el('tr', { background: rowBg });
       tr.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).tagName === 'INPUT') return;
+        if (rangeSel.handleClick(row.id, e)) return;
         toggleRow(row.id);
       });
       // position:sticky;left:0 mirrors the header cell above — this column
@@ -499,7 +656,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       const tdSelect = el('td', {
         padding: '3px 6px', borderBottom: '1px solid var(--border-strong)',
         position: 'sticky', left: '0', zIndex: '1',
-        background: isSelected ? 'var(--bg-accent-hover)' : 'var(--bg-overlay)',
+        background: isSelected ? 'var(--bg-selected)' : 'var(--bg-overlay)',
       });
       const box = el('input') as HTMLInputElement;
       box.type = 'checkbox';
@@ -510,15 +667,29 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       // keyboard path to selection — the whole-row click below is a mouse
       // convenience on top of it, not the only way in.
       box.setAttribute('aria-label', `Select ${row.columns[visibleColumns()[0]?.key ?? ''] || row.id}`);
+      box.addEventListener('click', (e) => {
+        // preventDefault stops the browser's own toggle, which would otherwise
+        // flip this row on top of the range that was just applied to it.
+        if (rangeSel.handleClick(row.id, e)) e.preventDefault();
+      });
       box.addEventListener('change', () => toggleRow(row.id));
+      box.addEventListener('keydown', (e) => {
+        if (rangeSel.handleKeydown(row.id, e)) e.preventDefault();
+      });
       tdSelect.appendChild(box);
       tr.appendChild(tdSelect);
       for (const col of visibleColumns()) {
         const cellValue = row.columns[col.key] ?? '';
         const td = el('td', {
           padding: '3px 6px', borderBottom: '1px solid var(--border-strong)', color: 'var(--text-secondary)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '260px',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }, cellValue);
+        // Native `title`, deliberately — this is the ONE case UI_STANDARDS.md
+        // permits it: the cell is truncated by CSS (overflow/ellipsis above) and
+        // the browser's own "show the full string" behaviour is exactly what is
+        // wanted. A themed tooltip on every cell of a 4,000-row scan would cost
+        // far more than it returns, and would not survive a native copy.
+        td.title = cellValue;
         // Right-click a cell to jump straight to that column's filter popup,
         // pre-set to this cell's value — quicker than hunting the header's ▾
         // button when the column is scrolled out of view.
@@ -537,8 +708,25 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     countLabel.textContent = `${selected.size} selected / ${vis.length} shown / ${rows.length} total`;
   }
 
+  /** Shift/keyboard range selection — the shared checkbox-list convention, the
+   *  same one the test selector and splits dialog use. This table had none: a
+   *  shift-click just toggled the row under the pointer. See listSelection.ts. */
+  const rangeSel = createRangeSelection<string>({
+    visibleIds: () => visibleRows().map(r => r.id),
+    isSelected: (id) => selected.has(id),
+    setSelected: (id, on) => { if (on) selected.add(id); else selected.delete(id); },
+    onChanged: () => { onSelectionChange?.(new Set(selected)); buildBodyRows(); },
+    focusRow: (i) => {
+      const boxes = tbody.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+      boxes[i]?.focus();
+    },
+  });
+
   function toggleRow(id: string): void {
     if (selected.has(id)) selected.delete(id); else selected.add(id);
+    // Only a plain toggle moves the anchor; Shift never does, so repeated
+    // shift-clicks re-extend from the same origin instead of chaining.
+    rangeSel.setAnchor(id);
     onSelectionChange?.(new Set(selected));
     buildBodyRows();
   }
@@ -577,7 +765,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     el: root,
     // Copied, not aliased: `addRow` pushes into `rows`, so holding the
     // caller's array would silently mutate it from under them.
-    setRows(newRows) { rows = [...newRows]; render(); },
+    setRows(newRows) { rows = [...newRows]; autoSizeColumns(); render(); },
     addRow(row) {
       // `rows.push`, not `rows = [...rows, row]` — the spread copied the whole
       // array per call, so populating N rows was O(N²) before any DOM work.

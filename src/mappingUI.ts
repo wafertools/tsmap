@@ -2,6 +2,7 @@
 // Mirrors the wmap showcase mapping phase.
 
 import { escapeHtml as esc, testNumberForColumn } from './lib';
+import { upgradeTitleTooltips } from './tooltip';
 import { parseBinDefsFile, type BinDefEntry } from './binDefs';
 
 export interface CsvTestCol {
@@ -501,9 +502,9 @@ export async function showMappingOverlay(
       </div>
       <div class="mapping-tools">
         <input id="map-filter" type="search" placeholder="Filter columns…" aria-label="Filter columns by name">
-        <button id="map-bulk-test" class="tool-btn" type="button">Shown → Test value</button>
-        <button id="map-bulk-ignore" class="tool-btn" type="button">Shown → Ignore</button>
-        <button id="map-redetect" class="tool-btn tool-sep" type="button">Reset to auto-detected</button>
+        <button id="map-bulk-test" class="btn-secondary" type="button">Shown → Test value</button>
+        <button id="map-bulk-ignore" class="btn-secondary" type="button">Shown → Ignore</button>
+        <button id="map-redetect" class="btn-secondary tool-sep" type="button">Reset to auto-detected</button>
         <span id="map-count" class="tool-count"></span>
       </div>
       <div class="mapping-scroll">
@@ -522,7 +523,7 @@ export async function showMappingOverlay(
           <input id="pass-bin-input" type="text" value="${savedPassBins}"
                  title="Comma-separated hard bin numbers counted as pass, e.g. 1 or 1,2">
           <span class="muted">(hard bins, comma-separated)</span>
-          <button id="map-load-bindefs" type="button" class="tool-btn"
+          <button id="map-load-bindefs" type="button" class="btn-secondary"
                   title="Load a bin-definitions CSV for real bin names (and pass/fail flags) instead of typing bare numbers">Load bin definitions…</button>
           <span id="map-bindefs-status" class="muted"></span>
         </div>
@@ -532,6 +533,16 @@ export async function showMappingOverlay(
     </div>`;
 
   document.body.appendChild(overlay);
+
+  // This dialog's hints are authored as `title` inside the markup template
+  // above. Convert them to the shared themed tooltip: a native `title` is
+  // OS-delayed, unthemed, ignores overlay stacking and is invisible to touch
+  // (UI_STANDARDS). `upgradeTitleTooltips` strips each attribute as it goes,
+  // so the slow black OS tooltip cannot also fire. The app-level call in
+  // main.ts runs once at startup over `#toolbar` only, and never sees a dialog
+  // built later — which is exactly how these four went unconverted.
+  upgradeTitleTooltips(overlay);
+
   // NOTE: this overlay must NOT clear #map-container. It used to, on the
   // assumption it only ever ran before anything was rendered — but handleFiles()
   // is the shared path for "Open file" AND "Add files", so appending a CSV to an
@@ -618,6 +629,15 @@ export async function showMappingOverlay(
   });
 
   const passBinInput = overlay.querySelector<HTMLInputElement>('#pass-bin-input')!;
+  // Enter commits, matching every other dialog in the app (splits, wafer
+  // geometry, append-confirm, test selector all apply on Enter). This overlay
+  // is not a <form>, so without an explicit handler Enter here did nothing at
+  // all — the one text field in the app where it was inert.
+  passBinInput.addEventListener('keydown', (evt) => {
+    if (evt.key !== 'Enter') return;
+    evt.preventDefault();
+    (overlay.querySelector('#map-render') as HTMLButtonElement | null)?.click();
+  });
 
   // Bin names have no source in CSV/JSON/Parquet the way STDF/ATDF's HBR/SBR
   // supply them — this is the only way these formats can get any at all.
