@@ -14,7 +14,7 @@
  *
  * Run:  node scripts/check-theme-docs.mjs
  */
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
@@ -73,12 +73,19 @@ function checkList(file, group, lineMatcher) {
 checkList('docs/user-guide.md', 'Light', /^- \*\*Light\*\* — ([\s\S]*?)\.$/m);
 checkList('docs/user-guide.md', 'Dark',  /^- \*\*Dark\*\* — ([\s\S]*?)\.$/m);
 
-// CLAUDE.md restates the list inline, with a spelled-out count.
-const claude = readFileSync(resolve(root, 'CLAUDE.md'), 'utf8');
+// CLAUDE.md restates the list inline, with a spelled-out count. It is gitignored
+// and local-only (snapshotted in ~/projects/wafertools/config), so a clean CI
+// checkout does not have it — absent means "not checkable here", never a
+// failure, matching check-architecture-docs.mjs. Guarding this was not optional:
+// unguarded, it failed every CI run on v0.1.33.
+const claudePath = resolve(root, 'CLAUDE.md');
+const claude = existsSync(claudePath) ? readFileSync(claudePath, 'utf8') : null;
 const WORDS = ['zero','one','two','three','four','five','six','seven','eight','nine','ten',
                'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
-const countMatch = claude.match(/([A-Z][a-z]+) themes, grouped for the picker/);
-if (!countMatch) {
+const countMatch = claude?.match(/([A-Z][a-z]+) themes, grouped for the picker/);
+if (claude === null) {
+  // skipped — see above
+} else if (!countMatch) {
   problems.push('CLAUDE.md: could not find the "<N> themes, grouped for the picker" claim.');
 } else if (countMatch[1].toLowerCase() !== (WORDS[total] ?? String(total))) {
   problems.push(`CLAUDE.md: says "${countMatch[1]} themes", THEME_GROUPS has ${total} (${WORDS[total] ?? total}).`);
