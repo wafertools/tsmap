@@ -53,6 +53,22 @@ export default defineConfig(async () => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
+  // 1b. Bound the dependency scan to the real entry.
+  //
+  // `optimizeDeps.entries` defaults to crawling EVERY `.html` under the root —
+  // 157 files here, including the generated docs site (`site/`), the packaged
+  // guide (`public/guide/`), and dozens of Tauri codegen assets and old .deb
+  // bundle trees under `target/`. esbuild is handed all of them at once and can
+  // die mid-scan ("Failed to scan for dependencies … write EPIPE"), which takes
+  // `tauri dev` down with it.
+  //
+  // Note this is NOT covered by `server.watch.ignored` below: that bounds the
+  // file WATCHER, a different setting. `target/**` was already excluded from
+  // watching for the same "large, high-churn, irrelevant" reason, and the scan
+  // needed telling separately.
+  optimizeDeps: {
+    entries: ['index.html'],
+  },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,

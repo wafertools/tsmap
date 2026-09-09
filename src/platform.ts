@@ -36,6 +36,16 @@ export interface FileHandle {
   bytes: Uint8Array;
   /** Native path — set by tauriPlatform, undefined in webPlatform. */
   path?: string;
+  /** The originating browser `File`, on web only, kept UNREAD so a folder scan
+   *  costs nothing until something actually wants the bytes. Desktop has
+   *  `path` for this and leaves it undefined.
+   *
+   *  It must be carried into `PickedFile.blob` by whatever turns this handle
+   *  into a `PickedFile` — `materializePicked` reads `blob`, not this. Dropping
+   *  it silently yields a handle whose `bytes` stay empty, which surfaces as
+   *  every scanned file failing to parse ("file too short to contain a FAR
+   *  record") rather than as a missing-data error. */
+  webFile?: File;
   /** File size in bytes — set by tauriPlatform (where bytes is empty); equals bytes.length in webPlatform. */
   size?: number;
   /** Last-modified time, epoch ms — a universal column for the file-filter

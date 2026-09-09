@@ -427,8 +427,11 @@ export function showTestSelectorOverlay(
   panel.setAttribute('aria-labelledby', 'tsmap-test-selector-title');
   panel.tabIndex = -1;
   panel.style.cssText = [
-    'background:var(--bg-modal)', 'border:1px solid var(--border-mid)',
-    'border-radius:var(--radius-container)', 'padding:20px',
+    // `--bg-overlay`, the surface every other dialog, menu and table uses.
+    // This was the only place outside `.tsmap-modal` on `--bg-modal`, which is
+    // why it read as a different shade from the splits dialog beside it.
+    'background:var(--bg-overlay)', 'border:1px solid var(--border-mid)',
+    'border-radius:var(--radius-container)', 'padding:16px',
     'width:min(640px,90vw)', 'max-height:80vh',
     'display:flex', 'flex-direction:column', 'gap:12px',
     'font-size:12px', 'color:var(--text-light)',
@@ -461,7 +464,7 @@ export function showTestSelectorOverlay(
   searchInput.type = 'search';
   searchInput.placeholder = 'Search by name or number…';
   searchInput.style.cssText = [
-    'flex:1;min-width:160px;padding:5px 8px',
+    'flex:1;min-width:160px;padding:6px 8px',
     'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
     'background:var(--bg-input);color:var(--text-secondary)',
     'font-size:12px',
@@ -504,7 +507,7 @@ export function showTestSelectorOverlay(
   rangeInput.type = 'text';
   rangeInput.placeholder = 'or a range: 1000-1099, test_005-test_050';
   rangeInput.style.cssText = [
-    'flex:1;padding:5px 8px',
+    'flex:1;padding:6px 8px',
     'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
     'background:var(--bg-input);color:var(--text-secondary)',
     'font-size:12px',

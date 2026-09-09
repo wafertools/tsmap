@@ -138,6 +138,235 @@ export function mergeBinDefs(lists: Array<BinDef[] | undefined>): BinDef[] | und
   return [...byBin.entries()].map(([bin, name]) => ({ bin, name })).sort((a, b) => a.bin - b.bin);
 }
 
+/**
+ * One file's disagreement with another about a hard bin's pass/fail verdict.
+ * A bin named differently is cosmetic; a bin classified differently moves the
+ * yield of every wafer it appears on, which is why only this one is modelled.
+ */
+export interface PassBinCollision {
+  bin: number;
+  /** `[the file that counts it as pass, the file that counts it as fail]`. */
+  files: [string, string];
+}
+
+/** The hard bins a file actually has an opinion about — every bin appearing on
+ *  one of its dies, plus any it named in an HBR. A bin the file never saw is a
+ *  bin it says nothing about. */
+function knownHardBins(file: { wafers: WaferData[]; hbinDefs?: BinDef[] }): Set<number> {
+  const bins = new Set<number>();
+  for (const d of file.hbinDefs ?? []) bins.add(d.bin);
+  for (const w of file.wafers) for (const r of w.results) if (r.hbin !== undefined) bins.add(r.hbin);
+  return bins;
+}
+
+/**
+ * Reconciles hard/soft bin names and pass-bin lists across a multi-file load.
+ *
+ * `mergePassHbins` (still used within a single file's own lists) **unions**,
+ * which across files is unsafe in a way the bin-name merge is not: if bin 5 is a
+ * pass bin in one file and a fail bin in another, the union makes it pass for
+ * the whole lot and every yield figure, finding and report moves. A bin's
+ * verdict is not a lot-wide property — it is whatever the file that produced
+ * those dies said it was.
+ *
+ * So each file keeps its **own** `passHbins` — carried per wafer in `FileDefs`
+ * and applied by `passBinsForWafer` (main.ts), which also owns the
+ * states-nothing-inherits-the-union rule — and this returns the union only as
+ * `passHbins`, for the lot-level surfaces that need one. Only two files that
+ * both state, and disagree about a bin they have both seen, are a collision.
+ *
+ * STDF records only the pass flag (`if hbr.pass { pass_hbins.insert(...) }` in
+ * `parse_stdf.rs`), so "this file calls bin 5 a fail" is not stored anywhere —
+ * it is recovered here from the bin appearing on the file's own dies while
+ * absent from its pass list, which is precisely how that file's own yield is
+ * computed.
+ */
+export function unionBinInfo(
+  files: Array<{
+    fileName: string;
+    wafers: WaferData[];
+    hbinDefs?: BinDef[];
+    sbinDefs?: BinDef[];
+    passHbins?: number[];
+  }>,
+): {
+  hbinDefs?: BinDef[];
+  sbinDefs?: BinDef[];
+  passHbins?: number[];
+  collisions: PassBinCollision[];
+} {
+  const hbinDefs = mergeBinDefs(files.map(f => f.hbinDefs));
+  const sbinDefs = mergeBinDefs(files.map(f => f.sbinDefs));
+  const passHbins = mergePassHbins(files.map(f => f.passHbins));
+
+  const collisions: PassBinCollision[] = [];
+  const seen = new Set<number>();
+  const stating = files.filter(f => (f.passHbins?.length ?? 0) > 0);
+  // Each file's known/pass sets are computed ONCE, not once per pair.
+  // `knownHardBins` walks every die of every wafer, so building it inside the
+  // double loop rescanned each file's whole population once per other file —
+  // quadratic in files over a linear-in-dies scan, i.e. 7 files of 10k dies
+  // doing ~400k redundant iterations on every load, and far worse for the large
+  // batches the folder scan exists to support.
+  const profile = stating.map(f => ({
+    file: f, known: knownHardBins(f), pass: new Set(f.passHbins),
+  }));
+  for (const a of profile) {
+    for (const b of profile) {
+      if (a === b) continue;
+      for (const bin of a.file.passHbins!) {
+        if (seen.has(bin) || !b.known.has(bin) || b.pass.has(bin)) continue;
+        seen.add(bin);
+        collisions.push({ bin, files: [a.file.fileName, b.file.fileName] });
+      }
+    }
+  }
+  collisions.sort((x, y) => x.bin - y.bin);
+
+  return { hbinDefs, sbinDefs, passHbins, collisions };
+}
+
+/**
+ * One file's disagreement with another about what a test number means.
+ * `files` names both sides in load order, so a message can say which two.
+ */
+export interface TestDefCollision {
+  testNumber: string;
+  /** `'name'`/`'units'`/`'testType'` mean different measurements; `'limits'` a different spec. */
+  kind: 'name' | 'units' | 'testType' | 'limits';
+  /**
+   * EVERY distinct stated rendering of this test, with the first file to state
+   * each, in load order.
+   *
+   * Deliberately not just the first disagreeing pair, which is what this
+   * reported at first and which actively misled: given three lots defining test
+   * 1001 as `leakage` (nA), `leakage_nA` (nA) and `vth_n_mV` (mV), naming only
+   * the first two describes the mildest of the three disagreements and reads as
+   * though the third file were not involved.
+   */
+  stated: Array<{ value: string; fileName: string }>;
+}
+
+/**
+ * Unions every file's `testDefs` into one lot-wide list for the UI surfaces
+ * that legitimately need one (the test-selection dialog, the test-list CSV,
+ * `applyTestSelection`), and reports where the files disagree about what a
+ * test number means.
+ *
+ * This replaced a bare `Object.assign({}, ...files.map(f => f.testDefs))`, which
+ * is last-wins: loading a file whose test 1001 is `leakage_nA` (0-5 nA) after one
+ * whose test 1001 is `vth_n_mV` (260-380 mV) silently discarded the second
+ * definition, and every wafer in the lot was then plotted, normalised and
+ * capability-scored against the survivor's limits. A test number identifies a
+ * test *within a test program*, so across files it is not an identity at all.
+ *
+ * **First-wins here, deliberately** — the opposite of what it replaced. This
+ * list only drives tsmap's own test-picking UI; wmap receives each wafer's own
+ * file's defs and withholds any number the files disagree about, so no chart,
+ * report or map mode reads the value chosen here. First-wins simply makes the
+ * dialog stable as more files are appended.
+ *
+ * An absent field is "not stated", never a disagreement — a file with no limits
+ * loaded alongside one with limits is an ordinary, valid combination and is not
+ * reported. Only two *stated and different* values collide, matching wmap's
+ * `mergeTestDefs` rule exactly so the two layers can never disagree about what
+ * counts as a conflict.
+ */
+export function unionTestDefs(
+  files: Array<{ fileName: string; testDefs: Record<string, TestDef> }>,
+): { defs: Record<string, TestDef>; collisions: TestDefCollision[] } {
+  const defs: Record<string, TestDef> = {};
+  const owner: Record<string, string> = {};   // test number → the file that defined it first
+  // test number → every distinct stated rendering, keyed by comparison key so a
+  // later file restating the same thing does not add a duplicate entry.
+  const statedByTest = new Map<string, { kind: TestDefCollision['kind']; seen: Map<string, { value: string; fileName: string }> }>();
+
+  const stated = (v: string | undefined): string | undefined => {
+    const t = v?.trim();
+    return t ? t : undefined;
+  };
+
+  for (const file of files) {
+    for (const [key, def] of Object.entries(file.testDefs)) {
+      const first = defs[key];
+      if (!first) { defs[key] = { ...def }; owner[key] = file.fileName; continue; }
+
+      // Names compare case-insensitively and trimmed: TEST_TXT case and padding
+      // drift between files for what is unambiguously the same test, and
+      // treating that as a collision would withhold data over formatting.
+      // Units do NOT — SI prefixes carry magnitude, so mV and MV are never the
+      // same unit.
+      const aName = stated(first.name), bName = stated(def.name);
+      const aUnit = stated(first.units), bUnit = stated(def.units);
+      let kind: TestDefCollision['kind'] | undefined;
+      let values: [string, string] | undefined;
+      if (aName && bName && aName.toLowerCase() !== bName.toLowerCase()) {
+        kind = 'name'; values = [aName, bName];
+      } else if (aUnit && bUnit && aUnit !== bUnit) {
+        kind = 'units'; values = [aUnit, bUnit];
+      } else if (first.testType !== def.testType) {
+        // Parametric vs functional: one records a measurement, the other a
+        // verdict. Not a spec difference — a different kind of test entirely.
+        kind = 'testType'; values = [first.testType, def.testType];
+      } else if (limitsDisagree(first, def)) {
+        kind = 'limits';
+        values = [limitText(first), limitText(def)];
+      }
+      if (kind && values) {
+        // Accumulate rather than report-and-stop: a third file may disagree
+        // differently again, and the reader needs all of it.
+        let entry = statedByTest.get(key);
+        if (!entry) {
+          entry = { kind, seen: new Map() };
+          entry.seen.set(compareKey(kind, values[0]), { value: values[0], fileName: owner[key] });
+          statedByTest.set(key, entry);
+        }
+        // A name disagreement outranks a limits one for the same number: it says
+        // the measurements differ, not merely their spec.
+        if (entry.kind === 'limits' && kind !== 'limits') entry.kind = kind;
+        const ck = compareKey(kind, values[1]);
+        if (!entry.seen.has(ck)) entry.seen.set(ck, { value: values[1], fileName: file.fileName });
+      }
+      // Backfill only — a later file may state a limit or unit the first left
+      // absent, which is a union, not an override.
+      if (!first.name && bName) first.name = def.name;
+      if (first.units === undefined && def.units !== undefined) first.units = def.units;
+      if (first.loLimit === undefined && def.loLimit !== undefined) first.loLimit = def.loLimit;
+      if (first.hiLimit === undefined && def.hiLimit !== undefined) first.hiLimit = def.hiLimit;
+    }
+  }
+  const collisions: TestDefCollision[] = [...statedByTest.entries()].map(([testNumber, e]) => ({
+    testNumber, kind: e.kind, stated: [...e.seen.values()],
+  }));
+  return { defs, collisions };
+}
+
+/** Names compare case-insensitively (TEST_TXT case drifts); everything else
+ *  exactly. Mirrors the comparison used to detect the disagreement. */
+function compareKey(kind: TestDefCollision['kind'], value: string): string {
+  return kind === 'name' ? value.trim().toLowerCase() : value;
+}
+
+/** Relative tolerance, never `===` — the same nominal limit can arrive as a
+ *  float32 STDF LO_LIMIT and a float64 CSV column, and the two differ in the
+ *  last bits. Mirrors wmap `mergeTestDefs`'s tolerance for the same reason. */
+function sameLimit(a: number | undefined, b: number | undefined): boolean {
+  if (a === undefined || b === undefined) return true;   // absent is not a disagreement
+  if (a === b) return true;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  return Math.abs(a - b) <= 1e-6 * Math.max(Math.abs(a), Math.abs(b));
+}
+
+function limitsDisagree(a: TestDef, b: TestDef): boolean {
+  return !sameLimit(a.loLimit, b.loLimit) || !sameLimit(a.hiLimit, b.hiLimit);
+}
+
+function limitText(d: TestDef): string {
+  const lo = d.loLimit === undefined ? '' : String(d.loLimit);
+  const hi = d.hiLimit === undefined ? '' : String(d.hiLimit);
+  return `${lo}-${hi}${d.units ? ' ' + d.units : ''}`;
+}
+
 /** Unions pass-hard-bin lists across multiple parsed files, deduped and sorted. */
 export function mergePassHbins(lists: Array<number[] | undefined>): number[] | undefined {
   const set = new Set<number>();

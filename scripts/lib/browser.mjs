@@ -6,8 +6,8 @@
 import { chromium } from 'playwright';
 
 /**
- * CHROME_PATH: fall back to a system Chrome when Playwright's bundled
- * Chromium isn't installed/supported (e.g. CHROME_PATH=/usr/bin/google-chrome).
+ * CHROME_PATH: force a specific browser binary (e.g. /usr/bin/google-chrome).
+ * Rarely needed — see the automatic fallback below.
  * HEADED=1: launch with a visible window (needs a real display — DISPLAY
  * must be set) instead of headless, so a human can watch the run happen.
  * SLOWMO: extra ms Playwright pauses before each action — only meaningful
@@ -17,11 +17,35 @@ import { chromium } from 'playwright';
 export async function launchBrowser() {
   const headed = process.env.HEADED === '1';
   const slowMo = process.env.SLOWMO !== undefined ? Number(process.env.SLOWMO) : (headed ? 250 : 0);
-  return chromium.launch({
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
-    headless: !headed,
-    slowMo,
-  });
+  const opts = { headless: !headed, slowMo };
+
+  if (process.env.CHROME_PATH) {
+    return chromium.launch({ ...opts, executablePath: process.env.CHROME_PATH });
+  }
+
+  // Fall back to the system Chrome when Playwright's own Chromium isn't there.
+  // This machine is one where it never will be: `npx playwright install
+  // chromium` refuses outright ("Playwright does not support chromium on
+  // ubuntu26.04-x64"), so the bundled browser is not a thing that can be
+  // installed and waiting for it is not a plan. Chrome itself is installed.
+  //
+  // Without this the failure is a wall of Playwright's "Please run the
+  // following command to download new browsers" banner — advice that cannot
+  // work here — and every screenshot run dead-ends until someone remembers to
+  // set CHROME_PATH by hand. `../wafermap` has had the same fallback for a
+  // while, which is the only reason its capture runs and this one did not.
+  try {
+    return await chromium.launch(opts);
+  } catch (err) {
+    try {
+      return await chromium.launch({ ...opts, channel: 'chrome' });
+    } catch {
+      // Report the ORIGINAL failure: if the system Chrome is missing too, the
+      // useful fact is why the normal path failed, not that a fallback also
+      // failed.
+      throw err;
+    }
+  }
 }
 
 /**

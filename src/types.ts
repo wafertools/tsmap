@@ -82,6 +82,25 @@ export interface WaferSource {
   fields: MetaField[];
 }
 
+/**
+ * Everything one loaded FILE says about its own tests and bins, kept together
+ * and carried per wafer rather than merged into one lot-wide set.
+ *
+ * Both halves are file-scoped facts that were being treated as lot-wide ones. A
+ * test number identifies a test within one test program, and a hard bin's
+ * pass/fail verdict is whatever the file that produced those dies said — merging
+ * either across files meant one file's definition silently governing another
+ * file's wafers. Shared by reference across a file's wafers, exactly as
+ * `WaferSource` is.
+ */
+export interface FileDefs {
+  testDefs: Record<string, TestDef>;
+  /** This file's own pass hard bins. Absent means the file states nothing, in
+   *  which case the caller supplies the lot-wide union — never wmap's `[1]`
+   *  default, which would reclassify the file's dies. */
+  passHbins?: number[];
+}
+
 export interface ParsedFile {
   fileName: string;
   meta: LotMeta;

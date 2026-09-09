@@ -36,6 +36,13 @@ const REPO = dirname(dirname(SELF));
 const PAIR_ROOT = dirname(REPO);
 const WAFERMAP = join(PAIR_ROOT, 'wafermap');
 const TSMAP = join(PAIR_ROOT, 'tsmap');
+// The two PUBLIC-FACING repos, added later than the pair above. They carry no
+// code and no CI of their own worth speaking of, which is exactly why they
+// drifted: nothing has ever checked them, and between them they are the first
+// thing anyone sees — github.com/wafertools renders `.github/profile/README.md`,
+// and wafertools.github.io renders the site repo's docs/index.md.
+const DOTGITHUB = join(PAIR_ROOT, '.github');
+const SITE = join(PAIR_ROOT, 'wafertools.github.io');
 
 const quiet = process.argv.includes('--quiet');
 const problems = [];
@@ -269,6 +276,56 @@ function checkSelfCopies() {
   }
 }
 
+// ─── 7. The two public-facing repos ──────────────────────────────────────────
+//
+// Deliberately SKIPPED rather than failed when absent: CI clones one repo at a
+// time, so a check that hard-failed on a missing sibling would break every build
+// that isn't a local four-repo checkout. A note says which were skipped, so a
+// green run never silently means "checked nothing".
+function checkPublicRepos() {
+  const surfaces = [
+    { name: '.github', root: DOTGITHUB, files: ['profile/README.md', 'README.md'] },
+    { name: 'wafertools.github.io', root: SITE, files: ['docs/index.md'] },
+  ];
+
+  for (const { name, root, files } of surfaces) {
+    if (!existsSync(root)) { note(`${name} not present — skipped (clone it beside the pair to check it)`); continue; }
+
+    for (const rel of files) {
+      const path = join(root, rel);
+      const text = read(path);
+      if (text === null) {
+        fail('public', `${name}/${rel} is missing`,
+          `it is a landing surface — ${rel.includes('profile') ? 'github.com/wafertools renders it' : 'it is what visitors read first'}`);
+        continue;
+      }
+
+      // Both projects must be reachable from every landing surface. There is no
+      // funnel here: people arrive at the org page, either project's site, or
+      // any README, so each one has to route on its own rather than assume the
+      // reader came via somewhere that already did.
+      for (const project of ['wafermap', 'tsmap']) {
+        if (!text.includes(project)) {
+          fail('public', `${name}/${rel} never mentions ${project}`,
+            `every landing surface routes to both projects — a visitor may arrive here first`);
+        }
+      }
+
+      // Relative links that resolve to nothing. This is the bug class that
+      // actually happens on these pages: a link to a doc that was renamed, or
+      // to a section promised but never written.
+      for (const m of text.matchAll(/\]\(([^)#:]+?)(?:#[^)]*)?\)/g)) {
+        const target = m[1].trim();
+        if (!target || target.startsWith('http') || target.startsWith('mailto:')) continue;
+        if (!existsSync(join(dirname(path), target))) {
+          fail('public', `${name}/${rel} links to ${target}, which does not exist`,
+            `fix the path or write the target`);
+        }
+      }
+    }
+  }
+}
+
 // ─── run ─────────────────────────────────────────────────────────────────────
 checkStalePaths();
 checkZensical();
@@ -276,6 +333,7 @@ checkMcp();
 checkAgents();
 checkSharedDeps();
 checkHandshake();
+checkPublicRepos();
 checkSelfCopies();
 
 if (notes.length && !quiet) {
@@ -283,7 +341,7 @@ if (notes.length && !quiet) {
 }
 
 if (problems.length === 0) {
-  if (!quiet) console.log('✓ no drift between wafermap and tsmap');
+  if (!quiet) console.log('✓ no drift across the wafertools repos');
   process.exit(0);
 }
 

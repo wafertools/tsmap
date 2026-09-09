@@ -25,8 +25,17 @@ export interface AnchoredMenuOptions {
   fontSize?: string;
   /** Lay the box out as a vertical stack of rows. Default false (plain block flow). */
   stack?: boolean;
-  /** Called after the menu is torn down — used by callers to clear their own "is open" handle. */
-  onClose?: () => void;
+  /**
+   * Called after the menu is torn down — used by callers to clear their own
+   * "is open" handle, and to COMMIT pending edits.
+   *
+   * `reason` distinguishes the dismissals, because they do not mean the same
+   * thing: clicking away from a picker means "I'm done", Escape means "forget
+   * it". A menu whose edits apply only on its own OK button silently threw
+   * work away on every other exit — the column picker and the per-column value
+   * filter both did, and it read as the filter simply not working.
+   */
+  onClose?: (reason: 'escape' | 'dismiss') => void;
 }
 
 /**
@@ -85,17 +94,22 @@ export function openAnchoredMenu(
     if (e.key !== 'Escape') return;
     e.stopPropagation();
     e.preventDefault();
-    close();
+    close('escape');
   }
 
-  function close() {
+  // Window events hand their Event as the first argument, which would land in
+  // `reason` — bound explicitly so they close as an ordinary dismissal, and
+  // named so add/removeEventListener still see the same function object.
+  const closeDismiss = () => close('dismiss');
+
+  function close(reason: 'escape' | 'dismiss' = 'dismiss') {
     popup.remove();
     document.removeEventListener('pointerdown', onOutside, true);
     document.removeEventListener('keydown', onKey, true);
     document.removeEventListener('click', swallowNextClick, true);
-    window.removeEventListener('blur', close);
-    window.removeEventListener('resize', close);
-    options.onClose?.();
+    window.removeEventListener('blur', closeDismiss);
+    window.removeEventListener('resize', closeDismiss);
+    options.onClose?.(reason);
   }
 
   fill(popup, close);
@@ -116,8 +130,8 @@ export function openAnchoredMenu(
 
   document.addEventListener('pointerdown', onOutside, true);
   document.addEventListener('keydown', onKey, true);
-  window.addEventListener('blur', close);
-  window.addEventListener('resize', close);
+  window.addEventListener('blur', closeDismiss);
+  window.addEventListener('resize', closeDismiss);
 
   return close;
 }

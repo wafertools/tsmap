@@ -1,6 +1,6 @@
 // UI for multi-file loading: rename step + append confirmation with mismatch warnings.
 
-import type { ParsedFile, WaferData, WaferSource } from './types';
+import type { FileDefs, ParsedFile, WaferData, WaferSource } from './types';
 import { makeWaferSource, escapeHtml as esc } from './lib';
 import { openModal } from './modal';
 import { hasPosition } from '@wafertools/wafermap';
@@ -27,6 +27,20 @@ export interface RenamedWafer {
    * reference (see `makeWaferSource`/stamping in main.ts).
    */
   source?: WaferSource;
+  /**
+   * This wafer's OWN file's tests and pass bins, shared by reference across
+   * that file's wafers exactly as `source` is.
+   *
+   * Carried per wafer rather than merged into one lot-wide set because both are
+   * file-scoped: a test number identifies a test *within a test program*, and a
+   * hard bin's pass/fail verdict belongs to the file that produced those dies.
+   * Flattening the files' test lists with `Object.assign` silently kept
+   * whichever loaded last — so a 0-5 nA leakage test could be plotted,
+   * normalised and capability-scored against a 260-380 mV threshold's limits —
+   * and unioning their pass bins made a bin that one file counts as a fail count
+   * as a pass lot-wide, moving every yield figure.
+   */
+  fileDefs?: FileDefs;
 }
 
 export interface RenameRow {
@@ -34,6 +48,9 @@ export interface RenameRow {
   fileLabel: string;
   wafer: WaferData;
   source: WaferSource;
+  /** The entry's own tests and pass bins — one object per entry, shared by
+   *  reference across its rows, the same guarantee `source` carries. */
+  fileDefs: FileDefs;
 }
 
 /**
@@ -46,10 +63,11 @@ export function buildRenameRows(entries: FileWaferEntry[]): RenameRow[] {
   const rows: RenameRow[] = [];
   for (const entry of entries) {
     const source = makeWaferSource(entry.parsed.meta, entry.fileName);
+    const fileDefs: FileDefs = { testDefs: entry.parsed.testDefs, passHbins: entry.parsed.passHbins };
     const lotId = entry.parsed.meta.fields.find(f => f.key === 'lotId')?.value;
     for (const wafer of entry.parsed.wafers) {
       const defaultId = resolveWaferId(wafer.waferId, entry.fileName, lotId);
-      rows.push({ defaultId, fileLabel: entry.fileName, wafer, source });
+      rows.push({ defaultId, fileLabel: entry.fileName, wafer, source, fileDefs });
     }
   }
   return rows;
@@ -115,6 +133,7 @@ export function showRenameOverlay(
       failCount: row.wafer.failCount,
       fields: row.wafer.fields,
       source: row.source,
+      fileDefs: row.fileDefs,
     }));
     closeOverlay();
     onConfirm(renamed);

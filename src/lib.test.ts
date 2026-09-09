@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { basename, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
-import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferSource } from './types';
+import { basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
+import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
 
@@ -700,5 +700,211 @@ describe('mergePassHbins', () => {
 
   it('unions and dedupes across files, sorted', () => {
     expect(mergePassHbins([[3], [1, 3], undefined])).toEqual([1, 3]);
+  });
+});
+
+// ── unionTestDefs (cross-file test-number reconciliation) ────────────────────
+// A test number identifies a test WITHIN a test program. Across files it does
+// not, so the old `Object.assign` merge (last-wins) could hand every wafer a
+// definition from a different program. See WMAP_ISSUES.md #50.
+describe('unionTestDefs', () => {
+  const def = (over: Partial<TestDef> = {}): TestDef =>
+    ({ name: 'vth_n_mV', testType: 'P', units: 'mV', loLimit: 260, hiLimit: 380, ...over });
+  const file = (fileName: string, defs: Record<string, TestDef>) => ({ fileName, testDefs: defs });
+
+  it('merges a file with limits and one without, silently', () => {
+    const { defs, collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def() }),
+      file('b.stdf', { 1001: def({ loLimit: undefined, hiLimit: undefined }) }),
+    ]);
+    expect(collisions).toEqual([]);
+    expect(defs[1001].loLimit).toBe(260);
+    expect(defs[1001].hiLimit).toBe(380);
+  });
+
+  it('backfills a limit stated only by the later file', () => {
+    const { defs, collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ loLimit: undefined, hiLimit: undefined }) }),
+      file('b.stdf', { 1001: def() }),
+    ]);
+    expect(collisions).toEqual([]);
+    expect(defs[1001].loLimit).toBe(260);
+  });
+
+  it('reports a name disagreement and names both files', () => {
+    const { collisions } = unionTestDefs([
+      file('corner.stdf', { 1001: def() }),
+      file('coordless.stdf', { 1001: def({ name: 'leakage_nA', units: 'nA', loLimit: 0, hiLimit: 5 }) }),
+    ]);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].kind).toBe('name');
+    expect(collisions[0].stated).toEqual([
+      { value: 'vth_n_mV', fileName: 'corner.stdf' },
+      { value: 'leakage_nA', fileName: 'coordless.stdf' },
+    ]);
+  });
+
+  it('treats a unit disagreement as a collision — SI prefixes carry magnitude', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ units: 'mV' }) }),
+      file('b.stdf', { 1001: def({ units: 'MV' }) }),
+    ]);
+    expect(collisions[0].kind).toBe('units');
+  });
+
+  it('tolerates name case and padding drift', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ name: 'vth_n_mV' }) }),
+      file('b.stdf', { 1001: def({ name: '  VTH_N_MV ' }) }),
+    ]);
+    expect(collisions).toEqual([]);
+  });
+
+  it('reports a limits disagreement separately from a name one', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ hiLimit: 380 }) }),
+      file('b.stdf', { 1001: def({ hiLimit: 400 }) }),
+    ]);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].kind).toBe('limits');
+  });
+
+  it('does not treat float32/float64 representation noise as a disagreement', () => {
+    const asFloat32 = Math.fround(380.1);
+    expect(asFloat32).not.toBe(380.1);
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ hiLimit: 380.1 }) }),
+      file('b.stdf', { 1001: def({ hiLimit: asFloat32 }) }),
+    ]);
+    expect(collisions).toEqual([]);
+  });
+
+  it('reports a parametric/functional disagreement', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ testType: 'P' }) }),
+      file('b.stdf', { 1001: def({ testType: 'F' }) }),
+    ]);
+    expect(collisions[0].kind).toBe('testType');
+  });
+
+  it('unions test numbers across files rather than taking one file\'s list', () => {
+    const { defs } = unionTestDefs([
+      file('a.stdf', { 1001: def() }),
+      file('b.stdf', { 1002: def({ name: 'idsat' }), 1003: def({ name: 'ioff' }) }),
+    ]);
+    expect(Object.keys(defs).sort()).toEqual(['1001', '1002', '1003']);
+  });
+
+  it('is first-wins, and never mutates a file\'s own defs', () => {
+    const a = { 1001: def() };
+    const b = { 1001: def({ name: 'other', loLimit: undefined, hiLimit: undefined }) };
+    const { defs } = unionTestDefs([file('a.stdf', a), file('b.stdf', b)]);
+    expect(defs[1001].name).toBe('vth_n_mV');
+    expect(b[1001].loLimit).toBeUndefined();   // the union's backfill stayed in the union
+    expect(a[1001].name).toBe('vth_n_mV');
+  });
+
+  it('reports each colliding test once, but names EVERY definition of it', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def() }),
+      file('b.stdf', { 1001: def({ name: 'x' }) }),
+      file('c.stdf', { 1001: def({ name: 'y' }) }),
+    ]);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0].stated.map(v => `${v.fileName}:${v.value}`)).toEqual([
+      'a.stdf:vth_n_mV', 'b.stdf:x', 'c.stdf:y',
+    ]);
+  });
+
+  it('does not list a later file that restates a definition already named', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ name: 'leakage' }) }),
+      file('b.stdf', { 1001: def({ name: 'vth_n_mV' }) }),
+      file('c.stdf', { 1001: def({ name: 'LEAKAGE' }) }),
+    ]);
+    expect(collisions[0].stated).toHaveLength(2);
+  });
+
+  it('a name disagreement outranks a limits one on the same test number', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ hiLimit: 380 }) }),
+      file('b.stdf', { 1001: def({ hiLimit: 400 }) }),
+      file('c.stdf', { 1001: def({ name: 'something_else' }) }),
+    ]);
+    expect(collisions[0].kind).toBe('name');
+  });
+});
+
+// ── unionBinInfo (cross-file pass-bin reconciliation) ───────────────────────
+// A hard bin's pass/fail verdict belongs to the file that produced the dies.
+// Unioning it across files makes a bin one file counts as a fail count as a
+// pass lot-wide, moving every yield figure. See WMAP_ISSUES.md #50.
+describe('unionBinInfo', () => {
+  const wafer = (hbins: number[]): WaferData => ({
+    waferId: 'W1',
+    results: hbins.map((hbin, i) => ({ x: i, y: 0, hbin })),
+  });
+  const file = (
+    fileName: string, hbins: number[], passHbins?: number[], hbinDefs?: { bin: number; name: string }[],
+  ) => ({ fileName, wafers: [wafer(hbins)], passHbins, hbinDefs });
+
+  it('flags a bin that is pass in one file and fail in another', () => {
+    const { collisions } = unionBinInfo([
+      file('a.stdf', [1, 5], [1, 5]),
+      file('b.stdf', [1, 5], [1]),
+    ]);
+    expect(collisions).toEqual([{ bin: 5, files: ['a.stdf', 'b.stdf'] }]);
+  });
+
+  it('does not flag a bin the other file has never seen', () => {
+    const { collisions } = unionBinInfo([
+      file('a.stdf', [1, 5], [1, 5]),
+      file('b.stdf', [1], [1]),
+    ]);
+    expect(collisions).toEqual([]);
+  });
+
+  it('does not flag a file that states no pass bins at all', () => {
+    // Absent is not an assertion. (What such a file then USES is
+    // `passBinsForWafer`'s business in main.ts — it inherits the union rather
+    // than falling back to wmap's [1], which would reclassify every bin-5 die.)
+    const { collisions } = unionBinInfo([
+      file('a.stdf', [1, 5], [1, 5]),
+      file('b.stdf', [1, 5], undefined),
+    ]);
+    expect(collisions).toEqual([]);
+  });
+
+  it('still reports the union for the lot-level surfaces that need one', () => {
+    const { passHbins } = unionBinInfo([
+      file('a.stdf', [1, 5], [1, 5]),
+      file('b.stdf', [1, 5], [1]),
+    ]);
+    expect(passHbins).toEqual([1, 5]);
+  });
+
+  it('sees a bin a file named but never produced a die for', () => {
+    const { collisions } = unionBinInfo([
+      file('a.stdf', [1], [1, 5]),
+      file('b.stdf', [1], [1], [{ bin: 5, name: 'Leakage Fail' }]),
+    ]);
+    expect(collisions).toEqual([{ bin: 5, files: ['a.stdf', 'b.stdf'] }]);
+  });
+
+  it('reports each disagreeing bin once, however many files disagree', () => {
+    const { collisions } = unionBinInfo([
+      file('a.stdf', [1, 5], [1, 5]),
+      file('b.stdf', [1, 5], [1]),
+      file('c.stdf', [1, 5], [1]),
+    ]);
+    expect(collisions).toHaveLength(1);
+  });
+
+  it('is silent for the ordinary case where every file agrees', () => {
+    const { collisions } = unionBinInfo([
+      file('a.stdf', [1, 2], [1]),
+      file('b.stdf', [1, 2], [1]),
+    ]);
+    expect(collisions).toEqual([]);
   });
 });

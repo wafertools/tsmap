@@ -8,15 +8,17 @@ At some point these will be converted into an implementation plan for wmap.
 | Field | Value |
 |-------|-------|
 | wmap package | **Renamed** from `@paulrobins/wafermap` to `@wafertools/wafermap` (2026-08-01), scope move only — no functional change. |
-| wmap version in use | **0.26.1** — published to npm and adopted (2026-08-28): `npm run wmap:unlink` restored the published package, `package.json`/`package-lock.json` now pin `^0.26.1`. `npx tsc --noEmit`, full test suite (391 JS + 251 Rust), `check-wmap-published.js`, and `check-drift.mjs` all clean. |
-| Latest wmap release | **0.26.1** published to npm and tagged (`v0.26.1`) in wafermap's own repo, 2026-08-28, patch, no breaking changes. Fixes the guide window rendering with pale, near-illegible text on a plain white background in a dark host theme (`.wmap-guide` set `color` from the synced `--wmap-*` tokens but never a matching `background`) — the tsmap-side half of this same bug (the guide's own theming was hardcoded light regardless of host theme) is fixed in tsmap directly, see this repo's own `CHANGELOG.md` [0.1.32]. Also fixes `edgeExcluded` dies rendering almost invisibly against the default light data colour scheme (fill was lighter than "no data" and barely darker than the canvas background) — now a visibly darker, distinct grey. Full list in wafermap's own `CHANGELOG.md` [0.26.1]. |
-| Previous wmap release | **0.26.0** published to npm (2026-08-28), minor bump, breaking: the die-list's single `Position` column is now separate `X`/`Y` columns (tsmap doesn't render the die list's own columns directly — reached only via wmap's Summary panel/Lot ▾ UI — so no tsmap code change was needed for this). New: `openReportModal` (Summary/Lot report buttons now open in-page instead of `window.open`, no `setReportOpener` wiring needed — tsmap never registered one, so this is a pure UX upgrade with zero code change), `openWaferMapGuide`/`ICONS` newly exported from `/render`, a combined guide "Contents" nav (flat, unnumbered, column-flow so a host's own guide sections and wmap's don't collide as two separately-numbered "1., 2., 3." runs) plus a find-in-page search box for the in-page guide fallback (real popup windows get native Ctrl+F instead), new `Ring`/`Quadrant`/`Edge excluded` die-list columns (`getWafer`/`ringCount`, not currently passed by tsmap), `LotStatsSummary.mixedIdentityFields` (closes issue #30 below), a CSV export formula-injection guard, and a fix for edge exclusion silently misbehaving when it exceeds the resolved wafer radius (closes issue #42 below). Full list in wafermap's own `CHANGELOG.md` [0.26.0]. |
+| wmap version in use | **0.27.0** — published to npm and adopted (2026-09-09): `npm run wmap:unlink` restored the published package, `package.json`/`package-lock.json` now pin `^0.27.0`. `npm run verify` (tsc, lint, check:docs, 449 JS tests, cargo check, 258 Rust tests), `check-wmap-published.js` and `check-drift.mjs` all clean. |
+| Latest wmap release | **0.27.0** published to npm and tagged (`v0.27.0`) in wafermap's own repo, 2026-09-09, minor bump, **breaking**. The change that matters here: test definitions are reconciled **per wafer** (`mergeTestDefs`, new export) instead of one wafer's defs being applied to the whole population — the wmap half of issue #50 below, without which a multi-file load plots wafers against another file's spec limits. Also: geometry advisories reworked (`inferred-pitch` removed, `non-standard-diameter` and `diameter-exceeds-die-extent` added, `standardDiameters`/`STANDARD_WAFER_DIAMETERS_MM` overridable), `FindingsNotice` (issue #48), themed Insights pickers replacing native `<select>` (#43, #45), `inferred-pitch` severity (#44), the cached-viewport highlight offset (#46), truncated colorbar tick labels (#47), a per-test pass-rate chart and a wafer-to-wafer trend chart, and three new sizing tokens (`--wmap-font-size`, `--wmap-density`, `--wmap-font-family`). **Breaking:** `AnalyzeWaferMapOptions.significanceLevel`/`.minimumEffectSize`/`.minimumRelativeEffect` removed (internal constants now), `RenderOptions` no longer extends `ToCanvasOptions` (five accepted-but-ignored options removed), `showMetadataBadge` → `showIdentity`, `setMetadataBadgeVisible` → `setIdentityVisible`, `HoverTextOptions.waferMeta` removed, `--wmap-bar-fill-muted` removed. tsmap used none of the removed surface. Full list in wafermap's own `CHANGELOG.md` [0.27.0]. |
+| Previous wmap release | **0.26.1** published to npm and tagged (`v0.26.1`) in wafermap's own repo, 2026-08-28, patch, no breaking changes. Fixes the guide window rendering with pale, near-illegible text on a plain white background in a dark host theme (`.wmap-guide` set `color` from the synced `--wmap-*` tokens but never a matching `background`) — the tsmap-side half of this same bug (the guide's own theming was hardcoded light regardless of host theme) is fixed in tsmap directly, see this repo's own `CHANGELOG.md` [0.1.32]. Also fixes `edgeExcluded` dies rendering almost invisibly against the default light data colour scheme (fill was lighter than "no data" and barely darker than the canvas background) — now a visibly darker, distinct grey. Full list in wafermap's own `CHANGELOG.md` [0.26.1]. |
+| Earlier wmap release | **0.26.0** published to npm (2026-08-28), minor bump, breaking: the die-list's single `Position` column is now separate `X`/`Y` columns (tsmap doesn't render the die list's own columns directly — reached only via wmap's Summary panel/Lot ▾ UI — so no tsmap code change was needed for this). New: `openReportModal` (Summary/Lot report buttons now open in-page instead of `window.open`, no `setReportOpener` wiring needed — tsmap never registered one, so this is a pure UX upgrade with zero code change), `openWaferMapGuide`/`ICONS` newly exported from `/render`, a combined guide "Contents" nav (flat, unnumbered, column-flow so a host's own guide sections and wmap's don't collide as two separately-numbered "1., 2., 3." runs) plus a find-in-page search box for the in-page guide fallback (real popup windows get native Ctrl+F instead), new `Ring`/`Quadrant`/`Edge excluded` die-list columns (`getWafer`/`ringCount`, not currently passed by tsmap), `LotStatsSummary.mixedIdentityFields` (closes issue #30 below), a CSV export formula-injection guard, and a fix for edge exclusion silently misbehaving when it exceeds the resolved wafer radius (closes issue #42 below). Full list in wafermap's own `CHANGELOG.md` [0.26.0]. |
 | Earlier wmap release | **0.25.0** published to npm (2026-08-25), minor bump (no breaking changes — chosen for a release with this much new surface, not required by the versioning policy). New additive options: `WaferViewOptions.showLegend` (hide the legend/colorbar; default `true`), `WaferViewOptions.markFailingDies`/`ToCanvasOptions.markFailingDies` (diagonal hatch on failing-bin dies — a non-colour pass/fail channel; default `false`), `GalleryOptions.perCardLegend` (opt back into per-card legends; default `false`), `ViewOptions.passBins`/`ViewRect.binFail` (which bins count as passing — never derived from the bin number, any bin including bin 1 can be a fail bin). Also: two sequential z-index regressions in the gallery (per-card toolbars floating above the gallery's own sticky toolbar, then the sticky legend obscuring its own dropdowns) fixed generically — the card grid now contains its own stacking context (`isolation: isolate`) and every toolbar/chart dropdown renders into one shared elevated layer (`menuLayerFor`) — relevant here since tsmap's own `zIndex: WAFER_MODAL_OVERLAY_Z` render option composes with this unchanged (the whole `--wmap-z` scale still shifts together, confirmed in wmap's own docs/api.md update); a value-mode gallery with spec-ranged limits no longer silently loses its colorbar; the gallery's "Wafers" tab (lists only wafers with findings, not every wafer) renamed to "Findings" — checked against tsmap's own capture scripts, nothing there references the old label; map/legend titles no longer render near-black on dark themes; the floating legend no longer covers the whole card on small gallery sizes; the correlation chart's r-value label (previously dead code — its cell was structurally smaller than its own minimum) now actually renders; the capability chart's axis labels adapt to tests with no spec limits instead of assuming every test has them. Full list in wafermap's own `CHANGELOG.md` [0.25.0]. `npx tsc --noEmit`, full Vitest suite (319 passing), and `node scripts/check-wmap-published.js` all clean after the bump — no tsmap code changes needed, every change is additive with a default matching prior behaviour. No open issue in this file was resolved by 0.25.0 — none of it originated from a logged tsmap-side gap; it came from an independent wmap UX review plus a fix to wmap's own demo pages (`docs/examples/*.html`), which don't affect tsmap. |
 | Earlier wmap release | **0.24.3** published to npm (2026-08-25). Fixes the die-list modal's font and padding rendering incorrectly when opened from a wafer detached into its own popup window (`dieList.ts` injected its stylesheet and built elements via the bare global `document` rather than the anchor's own document — correct in-page, wrong once the modal legitimately landed in a different document), the toolbar's "Data warnings" popup mispositioning in that same detached-popup case (`buildWarningsMenuEl`'s `ownerWindow` param existed but neither call site passed it), and a matching fix for the in-app user guide window (`openUserGuideWindow`/`openGuideInFloatingWindow`). Also normalized the shared toolbar/menu primitives (`buildCheckMenuEl`, `makeDropdown`, `makeSearchableTestCombo`, `summaryPanel.ts`'s internal `el()`) to the same doc-aware pattern, and added a build-time check (`check-overlay-conventions.mjs`) that fails on a new `openModal`/`openFloatingWindow` call missing `anchor`, or a new bare `document.head.appendChild`. No breaking changes. **0.24.0** (minor, breaking): metadata now reaches the die-list table and its CSV export (issue #41 — `DieListOptions.metadataColumns`/`waferMetadataColumns`, `RenderOptions.dieList`, new `metadataDisplayValue`/`metadataCategoricalValue`/`resolveMetadataColumns`/`discoverDieMetadataKeys` exports), a new "View die list" link on the Summary panel (on by default, `renderWaferMap`/`renderWaferGallery`), and wafer identity on the two per-test CSVs. **Breaking:** `buildDieListSection`/`RenderOptions.dieList` now caps rendered rows at `maxRows` (default `50_000`) — CSV export is never capped. tsmap sets no `dieList` options and populates no `Die.metadata`, so this adopted with no code change; `npm run check` + `npm test` (319 passing) both clean after the bump. **0.24.1**: fixed the die-list modal opening behind a host's own `<dialog>`, and the report popup being blocked as an ad (`window.open` + Blob URL instead of `document.write`). **0.24.2**: fixed the die-list modal's vertical scrollbar being pushed off-screen by `min-width: auto` on a wide table. |
 | Earlier wmap releases | **0.23.1** published to npm (2026-08-18), together with 0.23.0: support for dies/wafers with no reported X/Y position (issue #39), `renderWaferMap` accepting a `RenderableWaferMap`, a fix for the degenerate-axis pitch bug (issue #40), and stable `data-wmap-*` DOM hooks on the Insights tab (issue #36). **Breaking (0.23.0):** `Die.x`/`y`/`physX`/`physY` are now optional, not `number`. **0.22.0**: the library surfaces its own data warnings — a ⚠ toolbar indicator plus a Summary-panel banner. **Breaking:** `StatsSummary.stats.warnings` is now `WaferWarning[]`, not `string[]` — tsmap never read that field, so it was unaffected. **0.21.1**: `maxSize` render option, gallery card-size fixes. **0.21.0** (breaking): removed long-deprecated aliases (`DieResult.values`/`Die.values`, `TestDef.index`, `colorBySpec`, etc.) — tsmap used none. **0.20.9**: fixed phantom "partial" dies at wafer edges (the edge-die yield fix). Full history in the update log below. Check [github.com/wafertools/wafermap/releases](https://github.com/wafertools/wafermap/releases) |
 | testdata-parser package | **Renamed** from `@paulrobins/testdata-parser` to `@wafertools/testdata-parser` (2026-08-01), scope move only — no functional change. |
 | testdata-parser version | **0.9.0** — published to npm and adopted (2026-08-28, bumped from **0.8.0**): WCR/HBR/SBR parsing added to both STDF and ATDF (bin definitions, wafer geometry). `npm run parser:unlink` restored the published package, `package.json`/`package-lock.json` pin `^0.9.0`. **Note:** this row previously said 0.5.0 (issue #34's fix version) — stale; the crate was already at 0.8.0 immediately before this bump (confirmed via `git diff` on `package.json`), an intermediate 0.6.0–0.8.0 history this table never recorded. |
-| Last updated | 2026-08-28 (wmap bumped **0.26.0 → 0.26.1** in tsmap, fixing a dark-theme guide bug found immediately after the 0.26.0/testdata-parser 0.9.0 batch shipped — see WMAP_ISSUES.md's "Latest wmap release" row and tsmap's own `CHANGELOG.md [0.1.32]` for the full story: the guide read as broken in Nord/Dark/Solarized Dark, root-caused to a hardcoded light-theme block in tsmap's own `build-user-guide.mjs` (removed) plus a missing `background` on wmap's own guide chrome (added). Also fixes `edgeExcluded` die fill visibility. Published, unlinked, `package.json`/`package-lock.json` pin `^0.26.1`. `npm run verify` (tsc, lint, check:docs, 391 JS tests, cargo check, 251 Rust tests), `check-wmap-published.js`, `check-testdata-parser-published.js`, and `check-drift.mjs` all clean.) |
+| Last updated | 2026-09-09 (wmap bumped **0.26.1 → 0.27.0** in tsmap, alongside this repo's own batch — the per-wafer test-definition reconciliation this release exists for. tsmap already consumed the new API (`FindingsNotice`, `mergeTestDefs`) while linked, so unlinking before the publish briefly broke the build with three `TS2305`/`TS2353` errors — a reminder that the publish must land before the unlink, not after. Published, unlinked, pinned `^0.27.0`. Issues #43, #44, #45, #46, #47, #48, #49 and #50 closed by this bump — the largest single batch this table has recorded. See tsmap's own `CHANGELOG.md` [0.1.33] for the tsmap-side half.) |
+| Previous update | 2026-08-28 (wmap bumped **0.26.0 → 0.26.1** in tsmap, fixing a dark-theme guide bug found immediately after the 0.26.0/testdata-parser 0.9.0 batch shipped — see WMAP_ISSUES.md's "Latest wmap release" row and tsmap's own `CHANGELOG.md [0.1.32]` for the full story: the guide read as broken in Nord/Dark/Solarized Dark, root-caused to a hardcoded light-theme block in tsmap's own `build-user-guide.mjs` (removed) plus a missing `background` on wmap's own guide chrome (added). Also fixes `edgeExcluded` die fill visibility. Published, unlinked, `package.json`/`package-lock.json` pin `^0.26.1`. `npm run verify` (tsc, lint, check:docs, 391 JS tests, cargo check, 251 Rust tests), `check-wmap-published.js`, `check-testdata-parser-published.js`, and `check-drift.mjs` all clean.) |
 | Previous update | 2026-08-28 (wmap bumped **0.25.0 → 0.26.0** and testdata-parser **0.8.0 → 0.9.0** in tsmap, alongside this repo's own batch — bin definitions, wafer diameter/edge-exclusion override, WCR/HBR/SBR parsing, the guide-consolidation reversal of issue #37 below (see tsmap's own `CHANGELOG.md [0.1.31]` for the tsmap-side detail). Both published to npm, unlinked, `package.json`/`package-lock.json` pin `^0.26.0`/`^0.9.0`. `npm run verify` (tsc, lint, check:docs, 391 JS tests, cargo check, 251 Rust tests), `check-wmap-published.js`, `check-testdata-parser-published.js`, and `check-drift.mjs` all clean. Issues #30 and #42 closed by the wmap bump. See "Latest wmap release" above for the full wmap summary.) |
 | Previous update | 2026-08-25 (wmap bumped **0.24.3 → 0.25.0** in tsmap: published to npm and unlinked, `package.json`/`package-lock.json` pin `^0.25.0`. `npx tsc --noEmit` clean, full Vitest suite (**319** tests) clean, `node scripts/check-wmap-published.js` clean, `node scripts/check-drift.mjs` clean. No tsmap code changes needed — every change in this release is additive with a default matching prior behaviour, and the one text change (gallery "Wafers" tab → "Findings") isn't referenced by any tsmap capture script. See the "Latest wmap release" row above for the full summary.) |
 | Previous update | 2026-08-18 (wmap bumped **0.23.0 → 0.23.1** in tsmap: published to npm and unlinked, `package.json`/`package-lock.json` pin `^0.23.1`. `npx tsc --noEmit` clean, full Vitest suite (**319** tests) clean, `eslint src/` clean, `node scripts/check-wmap-published.js` clean. No tsmap code changes needed for this bump — 0.23.1's own new surface (`data-wmap-*` hooks, the degenerate-axis pitch fix) needs no consumption to take effect; only `capture-screenshots.mjs` would need updating to actually *use* the new hooks in place of its current heading-text selectors, not scoped for this pass. **This bump also retroactively closes a gap in this file**: the prior release (v0.1.27, commit `bbcdd5a`) had already pinned `^0.23.0` — adopting issue #39's coordinate-less-dies work and its breaking `Die.x` optional change — without this version-tracking table or issue #39/#40 ever being updated to say so. Both are corrected now: issue #39 and #40 are confirmed fixed and published (0.23.0 for #39, 0.23.1 for #40 and #36), struck through below.) |
@@ -596,7 +598,7 @@ This is a **narrower** fix than either suggestion below — it closes the bug fo
 
 **Suggested fix (still open, for `analyzeWaferLot` itself):** Actually verify agreement across `perWafer` before treating a field as lot identity — either (a) only include a key in `lotIdentity` when every wafer that has identity data agrees on its value (mixed values omit the key, matching the existing "fields with no value" omission behavior), and/or (b) surface a `lotSummary.mixedIdentityFields?: string[]` so a host can detect and warn/split without re-deriving it from raw wafer metadata itself.
 
-**Update (2026-08-27):** The suggested fix above is now implemented in `analyzeWaferLot.ts`/`stats/types.ts` — a mixed field is omitted from `lotSummary.lot` and named in a new `lotSummary.mixedIdentityFields: string[]`. Verified directly against a linked local build: two synthetic wafers with `metadata: {lot: 'LOT-A'}`/`{lot: 'LOT-B'}` produce `lot: undefined` and `mixedIdentityFields: ['lot']` instead of silently reporting `'LOT-A'`. **Still uncommitted in wafermap at the time of writing** (found via `wmap:link`, not yet published) — leave this entry open until it ships in a published version, then close per the usual convention.
+**Update (2026-08-27):** The suggested fix above is now implemented in `analyzeWaferLot.ts`/`stats/types.ts` — a mixed field is omitted from `lotSummary.lot` and named in a new `lotSummary.mixedIdentityFields: string[]`. Verified directly against a linked local build: two synthetic wafers with `metadata: {lot: 'LOT-A'}`/`{lot: 'LOT-B'}` produce `lot: undefined` and `mixedIdentityFields: ['lot']` instead of silently reporting `'LOT-A'`. **Published in wmap 0.27.0** (2026-09-09) — leave this entry open until it ships in a published version, then close per the usual convention.
 
 **Update (2026-08-28):** Published as wafermap **v0.26.0** and adopted here (see the Version tracking table above). Closed.
 
@@ -1111,7 +1113,7 @@ so an exclusion-exceeds-radius input degrades to "every die is excluded" — cor
 
 `get` returning `undefined` renders an empty cell, which is the documented behaviour. The limits are that it is one column, it is forced to the leading position, and the value arrives as `unknown` so the host casts or stringifies it itself.
 
-### 43. Insights tab's native `<select>` pickers (Group by, per-panel test/wafer selectors) ignore theming entirely on Linux WebKitGTK (fixed in wmap, not yet published)
+### 43. ~~Insights tab's native `<select>` pickers (Group by, per-panel test/wafer selectors) ignore theming entirely on Linux WebKitGTK~~ (fixed in wmap 0.27.0)
 
 **Where:** `makeTestSelect`, `makeWaferSelect`, `makeLabeledSelect` (`packages/canvas-adapter/charts/chartShell.ts`) — the "which test" picker (boxplot/histogram/scatter), the histogram wafer picker, and the Analysis tab's "Group by:" field selector plus every per-panel "Group: `<value>` ▾" dropdown.
 
@@ -1121,11 +1123,11 @@ so an exclusion-exceeds-radius input degrades to "every die is excluded" — cor
 
 **Known residual limitation, not fixed and not fixable via CSS:** the *open* option-list popup remains OS-native styled in every browser, not just WebKitGTK — no CSS reaches it in any engine. Confirmed acceptable in practice (visible only for the instant the menu is open).
 
-**Status: superseded and fully fixed, 2026-08-31 — not yet published.** The `appearance: none` fix above was only ever half of it (it reached the closed box, never the popup). All three pickers are now built by a new shared `makeListSelect` in `chartShell.ts` — a themed trigger button plus a popup `listbox`, generalised from the long-list combobox that already backed `makeTestSelect` past `MENU_SEARCH_THRESHOLD` — so the searchable and short-list paths became one implementation, and `styleNativeSelect` plus its hand-drawn arrow SVG are deleted. The "known residual limitation" below is therefore **gone**: there is no native option list left to be OS-styled. Verified in tsmap against the linked build — zero `<select>` elements remain in the Insights tab and the picker renders in the host's theme. Two consequences worth carrying forward: `makeWaferSelect` now returns `HTMLElement & { value: string }` rather than `HTMLSelectElement` (no public API change — none of the three builders is exported), and **any host driving these in automation must click the trigger and the option row rather than assigning `select.value` + dispatching `change`** — tsmap's own `scripts/lib/steps.mjs` `setInsightsGroupBy` was updated in the same pass, and `data-wmap-select` still marks the same control, now on the trigger button. See also issue #45 below: this is the wmap half of a cross-repo convergence, and the rule it now follows lives in `UI_STANDARDS.md`.
+**Status: superseded and fully fixed, 2026-08-31 — published in wmap 0.27.0 (2026-09-09).** The `appearance: none` fix above was only ever half of it (it reached the closed box, never the popup). All three pickers are now built by a new shared `makeListSelect` in `chartShell.ts` — a themed trigger button plus a popup `listbox`, generalised from the long-list combobox that already backed `makeTestSelect` past `MENU_SEARCH_THRESHOLD` — so the searchable and short-list paths became one implementation, and `styleNativeSelect` plus its hand-drawn arrow SVG are deleted. The "known residual limitation" below is therefore **gone**: there is no native option list left to be OS-styled. Verified in tsmap against the linked build — zero `<select>` elements remain in the Insights tab and the picker renders in the host's theme. Two consequences worth carrying forward: `makeWaferSelect` now returns `HTMLElement & { value: string }` rather than `HTMLSelectElement` (no public API change — none of the three builders is exported), and **any host driving these in automation must click the trigger and the option row rather than assigning `select.value` + dispatching `change`** — tsmap's own `scripts/lib/steps.mjs` `setInsightsGroupBy` was updated in the same pass, and `data-wmap-select` still marks the same control, now on the trigger button. See also issue #45 below: this is the wmap half of a cross-repo convergence, and the rule it now follows lives in `UI_STANDARDS.md`.
 
 **Possible future subject — why this is structurally different from tsmap's own colour-theme picker:** tsmap's theme picker (`menuSelect.ts`) has a fully themed open list because it was never a native `<select>` to begin with — it's a hand-built `<button>` trigger + `<div role="option">` popup, so ordinary CSS reaches every row. wmap's three pickers above are real native `<select>` elements; `appearance: none` (this issue's fix) only reaches the *closed* box — the open `<option>` list is OS-rendered chrome in every browser, not just WebKitGTK, and no CSS selector in any engine can style inside it. Matching tsmap's picker exactly (a themed open list too) would mean porting the same custom-widget approach into wmap itself — its own popup, `role="listbox"`/`role="option"` rows, full keyboard handling per `UI_STANDARDS.md` — real feature work, not a follow-up CSS tweak. Not scoped or prioritized yet; noted here so it isn't rediscovered from scratch next time someone asks "why does the theme picker look more polished than the Group by dropdown."
 
-### 44. `inferred-pitch` advisory was classified `severity: 'error'`, making the supported diameter-only path show a permanent red banner (fixed in wmap, not yet published)
+### 44. ~~`inferred-pitch` advisory was classified `severity: 'error'`, making the supported diameter-only path show a permanent red banner~~ (fixed in wmap 0.27.0)
 
 **Where:** `buildWarnings` (`packages/renderer/buildWaferMap.ts`), which promotes the deprecated `inference.warnings` string channel into structured `WaferWarning[]`. It mapped every advisory to `severity: 'error' as const` with a comment asserting "all three are errors".
 
@@ -1135,7 +1137,7 @@ The user-visible consequence in tsmap: supplying `waferConfig.diameter` without 
 
 **Fix:** `buildWarnings` now derives the code first and maps severity per code — `'inferred-pitch'` → `'warning'`, `partial-coverage`/`geometry-conflict` unchanged at `'error'` — with both comments corrected so the classification site and the push site no longer contradict each other. tsmap needs no change: `logWmapWarnings` already maps severity to log level via `WMAP_WARNING_LOG_LEVEL`/`severityOf`, and wmap's own ⚠ indicator colours from the same field, so the downgrade flows through both surfaces automatically.
 
-**Status:** fixed directly in wmap (both repos are ours) — not yet published; tsmap picks it up via the `npm run wmap:link` symlink. Publish alongside the next batch per the usual link workflow (issue #43 is queued in the same batch), then strike this through with the version.
+**Status:** fixed directly in wmap (both repos are ours) — published in wmap 0.27.0 (2026-09-09); tsmap picks it up via the `npm run wmap:link` symlink. Publish alongside the next batch per the usual link workflow (issue #43 is queued in the same batch), then strike this through with the version.
 
 #### Considered and declined: a die width/height input in tsmap
 
@@ -1153,7 +1155,7 @@ That is thin justification for a new persisted setting, two dialog fields, two C
 
 **Revisit when** someone actually reports an edge-exclusion ring that looks wrong on a map whose grid doesn't reach the wafer edge. Even then the narrower fix is probably wmap-side — widening the existing `edge-exclusion-exceeds-radius` advisory (issue #42) into a companion "edge exclusion applied against an inferred pitch" warning, so the user is told the band is approximate — rather than a tsmap input field. A pitch input in tsmap is the last resort, not the first.
 
-### 45. Four separate option-list implementations across the two repos had drifted into three visible styles (converged 2026-08-31, wmap half not yet published)
+### 45. ~~Four separate option-list implementations across the two repos had drifted into three visible styles~~ (converged 2026-08-31, fixed in wmap 0.27.0)
 
 **Where:** `makeDropdown` (`packages/canvas-adapter/toolbar.ts`) and the Insights pickers (`packages/canvas-adapter/charts/chartShell.ts`) in wmap; `menuSelect.ts` and `anchoredMenu.ts` in tsmap.
 
@@ -1195,4 +1197,448 @@ host's — has shipped in the same component.
 
 **Deferred (low value, opportunistic):** `makeDropdown` still labels value pickers `menu` + `menuitemradio` rather than `listbox` + `option`. It is invisible on screen and changes only what assistive tech announces; do it if you are in that function anyway. Deep screen-reader support is not a goal for either tool — spatial wafer data doesn't survive being announced — which is why this is the one part of the convergence left undone. The parts that *were* done are justified by consistency and by removing hand-maintained code, not by conformance.
 
-**Status:** tsmap side complete (`menuSelect.ts`); wmap side complete but **not yet published** — publish with the #43/#44 batch, then strike this through with the version.
+**Status:** tsmap side complete (`menuSelect.ts`); wmap side complete and **published in wmap 0.27.0** (2026-09-09) — publish with the #43/#44 batch, then strike this through with the version.
+
+---
+
+### 46. ~~Finding highlight (and click hit-testing) drawn offset from the dies — `fittedViewport` cached the first auto-fit forever~~ (fixed in wmap 0.27.0)
+
+**Reported from tsmap, 2026-09-03.** Reproduction: open `correlated.csv` with the
+tsmap window at normal size, enable Lot ▸ *Show test value findings*, **maximise
+the window**, then click a finding in the Summary panel. The ring highlight is
+drawn well away from the dies it belongs to — in the reported case an annulus
+sitting outside the wafer circle entirely, which reads as a second, ghost wafer
+next to the real one.
+
+**Where it originates in wmap:** `packages/canvas-adapter/renderWaferMap.ts`.
+`render()` cached the auto-fit viewport the first time it was computed:
+
+```ts
+if (!fittedViewport) fittedViewport = result.viewport;   // ← the bug
+```
+
+`fittedViewport` is what `currentViewport()` returns, and `currentViewport()` is
+the geometry read back by `drawSelectionOverlay`, by the click hit-test in
+`handleClick`, and by the hover tooltip. But the map itself is drawn with the
+viewport `toCanvas` computes for *that particular draw*. Caching one and drawing
+with the other means they diverge the moment anything moves the fit.
+
+Plenty moves it, and none of it resizes the canvas: the fit origin/ppm depend on
+the colorbar and bin-legend reserve, the legend position, the axis gutter, the
+legend row count, and `render()`'s own `minRightReserve` (which itself switches on
+`cssW` crossing the `BIN_LEGEND_ADAPT_*` thresholds). The `ResizeObserver` that
+invalidated the cache therefore never fires for most of them — and because RO
+delivery is asynchronous, even a genuine maximise leaves a window in which any
+render draws at the new size against the old cached fit. The finding click *is* a
+render, so it lands in exactly that window. That is why the maximise is part of
+the repro and why it was hard to hit deliberately.
+
+**This is a regression, not an original defect.** Until wmap 0.9.0 (2026-05-03,
+commit `ef34a3c`) the condition read `if (!fittedViewport || !viewport)` — the
+`!viewport` leg meaning "this was a fitted draw", i.e. precisely the invariant
+restored here. That commit dropped the leg (plausibly because the no-op
+`if (!viewport) viewport = null;` sitting beside it made the whole condition look
+redundant) and, in the same hunk, added the `syncOpts` plot-mode invalidation to
+patch the one symptom it immediately caused — its comment names the colorbar-width
+shift and `drawSelectionOverlay` by name. Plot mode being much the commonest way to
+move the fit is why the remaining routes stayed latent for four months, and why
+this felt like it had never happened before.
+
+**Fix applied:** `render()` now re-reads the viewport on every *fitted* draw:
+
+```ts
+if (viewport === null) fittedViewport = result.viewport;
+```
+
+guarded on `viewport === null` so a zoomed draw cannot overwrite the zoom clamp's
+fit baseline (`clampedPpm`). The plot-mode special case in `syncOpts` was removed:
+it covered one knob out of many and would additionally strand `fittedViewport` at
+`null` while zoomed. Regression test in `tests/selectionViewport.test.mjs` asserts
+zero drift between the drawn transform's origin and the overlay across legend
+show/hide, legend reposition, plot-mode change, and a resize the `ResizeObserver`
+has not yet reported. Measured drift before the fix: **62px** for merely hiding
+the legend, **427px** across a maximise.
+
+**Note the second symptom**, which nothing had reported: the same stale geometry
+fed click hit-testing and hover, so while it was stale, clicking a die selected a
+*different* die and the tooltip described the wrong one — silently, and by the
+same offset.
+
+**Status:** fixed in wmap (linked), full wmap suite green (821 tests). Not yet
+published — publish with the #43/#44/#45 batch, then strike this through with the
+version. No tsmap-side change is needed; the fix is entirely inside wmap.
+
+---
+
+### 47. ~~Colorbar tick labels truncated at the canvas right edge — fixed-width label band vs. a now-themeable font~~ (fixed in wmap 0.27.0)
+
+**Reported from tsmap, 2026-09-03**, alongside #46 and in the same session:
+value legend labels clipped on the right edge of a wafer card.
+
+**Where it originates in wmap:** `packages/canvas-adapter/toCanvas.ts`. The band
+to the right of the colorbar was two constants — `labelGap = 20` and
+`rightReserve = colorbarWidth + 28`, which work out to 31px of room for the tick
+text. Both date from 2026-04-25, when `COLORBAR_LABEL_FONT` was a hardcoded
+`10px` and the widest typical label measured about 20px.
+
+**This is new, and newer than #46.** wmap commit `6b07cf7` (2026-09-02, HEAD,
+*unreleased*) changed `COLORBAR_LABEL_FONT` from `'10px system-ui, sans-serif'`
+to `` () => `${fontPx()}px system-ui, sans-serif` `` so it follows
+`--wmap-font-size`. Default is 12px, and tsmap's own convention is a 12px
+minimum — so every label got ~20% wider while the 31px band did not move. The
+same commit grew `BIN_ROW_H` 17 → 20 to compensate for the taller font: the
+vertical compensation was made, the horizontal one was missed. So this has been
+visible for roughly one day, and only in the linked working tree — no published
+wmap version has it.
+
+Measured against the reported data (`correlated.csv`, `test_002`, range
+48.3–77.0), instrumenting the library's real `fillText`/`measureText` in Chrome:
+
+| `--wmap-font-size` | widest label | result |
+|---|---|---|
+| 10px (the old hardcoded size) | `50.00` | fits, 5.4px spare |
+| 12px (current default) | `50.00` | **0.3px spare** — sits on the edge, last glyph shaved |
+| 13px | `50.00` | clipped by 2.2px |
+| 12px, negative values | `-12.00` | clipped by 3.5px |
+
+**Fix applied:** the band is measured from the text that will actually be drawn.
+The tick formatter is derived before the reserves are computed, `measureText`
+sizes a `colorbarLabelGap`, and `rightReserve` follows it — keeping every label
+`COLORBAR_EDGE_MARGIN` (6px) clear of the edge at any font size. The tick set
+itself can't be used for the measurement (it depends on the bar height, which
+depends on this reserve), so the endpoints bound the width, plus the negated
+larger magnitude when the range spans zero — the only case where an intermediate
+tick can be wider than both endpoints. A `COLORBAR_LABEL_GAP_MIN` floor at the
+old 20px leaves already-fitting layouts unchanged to the pixel. Regression test
+in `tests/colorbarLabels.test.mjs`.
+
+**Consequence to be aware of on the tsmap side:** `renderWaferMap`'s
+`colorbarReserve` floor (still `colorbarWidth + 28`) exists to hold the wafer the
+same size across value/bin mode switches. With very wide value labels the
+measured reserve can now exceed it, so such a wafer draws slightly smaller in
+value mode than in bin mode. Deliberate — a marginally smaller wafer beats
+clipped numbers — but it is a visible difference if any tsmap screenshot capture
+straddles a mode switch.
+
+**Follow-up — the font change behind it was itself partly reverted.** Reviewing
+this, the `fontPx()` migration turned out to have flattened the map canvas's
+three deliberate type tiers into two: subtitle 11→12, scale note 11→12, colorbar
+labels 10→12, axis ticks 10→11, leaving the map title and its own subtitle
+separated only by weight. All five tokens now carry the tier delta that
+reproduces their original size at the default 12px base (`fontPx()` /
+`fontPx(-1)` / `fontPx(-2)`), so the sizes are back to what they were while a
+host can still move the whole scale. `BIN_ROW_H`, `BIN_LEGEND_W` and
+`BIN_LEGEND_W_COMPACT` reverted with them (20→17, 124→110, 72→64) — they had
+only been enlarged to house the bigger text, and the bin legend's reserve is
+taken off the wafer, so this returns **14px of wafer width in bin mode**. The
+adaptive label band above is kept regardless: it is what makes the layout robust
+to the next font change rather than to this one.
+
+**Left alone deliberately:** the same migration also moved every Insights chart
+label from 10px (and one 9px in `scatter.ts`) to `fontPx(-1)` = 11px, flattening
+a similar annotation-vs-label distinction there — in `histogram.ts`, axis ticks,
+LSL/USL markers and muted unit labels were 10px while axis labels were 11px; they
+are now all 11px. Confirmed as displaying correctly and left unchanged. Recorded
+here so the decision is visible if a chart's labels are ever found colliding or
+clipping at a larger `--wmap-font-size`: the same `fontPx(-2)` tier is available.
+
+**Status:** fixed in wmap (linked), full wmap suite green (822 tests). Not yet
+published — publish with the #43/#44/#45/#46 batch, then strike this through with
+the version. No tsmap-side change needed.
+
+---
+
+### 48. ~~No way for a host to say a *category* of finding is missing — expensive analysis was discoverable only as a menu checkbox~~ (fixed in wmap 0.27.0)
+
+**Raised from tsmap, 2026-09-03.** `Lot ▾ → Show test-value findings` was judged
+too hidden: most users would never find it, and so would never see wmap's
+regional test-value findings at all.
+
+**The real problem was not the control's placement.** wmap's Findings panel
+renders the findings that exist. When a host skips `enableTestValueAnalysis`,
+the panel says nothing — the absence of an entire category is invisible, and no
+amount of making the *control* more prominent tells a reader looking at the
+Findings list that something is missing from it. The gap had to be stated where
+the gap is.
+
+**Why it can't simply default on.** Benchmarked against wmap's own
+`analyzeWaferMap`, the pass costs roughly 1.2µs per (wafer × die × test):
+
+| Lot | off | on | added |
+|---|---|---|---|
+| 5 wafers × 10.7k dies × 30 tests | 299ms | 2.2s | +1.9s |
+| 5 × 10.7k × 100 tests | 392ms | 7.0s | +6.7s |
+| 25 × 10.7k × 30 tests | 1.4s | 11.1s | +9.7s |
+| 25 × 10.7k × 500 tests | — | did not finish in 2 min | — |
+
+So the opt-in is well justified above a certain size; it is only the silence
+that was wrong.
+
+**Fixed in wmap** with `FindingsNotice` — an optional `findingsNotice` render
+option on `renderWaferMap`/`renderWaferGallery`, a `setFindingsNotice` controller
+method, and the type exported from `/render`. It draws a quiet row at the top of
+the Findings section with a message, an optional detail line and an optional
+action button, and it makes the Findings section render even when `findings` is
+empty (otherwise the offer would be hidden precisely on the lots that most need
+it). wmap never raises the notice itself: only the host knows what it skipped and
+what recomputing would cost.
+
+**tsmap side** (`src/valueFindings.ts`, `src/main.ts`): estimates the cost, runs
+the analysis unprompted below a 1s budget, and passes a priced notice above it.
+The Lot menu item remains as the way to turn it back off; either route marks the
+choice as the user's, after which the budget stops deciding. Cost model pinned by
+`src/valueFindings.test.ts` to within a factor of two of the measurements above.
+
+**Status:** fixed in wmap (linked), wmap suite green (827 tests), tsmap green
+(429 tests). Not yet published — publish with the #43/#44/#45/#46/#47 batch, then
+strike this through with the version.
+
+
+---
+
+### 49. ~~Geometry advisories reworked in wmap 0.27.0 — one removed, two added~~ (fixed in wmap 0.27.0)
+
+Not a tsmap-found gap; recorded here because it changes what tsmap's log panel
+reports and because the new checks are reachable from tsmap's own **Diameter &
+edge exclusion** dialog.
+
+**`inferred-pitch` is gone.** It fired whenever a diameter was supplied without a
+die pitch — which is tsmap's normal CSV path, so it fired on essentially every
+CSV load. The pitch there is derived as `diameter ÷ grid span`, which places the
+outermost die at ~95% of the radius by construction: the result is
+self-consistent and there is nothing to check it against, and at full coverage
+the derived pitch is within ~1%. It was noise in the channel that also carries
+real geometry errors.
+
+**`non-standard-diameter` and `diameter-exceeds-die-extent` replace it**, both
+`warning` severity, both covering cases that were previously silent:
+
+| tsmap state | before | now |
+|---|---|---|
+| CSV, no diameter set | — | — |
+| CSV, diameter set (any value) | `inferred-pitch` | — |
+| STDF with a WCR die size, no diameter | — | `non-standard-diameter` if the inferred size is off the standard ladder |
+| STDF with a WCR die size + a too-large diameter | — | `diameter-exceeds-die-extent` |
+| STDF with a WCR die size + a too-small diameter | `geometry-conflict` | `geometry-conflict` |
+
+Verified against `testdata/correlated.csv` through tsmap's own `buildWmapConfig`
+shape: the CSV path stays silent at every dialog setting including a 3000 mm typo
+(harmless there — with the pitch inferred everything scales proportionally, so
+ring classification is unaffected), while the WCR path correctly flags the same
+typo. So tsmap gains a safety net on STDF loads and takes no new false alarms on
+CSV.
+
+**No tsmap code change was needed** — `logWmapWarnings` routes by *severity*, not
+by code, so new codes flow through unchanged; `npx tsc --noEmit`, `eslint` and all
+429 tests pass against the linked build. One doc comment in `src/main.ts` that
+listed `inferred-pitch` among the build advisories was updated.
+
+**Worth knowing when the dialog is next touched:** a user who sets a diameter far
+larger than the probed area on an STDF file will now see a warning in the log
+panel. That is the intended catch — an over-large wafer empties the outer rings
+and silently distorts ring/edge findings — but the dialog itself gives no hint
+that the value is suspect. Surfacing it there rather than only in the log would
+be a natural follow-up.
+
+**Status:** wmap side complete (linked, 850 tests green). Not yet published —
+publish with the #43–#48 batch, then strike this through with the version.
+
+---
+
+### 50. ~~Cross-wafer surfaces borrow ONE wafer's `testDefs` and apply it to the whole population — test numbers collide across test programs~~ (fixed in wmap 0.27.0)
+
+**Severity: high — silently wrong numbers, not a rendering glitch.** Found 2026-09-05 by
+loading six lots from five different test programs into tsmap and grouping Insights by Lot.
+
+**Where:** seven call sites, all the same rule:
+
+```js
+const allTestDefs = getItems().find(it => it?.testDefs?.length)?.testDefs ?? [];
+```
+
+| Site | Feeds |
+| --- | --- |
+| `canvas-adapter/insightsTab.ts:1046` | every Insights panel (capability, boxplot, histogram, trend, scatter, correlation, test-values table) |
+| `canvas-adapter/renderWaferGallery.ts:733` | the exported lot report (`renderLotSummaryReportHtml`) |
+| `canvas-adapter/renderWaferGallery.ts:876` | the docked lot Summary panel |
+| `canvas-adapter/renderWaferGallery.ts:1049` | the data-mode menu — i.e. *which tests are offered at all* |
+| `canvas-adapter/renderWaferGallery.ts:1128` | the shared active test's def — map colorbar, log scale, pass/fail display, limit gating |
+| `canvas-adapter/renderWaferGallery.ts:2272` | stacked-value cards |
+
+**Problem:** `TestDef.testNumber` is documented (`renderer/buildWaferMap.ts:212`) as identifying
+a test *"within a test program"*. Every site above ignores that and treats one arbitrary
+wafer's list as the namespace for the entire loaded population. Across a multi-program load the
+assumption is void: names, units, `limitLow`/`limitHigh`, `logScale` and `testType` are all
+borrowed from a wafer that may describe a completely different measurement.
+
+Reproducible from tsmap's own fixtures — test number **1001** is:
+
+| Generator | 1001 | Limits |
+| --- | --- | --- |
+| `scripts/generate_stdf_corner_lot.py:202` | `vth_n_mV` | 260–380 mV |
+| `scripts/generate_edge_corner_lot.py:175` | `vth_n_mV` | 260–380 mV |
+| `scripts/generate_stdf_coordinateless.py:131` | `leakage_nA` | 0–5 nA |
+| `scripts/generate_parquet.py:107` | `leakage_nA` | 0–8 nA |
+
+Observed in the reporting session: the boxplot drew medians of 2.65 / 2.40 / 2.51 — `leakage_nA`
+readings — titled `vth_n_mV`, axis unit `mV`, with a borrowed `USL 380` line drawn across them,
+while the histogram beside it showed the real 260–380 mV population for the "same" test.
+Process capability reported **Ppk −1489.43** and **−89.02**, and drilling into a wafer produced
+maps entirely above USL or below LSL.
+
+**This is not only about limits.** Four independent failure modes fall out of the one rule:
+
+1. **Value pooling under a colliding number.** Boxplot group rows, histogram, correlation and
+   scatter pool physically different measurements into one distribution. Occurs *even when no
+   file carries limits at all* — pure identity corruption, and the most serious of the four.
+2. **Name/unit mislabelling** on every axis, title, tooltip and colorbar.
+3. **Limits** — capability, spec yield, USL/LSL lines, spec colouring.
+4. **Test list truncation** — the list is one wafer's array, so a test present only in the
+   other lots never appears in any selector. Silent omission, also independent of limits.
+
+**Not affected:** `analyzeWaferMap` is called per wafer with that wafer's own `testDefs`
+(tsmap `src/main.ts:514`), so per-wafer `perTestStats` / `testSpecYield` and the single-wafer
+view are correct. The corruption is confined to the cross-item layer — but per the table above
+that layer includes the map's own colouring and the exported report, not just Insights.
+
+**Suggested fix:** one pure merge function, used by all seven sites, replacing the `find(...)`.
+
+```js
+// packages/stats/mergeTestDefs.ts
+export function mergeTestDefs(
+  items: Array<{ testDefs?: TestDef[] }>,
+): { defs: TestDef[]; conflicts: TestDefConflict[] };
+```
+
+Union every test number across every item (fixes 4), then per test number reconcile the defs on
+a three-tier rule. **An absent field is "not stated", never a conflict** — a load mixing files
+that carry limits with files that do not is legitimate and must merge silently:
+
+| Condition | Verdict | Behaviour |
+| --- | --- | --- |
+| Field absent on some items, stated on others | benign | union; stated value wins; no warning |
+| Distinct stated `name`s, distinct stated `unit`s, or `testType` `'P'` vs `'F'` | hard collision — different measurements | exclude the test from every cross-item surface; warn naming both sides |
+| Same name+unit, both limits stated but different | soft conflict — same measurement, different spec | keep the test and keep pooled distributions (the values *are* comparable); drop the merged limits, so no Cp/Cpk/Pp/Ppk, no spec yield, no USL/LSL line; warn |
+
+Two comparison details that matter for false positives: compare limits with a **relative
+epsilon**, not `===`, so float32 STDF `LO_LIMIT` vs a float64 CSV cannot manufacture a conflict
+from representation noise; and compare names trimmed and case-insensitively, so `TEST_TXT`
+whitespace or case drift does not hard-block a legitimate merge.
+
+Surface both conflict kinds through the existing `collectWarnings` channel
+(`canvas-adapter/warnings.ts:64`) as new stable codes — suggested `test-def-collision`
+(severity `error`: data is being withheld) and `test-limit-conflict` (severity `warning`:
+data shown, spec-relative output withheld) — so the ⚠ toolbar indicator and the Summary-panel
+banner report it with no host work, exactly as `test-count-capped` already does. A user must
+never be shown a Ppk of −1489 in place of "these lots cannot be compared on this test".
+
+**Note on scope:** deliberately a *per-test* rule, not a per-program gate. Blocking any load
+that mixes test programs would be both too blunt (programs often share a genuinely identical
+test) and too narrow (the same collision arises between revisions of one program). One
+mechanism keyed on the test defs themselves covers both.
+
+**tsmap-side finding (2026-09-05) — the premise above was wrong, and this half mattered more.**
+"tsmap supplies correct per-wafer `testDefs`" was not true. `main.ts` merged every file's defs
+with `Object.assign({}, ...entries.map(e => e.parsed.testDefs))` — last-wins — and passed that one
+object to `buildWmapConfig` for **every** wafer. So wmap received a population in perfect
+agreement and correctly reported nothing; the wrong definition had already been chosen, host-side,
+and the losing one discarded. The wmap fix above is real and necessary for any host that does pass
+per-wafer defs, but it could not fire for tsmap and is **not** what produced the reported
+screenshot. Verified against the committed fixtures' own PTR records: test 1001 is `vth_n_mV`
+(mV, 260-380) in `PVT-LOT-05.stdf`, `leakage_nA` (nA, 0-5) in `COORDLESS-LOT-01.stdf` and
+`leakage` (nA, 0.5-5.5) in `EDGE-LOT-01.stdf` — three meanings, one number, in one load.
+
+**Fixed tsmap-side the same day.** Each wafer now carries its own file's defs
+(`RenamedWafer.testDefs` → `currentDefsBySource`, keyed on the `WaferSource` its file's wafers
+already shared by reference), so wmap's `mergeTestDefs` gets the per-wafer input it was built for.
+`currentTestDefs` stays the lot-wide union for tsmap's own UI, built by a new `unionTestDefs`
+(`lib.ts`) that mirrors wmap's tiers exactly — same absent-is-not-stated rule, same relative
+tolerance on limits, same case-insensitive name comparison — so the two layers can never disagree
+about what counts as a conflict. tsmap adds the half wmap cannot: the log message names the
+**files**, which wmap (knowing only wafer indices) cannot do. See tsmap's `CHANGELOG.md`
+[Unreleased].
+
+**The same last-wins rule had two siblings, one of them worse.** `main.ts` also merged bin names
+(`mergeBinDefs`, last-wins) and pass bins (`mergePassHbins`, a **union**) across files. The union
+was the dangerous one: a hard bin marked Pass by one file became a pass bin for every wafer in the
+load, including wafers from a file that counts it as a fail — moving yield, findings, region
+yields and the report. Fixed in the same pass: each file's wafers are judged by its own
+`passHbins` (`FileDefs`), disagreements are logged naming both files and the bin, and a file that
+states none inherits the union rather than wmap's `[1]` default. Bin *names* remain merged —
+cosmetic, and changing them would alter the gallery legend. Worth noting on the wmap side:
+`renderWaferGallery`'s own lot legend does the same `deduplicateDefs` last-wins merge over items'
+`hbinDefs`, which is the wmap half of that cosmetic gap.
+
+**Full audit (2026-09-05).** Swept both repos and the Rust crate for every place a test number,
+bin number or per-file fact is treated as a lot-wide identity. Result:
+
+| Area | Verdict |
+| --- | --- |
+| Per-wafer analysis (`analyzeWaferMap`, findings, spatial/regional, per-wafer summary, single-wafer map, mapless summary) | **Sound.** Always ran against that wafer's own `testDefs`; never had the bug. |
+| `analyzeWaferLot` | **Sound.** Carries per-wafer `perTestStats` through keyed by wafer index; pools nothing by test number. |
+| Insights panels (capability, boxplot, histogram, trend, scatter, correlation, pass rate) | **Fixed.** All receive reconciled defs; Distributions additionally scope-aware. |
+| Lot Summary panel, lot report, CSV exports | **Fixed** via `lotTestDefs()`. |
+| Plot-mode menu, stacked-value maps, die list | **Fixed** — all three fell back to discovering withheld numbers off the dies when reconciliation kept nothing (ambiguous `undefined`). |
+| Findings click → gallery active test | **Fixed** — wrote `activeTest` unguarded, bypassing every other check. |
+| tsmap load paths (fresh, append, re-parse) | **Fixed** — per-file defs and pass bins. |
+| tsmap first-pass scan | **Fixed** — flattened test names before the selector. |
+| **Rust parsers (`testdata-parser`)** | **Clean, no change needed.** Every entry point takes one file's bytes; there is no cross-file merge in Rust at all. Within a file a test number IS the identity key, so `test_defs.insert` last-wins is correct and matches the STDF convention the HBR/SBR handling already follows. |
+
+**Scope extended to every view (2026-09-05).** Overview and Correlation now reconcile over the
+scope too, via ONE tab-level **Show:** control beside "Group by" — replacing the per-panel copies.
+`renderCorrelationPanel` turned out to carry the same latent bug `renderCapabilityPanel` had
+(silent restrict to `groups[0]`, no way back, nothing naming the chosen group); both lose their
+`groups` option entirely, since a scoped population arrives with grouping already collapsed.
+
+**Known limitations, deliberately left:**
+hard/soft bin **names** are still merged lot-wide in both tsmap and `renderWaferGallery`'s legend
+(cosmetic — a wrong name, not a wrong number); and a file supplying **no** `testDefs` contributes
+values that cannot be checked for disagreement, since a wafer describing nothing contradicts
+nothing (the alternative, withholding everything whenever any file lacks defs, is worse).
+
+**Follow-up (2026-09-05): withholding needed a SCOPE, and the first cut got it wrong.** Applied to
+the whole load, the rule punishes agreement — with six lots where four define test 1001
+identically and two differ, 1001 was withheld from all six, leaving only the tests unique to a
+single lot (the one lot that can compare with nothing). Insights got emptier the more data was
+loaded, while the Findings panel — per-wafer, using each wafer's own defs, and correct — kept
+reporting on tests Insights refused to chart. wmap's Distributions view now reconciles over the
+population **in scope**: pick a group and every one of its tests returns with its own name, unit
+and limits, because within one lot a test number does identify one test; "All groups" still
+withholds. A caption names what was withheld and how to get it back. **Still open:** Overview and
+Correlation reconcile over the whole population — Correlation would need the shared group-scope
+control before it could do the same.
+
+**Decisions (2026-09-05, agreed with the user):** a hard collision **excludes** the test from
+cross-item surfaces — splitting it into one series per program would need a compound test key
+threaded through every panel, which is the combinatorial direction to avoid. The `(none)` lot
+bucket seen in the same session (wafers labelled with a lot but bucketed as unset) is held
+until this is fixed, to see whether it survives.
+
+**Status (2026-09-05): fixed in wmap, published in wmap 0.27.0 (2026-09-09).** Implemented as suggested —
+`packages/stats/mergeTestDefs.ts` (new, exported from `/stats`), all seven call sites switched
+to it, and the collision warnings joined onto the gallery's existing `collectWarnings` call, so
+no `collectWarnings` API change was needed. The soft tier needed **no consumer changes at all**:
+a merged def that drops its limits already makes `buildCapabilityData` report `hasSpec: false`
+(no Cp/Cpk/Pp/Ppk, normalised to its own observed range) and already removes the limit lines and
+spec-yield read, because every one of those paths keys on the limits being present.
+
+Verified against the exact fixture collision: with test 1001 defined as `vth_n_mV` 260–380 mV in
+one item and `leakage_nA` 0–5 nA in the other, `buildCapabilityData` on the borrowed list still
+returns a capability row with a Ppk for the pooled population; on the merged list it returns
+zero rows plus one `test-def-collision` error naming both. The benign case merges silently —
+limits stated in one file and absent in the other produce the stated limits and no warning.
+19 new tests (`tests/mergeTestDefs.test.mjs`); full suite 869 green; `tsc --noEmit` clean;
+`check-bundle-size`, `check-clones`, `check-style-scales`, `check-overlay-conventions` and the
+export-surface guard all clean (the data layer grew ~44 → ~46 KB gzip; README and
+`docs/performance.md` updated to match). Publish with the #43–#49 batch.
+
+**Not addressed here:** the per-wafer `statsSummary.stats.testSpecYield` shown in the lot Summary
+panel is still computed per wafer against that wafer's own limits, which is honest in itself but
+can sit beside a lot-level capability that has been withheld for the same test. Worth a look when
+the soft tier meets real data.
+
+Related: `IDEAS.md`'s "Single-test
+focus" entry item 4 (Distributions' three independent grouping controls) — the same session
+showed Process capability scoped to `EDGE-LOT-01` while the boxplot beside it was drilled into
+`Lot: (none)`, with nothing indicating the two panels were describing different populations.
+That was filed as a polish item; on this evidence it is a correctness bug and should be raised.

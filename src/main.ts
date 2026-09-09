@@ -4,18 +4,22 @@ declare const __BUILD_DATE__: string;
 import { buildWaferMap } from '@wafertools/wafermap';
 import type { WaferMapResult, BinDef } from '@wafertools/wafermap';
 import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide } from '@wafertools/wafermap/render';
+import type { FindingsNotice } from '@wafertools/wafermap/render';
+import { estimateValueFindingsMs, lotHasTestValues, describeDuration,
+         maxTestCount, VALUE_FINDINGS_AUTO_BUDGET_MS } from './valueFindings';
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
+import { basename, rustToLocal, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
 import type { TestListEntry } from './testSelectorUI';
 import type { CsvMapping } from './mappingUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
-import type { ParsedFile, WaferData, TestDef, TestOverride, WaferSource } from './types';
+import type { PassBinCollision, TestDefCollision } from './lib';
+import type { FileDefs, ParsedFile, WaferData, TestDef, TestOverride, WaferSource } from './types';
 import { attachTooltip, upgradeTitleTooltips } from './tooltip';
 import { openAnchoredMenu, makeMenuRow } from './anchoredMenu';
 import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme } from './theme';
@@ -90,6 +94,123 @@ function setToolbarGroupVisible(visible: boolean): void {
 let currentWafers: WaferData[] = [];
 let currentFileName = 'wafermap';
 let currentTestDefs: Record<string, TestDef> = {};
+/**
+ * Each loaded file's OWN test definitions, keyed by the `WaferSource` its
+ * wafers share by reference (the same key `wcrFor` uses two functions below).
+ *
+ * `currentTestDefs` above is the lot-wide UNION, and stays that way — the test
+ * selector, the test-definitions file and `applyTestSelection` all legitimately
+ * need one list. What it must NOT be is the thing handed to wmap: a test number
+ * identifies a test within a test program, so across a multi-file load the same
+ * number can name different measurements. Flattening the files' lists into one
+ * object (`Object.assign`, which is last-wins) silently kept whichever file
+ * loaded last, and every wafer was then plotted, normalised and
+ * capability-scored against that survivor's limits — a 0-5 nA leakage test
+ * judged against a 260-380 mV threshold's spec. wmap reconciles per wafer
+ * (`mergeTestDefs`) and withholds any number the files disagree about, which it
+ * can only do if each wafer arrives with its own file's defs.
+ */
+let currentDefsBySource = new Map<WaferSource, FileDefs>();
+/** Files that disagree about a test number, from the current load — retained so
+ *  the test-definitions dialog can refuse an override it cannot apply honestly. */
+let currentTestDefCollisions: TestDefCollision[] = [];
+
+/**
+ * Per-source def map for a set of renamed wafers, optionally extending the
+ * current one (an Add-files append keeps the already-loaded files' entries).
+ */
+function defsBySourceFrom(
+  renamed: RenamedWafer[],
+  base?: Map<WaferSource, FileDefs>,
+): Map<WaferSource, FileDefs> {
+  const map = new Map(base ?? []);
+  for (const r of renamed) if (r.source && r.fileDefs) map.set(r.source, r.fileDefs);
+  return map;
+}
+
+/**
+ * Report files that disagree about what a test number means.
+ *
+ * wmap withholds these tests from every cross-wafer chart, report and map mode
+ * and raises its own warning — but it only knows wafer indices. tsmap knows the
+ * FILE NAMES, and "these two files disagree" is the difference between a message
+ * someone can act on and one they can only be puzzled by. Logged at `error` so
+ * the log panel opens itself: silently dropping tests would leave the user
+ * hunting for a test that is simply gone.
+ */
+function logTestDefCollisions(collisions: TestDefCollision[]): void {
+  currentTestDefCollisions = collisions;
+  if (collisions.length === 0) return;
+  const withheld = collisions.filter(c => c.kind !== 'limits');
+  const respec  = collisions.filter(c => c.kind === 'limits');
+  // Every definition, not just the first pair — with three lots calling test
+  // 1001 `leakage` (nA), `leakage_nA` (nA) and `vth_n_mV` (mV), naming two of
+  // them describes the mildest disagreement and hides the one that matters.
+  const describe = (c: TestDefCollision) =>
+    `test ${c.testNumber}: ` + c.stated.map(v => `${v.fileName} says ${v.value}`).join('; ');
+  for (const c of withheld) {
+    log('error', `Incompatible test definitions — ${describe(c)}. A test number identifies a test `
+      + 'within one test program, so these are different measurements sharing a number. '
+      + `Test ${c.testNumber} is excluded from every chart, report and map mode that compares wafers; `
+      + 'each wafer on its own is unaffected. Load these files separately to see it.');
+  }
+  for (const c of respec) {
+    log('warn', `Different spec limits for the same test — ${describe(c)}. The values are still `
+      + `comparable so distributions include test ${c.testNumber}, but capability (Cp/Cpk/Pp/Ppk), `
+      + 'spec yield and the limit lines are withheld for it — there is no single spec to judge the '
+      + 'combined population against.');
+  }
+}
+
+/**
+ * Report files that classify the same hard bin differently.
+ *
+ * Unlike a test-definition collision there is nothing to withhold — every die
+ * has a bin and must be counted pass or fail — so each file's wafers are judged
+ * by their own file's pass bins and this says so. The lot-wide yield is then a
+ * pooling of two conventions, which is honest per wafer but worth knowing about
+ * before quoting a lot number.
+ */
+function logPassBinCollisions(collisions: PassBinCollision[]): void {
+  for (const c of collisions) {
+    log('warn', `Hard bin ${c.bin} is a PASS bin in ${c.files[0]} but a FAIL bin in ${c.files[1]}. `
+      + "Each file's wafers are counted using its own pass bins, so per-wafer yield is correct — "
+      + 'but any lot-wide yield figure combines two different pass/fail conventions.');
+  }
+}
+
+/** This wafer's own file's defs, falling back to the union when a wafer has no
+ *  provenance (a path that never stamped a source — the fallback is the old
+ *  behaviour, not a new guess). */
+function testDefsForWafer(w: WaferData): Record<string, TestDef> {
+  return (w.source && currentDefsBySource.get(w.source)?.testDefs) ?? currentTestDefs;
+}
+
+/**
+ * This wafer's own file's pass hard bins.
+ *
+ * A file that stated none inherits the lot-wide union (`currentPassHbins`) —
+ * absent is not an assertion of "only bin 1", and falling through to wmap's own
+ * `[1]` default would silently reclassify every one of that file's dies. This is
+ * the one place that rule lives; `unionBinInfo` (lib.ts) deliberately does not
+ * duplicate it.
+ */
+function passBinsForWafer(w: WaferData): number[] | undefined {
+  const own = w.source && currentDefsBySource.get(w.source)?.passHbins;
+  return own?.length ? own : currentPassHbins;
+}
+
+/** `toWmapTestDefs` memoised per defs object — one conversion per FILE rather
+ *  than per wafer, and the identical array reference for every wafer of the
+ *  same file, which is what lets wmap's own per-source caches hit. Cleared on
+ *  every load (`renderWafers`). */
+const wmapDefsCache = new Map<Record<string, TestDef>, ReturnType<typeof toWmapTestDefs>>();
+function wmapTestDefsForWafer(w: WaferData): ReturnType<typeof toWmapTestDefs> {
+  const defs = testDefsForWafer(w);
+  let converted = wmapDefsCache.get(defs);
+  if (!converted) { converted = toWmapTestDefs(defs); wmapDefsCache.set(defs, converted); }
+  return converted;
+}
 // From STDF/ATDF HBR/SBR — see ParsedFile.hbinDefs/sbinDefs/passHbins
 // (types.ts). Undefined for formats with no HBR/SBR equivalent, or a file
 // that had none; buildWaferMap call sites treat undefined the same as
@@ -119,6 +240,10 @@ let binaryScanScope: 'largest' | 'all' = 'largest';
 // only analyzeWaferMap/Lot, never parsing, so toggling re-renders the in-memory
 // data with no reload (see analyzeOpts).
 let valueFindings = false;
+// Set once the user picks a side in the Lot menu or via the Findings-panel
+// offer. Until then the cost estimate below decides, so a small lot never has
+// to be asked and a large one is never made to wait without being told.
+let valueFindingsChosen = false;
 const analyzeOpts = () => ({ enableTestValueAnalysis: valueFindings });
 
 // Whether wafer map/gallery titles, cards, and summary panels show a wafer's
@@ -400,8 +525,15 @@ const WMAP_WARNING_LOG_LEVEL: Record<ReturnType<typeof severityOf>, LogLevel> = 
  * `waferMap.warnings` directly, because since wmap 0.22.0 the advisories come
  * from **two** places and reading either one alone under-reports:
  *
- * - the build — inferred geometry (`partial-coverage`, `geometry-conflict`,
- *   `inferred-pitch`), i.e. what's drawn rests on a guess rather than on data;
+ * - the build — geometry advisories (`partial-coverage`, `geometry-conflict`,
+ *   `non-standard-diameter`, `diameter-exceeds-die-extent`), i.e. what's drawn
+ *   rests on a guess rather than on data. Two of those are new in wmap 0.27.0
+ *   and both are reachable from tsmap's own Diameter & edge exclusion dialog:
+ *   supplying a pitch without a diameter can infer a non-standard wafer size,
+ *   and supplying a diameter far larger than the probed area leaves the outer
+ *   rings empty. `inferred-pitch` was removed in the same release — a pitch
+ *   derived from a supplied diameter is self-consistent by construction, so it
+ *   was firing on every correct inference;
  * - the analysis — `test-count-capped`, meaning test-value analysis was skipped
  *   entirely and **no** test findings were produced.
  *
@@ -476,12 +608,14 @@ function buildWmapConfig(
     // numbers, passBins [1]).
     hbinDefs: currentHbinDefs,
     sbinDefs: currentSbinDefs,
-    passBins: currentPassHbins,
+    // Per FILE, not per lot. Unioning pass bins across files makes a bin one
+    // file counts as a fail count as a pass for every wafer in the lot, moving
+    // every yield figure, finding and report — see `unionBinInfo` (lib.ts).
+    passBins: passBinsForWafer(w),
   };
 }
 
 function buildLotStatsSummary(wafers: WaferData[]) {
-  const testDefs = toWmapTestDefs(currentTestDefs);
   // WCR geometry is lot-level (one WCR record per file), and every wafer
   // produced by the same file shares its WaferSource by reference (types.ts's
   // own documented invariant), so wcrGeometryFrom's result is identical for
@@ -496,7 +630,7 @@ function buildLotStatsSummary(wafers: WaferData[]) {
   const items = wafers.map(w => {
     const displayId = waferDisplayLabel(w, showSplitSuffix);
     const wcr = wcrFor(w.source);
-    const waferMap = buildWaferMap(buildWmapConfig(w, displayId, testDefs, wcr));
+    const waferMap = buildWaferMap(buildWmapConfig(w, displayId, wmapTestDefsForWafer(w), wcr));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     logWmapWarnings(w.waferId, waferMap, statsSummary);
     return { ...waferMap, label: displayId, statsSummary };
@@ -613,10 +747,13 @@ function saveSplits(wafers: WaferData[]): void {
 function renderWafers(
   wafers: WaferData[], label: string, testDefs: Record<string, TestDef> = {},
   binInfo: { hbinDefs?: BinDef[]; sbinDefs?: BinDef[]; passHbins?: number[] } = {},
+  defsBySource: Map<WaferSource, FileDefs> = new Map(),
 ) {
   currentWafers = wafers;
   currentFileName = label;
   currentTestDefs = testDefs;
+  currentDefsBySource = defsBySource;
+  wmapDefsCache.clear();
   currentHbinDefs = binInfo.hbinDefs;
   currentSbinDefs = binInfo.sbinDefs;
   currentPassHbins = binInfo.passHbins;
@@ -681,24 +818,60 @@ const onSaveText = isTauri
     }
   : undefined;
 
+/**
+ * Decide whether to run the regional test-value pass without being asked, and
+ * build the Findings-panel notice when we don't.
+ *
+ * The pass is worth having and most users never discovered it: it lived only
+ * as a Lot-menu checkbox, and a reader looking at the Findings list had no
+ * signal that a whole category was missing. Advertising the control could not
+ * fix that — nothing sent them to the menu. So the absence is stated where the
+ * findings are, and when the analysis is cheap enough not to be worth a
+ * decision, it simply runs.
+ */
+function resolveValueFindings(wafers: WaferData[]): FindingsNotice | undefined {
+  if (!lotHasTestValues(wafers)) return undefined;
+  const estimateMs = estimateValueFindingsMs(wafers);
+
+  if (!valueFindingsChosen && !valueFindings && estimateMs <= VALUE_FINDINGS_AUTO_BUDGET_MS) {
+    valueFindings = true;
+    log('info', `Test-value findings included automatically (${describeDuration(estimateMs)} of analysis).`);
+  }
+  if (valueFindings) return undefined;
+
+  const waferCount = wafers.length;
+  const testCount = maxTestCount(wafers);
+  return {
+    message: 'Test-value findings are not included.',
+    detail: `Regional analysis of ${testCount} test${testCount === 1 ? '' : 's'} across `
+      + `${waferCount} wafer${waferCount === 1 ? '' : 's'} — ${describeDuration(estimateMs)}.`,
+    actionLabel: 'Analyse',
+    // Same path as the Lot-menu item, so the two can't drift: it flips the
+    // flag, drops the cached analysis and re-renders from the dies already in
+    // memory. Marks the choice as the user's, so the budget stops deciding.
+    onAction: () => { valueFindingsChosen = true; toggleValueFindings(); },
+  };
+}
+
 function renderWaferView(wafers: WaferData[], label: string) {
   destroyMainView();
   container.innerHTML = '';
   const stem = label.replace(/\.[^.]+$/, '');
 
+  const findingsNotice = resolveValueFindings(wafers);
   const plotMode = autoPlotMode(wafers);
-  const wmapTestDefs = toWmapTestDefs(currentTestDefs);
   if (wafers.length === 1) {
     container.classList.remove('gallery');
     const singleWcr = wcrGeometryFrom(wafers[0].source);
     const waferMap = buildWaferMap(buildWmapConfig(
-      wafers[0], waferDisplayLabel(wafers[0], showSplitSuffix), wmapTestDefs, singleWcr,
+      wafers[0], waferDisplayLabel(wafers[0], showSplitSuffix), wmapTestDefsForWafer(wafers[0]), singleWcr,
     ));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     logWmapWarnings(wafers[0].waferId, waferMap, statsSummary);
     mainViewController = renderWaferMap(container, waferMap, {
       statsSummary,
       summaryPanel: { placement: 'right', defaultOpen: true },
+      findingsNotice,
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
       // button click. tsmap's own guide content is folded into that same
@@ -728,6 +901,7 @@ function renderWaferView(wafers: WaferData[], label: string) {
     mainViewController = renderWaferGallery(container, items, {
       lotStatsSummary,
       summaryPanel: { placement: 'right', defaultOpen: true },
+      findingsNotice,
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
       // button click. tsmap's own guide content is folded into that same
@@ -773,6 +947,9 @@ function showLoadingState(msg: string) {
 function showEmptyState() {
   currentWafers = [];
   currentTestDefs = {};
+  currentDefsBySource = new Map();
+  currentTestDefCollisions = [];
+  wmapDefsCache.clear();
   currentHbinDefs = undefined;
   currentSbinDefs = undefined;
   currentPassHbins = undefined;
@@ -1041,7 +1218,17 @@ function setIdle(msg = '') {
  */
 async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: StdfTestNames; dieCount: number } | null> {
   const isAtdf = currentBinaryExt === 'atdf' || currentBinaryExt === 'atd';
-  const merged: StdfTestNames = {};
+  // The first-pass scan's own cross-file merge. This was
+  // `Object.assign(merged, result.testDefs)` — last-wins — under a comment
+  // asserting "test numbers are the identity key", which is exactly the
+  // assumption that does not hold across test programs: the selector then
+  // listed test 1001 once, named by whichever file happened to scan last, and
+  // the user chose it without being told the files disagree. Selection is by
+  // NUMBER so the chosen data is unaffected, but the name they picked it by was
+  // one of several. `unionTestDefs` gives a deterministic first-wins list and,
+  // more importantly, reports the disagreement here — before the choice, rather
+  // than after the load.
+  const scanned: Array<{ fileName: string; testDefs: StdfTestNames }> = [];
   let dieCount = 0;
   let anyOk = false;
   for (const file of filesToScan) {
@@ -1051,7 +1238,7 @@ async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: S
       const result: ScanResult = isAtdf
         ? await platform.atdfTestNames(file)
         : await platform.stdfTestNames(file);
-      Object.assign(merged, result.testDefs); // test numbers are the identity key
+      scanned.push({ fileName: file.name, testDefs: result.testDefs });
       dieCount += result.dieCount;
       anyOk = true;
       log('info', `${file.name}: ${Object.keys(result.testDefs).length} tests found, ${result.dieCount.toLocaleString()} dies`);
@@ -1063,6 +1250,8 @@ async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: S
     log('warn', 'Test name scan failed — parsing all tests');
     return null;
   }
+  const { defs: merged, collisions } = unionTestDefs(scanned);
+  logTestDefCollisions(collisions);
   return { testDefs: merged, dieCount };
 }
 
@@ -1414,11 +1603,24 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
             ...currentWafers,
             ...renamed.map(toWaferData),
           ];
-          renderWafers(merged, currentFileName, { ...currentTestDefs, ...Object.assign({}, ...entries.map(e => e.parsed.testDefs)) }, {
-            hbinDefs: mergeBinDefs([currentHbinDefs, ...entries.map(e => e.parsed.hbinDefs)]),
-            sbinDefs: mergeBinDefs([currentSbinDefs, ...entries.map(e => e.parsed.sbinDefs)]),
-            passHbins: mergePassHbins([currentPassHbins, ...entries.map(e => e.parsed.passHbins)]),
-          });
+          // The union is for tsmap's own test-picking UI only; each wafer keeps
+          // its own file's defs for wmap (see currentDefsBySource). Appending
+          // re-unions from scratch over the already-loaded files plus the new
+          // ones, so a collision introduced by the append is reported here and
+          // not only on a later reload.
+          const appended = unionTestDefs([
+            { fileName: currentFileName, testDefs: currentTestDefs },
+            ...entries.map(e => ({ fileName: e.fileName, testDefs: e.parsed.testDefs })),
+          ]);
+          logTestDefCollisions(appended.collisions);
+          const appendedBins = unionBinInfo([
+            { fileName: currentFileName, wafers: currentWafers, hbinDefs: currentHbinDefs, sbinDefs: currentSbinDefs, passHbins: currentPassHbins },
+            ...entries.map(e => ({ ...e.parsed, fileName: e.fileName })),
+          ]);
+          logPassBinCollisions(appendedBins.collisions);
+          renderWafers(merged, currentFileName, appended.defs, {
+            hbinDefs: appendedBins.hbinDefs, sbinDefs: appendedBins.sbinDefs, passHbins: appendedBins.passHbins,
+          }, defsBySourceFrom(renamed, currentDefsBySource));
           log('info', `Added ${renamed.length} wafer${renamed.length !== 1 ? 's' : ''} — gallery now has ${merged.length}`);
           resolve();
         },
@@ -1426,15 +1628,16 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       });
     });
   } else {
+    const united = unionTestDefs(entries.map(e => ({ fileName: e.fileName, testDefs: e.parsed.testDefs })));
+    logTestDefCollisions(united.collisions);
+    const bins = unionBinInfo(entries.map(e => ({ ...e.parsed, fileName: e.fileName })));
+    logPassBinCollisions(bins.collisions);
     renderWafers(
       renamed.map(toWaferData),
       entries.length === 1 ? entries[0].fileName : `${entries.length} files`,
-      Object.assign({}, ...entries.map(e => e.parsed.testDefs)),
-      {
-        hbinDefs: mergeBinDefs(entries.map(e => e.parsed.hbinDefs)),
-        sbinDefs: mergeBinDefs(entries.map(e => e.parsed.sbinDefs)),
-        passHbins: mergePassHbins(entries.map(e => e.parsed.passHbins)),
-      },
+      united.defs,
+      { hbinDefs: bins.hbinDefs, sbinDefs: bins.sbinDefs, passHbins: bins.passHbins },
+      defsBySourceFrom(renamed),
     );
     if (originalPaths) { addRecentFiles(originalPaths); syncRecentBtn(); }
   }
@@ -1775,6 +1978,9 @@ addMoreBtn.addEventListener('click', () => openPickMenu(addMoreBtn, true));
  *  menu row can call it directly. */
 function toggleValueFindings() {
   if (busy || currentWafers.length === 0) return;
+  // Whichever way it goes, the user has now decided — the auto budget must not
+  // silently turn it back on for them on the next render.
+  valueFindingsChosen = true;
   valueFindings = !valueFindings;
   // Analysis results are cached; the toggle changes what they contain, so drop
   // them. Re-render the current map view (gallery/single) with the new setting —
@@ -1922,6 +2128,18 @@ async function openFilterTests() {
     }
     applyTestOverrides(filteredDefs, filterTestOverrides);
     log('info', `Test filter: ${testSelection.length} of ${Object.keys(selectorTestDefs).length} tests (in-memory)`);
+    // The per-source defs are filtered by the same selection — leaving them
+    // whole would hand wmap tests the user has just removed, so the map's mode
+    // menu and the Insights selectors would still offer them.
+    const filteredBySource = new Map<WaferSource, FileDefs>();
+    for (const [source, fd] of currentDefsBySource) {
+      const kept: Record<string, TestDef> = {};
+      for (const key of Object.keys(fd.testDefs)) if (keepSet.has(Number(key))) kept[key] = fd.testDefs[key];
+      applyTestOverrides(kept, filterTestOverrides);
+      // passHbins is untouched: which TESTS are selected says nothing about how
+      // the file classifies its bins.
+      filteredBySource.set(source, { testDefs: kept, passHbins: fd.passHbins });
+    }
     // Bin catalog/pass-bins describe the whole file's HBR/SBR, independent of
     // which tests are selected — carry the existing values through unchanged
     // rather than defaulting to "none" (renderWafers' default for an omitted
@@ -1931,6 +2149,7 @@ async function openFilterTests() {
       currentFileName,
       filteredDefs,
       { hbinDefs: currentHbinDefs, sbinDefs: currentSbinDefs, passHbins: currentPassHbins },
+      filteredBySource,
     );
     return;
   }
@@ -1961,17 +2180,28 @@ async function openFilterTests() {
     return;
   }
 
-  const allWafers = entries.flatMap(e => e.parsed.wafers);
-  const mergedDefs = Object.assign({}, ...entries.map(e => e.parsed.testDefs));
+  // Stamp one WaferSource per entry, shared by reference across that entry's
+  // wafers — the same guarantee `buildRenameRows` gives on the load path. This
+  // path previously produced wafers with NO provenance at all, so a re-parse
+  // silently lost both the per-file WCR geometry (`wcrFor`) and, now, the
+  // per-file test defs.
+  const reparsedBySource = new Map<WaferSource, FileDefs>();
+  const allWafers: WaferData[] = [];
+  for (const e of entries) {
+    const source = makeWaferSource(e.parsed.meta, e.fileName);
+    reparsedBySource.set(source, { testDefs: e.parsed.testDefs, passHbins: e.parsed.passHbins });
+    for (const w of e.parsed.wafers) allWafers.push({ ...w, source });
+  }
+  const reparsed = unionTestDefs(entries.map(e => ({ fileName: e.fileName, testDefs: e.parsed.testDefs })));
+  logTestDefCollisions(reparsed.collisions);
+  const reparsedBins = unionBinInfo(entries.map(e => ({ ...e.parsed, fileName: e.fileName })));
+  logPassBinCollisions(reparsedBins.collisions);
   renderWafers(
     allWafers,
     entries.length === 1 ? entries[0].fileName : `${entries.length} files`,
-    mergedDefs,
-    {
-      hbinDefs: mergeBinDefs(entries.map(e => e.parsed.hbinDefs)),
-      sbinDefs: mergeBinDefs(entries.map(e => e.parsed.sbinDefs)),
-      passHbins: mergePassHbins(entries.map(e => e.parsed.passHbins)),
-    },
+    reparsed.defs,
+    { hbinDefs: reparsedBins.hbinDefs, sbinDefs: reparsedBins.sbinDefs, passHbins: reparsedBins.passHbins },
+    reparsedBySource,
   );
 }
 
@@ -2159,9 +2389,32 @@ function openTestDefinitionsDialog(): void {
       if (parsed.length === 0) { log('warn', 'Test definitions file contained no valid rows'); return false; }
       const matched = parsed.filter(e => String(e.num) in currentTestDefs).length;
       const unmatched = parsed.length - matched;
-      const overrides = new Map<number, TestOverride>(parsed.map(e => [e.num, e]));
+      // A test number the loaded files disagree about does NOT identify one
+      // test, so an override for it cannot be applied honestly — writing one
+      // name/unit across two different measurements is the very conflation this
+      // whole path exists to stop. Refused individually, named, and the rest of
+      // the file still applies.
+      //
+      // A LIMITS disagreement is deliberately not refused: an explicit limit is
+      // the user stating the spec, which resolves the ambiguity rather than
+      // hiding it, and once every file agrees wmap stops withholding capability
+      // for that test.
+      const blocked = new Set(currentTestDefCollisions.filter(c => c.kind !== 'limits').map(c => c.testNumber));
+      const overrides = new Map<number, TestOverride>(
+        parsed.filter(e => !blocked.has(String(e.num))).map(e => [e.num, e]),
+      );
+      const refused = parsed.filter(e => blocked.has(String(e.num))).map(e => e.num);
+      // Applied to the union AND to every file's own defs — the union drives
+      // tsmap's own UI, the per-file defs are what wmap actually renders from,
+      // so overriding only the first would silently stop reaching the map.
       applyTestOverrides(currentTestDefs, overrides);
+      for (const fd of currentDefsBySource.values()) applyTestOverrides(fd.testDefs, overrides);
       log('info', `Test definitions loaded: ${matched} matched${unmatched > 0 ? `, ${unmatched} unmatched (not currently imported)` : ''}`);
+      if (refused.length > 0) {
+        log('error', `Not applied to test${refused.length !== 1 ? 's' : ''} ${refused.join(', ')} — the `
+          + 'loaded files disagree about what this test number measures, so one definition cannot '
+          + 'describe it. Load those files separately to define it.');
+      }
       return true;
     },
   });
@@ -2266,6 +2519,12 @@ function openHelpMenu(anchor: HTMLElement) {
       }));
 
       // No such concept in a browser (there's no OS-level "default app for a file
+      popup.appendChild(makeMenuRow(close, {
+        label: 'About tsmap…',
+        hint: 'Version, licence, and the projects this is built on',
+        onClick: () => { showAboutModal(); },
+      }));
+
       // type" a web page can register), so this row only exists on desktop.
       if (isTauri) {
         popup.appendChild(makeMenuRow(close, {
@@ -2281,6 +2540,78 @@ function openHelpMenu(anchor: HTMLElement) {
       }
     },
   );
+}
+
+/**
+ * Help → About. The one place the app states what it is, who wrote it, and what
+ * it is built on.
+ *
+ * Attribution lives here rather than on the toolbar or a splash screen: MIT
+ * already binds the copyright notice to every copy, so this is for the person
+ * who goes looking, not something to put in front of someone opening a wafer
+ * map. It doubles as the answer to "which version am I running?", which
+ * previously existed only as a line in the log panel.
+ */
+function showAboutModal(): void {
+  openModal({
+    title: 'About tsmap',
+    sizing: 'content',
+    contentSize: { width: 'min(460px, 92vw)', height: 'min(420px, 80vh)' },
+    mount(body) {
+      body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light);overflow-y:auto';
+
+      const row = (label: string, value: string): HTMLElement => {
+        const d = document.createElement('div');
+        d.style.cssText = 'display:flex;gap:8px';
+        const k = document.createElement('span');
+        k.textContent = label;
+        k.style.cssText = 'color:var(--text-muted);min-width:82px;flex-shrink:0';
+        const v = document.createElement('span');
+        v.textContent = value;
+        d.append(k, v);
+        return d;
+      };
+
+      const heading = document.createElement('div');
+      heading.textContent = 'tsmap';
+      heading.style.cssText = 'font-size:20px;font-weight:700;color:var(--text-primary)';
+      body.appendChild(heading);
+
+      const blurb = document.createElement('div');
+      blurb.textContent = 'Desktop and browser viewer for semiconductor wafer map data. '
+        + 'Files are parsed entirely on this machine and are never uploaded.';
+      blurb.style.cssText = 'color:var(--text-secondary);line-height:var(--leading-base)';
+      body.appendChild(blurb);
+
+      body.appendChild(row('Version', `${__APP_VERSION__}  ·  built ${__BUILD_DATE__}`));
+      body.appendChild(row('Author', 'Paul Robins'));
+      body.appendChild(row('Licence', 'MIT — free to use, modify and redistribute'));
+
+      const links = document.createElement('div');
+      links.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:4px';
+      const link = (text: string, href: string, note: string): HTMLElement => {
+        const wrap = document.createElement('div');
+        const a = document.createElement('a');
+        a.textContent = text;
+        a.href = href;
+        a.style.cssText = 'color:var(--accent);cursor:pointer';
+        a.className = 'link-inline';
+        // Route through the platform opener: in Tauri a bare href would try to
+        // navigate the app's own webview away from the app.
+        a.addEventListener('click', (e) => { e.preventDefault(); void platform.openExternal(href); });
+        const n = document.createElement('span');
+        n.textContent = ` — ${note}`;
+        n.style.color = 'var(--text-muted)';
+        wrap.append(a, n);
+        return wrap;
+      };
+      links.appendChild(link('tsmap', 'https://github.com/wafertools/tsmap', 'source, releases and issues'));
+      links.appendChild(link('wafermap', 'https://github.com/wafertools/wafermap',
+        'the wafer rendering and analysis library this is built on — usable in your own application'));
+      links.appendChild(link('wafertools', 'https://wafertools.github.io/', 'both projects, and what changed recently'));
+      body.appendChild(links);
+    },
+  });
 }
 
 /**

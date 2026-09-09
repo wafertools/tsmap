@@ -85,6 +85,7 @@ export function showFileAssociationsModal(options: FileAssociationsUIOptions): v
 
         const row = document.createElement('label');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;';
+        row.className = 'click-row';
 
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';

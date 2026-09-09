@@ -150,7 +150,7 @@ export function makeMenuSelect(
         row.setAttribute('aria-selected', String(o.value === selected));
         row.tabIndex = -1;   // roving tabindex — see setActive()
         row.textContent = o.label;
-        row.style.cssText = 'padding:5px 10px;border-radius:var(--radius-control);cursor:pointer;white-space:nowrap;';
+        row.style.cssText = 'padding:6px 10px;border-radius:var(--radius-control);cursor:pointer;white-space:nowrap;';
         // The three states of the shared contract (UI_STANDARDS.md): SELECTED is
         // a persistent accent tint, HOVER is a transient neutral background,
         // FOCUS is the browser ring — drawn by the engine, not here.

@@ -50,7 +50,18 @@
 
       /* Colour token set — DARK (also the Auto default). Dark grey, not
          near-black (VS-Code-dark range); surface hierarchy toolbar darkest →
-         app → overlay → input/modal lightest. */
+         app → overlay → input lightest.
+
+         There was a `--bg-modal` too, one step lighter again, on the theory
+         that a dialog is a raised surface. It never described the app: every
+         real dialog (`openModal` — splits, definitions, file filter, geometry),
+         every menu and the filter table all painted `--bg-overlay`, and only
+         the test selector and the plain confirm dialog used it — so those two
+         read as a different shade sitting beside the others. Removed rather
+         than rolled out, because rolling it out would also have split the
+         wafer map's own panel (`--wmap-surface` → `--bg-overlay`) away from the
+         dialog hosting it. If the raised-dialog idea is ever wanted, it has to
+         move that bridge too. */
       :root,
       :root[data-theme="dark"] {
         /* Force native form-control chrome (the closed <select> box, inputs) to
@@ -64,7 +75,6 @@
         --bg-input:        #37373b;
         --bg-hover-row:    #343438;
         --bg-row-border:   #3a3a3e;
-        --bg-modal:        #37373b;
         --bg-accent-hover: #2b3a4f;
         --bg-selected:     #3a4b64;
 
@@ -78,7 +88,7 @@
            backgrounds — essentially invisible, not a "subtle" choice, a
            bug. #808080 clears WCAG 1.4.11's 3:1 non-text-contrast minimum
            against every surface this token actually sits on here (bg-app,
-           bg-modal, bg-overlay) — found and fixed 2026-08. Same bug existed
+           bg-overlay) — found and fixed 2026-08. Same bug existed
            in nord and solarized-dark (their own --border-mid, below) —
            fixed the same way, hue-matched to each theme's own palette
            rather than reusing this grey. Not touched: light-theme
@@ -102,7 +112,7 @@
            empty-state subtitle (text-veryfaint) being reported unreadable.
            Fixed 2026-08, same hue-preserving-lighten approach, target
            ~4.5-5.0:1 against every background these actually render on
-           (bg-app/bg-modal/bg-overlay). The three values compress closer
+           (bg-app/bg-overlay). The three values compress closer
            together than before — full readability took priority over a
            wide subtlety gradient, per explicit direction. Same bug existed
            in nord and solarized-dark, fixed the same way below. */
@@ -144,7 +154,6 @@
         --bg-input:        #fff;
         --bg-hover-row:    #ebebeb;
         --bg-row-border:   #e8e8e8;
-        --bg-modal:        #fff;
         --bg-accent-hover: #dbeafe;
         --bg-selected:     #bcd1e7;
 
@@ -208,7 +217,6 @@
         --bg-input:        #ffffff;
         --bg-hover-row:    #f0f0f0;
         --bg-row-border:   #eaeaea;
-        --bg-modal:        #ffffff;
         --bg-accent-hover: #e8f5d9;
         --bg-selected:     #c9d9c5;   /* pale tint of the #8DC63F accent */
 
@@ -263,7 +271,6 @@
         --bg-input:        #3b4252;
         --bg-hover-row:    #3b4252;
         --bg-row-border:   #434c5e;
-        --bg-modal:        #3b4252;
         --bg-accent-hover: #3b4a58;
         --bg-selected:     #485b6a;
 
@@ -327,7 +334,6 @@
         --bg-input:        #343646;
         --bg-hover-row:    #343646;
         --bg-row-border:   #3b3d4d;
-        --bg-modal:        #343646;
         --bg-accent-hover: #3a3355;
         --bg-selected:     #51486c;
 
@@ -378,7 +384,6 @@
         --bg-input:        #292e42;
         --bg-hover-row:    #292e42;
         --bg-row-border:   #34395a;
-        --bg-modal:        #292e42;
         --bg-accent-hover: #263457;
         --bg-selected:     #374467;
 
@@ -428,7 +433,6 @@
         --bg-input:        #161b22;
         --bg-hover-row:    #161b22;
         --bg-row-border:   #21262d;
-        --bg-modal:        #161b22;
         --bg-accent-hover: #1c2b41;
         --bg-selected:     #273f5b;
 
@@ -479,7 +483,6 @@
         --bg-input:        #3c3836;
         --bg-hover-row:    #3c3836;
         --bg-row-border:   #504945;
-        --bg-modal:        #3c3836;
         --bg-accent-hover: #3a2c1c;
         --bg-selected:     #674529;
 
@@ -533,7 +536,6 @@
         --bg-input:        #313244;
         --bg-hover-row:    #313244;
         --bg-row-border:   #45475a;
-        --bg-modal:        #313244;
         --bg-accent-hover: #322a42;
         --bg-selected:     #4f4568;
 
@@ -584,7 +586,6 @@
         --bg-input:        #073642;
         --bg-hover-row:    #0a3d4a;
         --bg-row-border:   #0e4653;
-        --bg-modal:        #073642;
         --bg-accent-hover: #0a3f52;
         --bg-selected:     #0f4c67;
 
@@ -647,7 +648,6 @@
         --bg-input:        #fffcf0;
         --bg-hover-row:    #eee8d5;
         --bg-row-border:   #e6dfc8;
-        --bg-modal:        #fffcf0;
         --bg-accent-hover: #e3ecdf;
         --bg-selected:     #c5dadf;
 
@@ -701,7 +701,6 @@
         --bg-input:        #fefbf0;
         --bg-hover-row:    #f2e5bc;
         --bg-row-border:   #ebdbb2;
-        --bg-modal:        #fefbf0;
         --bg-accent-hover: #f5e3d3;
         --bg-selected:     #e7c194;
 
@@ -751,7 +750,6 @@
         --bg-input:        #ffffff;
         --bg-hover-row:    #f6f8fa;
         --bg-row-border:   #eaeef2;
-        --bg-modal:        #ffffff;
         --bg-accent-hover: #ddf4ff;
         --bg-selected:     #bfd8f5;
 
@@ -802,7 +800,6 @@
         --bg-input:        #ffffff;
         --bg-hover-row:    #e6e9ef;
         --bg-row-border:   #ccd0da;
-        --bg-modal:        #ffffff;
         --bg-accent-hover: #f0e3ff;
         --bg-selected:     #d9c5f6;
 
@@ -853,7 +850,6 @@
         --bg-input:        #ffffff;
         --bg-hover-row:    #eaeaea;
         --bg-row-border:   #d0d0d0;
-        --bg-modal:        #ffffff;
         --bg-accent-hover: #d6e4ff;
         --bg-selected:     #bdd2f1;
 
@@ -904,7 +900,6 @@
           --bg-input:        #fff;
           --bg-hover-row:    #ebebeb;
           --bg-row-border:   #e8e8e8;
-          --bg-modal:        #fff;
           --bg-accent-hover: #dbeafe;
           --bg-selected:     #bcd1e7;
 
@@ -1197,7 +1192,7 @@
          different COLOUR intents get a modifier below. */
       .tb-btn {
         background: none; border: 1px solid var(--border-dim); border-radius: var(--radius-control);
-        color: var(--text-muted); font-size: 12px; padding: 3px 10px; cursor: pointer;
+        color: var(--text-muted); font-size: 12px; padding: 4px 10px; cursor: pointer;
         white-space: nowrap; user-select: none;
       }
       /* Accent border + accent text is the affordance; the ground stays NEUTRAL.
@@ -1213,10 +1208,10 @@
          shouts for attention but does confirm intent before the click lands. */
       .tb-btn--danger { border-color: var(--border-muted); }
       .tb-btn--danger:not(:disabled):hover { border-color: var(--error-text); color: var(--error-text); background: none; }
-      #recent-btn { display: inline-flex; align-items: center; gap: 5px; }
+      #recent-btn { display: inline-flex; align-items: center; gap: 6px; }
       /* Group divider. Toggled with the group it frames (setToolbarGroupVisible,
          main.ts) — a divider with nothing beside it reads as a rendering bug. */
-      .tb-sep { width: 1px; align-self: stretch; margin: 3px 2px; background: var(--border-dim); flex-shrink: 0; }
+      .tb-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--border-dim); flex-shrink: 0; }
       .tb-caret { opacity: 0.7; font-size: 12px; }
       /* Split button: the verb (Open/Add) and a caret that chooses HOW to pick
          files. Two real <button>s — a click target nested inside a button is
@@ -1247,7 +1242,7 @@
       }
       @media (max-width: 900px) { #file-label { display: none; } }
       #busy-spinner {
-        display: none; width: 13px; height: 13px; border-radius: 50%;
+        display: none; width: 13px; height: 13px; border-radius: var(--radius-pill);
         border: 2px solid var(--border-dim); border-top-color: var(--accent);
       }
       #busy-spinner.active {
@@ -1318,7 +1313,7 @@
          from running underneath it. */
       .mapping-table select {
         background-color: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
-        padding: 2px 22px 2px 4px; border-radius: var(--radius-control); font-size: 12px; width: 100%;
+        padding: 2px 24px 2px 4px; border-radius: var(--radius-control); font-size: 12px; width: 100%;
         -webkit-appearance: none; appearance: none;
         background-image:
           linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
@@ -1342,7 +1337,17 @@
         padding: 2px 6px; border-radius: var(--radius-control); font-size: 12px; width: 180px;
       }
       .split-cell { white-space: nowrap; }
-      .split-label { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-muted); font-size: 12px; }
+      .split-label { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-muted); font-size: 12px; }
+      .split-label:hover { color: var(--text-secondary); }
+
+      /* Clickable rows and links that are not buttons, and so are not covered by
+         the blanket `button:hover` rule above. A pointer cursor promises the
+         thing reacts; these are that reaction. Added after a check found six
+         such elements across the app offering the promise and doing nothing —
+         checkbox rows in the column picker, the value filter, the file
+         associations dialog and the splits dialog, plus an inline link. */
+      .click-row:hover { background: var(--bg-hover-row); }
+      .link-inline:hover { text-decoration: underline; }
       .cardinality-hint { color: var(--text-faint); font-size: 12px; }
       .mapping-footer {
         display: flex; align-items: center; gap: 12px; padding: 10px 16px;
@@ -1479,18 +1484,18 @@
       .rename-arrow { color: var(--text-veryfaint); text-align: center; padding: 0 8px; }
       .rename-input {
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);
-        padding: 3px 8px; border-radius: var(--radius-control); font-size: 13px; width: 200px;
+        padding: 4px 8px; border-radius: var(--radius-control); font-size: 13px; width: 200px;
       }
       .rename-count { color: var(--text-faint); font-size: 12px; padding-left: 12px; }
 
       /* Append confirmation */
-      .append-summary { margin-bottom: 14px; font-size: 13px; color: var(--text-tertiary); }
-      .append-warnings { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+      .append-summary { margin-bottom: 12px; font-size: 13px; color: var(--text-tertiary); }
+      .append-warnings { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
       .append-warning { display: flex; gap: 8px; font-size: 12px; padding: 6px 10px; border-radius: var(--radius-control); }
       .append-warn { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
       .append-info { background: var(--info-bg); color: var(--info-text); border: 1px solid var(--info-border); }
       .warn-icon { flex-shrink: 0; }
-      .append-ok { font-size: 12px; color: var(--ok-text); margin-bottom: 18px; }
+      .append-ok { font-size: 12px; color: var(--ok-text); margin-bottom: 16px; }
       .btn-warn { background: var(--warn-btn-bg) !important; }
       .btn-warn:hover { background: var(--warn-btn-hover) !important; }
 
@@ -1501,11 +1506,11 @@
         display: flex; align-items: center; justify-content: center;
       }
       .tsmap-modal {
-        background: var(--bg-modal); border: 1px solid var(--border-mid); border-radius: var(--radius-container);
+        background: var(--bg-overlay); border: 1px solid var(--border-mid); border-radius: var(--radius-container);
         padding: 24px; max-width: 420px; color: var(--text-light);
       }
       .tsmap-modal h3 { margin-bottom: 10px; font-size: 15px; }
-      .tsmap-modal p  { margin-bottom: 20px; font-size: 13px; color: var(--text-subdued); line-height: var(--leading-base); }
+      .tsmap-modal p  { margin-bottom: 16px; font-size: 13px; color: var(--text-subdued); line-height: var(--leading-base); }
       .tsmap-modal-buttons { display: flex; gap: 10px; justify-content: flex-end; }
       .muted { color: var(--text-faint); font-size: 12px; }
 
@@ -1518,7 +1523,7 @@
          lose on source order, which is exactly how the double card appeared. */
       .tsmap-modal.append-modal {
         background: none; border: none; border-radius: 0;
-        max-width: none; width: 100%; padding: 16px 18px 18px;
+        max-width: none; width: 100%; padding: 16px 16px 16px;
       }
       .tsmap-modal.append-modal .append-warnings { margin-bottom: 16px; }
       .tsmap-modal.append-modal .append-summary { margin-bottom: 12px; }
@@ -1538,7 +1543,7 @@
       }
       #log-toggle {
         width: 100%; background: none; border: none; border-bottom: 1px solid transparent;
-        color: var(--text-dim); font-size: 12px; padding: 3px 12px;
+        color: var(--text-dim); font-size: 12px; padding: 4px 12px;
         cursor: pointer; user-select: none;
         display: flex; align-items: center; justify-content: flex-end; gap: 6px;
       }

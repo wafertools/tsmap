@@ -69,7 +69,7 @@ export function showDefinitionsTemplatesDialog(
     sizing: 'content',
     contentSize: { width: 'min(90vw, 480px)', height: 'auto' },
     mount(body) {
-      body.style.cssText += 'padding:16px;gap:14px;font-size:12px;color:var(--text-light)';
+      body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light)';
 
       const intro = document.createElement('p');
       intro.style.cssText = 'margin:0;color:var(--text-secondary)';

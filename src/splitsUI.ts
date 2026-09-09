@@ -62,13 +62,14 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       searchInput.type = 'search';
       searchInput.placeholder = 'Filter by wafer ID or source file…';
       searchInput.style.cssText = [
-        'padding:5px 8px;border:1px solid var(--border-mid);border-radius:var(--radius-control)',
+        'padding:6px 8px;border:1px solid var(--border-mid);border-radius:var(--radius-control)',
         'background:var(--bg-input);color:var(--text-secondary);font-size:12px',
       ].join(';');
       searchInput.addEventListener('input', () => { searchQuery = searchInput.value.trim().toLowerCase(); renderList(); });
 
       const suffixLabel = document.createElement('label');
       suffixLabel.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-secondary)';
+      suffixLabel.className = 'click-row';
       const suffixCb = document.createElement('input');
       suffixCb.type = 'checkbox';
       suffixCb.checked = options.showSplitSuffix;
@@ -179,7 +180,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       splitInput.type = 'text';
       splitInput.placeholder = 'Split name (e.g. TT, FF, FS)…';
       splitInput.style.cssText = [
-        'flex:1;min-width:140px;padding:5px 8px',
+        'flex:1;min-width:140px;padding:6px 8px',
         'border:1px solid var(--border-mid);border-radius:var(--radius-control)',
         'background:var(--bg-input);color:var(--text-secondary);font-size:12px',
       ].join(';');

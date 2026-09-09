@@ -12,6 +12,12 @@ heat maps, bin pareto charts, per-test boxplots and histograms, and a cross-test
 matrix — all without uploading your data anywhere. Wafer rendering and analysis are built
 on [wafermap](https://wafertools.github.io/wafermap/), our own purpose-built wafer-map engine.
 
+> **Building your own tool?** The rendering and analysis engine is available separately as
+> **[wafermap](https://wafertools.github.io/wafermap/)** (`@wafertools/wafermap` on npm) —
+> the same maps, findings and charts, embeddable in your own application. Use tsmap to
+> *look at* wafer data; use wafermap when you need wafer maps *inside* something you are
+> building.
+
 ## Why tsmap
 
 - **Fast.** The parser is native Rust on both platforms — a 341 MB / 266,000-die STDF lot

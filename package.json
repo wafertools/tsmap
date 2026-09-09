@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.32",
   "license": "MIT",
+  "author": {
+    "name": "Paul Robins",
+    "url": "https://wafertools.github.io/tsmap/"
+  },
   "type": "module",
   "scripts": {
     "build:guide": "node scripts/build-user-guide.mjs",
@@ -19,7 +23,7 @@
     "check": "tsc --noEmit",
     "check:drift": "node scripts/check-drift.mjs",
     "help": "node scripts/help.mjs",
-    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/help.mjs --check && node scripts/check-button-styles.mjs && node scripts/check-style-scales.mjs",
+    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/help.mjs --check && node scripts/check-theme-docs.mjs && node scripts/check-button-styles.mjs && node scripts/check-style-scales.mjs && node scripts/check-clones.mjs src",
     "verify": "npm run check && npm run lint && npm run check:docs && npm test && npm run check:rust && npm run test:rust",
     "preversion": "npm run verify && node scripts/check-wmap-published.js && node scripts/check-testdata-parser-published.js",
     "version": "node scripts/check-changelog.mjs && node scripts/sync-rust-version.mjs",
@@ -47,7 +51,8 @@
     "demo:build": "npm run predev && tsc && vite build",
     "demo:test": "node scripts/run-scenario.mjs",
     "check:buttons": "node scripts/check-button-styles.mjs",
-    "check:styles": "node scripts/check-style-scales.mjs"
+    "check:styles": "node scripts/check-style-scales.mjs",
+    "check:themes": "node scripts/check-theme-docs.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -55,7 +60,7 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
     "@wafertools/testdata-parser": "^0.9.0",
-    "@wafertools/wafermap": "^0.26.1",
+    "@wafertools/wafermap": "^0.27.0",
     "fflate": "^0.8.3"
   },
   "devDependencies": {

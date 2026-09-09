@@ -104,6 +104,10 @@ export interface FilterTableHandle {
    *  scan-as-it-completes population of a large batch. */
   addRow(row: FilterTableRow): void;
   getSelectedIds(): Set<string>;
+  /** Ids currently passing the filter/search — a selection can legitimately
+   *  contain rows this does not, and a caller refusing a load needs to be able
+   *  to say so rather than leaving the user hunting. */
+  getShownIds(): Set<string>;
   selectAll(): void;
   selectNone(): void;
   invertSelection(): void;
@@ -292,13 +296,23 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   // depend on the files in front of you, not on the filter.
   const hiddenColumns = new Set<string>();
   const columnsBtn = toolbarBtn('Columns ▾', () => {
-    openAnchoredMenu(columnsBtn, { stack: true, minWidth: '200px', maxWidth: '280px', fontSize: '12px' }, (popup, close) => {
+    // `commit` is set by the fill callback below and run on dismissal as well
+    // as on OK. Without it, unticking a column and then clicking away — the
+    // ordinary way to leave a menu — threw the change away silently, which
+    // reads as the Columns filter simply not working. Escape still cancels,
+    // which is the only reason `onClose` needs the reason at all.
+    let commit: (() => void) | null = null;
+    openAnchoredMenu(columnsBtn, {
+      stack: true, minWidth: '200px', maxWidth: '280px', fontSize: '12px',
+      onClose: (reason) => { if (reason !== 'escape') commit?.(); },
+    }, (popup, close) => {
       popup.setAttribute('role', 'dialog');
       popup.setAttribute('aria-label', 'Choose visible columns');
       const list = el('div', { display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '300px', overflow: 'auto' });
       const boxes: { key: string; box: HTMLInputElement }[] = [];
       for (const col of columns) {
         const row = el('label', { display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 4px', cursor: 'pointer' });
+        row.className = 'click-row';
         const box = el('input') as HTMLInputElement;
         box.type = 'checkbox';
         box.checked = !hiddenColumns.has(col.key);
@@ -328,11 +342,15 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       }, 'OK');
       okBtn.className = 'btn-secondary';
       okBtn.type = 'button';
-      okBtn.addEventListener('click', () => {
+      commit = () => {
         hiddenColumns.clear();
         for (const c of boxes) if (!c.box.checked) hiddenColumns.add(c.key);
-        close();
         render();
+      };
+      okBtn.addEventListener('click', () => {
+        // close() runs onClose, which commits — doing it here as well would
+        // just repeat the same idempotent work.
+        close();
       });
       actions.appendChild(okBtn);
       popup.appendChild(actions);
@@ -572,7 +590,14 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   // of the column's existing filter state.
   function openColumnFilterMenu(anchor: HTMLElement, col: FilterTableColumn, onlyValue?: string): void {
     const uniqueValues = [...new Set(rows.map(r => r.columns[col.key] ?? ''))].sort();
-    openAnchoredMenu(anchor, { stack: true, minWidth: '200px', maxWidth: '280px', fontSize: '12px' }, (popup, close) => {
+    // Same contract as the column picker above: dismissing by clicking away
+    // commits, Escape cancels. `Clear` sets its own commit first so a cleared
+    // filter is not immediately re-applied from the still-ticked boxes.
+    let commit: (() => void) | null = null;
+    openAnchoredMenu(anchor, {
+      stack: true, minWidth: '200px', maxWidth: '280px', fontSize: '12px',
+      onClose: (reason) => { if (reason !== 'escape') commit?.(); },
+    }, (popup, close) => {
       // anchoredMenu owns the box and its dismissal but is content-agnostic —
       // this particular popup is a small form, so it names itself as one.
       popup.setAttribute('role', 'dialog');
@@ -582,6 +607,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       const checkboxes: { value: string; box: HTMLInputElement }[] = [];
       for (const v of uniqueValues) {
         const row = el('label', { display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 4px', cursor: 'pointer' });
+        row.className = 'click-row';
         const box = el('input') as HTMLInputElement;
         box.type = 'checkbox';
         box.checked = onlyValue !== undefined ? v === onlyValue : (!current || current.has(v));
@@ -600,6 +626,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
         else columnFilters.set(col.key, values);
         render();
       };
+      commit = () => apply(new Set(checkboxes.filter(c => c.box.checked).map(c => c.value)));
       const allBtn = el('button', {}, 'All');
       allBtn.className = 'btn-link';
       allBtn.type = 'button';
@@ -614,13 +641,13 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       const clearBtn = el('button', {}, 'Clear');
       clearBtn.className = 'btn-link btn-link--muted';
       clearBtn.type = 'button';
-      clearBtn.addEventListener('click', () => { apply(null); close(); });
+      clearBtn.addEventListener('click', () => { commit = () => apply(null); close(); });
       const okBtn = el('button', {
         marginLeft: 'auto',
       }, 'OK');
       okBtn.className = 'btn-secondary';
       okBtn.type = 'button';
-      okBtn.addEventListener('click', () => { apply(new Set(checkboxes.filter(c => c.box.checked).map(c => c.value))); close(); });
+      okBtn.addEventListener('click', () => { close(); });
       actions.appendChild(clearBtn);
       actions.appendChild(allBtn);
       actions.appendChild(noneBtn);
@@ -705,7 +732,18 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     const allVisSelected = vis.length > 0 && vis.every(r => selected.has(r.id));
     headerCheckbox.checked = allVisSelected;
     headerCheckbox.indeterminate = !allVisSelected && vis.some(r => selected.has(r.id));
-    countLabel.textContent = `${selected.size} selected / ${vis.length} shown / ${rows.length} total`;
+    // Name the hidden part of the selection explicitly. `selected` deliberately
+    // survives a filter change (ticking across two different searches is a real
+    // workflow), so it can legitimately exceed what is on screen — and when it
+    // silently did, a refused load looked like it was complaining about the
+    // rows in front of you. Also the only cue that "Select all" is scoped to
+    // the shown rows while "Select none" clears everything: that asymmetry is
+    // forced (a scoped "none" cannot reach hidden rows at all), so the state it
+    // produces has to be legible.
+    const hiddenSelected = [...selected].filter(id => !vis.some(r => r.id === id)).length;
+    countLabel.textContent = hiddenSelected > 0
+      ? `${selected.size} selected (${hiddenSelected} hidden) / ${vis.length} shown / ${rows.length} total`
+      : `${selected.size} selected / ${vis.length} shown / ${rows.length} total`;
   }
 
   /** Shift/keyboard range selection — the shared checkbox-list convention, the
@@ -749,7 +787,16 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     buildBodyRows();
   }
   function selectNone(): void {
-    for (const r of visibleRows()) selected.delete(r.id);
+    // Clears EVERYTHING, not just the visible rows — unlike `selectAll`, which
+    // is deliberately "all of what you are looking at".
+    //
+    // The asymmetry is the point. Scoping this to visible rows made "Select
+    // none" not mean none: with a search active it left the hidden rows
+    // selected, with no control on screen able to reach them. A user narrowing
+    // a mixed-format batch to one format got "4 selected / 2 shown", a load
+    // still refused for mixed formats, and no way out except guessing that the
+    // search box was the culprit. "None" has to mean none, or it is a dead end.
+    selected.clear();
     onSelectionChange?.(new Set(selected));
     buildBodyRows();
   }
@@ -781,6 +828,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       });
     },
     getSelectedIds: () => new Set(selected),
+    getShownIds: () => new Set(visibleRows().map(r => r.id)),
     selectAll,
     selectNone,
     invertSelection,

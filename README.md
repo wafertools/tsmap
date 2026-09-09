@@ -9,6 +9,12 @@ A desktop and web application for loading and visualising semiconductor wafer ma
 
 **[Documentation & web app →](https://wafertools.github.io/tsmap/)**
 
+> **Building your own tool?** The wafer rendering and analysis engine is available on its
+> own as **[wafermap](https://github.com/wafertools/wafermap)**
+> (`@wafertools/wafermap` on npm) — the same maps, findings and charts you see here,
+> embeddable in your application. Use tsmap if you want to *look at* wafer data; use
+> wafermap if you need wafer maps *inside* something you are building.
+
 ## Community
 
 Questions, ideas, or want to show off a wafer map you built? Use [GitHub
@@ -147,6 +153,7 @@ src/
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
   definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
+  valueFindings.ts    — cost model deciding whether wmap's regional test-value analysis runs unprompted
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
 
   anchoredMenu.ts     — shared popup menu shell for the Recent / Help / Lot toolbar menus

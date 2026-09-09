@@ -73,7 +73,14 @@ export interface PickedFile {
 /** Wraps an already-resolved handle (desktop picker, or a batch Open/Add
  *  handed over by main.ts) as a `PickedFile`. */
 export function pickedFromHandle(handle: FileHandle): PickedFile {
-  return { handle };
+  // `handle.webFile` must come across as `blob`: on web a folder scan yields
+  // handles with EMPTY `bytes` and the real `File` parked on `webFile`, and
+  // `materializePicked` below only knows how to read `blob`. Returning a bare
+  // `{ handle }` therefore left every folder-scanned file with no bytes, so
+  // each one failed to parse. Caught before release, and desktop never took
+  // this route at all (its handles carry `path`) — so the window where it
+  // could bite was web-only and never published.
+  return { handle, blob: handle.webFile };
 }
 
 /** Wraps a browser `File` without reading it. `size`/`lastModified` come free
@@ -504,7 +511,17 @@ export async function openFileFilterDialog(
         // with the dialog left open, so the selection can just be narrowed.
         const mixedFormatsError = checkSameExtension(chosen.map(sf => sf.picked.handle.name));
         if (mixedFormatsError) {
-          showNotice(mixedFormatsError);
+          // Name the off-screen part of the selection. A filter or search hides
+          // rows but does not deselect them, so the files causing this can be
+          // invisible — the refusal then looks like it is about the files on
+          // screen, which are fine, and there is nothing obvious to change.
+          const shown = table.getShownIds();
+          const hidden = chosen.filter(sf => !shown.has(sf.id)).length;
+          showNotice(hidden > 0
+            ? `${mixedFormatsError}. ${hidden} selected file${hidden === 1 ? ' is' : 's are'} ` +
+              `hidden by the current search or column filter — "Select none" clears the whole ` +
+              `selection, including those.`
+            : mixedFormatsError);
           return;
         }
         const unscannable = chosen.filter(sf => sf.error);

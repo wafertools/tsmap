@@ -33,6 +33,9 @@
  */
 
 import { injectFile, injectFiles, addFile } from './inject.mjs';
+import { mkdtemp, copyFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, basename } from 'node:path';
 
 // ─── Cursor helper (cosmetic only) ─────────────────────────────────────────
 
@@ -302,15 +305,25 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
       // The standalone "Filter files…" toolbar button is gone — it was a third
       // sibling to Open/Add that differed on a different axis (how to pick, not
       // what to do). The filter table is now reached by scanning a folder, so
-      // this drives the empty state's #scan-folder-btn instead. Playwright's
-      // setFiles supplies the folder's contents directly, which is what the web
-      // build's `webkitdirectory` input would have produced.
+      // this drives the empty state's #scan-folder-btn instead.
+      //
+      // That input is `webkitdirectory`, and Chromium REFUSES a list of
+      // individual files for one ("requires passing a path to a directory") —
+      // this step used to hand setFiles the file list directly and had been
+      // failing ever since, which is why docs/images/file-filter.png went
+      // stale while every other capture kept refreshing. Passing the shared
+      // testdata/ folder instead would fix the throw but change the picture:
+      // 17 entries would be scanned where the doc text promises four. So the
+      // requested files are staged into a temp directory and THAT is scanned,
+      // which keeps the caller's file list meaningful.
       const files = Array.isArray(args[0]) ? args[0] : [args[0]];
+      const scanDir = await mkdtemp(join(tmpdir(), 'tsmap-scan-'));
+      await Promise.all(files.map(f => copyFile(f, join(scanDir, basename(f)))));
       const [chooser] = await Promise.all([
         page.waitForEvent('filechooser'),
         page.click('#scan-folder-btn'),
       ]);
-      await chooser.setFiles(files);
+      await chooser.setFiles(scanDir);
       break;
     }
 

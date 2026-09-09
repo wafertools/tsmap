@@ -151,6 +151,75 @@ change — noted per item.
       reuses existing grouping infrastructure" is optimistic as written; would need its own
       aggregation. Would now be a wmap addition. Still unimplemented.
 
+- [ ] **Single-test focus: make Insights' existing drilldown read as one system.** Discussed
+      2026-09-05. The original framing was a new full-page "analysis of one test" view, reached
+      by selecting a test from Insights — stats, charts, pass/fail, faceting, optionally a test
+      report. Investigation found most of it already built but distributed, so the scoped work
+      is to concentrate and finish what exists rather than add a page beside it.
+      **Already there, do not rebuild:** `insightsTab.ts`'s Distributions section already holds
+      one shared `activeSectionTest`, broadcast by `selectTestEverywhere` to capability, boxplot,
+      histogram and trend — pick a test in any of the four and the rest follow. `axisPrefs` is
+      shared the same way. Faceting is already plumbed section-wide (`Group by:` builds `groups`
+      and every panel consumes it). Per-wafer test-value drilldown already works from boxplot
+      (`charts/boxplot.ts`, click a leaf row) and trend (`charts/trend.ts`, click a point), both
+      carrying the active test through `openWaferDetailModal(waferIndex, title, testNumber)`.
+      Lot-wide test maps are the *gallery's* job and already exist there
+      (`renderWaferGallery.ts`'s `updateShared({ plotMode: 'value', activeTest })` for per-wafer
+      maps; `buildWaferMap.ts`'s cross-wafer `testValues` aggregation for the stacked build) —
+      no test-value map panel belongs inside Insights.
+      **The actual gap** is that a click means something different on adjacent cards, so the
+      drilldown reads as accidental and is, in the user's words, easily overlooked. Four changes,
+      in the order they should be done — all in wmap (tsmap has no chart code left, per the
+      2026-07-11 ownership shift above), all inside `insightsTab.ts` and `canvas-adapter/charts/`:
+      1. **Settle the click vocabulary.** Capability's click rebinds the section; boxplot's, on
+         the card next to it, throws a modal. Rule to adopt: *a mark that is one wafer opens that
+         wafer at the current test; a mark that is a test selects that test across the section.*
+         Boxplot and trend already follow the first, capability and correlation the second — this
+         is a decision, not code, but it is what makes the rest coherent.
+      2. **Add `onOpen` to the scatter panel** (`charts/scatter.ts`) — the panel where you stare
+         at an outlier and currently cannot act on it. Click a point → open that die's wafer at
+         the X test, same `(waferIndex, testNumber)` signature boxplot and trend already use,
+         routed through the existing `openWaferDetailModal`. Needs a small data change first:
+         `ScatterPoint` (`stats/scatter.ts`) carries only `x`/`y`/`hbin`/`group`, no wafer
+         identity, so `ScatterItem` gains an optional `waferIndex` and `scatterPointsForDies`
+         threads it onto each point. Additive and optional — not a breaking change.
+      3. **Add a per-test pass-rate card to Distributions.** `buildTestPassRateData`
+         (`stats/testPassRate.ts`, with its three spec/testFlag/functional modes and
+         `disagreementDies`) and `renderTestPassRatePanel` (`charts/testPassRate.ts`) both
+         already exist and are wired only into Overview, as a *cross-test* comparison. Bind a
+         second instance to `activeSectionTest` as a fifth subscriber to `selectTestEverywhere`.
+         Nearly no new code; it answers "is this test failing more in one split than another",
+         which is the faceting half of the original request.
+      4. **Unify Distributions' three grouping controls** — the follow-up already logged in
+         `insightsTab.ts`'s header comment (capability's restrict-to-one-group dropdown,
+         boxplot's pooled-overview-with-drill, histogram's overlay-with-legend become one
+         section-level control, the way the selected test and `axisPrefs` already are). Largest
+         of the four, and only worth doing after 1–3 have settled what the section is.
+         **Reclassified 2026-09-05: correctness, not polish.** Observed live with Process
+         capability scoped to `EDGE-LOT-01` while the boxplot beside it was drilled into
+         `Lot: (none)` — two adjacent panels describing different populations, with nothing
+         saying so. Raise its priority accordingly; see `WMAP_ISSUES.md` #50.
+         **Done 2026-09-05** (wmap, unpublished): one shared `activeSectionGroup` broadcast by
+         `selectGroupEverywhere`, via a new `makeLinkedGroupSelect` mirroring
+         `makeLinkedTestSelect`'s set-does-not-fire asymmetry. Default changed from `groups[0]`
+         to **all groups**. The panels keep their own renderings of the scope — capability
+         narrows, boxplot drills (click-a-box and Back unchanged, now moving the shared scope),
+         histogram emphasises rather than filters, since the overlay is its whole job. Trend
+         stays out, as it already stood outside `groups`. 7 new tests.
+      **Deliberately not in scope.** A new page or sub-tab: two surfaces answering the same
+      question is the failure mode this codebase has already paid for twice (the
+      Summary-panel/Insights overlap, and tsmap's duplicate `Report…` button, deleted 2026-07-11).
+      Histogram `onOpen`: a bin is a die set that can span wafers, so "open that wafer" has no
+      honest answer — that case wants the die set handed to the gallery, which is a separate
+      idea. A per-test report: `renderSummaryReport.ts`'s `testSection` and `capabilitySection`
+      already emit per-test min/mean/max and Cp/Cpk/Pp/Ppk, so a one-test report is mostly a
+      filter over existing output — revisit if someone actually asks.
+      **Discoverability, and how not to fix it.** The affordance today is a trailing clause in
+      each panel's subtitle plus a cursor change and an appended `<em>click to open this
+      wafer</em>` on the hover tooltip. Making it louder on hover is the wrong instinct: this
+      codebase already ran that experiment with the hover-only per-card toolbar icons and users
+      did not find them. Fewer, consistent click meanings that hold across every panel is the fix.
+
 ## Workflow/report gaps
 
 - [x] **Exportable lot-level report.** PNG export is per-chart only. `write_temp_html.rs`
