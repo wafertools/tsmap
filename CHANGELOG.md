@@ -4,6 +4,27 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [Unreleased]
+
+### Fixed
+
+- **Four themes' accent colour failed WCAG AA as text on their own surfaces.** `--accent` is a
+  text colour (`.tb-btn:hover`, `.btn-row:hover`, `.btn-chip:hover`, `.btn-secondary:hover`,
+  `.btn-caret.is-on`, `#help-btn:hover`) but is chosen for how it looks against the page, and a
+  sweep of all sixteen theme variants against every ground it is painted on found five failing
+  blocks: Solarized Light 3.00:1, Solarized Dark 3.09:1 (under AA against every one of its own
+  grounds), Light 4.24:1, Auto's light half 4.24:1, Catppuccin Latte 4.42:1. Each accent moved
+  the smallest distance that clears 4.5:1 everywhere it is used: `#1d6ba2`, `#65addf`,
+  `#1865b4`, `#1865b4`, `#8437e8`.
+
+### Added
+
+- `scripts/check-theme-contrast.mjs`, wired into `check:docs` — fails the build when any theme's
+  `--accent` drops below AA as text on one of its own grounds, so a retuned or newly added theme
+  cannot ship unmeasured. It deliberately also reads Auto's light half out of its media query:
+  that block is invisible to a `[data-theme]` sweep, and is exactly where one of the five
+  failures was hiding.
+
 ## [0.1.33] — 2026-09-09
 
 ### Changed

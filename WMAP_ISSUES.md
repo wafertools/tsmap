@@ -1604,9 +1604,21 @@ loaded, while the Findings panel — per-wafer, using each wafer's own defs, and
 reporting on tests Insights refused to chart. wmap's Distributions view now reconciles over the
 population **in scope**: pick a group and every one of its tests returns with its own name, unit
 and limits, because within one lot a test number does identify one test; "All groups" still
-withholds. A caption names what was withheld and how to get it back. **Still open:** Overview and
-Correlation reconcile over the whole population — Correlation would need the shared group-scope
-control before it could do the same.
+withholds. A caption names what was withheld and how to get it back.
+
+**Correction (2026-09-09): the "still open" note that stood here was already stale when it was
+written.** It said Overview and Correlation reconciled over the whole population and that
+Correlation needed the shared group-scope control first. That control landed the same day
+(`activeSectionGroup` / `selectGroupEverywhere` / `makeLinkedGroupSelect`), and with it
+`mergeTestDefs` moved **above** the view switch in `insightsTab.ts`'s `render()` — so all three
+views have been scope-aware since. Verified against a two-lot fixture with a hard collision on
+test 1001: unscoped, every view withholds it and says so; scoped to LOT-A each returns
+`vth_n_mV`, scoped to LOT-B each returns `leakage_nA` — that lot's own name, not the first one
+seen. What was actually missing was a **test**: nothing pinned the behaviour, in any view. Now
+pinned by `tests/insightsScopeReconciliation.test.mjs` (10 cases, three views × withheld /
+scope-A / scope-B, plus the caption's own wording), because the wrong version shipped once and
+the fix's correctness rests on where in `render()` it sits — a refactor moving it back inside a
+section would restore the bug for the other two views silently.
 
 **Decisions (2026-09-05, agreed with the user):** a hard collision **excludes** the test from
 cross-item surfaces — splitting it into one series per program would need a compound test key
@@ -1642,3 +1654,84 @@ focus" entry item 4 (Distributions' three independent grouping controls) — the
 showed Process capability scoped to `EDGE-LOT-01` while the boxplot beside it was drilled into
 `Lot: (none)`, with nothing indicating the two panels were describing different populations.
 That was filed as a polish item; on this evidence it is a correctness bug and should be raised.
+
+### 51. Boxplot (and yield) leaf-row click is inert in a single-wafer render — `renderWaferMap` never passes `openWafer`
+
+**Where:** `packages/canvas-adapter/renderWaferMap.ts` — the `mountInsightsTab`/`insightsTab(...)` deps object, which deliberately omits `openWafer` (the comment reads *"No openWafer — this map already IS the only wafer there is to open"*). Consumed in `packages/canvas-adapter/insightsTab.ts` (`openWaferDetailModal`, wired into the yield panel's `onOpen` and the boxplot's/capability's `onOpen` at the leaf level) and `packages/canvas-adapter/charts/boxplot.ts` (`leafClickable`, the hover cursor, the `click to open this wafer` tooltip hint, and `syncHint`'s header line). `renderWaferGallery.ts` passes a real `openWafer`.
+
+**Problem:** In a single-wafer load (tsmap's `renderWaferMap` path, `main.ts` — `wafers.length === 1`, `insights: { enabled: true }`), clicking a box in **Test value distribution** does nothing. The chart correctly hides its own affordances when `onOpen` is absent (no pointer cursor, no "click a box to open that wafer" hint), so it isn't visibly broken — but a user who has just come from a multi-wafer lot, where the same box *is* clickable, reads it as the feature failing.
+
+The reasoning behind the omission is only half right. Opening *the same wafer* in a modal is indeed pointless. But the gallery's `openWafer` carries a **second** payload: `testNumber`, from a boxplot leaf-row click, which opens the map straight into **value mode on that test** (`buildDetachedController`'s own doc comment says so). That half is exactly as useful with one wafer as with twenty — arguably more so, since a single-wafer user reaches Insights specifically to find which test is misbehaving and then wants to see it on the map. Today the only route is: leave Insights, open the toolbar's plot-mode/test picker, find the test again by name.
+
+**Impact (tsmap):** the boxplot → map shortcut silently exists only for multi-wafer loads. Same for the yield panel's leaf rows, though there the click genuinely has nothing to add with one wafer. tsmap can't paper over it host-side: `openWafer` isn't reachable from `RenderOptions`, and the only host-visible workaround — force every single-wafer load through `renderWaferGallery` — would be worse in every other respect.
+
+**Suggested fix (single-dimension, no new modal):** don't give `renderWaferMap` a modal-opening `openWafer`; give the Insights tab an optional `focusTest?: (testNumber: number) => void` dep that `renderWaferMap` fills in with "switch this map to value mode on `testNumber` and close Insights" (the plot-mode switch it already performs internally, plus the existing `setInsightsOpen(false)`). Then:
+
+- In `insightsTab.ts`, a leaf-row `onOpen` resolves to `openWafer` when present, else to `focusTest` when present and the row's wafer is the only wafer — one branch, not a second parallel wiring.
+- In `boxplot.ts`, `leafClickable` and the two hint strings key on "a leaf action exists", not on `onOpen` specifically, and the wording differs by which one it is: *"click a box to show this test on the map"* rather than *"…to open that wafer"*.
+- The yield panel keeps `onOpen`-only (no `focusTest` equivalent — a yield leaf row carries no test), so it stays inert in a single-wafer render, correctly.
+
+Alternative considered and rejected: passing a modal-opening `openWafer` from `renderWaferMap` anyway, so the click opens the same wafer in a modal already switched to that test. It works, but it duplicates the whole map into an overlay to change one view option, and leaves the user with two maps of one wafer.
+
+**Notes / Related:** #31 (the chart suite living in wmap at all), #48 (`FindingsNotice`) — same class of "the single-wafer path quietly gets less than the gallery path" gap that `insights: { enabled: true }` on `renderWaferMap` was added to close in the first place. Found 2026-09-09 against wmap 0.27.0.
+
+**Round-trip check (does the map ↔ Insights switch lose context?):** no — and this is what makes
+the `focusTest` shape viable rather than merely cheaper than a modal. `setInsightsOpen(false)`
+only sets `display: none`; the tab is constructed once (`insightsLoad ??=`, `renderWaferMap.ts`)
+and never torn down. Reopening calls `tab.render()`, which *does* rebuild every panel
+(`insightsTab.ts`, `render()` — `panelHandles` destroyed, `bodyEl.innerHTML = ''`), but the
+state that matters is closure state living outside that rebuild and is re-applied on the way
+back: `activeView` (sub-tab), `analysisGroupKey` (**Group by**), `activeSectionTest` (fed to all
+four panels as `selectedTestNumber`), `activeSectionGroup` (drilled group). So the user returns
+to the same boxplot, same grouping, same test they clicked from.
+
+Two things *are* lost on any Insights close/reopen, both consequences of `render()` emptying
+`bodyEl`, and **both are pre-existing** — they happen today on every toolbar Insights toggle in
+the gallery too, so they are not caused by this issue's fix, but the fix makes the round trip
+routine enough to be worth closing them in the same pass:
+
+- **Scroll position** resets to 0 (the `overflowY:auto` wrapper survives, its content doesn't).
+- **Axis prefs** (include limits / clip outliers) reset — `axisPrefs` is declared *inside* the
+  Distributions builder rather than beside the four lifted variables above.
+
+**Suggested fix for those two:** lift `axisPrefs` to sit with `activeView`/`analysisGroupKey`/
+`activeSectionTest`/`activeSectionGroup` (it is already funnelled through one `axisHandler`, so
+this is a declaration move, not a rewiring), and have `setInsightsOpen` record the scroll
+container's `scrollTop` on close and restore it after the post-`render()` reveal.
+
+**Status (2026-09-09): implemented in wmap, unpublished — tsmap is currently LINKED to
+`../wafermap`.** Implemented as suggested, plus both round-trip fixes above:
+
+- `InsightsTabDeps.focusTest?(testNumber)`, filled by `renderWaferMap` with "switch to
+  `{ plotMode: 'value', activeTest: testNumber }` and `setInsightsOpen(false)`" — the same
+  option pair `renderWaferGallery`'s `buildDetachedController` already uses for the modal, so
+  the two paths cannot diverge on what "open on this test" means.
+- One resolver (`testLeafAction`) decides what a test-carrying leaf click does for the host at
+  hand, so no panel knows which kind of host it is in: `openWafer` wins where it exists,
+  `focusTest` applies only when the row is the sole item. The trend panel is deliberately left
+  on `openWafer` alone — it renders an empty state below two wafers, so the single-wafer branch
+  there would be dead code claiming otherwise.
+- `BoxplotPanelOptions.openActionLabel` carries the wording, so the chart states what the click
+  will actually do ("click a box to show this test on the map").
+- `axisPrefs` lifted to tab level beside `activeSectionTest`/`activeSectionGroup`; Insights
+  scroll offset remembered and re-applied after the rebuild. The scroll restore needed more
+  than one assignment — the cards grow to their measured content over the following frames, so
+  the first write is clamped (212px of a requested 300px) and the layout pass then resets it to
+  0; it now retries over ~600ms and stops if the position goes PAST the target, which is the
+  user scrolling. Reading "different from what we wrote" as a takeover was the first version's
+  bug: the resets to 0 are exactly that, and it gave up on its own clamped write.
+
+**Verified** in wmap by 6 new tests (`tests/insightsReview.test.mjs` for the resolver and the
+axis-prefs lift, new `tests/insightsFocusTest.test.mjs` for the end-to-end `renderWaferMap`
+click → `plotMode: 'value'` + `activeTest` + Insights closed); full suite 894 green, `npm run
+verify` clean. The scroll restore is deliberately NOT unit-tested — JSDOM has no layout, so
+`scrollTop` never resets and the test passed with the restore deleted (checked). It was
+verified in a real browser instead, against the built tsmap web app with a single-wafer STDF:
+hint reads "Click a box to show this test on the map"; clicking a box leaves Insights and puts
+the map in value mode on `leakage_nA` (confirmed by the Plot-mode menu's checked entry, not by
+eye); reopening Insights returns to Distributions with the same test selected and scroll 300 →
+300 (212 before the retry fix).
+
+**Not done here:** the gallery's own Insights scroll position, because there the host page owns
+the scroller and the library has nothing to restore. tsmap needed **no code change** for any of
+this. Publish with the next wmap batch, then unlink and pin.

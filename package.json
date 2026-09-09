@@ -23,7 +23,7 @@
     "check": "tsc --noEmit",
     "check:drift": "node scripts/check-drift.mjs",
     "help": "node scripts/help.mjs",
-    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/help.mjs --check && node scripts/check-theme-docs.mjs && node scripts/check-button-styles.mjs && node scripts/check-style-scales.mjs && node scripts/check-clones.mjs src",
+    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/help.mjs --check && node scripts/check-theme-docs.mjs && node scripts/check-theme-contrast.mjs && node scripts/check-button-styles.mjs && node scripts/check-style-scales.mjs && node scripts/check-clones.mjs src",
     "verify": "npm run check && npm run lint && npm run check:docs && npm test && npm run check:rust && npm run test:rust",
     "preversion": "npm run verify && node scripts/check-wmap-published.js && node scripts/check-testdata-parser-published.js",
     "version": "node scripts/check-changelog.mjs && node scripts/sync-rust-version.mjs",
