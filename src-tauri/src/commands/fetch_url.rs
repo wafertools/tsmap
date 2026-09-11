@@ -36,7 +36,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
-const SUPPORTED_FORMATS: &[&str] = &["stdf", "atdf", "csv", "json", "parquet"];
+/// `zip` lets one URL carry several files — e.g. one STDF per lot for a
+/// multi-lot selection. The fetched archive is an ordinary `.zip` path by the
+/// time the frontend sees it, so it takes the same expand-then-load route as a
+/// zip opened from disk (`extract_archive.rs`).
+const SUPPORTED_FORMATS: &[&str] = &["stdf", "atdf", "csv", "json", "parquet", "zip"];
 
 /// Sanity backstop against a runaway/misbehaving URL, not a real-world limit —
 /// the app's own large-lot benchmark fixture is ~340 MB (see CLAUDE.md's

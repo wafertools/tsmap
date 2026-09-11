@@ -9,7 +9,7 @@ import type { WaferData } from './types';
 import { createRangeSelection } from './listSelection';
 import { attachTooltip } from './tooltip';
 import { openModal } from './modal';
-import { getSplitLabel, setSplitLabel, clearAllSplits, listSplitValues, parseSplitsCsv, formatSplitsCsv } from './splits';
+import { getSplitLabel, setSplitLabel, clearAllSplits, listSplitValues, parseSplitsCsv, formatSplitsCsv, applySplitRows, waferLabels } from './splits';
 
 export interface SplitsUIOptions {
   onSave: (csv: string) => Promise<void>;
@@ -18,6 +18,9 @@ export interface SplitsUIOptions {
   /** Called after every assignment change (assign, clear, or CSV load), so the
    * caller can re-render the Group-by-driven charts and persist to localStorage. */
   onChange: () => void;
+  /** Whether assignments will survive the session — false when the data carries
+   *  no lot ID, in which case the footer says so rather than promising it. */
+  persistable: boolean;
   /** Whether wafer map/gallery labels currently show the " · <split>" suffix. */
   showSplitSuffix: boolean;
   /** Called when the "Show split in wafer map labels" checkbox is toggled. */
@@ -30,6 +33,9 @@ export interface SplitsUIOptions {
 export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): void {
   const selected = new Set<number>(); // indices into `wafers`
   let searchQuery = '';
+  // Unique per row: two lots' W01 read "LOT-A · W01" / "LOT-B · W01" here too,
+  // so the rows being assigned are the rows the user thinks they are.
+  const rowLabels = waferLabels(wafers, false);
 
   const modalHandle = openModal({
     title: `Wafer splits (${wafers.length} wafer${wafers.length !== 1 ? 's' : ''})`,
@@ -117,9 +123,9 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       function getVisible(): Array<[number, WaferData]> {
         return wafers
           .map((w, i): [number, WaferData] => [i, w])
-          .filter(([, w]) => {
+          .filter(([i, w]) => {
             if (!searchQuery) return true;
-            const hay = `${w.waferId} ${w.source?.sourceFile ?? ''} ${getSplitLabel(w) ?? ''}`.toLowerCase();
+            const hay = `${rowLabels[i]} ${w.source?.sourceFile ?? ''} ${getSplitLabel(w) ?? ''}`.toLowerCase();
             return hay.includes(searchQuery);
           });
       }
@@ -156,7 +162,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
 
           const idSpan = document.createElement('span');
           idSpan.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-          idSpan.textContent = w.waferId;
+          idSpan.textContent = rowLabels[i];
 
           const srcSpan = document.createElement('span');
           srcSpan.style.cssText = 'color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
@@ -338,16 +344,15 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
         }
         if (text === null) return;
         const parsedRows = parseSplitsCsv(text);
-        if (parsedRows.size === 0) { options.onLog('warn', 'Splits file contained no valid rows'); return; }
-        let matched = 0;
-        for (const w of wafers) {
-          const split = parsedRows.get(w.waferId);
-          if (split === undefined) continue;
-          matched++;
-          setSplitLabel(w, split || undefined);
-        }
-        const unmatched = parsedRows.size - matched;
+        if (parsedRows.length === 0) { options.onLog('warn', 'Splits file contained no valid rows'); return; }
+        const { matched, unmatched, ambiguous } = applySplitRows(wafers, parsedRows);
         options.onLog('info', `Splits loaded: ${matched} wafer${matched !== 1 ? 's' : ''} matched${unmatched > 0 ? `, ${unmatched} row${unmatched !== 1 ? 's' : ''} unmatched` : ''}`);
+        // Never applied to every wafer sharing the ID — say so, and how to fix it.
+        if (ambiguous > 0) {
+          options.onLog('warn', `${ambiguous} splits row${ambiguous !== 1 ? 's' : ''} skipped: `
+            + 'the wafer ID is shared by several loaded wafers (different lots, or a retest), and the row does not say which. '
+            + 'Add a lot (and, for a retest, occurrence) column — Save splits… writes one.');
+        }
         renderList();
         rebuildChips();
         options.onChange();
@@ -368,7 +373,13 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       footerRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px';
 
       const footerNote = document.createElement('span');
-      footerNote.textContent = 'Changes apply immediately.';
+      // Must reflect reality: without a lot ID tsmap deliberately does not
+      // remember splits (see splitsFingerprint), and a footer promising it would
+      // be a plain falsehood on exactly the loads where it matters.
+      footerNote.textContent = options.persistable
+        ? 'Changes apply immediately, and are remembered for this lot on this machine — including clearing them.'
+        : 'Changes apply immediately. They are NOT remembered between sessions: this data carries no lot ID, '
+          + 'so tsmap cannot tell it apart from another file with the same wafer IDs. Use Save splits… to keep them.';
       footerNote.style.cssText = 'font-size:12px;color:var(--text-dim);opacity:0.8';
 
       const doneBtn = document.createElement('button');

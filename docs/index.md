@@ -47,6 +47,17 @@ The desktop version adds native file dialogs, drag-and-drop from the OS, and wor
 without a browser. Builds for Linux, macOS, and Windows are attached to each
 [GitHub release](https://github.com/wafertools/tsmap/releases).
 
+## Host it yourself
+
+Can't reach the public internet, or not allowed to open lot data on an external site? The
+browser version is also published as a static bundle — `tsmap-<version>-web.zip` on the same
+[release page](https://github.com/wafertools/tsmap/releases/latest). Unpack it into any web
+server and browse to it: no installer, no server-side component, and no internet access
+needed at any point. Files are still parsed in the browser, so nothing reaches your server
+either.
+
+See [Hosting tsmap on your own server](web.md#hosting-tsmap-on-your-own-server).
+
 ## See it in action
 
 <div style="display:flex; gap:16px; flex-wrap:wrap;">
@@ -92,7 +103,9 @@ Questions, ideas, or want to show off a wafer map you built? Use [GitHub Discuss
 - [Demo: open tsmap from a link](demos/open-from-link.html)
 - [Features](features.md)
 - [Use cases](use-cases.md)
+- [Tutorial: analyse your first wafer lot](tutorial.md)
 - [User guide](user-guide.md)
+- [Troubleshooting](troubleshooting.md)
 - [GitHub](https://github.com/wafertools/tsmap)
 - [Releases](https://github.com/wafertools/tsmap/releases)
 - [wafermap library](https://wafertools.github.io/wafermap/)

@@ -59,6 +59,7 @@ const GROUPS = [
     items: [
       ['npm run preview:site', 'The docs site on :8002 — links and demos clickable'],
       ['npm run screenshots:only', 'Recapture one screenshot after a dialog changes'],
+      ['npm run ui:surface', 'Re-record every control, label and hint to docs/ui-surface.txt'],
     ],
   },
   {
@@ -68,6 +69,7 @@ const GROUPS = [
       ['npm run test:watch', 'Vitest in watch mode'],
       ['npm run demo:test', 'Replay the scripted investigation scenario'],
       ['npm run check:drift', 'Compare agent/tooling config against the config repo'],
+      ['npm run ui:surface:check', 'Fail if the interactive surface moved without being re-recorded'],
     ],
   },
 ];

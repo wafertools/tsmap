@@ -446,7 +446,7 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
       break;
 
     case 'openSplitsDialog': {
-      // Splits… lives in the Lot ▾ menu — open the menu first, then pick the
+      // Splits… lives in the Setup ▾ menu — open the menu first, then pick the
       // row by its visible label (built in JS, carries no id/selector).
       await page.click('#lot-btn');
       await page.waitForTimeout(150);

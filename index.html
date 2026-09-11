@@ -1183,7 +1183,8 @@
       #drop-zone.drag-over { border-style: solid; }
       /* Toolbar buttons are styled by CLASS, never by an enumerated ID list.
          The previous `#filter-tests-btn, #value-findings-btn, #splits-btn,
-         #recent-btn { … }` pair of rules had to be extended by hand for every
+         #recent-btn { … }` pair of rules (that last id is long gone) had to be
+         extended by hand for every
          new button, in two places (base + :hover) — and #die-list-btn was
          added without either, so it rendered with raw browser-default chrome
          and, missing white-space:nowrap, wrapped its label mid-word. Exactly
@@ -1208,7 +1209,6 @@
          shouts for attention but does confirm intent before the click lands. */
       .tb-btn--danger { border-color: var(--border-muted); }
       .tb-btn--danger:not(:disabled):hover { border-color: var(--error-text); color: var(--error-text); background: none; }
-      #recent-btn { display: inline-flex; align-items: center; gap: 6px; }
       /* Group divider. Toggled with the group it frames (setToolbarGroupVisible,
          main.ts) — a divider with nothing beside it reads as a rendering bug. */
       .tb-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--border-dim); flex-shrink: 0; }
@@ -1391,6 +1391,27 @@
       }
       .btn-caret:hover { color: var(--accent); background: var(--bg-hover-row); }
       .btn-caret.is-on { color: var(--accent); }
+
+      /* Split button outside the toolbar — same idea as .tb-split above, for the
+         dialog-weight .btn-secondary. Used by the test selector's "Load
+         definitions ▾", where the verb is on the button and the caret answers
+         which file. Kept separate from .tb-split rather than generalised: the two
+         wrap different button classes with different borders and paddings, and a
+         single rule covering both would have to name both anyway. */
+      .btn-split { display: inline-flex; align-items: stretch; }
+      .btn-split > .btn-secondary:first-child {
+        border-top-right-radius: 0; border-bottom-right-radius: 0;
+      }
+      .btn-split > .btn-secondary + .btn-secondary {
+        border-top-left-radius: 0; border-bottom-left-radius: 0;
+        /* One shared seam, not two adjacent borders rendering 2px thick. */
+        border-left: none; padding-left: var(--space-sm); padding-right: var(--space-sm);
+        position: relative;
+      }
+      .btn-split > .btn-secondary + .btn-secondary::before {
+        content: ''; position: absolute; left: 0; top: var(--space-xxs); bottom: var(--space-xxs);
+        width: 1px; background: var(--border-mid);
+      }
 
       /* Inline text action — reads as a link, behaves as a button (Select all,
          Select none, Clear). Borderless by design; the colour and underline on
@@ -1594,10 +1615,9 @@
           <button id="add-more-btn" class="tb-btn" disabled aria-haspopup="menu" aria-expanded="false"
             aria-label="Choose how to pick files to add" title="Pick files, or scan a whole folder"><span class="tb-caret">▾</span></button>
         </span>
-        <button id="recent-btn" class="tb-btn" style="display:none" title="Recently opened files"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/></svg> Recent</button>
         <span class="tb-sep" style="display:none"></span>
         <button id="lot-btn" class="tb-btn" style="display:none" aria-haspopup="menu" aria-expanded="false"
-          title="Filter tests, wafer splits, and the lot-wide die list">Lot <span class="tb-caret">▾</span></button>
+          title="Test and bin definitions, wafer splits, geometry, and analysis options">Setup <span class="tb-caret">▾</span></button>
         <span class="tb-sep" style="display:none"></span>
         <button id="reset-btn" class="tb-btn tb-btn--danger" style="display:none" title="Unload all files and return to the start screen">Clear files</button>
         <span id="drop-hint">or drop a file anywhere</span>

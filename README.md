@@ -9,6 +9,12 @@ A desktop and web application for loading and visualising semiconductor wafer ma
 
 **[Documentation & web app →](https://wafertools.github.io/tsmap/)**
 
+Desktop builds for Linux, macOS and Windows are attached to every
+[release](https://github.com/wafertools/tsmap/releases/latest), alongside
+`tsmap-<version>-web.zip` — the browser version as a static bundle you can host on your own
+intranet, for sites with no external internet access. See
+[Hosting tsmap on your own server](https://wafertools.github.io/tsmap/web/#hosting-tsmap-on-your-own-server).
+
 > **Building your own tool?** The wafer rendering and analysis engine is available on its
 > own as **[wafermap](https://github.com/wafertools/wafermap)**
 > (`@wafertools/wafermap` on npm) — the same maps, findings and charts you see here,
@@ -146,15 +152,21 @@ src/
   testSelectorUI.ts   — test selector overlay for large STDF/ATDF files
   fileFilterUI.ts     — folder/batch scan: header-only metadata into a filter table
   filterTable.ts      — generic sortable/filterable table behind the file filter
+  toggleGroup.ts      — shared segmented toggle (file-kind buttons, test-type filter)
   listSelection.ts    — shared multi-row range selection (shift-click, keyboard)
   fileAssociationsUI.ts — "File associations…" dialog (Tauri only)
   splits.ts / splitsUI.ts — wafer splits: a user-assigned grouping axis over metadata
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
+  mapColorPrefs.ts    — remembered bin / value colour schemes and "use defined bin colours"
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
   definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
   valueFindings.ts    — cost model deciding whether wmap's regional test-value analysis runs unprompted
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
+  storageKeys.ts      — the registry of every persisted preference, + legacy-key migration
+  resetSettingsUI.ts  — Help ▸ Reset saved settings… — shows what is stored and forgets it
+  recentDefinitions.ts   — recently used definitions files (tests/bins/splits), both platforms
+  recentDefinitionsUI.ts — the shared "Load definitions ▾" split button those are offered behind
 
   anchoredMenu.ts     — shared popup menu shell for the Recent / Help / Lot toolbar menus
   menuSelect.ts       — themed replacement for a grouped native <select> (WebKitGTK)
@@ -172,6 +184,7 @@ packages/parsers/     — shared Rust crate (native + WASM targets), published a
   src/parse_csv.rs    — CSV/TSV parser with column mapping
   src/parse_json.rs   — JSON array parser with column mapping
   src/parse_parquet.rs — Parquet parser with column mapping; row-oriented, no arrow dep
+  src/flat_wafers.rs  — the one place CSV/JSON/Parquet rows become wafers (lot + wafer ID)
   src/test_identity.rs — stable test numbering derived from test name / source column
   src/read_file.rs    — read_bytes / read_text, plus maybe_gunzip transparent .gz handling
 
@@ -180,6 +193,8 @@ src-tauri/src/
                         --url resolution before the window opens
   cli_files.rs        — CLI parsing: positional paths, --list/--tests/--splits,
                         --url/--url-format/--url-headers, and the tsmap:// link form
+  migrate.rs          — one-time move of app data from an older bundle identifier
+                        or last_dir's old hardcoded path, run before the window opens
   commands/           — thin Tauri async wrappers over packages/parsers
     parse_{stdf,atdf,csv,json,parquet}.rs   — per-format parse + header commands
     parse_{stdf,atdf}_filtered.rs           — filtered parse for a chosen test subset

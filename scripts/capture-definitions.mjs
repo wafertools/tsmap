@@ -12,7 +12,9 @@
  *   testdata/small.stdf         3 wafers, 20 PTR tests — general loading / map flow
  *   testdata/medium.stdf        10 wafers, 100 PTR tests — gallery view
  *   testdata/correlated.stdf    5 wafers, 30 correlated PTR tests — charts
- *   testdata/many_tests.stdf    5 wafers, 250 PTR tests — triggers test selector (>200)
+ *   testdata/many_tests.stdf    5 wafers, 250 PTR tests — test selector with nothing
+ *                               pre-ticked (over the tests×dies auto-select budget; the
+ *                               overlay itself appears for every STDF/ATDF, any size)
  *   testdata/small.csv          wide-format CSV — column mapping overlay
  *   testdata/correlated_long.csv  long-format CSV — long-format column mapping
  *
@@ -129,6 +131,21 @@ export const CAPTURES = [
     viewport: { width: 1900, height: 900 },
     setup: [
       ['filterFiles', [TD('small.stdf'), TD('medium.stdf'), TD('correlated.stdf'), TD('many_tests.stdf')]],
+      ['waitForFilterScan'],
+      ['shrinkModalToContent'],
+    ],
+    selector: '.tsmap-modal-box',
+  },
+
+  // A mixed scan: STDF and ATDF (one family, loadable together) plus a CSV, so
+  // the format quick filter appears — opened on the most common kind.
+  {
+    file: 'file-filter-kinds',
+    group: 'ui',
+    description: 'Filter files dialog — mixed scan with the file-kind buttons',
+    viewport: { width: 1900, height: 900 },
+    setup: [
+      ['filterFiles', [TD('small.stdf'), TD('medium.atdf'), TD('correlated.stdf'), TD('small.csv')]],
       ['waitForFilterScan'],
       ['shrinkModalToContent'],
     ],
@@ -515,6 +532,57 @@ export const CAPTURES = [
       ['openInsights'],
       ['setInsightsGroupBy', 'Split'],
       ['clickChartRowByTitle', 'Yield by Split', 0],
+    ],
+  },
+
+  // ── Tutorial: "Analyse your first wafer lot" ──────────────────────────────
+  // The tutorial walks the SAME corner lot the in-app "Load sample data"
+  // button loads (platform.ts fetches a gzipped copy of PVT-LOT-05 and seeds
+  // its splits), so these reuse the splits fixtures above rather than adding
+  // new data. Two shots only: the tutorial's other checkpoints are already
+  // covered by `gallery-splits` and `charts-grouped-by-split`, and a second
+  // near-identical image of each would just be another thing to keep in step.
+  //
+  // Deliberately NOT reusing `test-selector` for the tutorial's import step:
+  // that one shoots many_tests.stdf (250 tests, nothing pre-ticked) while the
+  // tutorial's lot has 7 tests and arrives fully ticked — the whole point of
+  // that paragraph. Showing the 250-test overlay there would contradict the
+  // text it illustrates.
+
+  {
+    file: 'tutorial-test-selector',
+    group: 'tutorial',
+    description: 'Test selector for the sample corner lot — 7 tests, all pre-ticked',
+    viewport: { width: 1280, height: 800 },
+    selector: '#tsmap-test-selector-overlay div[role="dialog"]',
+    setup: [
+      ['loadFile', SD('PVT-LOT-05.stdf')],
+      ['waitForOverlay', '#tsmap-test-selector-overlay'],
+      ['wait', 400],
+    ],
+  },
+
+  {
+    file: 'tutorial-yield-sorted',
+    group: 'tutorial',
+    description: 'Lot gallery with the Wafer Yield list sorted by yield — worst wafers first',
+    viewport: { width: 1440, height: 900 },
+    setup: [
+      ['loadFile', SD('PVT-LOT-05.stdf')],
+      ['waitForOverlay', '#tsmap-test-selector-overlay'],
+      ['dismissSelector'],
+      ['openSplitsDialog'],
+      ['loadSplitsFile', SD('PVT-LOT-05_splits.csv')],
+      ['closeSplitsDialog'],
+      ['wait', 600],
+      // The Slot/Yield toggle is wmap's makeSegmented: a role="radiogroup" of
+      // <label>-wrapped radios with a RANDOM `name`, no class and no id. The
+      // radio `value` is the only stable handle, and the group is identified by
+      // the sibling option it contains rather than by position among the
+      // panel's other segmented controls. The label is clicked, not the input —
+      // the input is opacity:0/0×0 and not actionable.
+      ['click', '[role="radiogroup"]:has(input[value="slot"]) label:has(input[value="yield"])'],
+      ['wait', 500],
     ],
   },
 

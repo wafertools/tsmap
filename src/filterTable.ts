@@ -90,6 +90,18 @@ export function parseFilterFile(text: string): { criteria: FilterCriteria } | { 
 export interface FilterTableOptions {
   columns: FilterTableColumn[];
   onSelectionChange?: (selectedIds: Set<string>) => void;
+  /** Fired whenever the column filters change — a column menu, Clear filters,
+   *  or `applyCriteria`. Lets a control outside the table that sets one of its
+   *  filters (the file filter's format buttons) show the table's state rather
+   *  than keep a second copy of it. Search text is not a column filter and
+   *  does not fire this. */
+  onFilterChange?: (criteria: FilterCriteria) => void;
+  /** Hide any column that is blank in every row currently shown, re-judged as
+   *  the filter or search changes. For tables whose columns are a union over
+   *  unlike rows (the file filter: STDF header fields next to CSV files that
+   *  carry none), where a view of one kind would otherwise be mostly empty
+   *  columns. A column with an active filter is never hidden. */
+  hideEmptyColumns?: boolean;
   /** Accessible name for the table itself — screen readers announce it when
    *  entering the grid. Required in spirit; defaulted so a caller can't ship
    *  an unnamed one by omission. */
@@ -200,7 +212,6 @@ type SortDir = 'asc' | 'desc' | null;
  *  point a user can grow from. */
 const DEFAULT_COL_WIDTH = 180;
 const MIN_COL_WIDTH = 60;
-const SELECT_COL_WIDTH = 24;
 /** Arrow-key resize step, mirrored from the pointer-drag experience. */
 const RESIZE_KEY_STEP = 16;
 /** Ceiling for auto-sizing — a single very long value (a long path, a stray
@@ -221,15 +232,32 @@ const AUTO_SIZE_HEADER_CHROME = 50;
 const SEARCH_DEBOUNCE_MS = 150;
 
 export function buildFilterTable(options: FilterTableOptions): FilterTableHandle {
-  const { columns, onSelectionChange } = options;
+  const { columns, onSelectionChange, onFilterChange, hideEmptyColumns } = options;
 
   let rows: FilterTableRow[] = [];
   const selected = new Set<string>();
+  // Roving tabindex: the one row Tab lands on, and the row to re-focus after a
+  // body rebuild (every selection change rebuilds it, which would otherwise
+  // drop keyboard focus to <body> after each Space).
+  let focusedId: string | null = null;
+  const rowEls = new Map<string, HTMLTableRowElement>();
   // column key -> included values (absent/empty = unfiltered)
   const columnFilters = new Map<string, Set<string>>();
   let searchText = '';
   let sortKey: string | null = null;
   let sortDir: SortDir = null;
+
+  /** The filter state as saved/applied criteria — one builder for both
+   *  `getCriteria` and `onFilterChange`. */
+  function criteriaNow(): FilterCriteria {
+    const columnValues: Record<string, string[]> = {};
+    for (const [key, values] of columnFilters) columnValues[key] = [...values];
+    return { columnValues, searchText };
+  }
+  /** Call after any change to `columnFilters`. */
+  function filtersChanged(): void {
+    onFilterChange?.(criteriaNow());
+  }
   // Pending coalesced body rebuild from addRow (see the handle's addRow below).
   let pendingAddFrame: number | null = null;
   // column key -> width in px. Missing = DEFAULT_COL_WIDTH. Not persisted with
@@ -286,6 +314,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     searchText = '';
     searchInput.value = '';
     render();
+    filtersChanged();
   });
 
   // Columns ▾ — the column set is a union of every metadata key across the
@@ -318,9 +347,12 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
         box.checked = !hiddenColumns.has(col.key);
         boxes.push({ key: col.key, box });
         row.appendChild(box);
-        const filtered = columnFilters.get(col.key)?.size ? ' (filtered)' : '';
+        // Say why a ticked column isn't on screen, rather than let its tick
+        // look broken (hideEmptyColumns).
+        const note = columnFilters.get(col.key)?.size ? ' (filtered)'
+          : emptyColumns.has(col.key) ? ' (blank in every row shown)' : '';
         row.appendChild(el('span', { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-          col.label + filtered));
+          col.label + note));
         list.appendChild(row);
       }
       popup.appendChild(list);
@@ -358,8 +390,26 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   });
   columnsBtn.setAttribute('aria-haspopup', 'dialog');
 
+  // Columns blank in every row currently shown (hideEmptyColumns), kept
+  // current by syncEmptyColumns wherever the shown rows can change.
+  let emptyColumns = new Set<string>();
+  /** Recompute `emptyColumns` for the rows now shown. Returns true when the
+   *  set changed — the caller must then rebuild the header, which lists the
+   *  columns. A column with an active filter is never hidden: its ▾ is the
+   *  only way to clear that filter. With no rows shown nothing is hidden, so
+   *  the header still says what the table would contain. */
+  function syncEmptyColumns(shown: FilterTableRow[]): boolean {
+    if (!hideEmptyColumns) return false;
+    const next = new Set(shown.length === 0 ? [] : columns
+      .filter(c => !columnFilters.get(c.key)?.size && !shown.some(r => r.columns[c.key]))
+      .map(c => c.key));
+    const changed = next.size !== emptyColumns.size || [...next].some(k => !emptyColumns.has(k));
+    emptyColumns = next;
+    return changed;
+  }
+
   /** Columns actually rendered — hidden ones still filter, they just don't show. */
-  const visibleColumns = () => columns.filter(c => !hiddenColumns.has(c.key));
+  const visibleColumns = () => columns.filter(c => !hiddenColumns.has(c.key) && !emptyColumns.has(c.key));
 
   const countLabel = el('span', { fontSize: '12px', color: 'var(--text-muted)', marginLeft: 'auto', whiteSpace: 'nowrap' });
   toolbar.appendChild(countLabel);
@@ -378,6 +428,12 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   // fight).
   const table = el('table', { width: '100%', borderCollapse: 'collapse', fontSize: '12px', tableLayout: 'fixed' });
   table.setAttribute('aria-label', options.ariaLabel ?? 'Filterable table');
+  // A grid, not a plain table: its rows are selectable and take focus, which
+  // `role="table"` rows cannot announce (aria-selected is only defined for
+  // grid/treegrid rows). Row-level focus, not cell-level — there is nothing to
+  // do inside a cell.
+  table.setAttribute('role', 'grid');
+  table.setAttribute('aria-multiselectable', 'true');
   const colgroup = el('colgroup');
   const thead = el('thead');
   const tbody = el('tbody');
@@ -428,9 +484,6 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   function buildColGroup(): void {
     colgroup.replaceChildren();
     colEls.clear();
-    const selectCol = el('col');
-    selectCol.style.width = `${SELECT_COL_WIDTH}px`;
-    colgroup.appendChild(selectCol);
     for (const col of visibleColumns()) {
       const c = el('col');
       c.style.width = `${columnWidths.get(col.key) ?? DEFAULT_COL_WIDTH}px`;
@@ -439,35 +492,10 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     }
   }
 
-  const headerCheckbox = el('input') as HTMLInputElement;
-  headerCheckbox.type = 'checkbox';
-  attachTooltip(headerCheckbox, 'Select all / none (of the rows currently shown)');
-  headerCheckbox.setAttribute('aria-label', 'Select all rows currently shown');
-  // Wired once, here — NOT inside buildHeaderRow(), which re-runs on every
-  // render() (each search keystroke, sort, and selection change) and would
-  // therefore stack up a fresh listener each time, so one later click fired a
-  // growing pile of handlers, each re-rendering again.
-  headerCheckbox.addEventListener('change', () => {
-    if (headerCheckbox.checked) selectAll(); else selectNone();
-  });
-
   function buildHeaderRow(): void {
     buildColGroup();
     thead.replaceChildren();
     const tr = el('tr');
-    // left:'0' in addition to top:'0' — sticky on BOTH axes, so the select
-    // column (and its per-row checkboxes below) stays visible whether the
-    // user has scrolled down, right, or both. A wide dynamic column set
-    // (the whole point of this table) makes horizontal scroll the common
-    // case, and losing sight of the checkbox column there was the bug.
-    const thSelect = el('th', {
-      position: 'sticky', top: '0', left: '0', zIndex: '2', background: 'var(--bg-overlay)', padding: '4px 6px',
-      borderBottom: '1px solid var(--border-dim)', textAlign: 'left', width: `${SELECT_COL_WIDTH}px`,
-    });
-    thSelect.scope = 'col';
-    thSelect.appendChild(headerCheckbox);
-    tr.appendChild(thSelect);
-
     for (const col of visibleColumns()) {
       const th = el('th', {
         position: 'sticky', top: '0', background: 'var(--bg-overlay)', padding: '4px 6px',
@@ -585,10 +613,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     return handle;
   }
 
-  // `onlyValue`, when passed, opens the popup pre-set to that single value
-  // (a right-click on a body cell — "filter to what I just clicked") instead
-  // of the column's existing filter state.
-  function openColumnFilterMenu(anchor: HTMLElement, col: FilterTableColumn, onlyValue?: string): void {
+  function openColumnFilterMenu(anchor: HTMLElement, col: FilterTableColumn): void {
     const uniqueValues = [...new Set(rows.map(r => r.columns[col.key] ?? ''))].sort();
     // Same contract as the column picker above: dismissing by clicking away
     // commits, Escape cancels. `Clear` sets its own commit first so a cleared
@@ -610,7 +635,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
         row.className = 'click-row';
         const box = el('input') as HTMLInputElement;
         box.type = 'checkbox';
-        box.checked = onlyValue !== undefined ? v === onlyValue : (!current || current.has(v));
+        box.checked = !current || current.has(v);
         checkboxes.push({ value: v, box });
         row.appendChild(box);
         row.appendChild(el('span', { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, v || '(blank)'));
@@ -625,6 +650,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
         if (values === null || values.size === uniqueValues.length) columnFilters.delete(col.key);
         else columnFilters.set(col.key, values);
         render();
+        filtersChanged();
       };
       commit = () => apply(new Set(checkboxes.filter(c => c.box.checked).map(c => c.value)));
       const allBtn = el('button', {}, 'All');
@@ -661,50 +687,44 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
   }
 
   function buildBodyRows(): void {
-    tbody.replaceChildren();
     const vis = visibleRows();
+    // A search or an added row can change which columns have anything to show
+    // (hideEmptyColumns) — the one case a body-only rebuild touches the header.
+    if (syncEmptyColumns(vis)) buildHeaderRow();
+    if (focusedId === null || !vis.some(r => r.id === focusedId)) focusedId = vis[0]?.id ?? null;
+    const hadFocus = tbody.contains(document.activeElement);
+    tbody.replaceChildren();
+    rowEls.clear();
     for (const row of vis) {
       const isSelected = selected.has(row.id);
-      // The whole row is tinted when selected, not just the checkbox — so
-      // selection state reads at a glance without needing to see column 0
-      // at all (belt-and-suspenders with the sticky checkbox column below).
-      const rowBg = isSelected ? 'var(--bg-selected)' : 'transparent';
-      const tr = el('tr', { background: rowBg });
+      // No checkbox column: the row tint IS the selection indicator, and
+      // aria-selected carries the same state to screen readers. The model is
+      // still the checkbox list's (UI_STANDARDS.md, listSelection.ts) — a
+      // click toggles and selection accumulates — because picking files across
+      // two different searches is a real workflow here, and a Finder-style
+      // click that cleared the selection would silently drop the rows the
+      // current filter hides.
+      const tr = el('tr', { background: isSelected ? 'var(--bg-selected)' : 'transparent' });
+      tr.setAttribute('aria-selected', String(isSelected));
+      tr.tabIndex = row.id === focusedId ? 0 : -1;
+      tr.addEventListener('focus', () => { focusedId = row.id; });
+      // Shift+Click is a range here, not "extend the text selection" — stop
+      // the browser highlighting every cell between the two clicks.
+      tr.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); });
       tr.addEventListener('click', (e) => {
-        if ((e.target as HTMLElement).tagName === 'INPUT') return;
         if (rangeSel.handleClick(row.id, e)) return;
         toggleRow(row.id);
       });
-      // position:sticky;left:0 mirrors the header cell above — this column
-      // must stay visible through horizontal scroll too. Needs its own
-      // explicit (non-transparent) background matching the row's selection
-      // tint, since a sticky cell paints over whatever content has scrolled
-      // beneath it and would otherwise show see-through/mismatched colour.
-      const tdSelect = el('td', {
-        padding: '3px 6px', borderBottom: '1px solid var(--border-strong)',
-        position: 'sticky', left: '0', zIndex: '1',
-        background: isSelected ? 'var(--bg-selected)' : 'var(--bg-overlay)',
+      tr.addEventListener('keydown', (e) => {
+        if (rangeSel.handleKeydown(row.id, e)) { e.preventDefault(); return; }
+        // Plain Space toggles the focused row — the job the row checkbox's own
+        // native Space used to do (Shift+Space is the range, handled above).
+        if (e.key === ' ' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          toggleRow(row.id);
+        }
       });
-      const box = el('input') as HTMLInputElement;
-      box.type = 'checkbox';
-      box.checked = isSelected;
-      // Named after the row's first column (the file name, for the file
-      // filter), so tabbing through announces *which* row is being selected
-      // rather than "checkbox, checkbox, checkbox". This checkbox is also the
-      // keyboard path to selection — the whole-row click below is a mouse
-      // convenience on top of it, not the only way in.
-      box.setAttribute('aria-label', `Select ${row.columns[visibleColumns()[0]?.key ?? ''] || row.id}`);
-      box.addEventListener('click', (e) => {
-        // preventDefault stops the browser's own toggle, which would otherwise
-        // flip this row on top of the range that was just applied to it.
-        if (rangeSel.handleClick(row.id, e)) e.preventDefault();
-      });
-      box.addEventListener('change', () => toggleRow(row.id));
-      box.addEventListener('keydown', (e) => {
-        if (rangeSel.handleKeydown(row.id, e)) e.preventDefault();
-      });
-      tdSelect.appendChild(box);
-      tr.appendChild(tdSelect);
+      rowEls.set(row.id, tr);
       for (const col of visibleColumns()) {
         const cellValue = row.columns[col.key] ?? '';
         const td = el('td', {
@@ -717,21 +737,11 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
         // wanted. A themed tooltip on every cell of a 4,000-row scan would cost
         // far more than it returns, and would not survive a native copy.
         td.title = cellValue;
-        // Right-click a cell to jump straight to that column's filter popup,
-        // pre-set to this cell's value — quicker than hunting the header's ▾
-        // button when the column is scrolled out of view.
-        td.addEventListener('contextmenu', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          openColumnFilterMenu(td, col, cellValue);
-        });
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
     }
-    const allVisSelected = vis.length > 0 && vis.every(r => selected.has(r.id));
-    headerCheckbox.checked = allVisSelected;
-    headerCheckbox.indeterminate = !allVisSelected && vis.some(r => selected.has(r.id));
+    if (hadFocus && focusedId !== null) rowEls.get(focusedId)?.focus();
     // Name the hidden part of the selection explicitly. `selected` deliberately
     // survives a filter change (ticking across two different searches is a real
     // workflow), so it can legitimately exceed what is on screen — and when it
@@ -755,8 +765,8 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     setSelected: (id, on) => { if (on) selected.add(id); else selected.delete(id); },
     onChanged: () => { onSelectionChange?.(new Set(selected)); buildBodyRows(); },
     focusRow: (i) => {
-      const boxes = tbody.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
-      boxes[i]?.focus();
+      const id = visibleRows()[i]?.id;
+      if (id !== undefined) rowEls.get(id)?.focus();
     },
   });
 
@@ -777,6 +787,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
    * one row but rebuilding it also re-creates every column's two buttons.
    */
   function render(): void {
+    syncEmptyColumns(visibleRows());
     buildHeaderRow();
     buildBodyRows();
   }
@@ -833,11 +844,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
     selectNone,
     invertSelection,
     rowCount: () => rows.length,
-    getCriteria(): FilterCriteria {
-      const columnValues: Record<string, string[]> = {};
-      for (const [key, values] of columnFilters) columnValues[key] = [...values];
-      return { columnValues, searchText };
-    },
+    getCriteria: criteriaNow,
     applyCriteria(criteria: FilterCriteria, opts?: { select?: boolean }) {
       const known = new Set(columns.map(c => c.key));
       const unknownColumns: string[] = [];
@@ -853,6 +860,7 @@ export function buildFilterTable(options: FilterTableOptions): FilterTableHandle
       searchText = criteria.searchText;
       searchInput.value = searchText;
       render();
+      filtersChanged();
       // Pre-select every row currently matching the just-applied filter —
       // "Load filter…" is meant to reselect the same subset, not just narrow
       // the view. Opt out for a filter the user didn't explicitly load.

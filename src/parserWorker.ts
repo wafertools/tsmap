@@ -19,6 +19,7 @@ export type ParserOp =
   | 'parseJson'
   | 'parseParquet'
   | 'parquetHeaders'
+  | 'parquetDistinctCount'
   | 'stdfTestNames'
   | 'atdfTestNames'
   | 'stdfFileMeta'
@@ -32,6 +33,7 @@ export interface ParserRequest {
   bytes: Uint8Array;
   mapping?: CsvMapping;
   selected?: number[];
+  columns?: string[];
 }
 
 export type ParserResponse =
@@ -70,6 +72,7 @@ function run(wasm: WasmModule, req: ParserRequest): unknown {
     case 'parseJson':         return wasm.parse_json(req.bytes, req.mapping);
     case 'parseParquet':      return wasm.parse_parquet(req.bytes, req.mapping);
     case 'parquetHeaders':    return wasm.parquet_headers(req.bytes);
+    case 'parquetDistinctCount': return wasm.parquet_distinct_count(req.bytes, req.columns ?? []);
     case 'stdfTestNames':     return wasm.stdf_test_names(req.bytes);
     case 'atdfTestNames':     return wasm.atdf_test_names(req.bytes);
     case 'stdfFileMeta':      return wasm.stdf_file_meta(req.bytes);

@@ -1,6 +1,8 @@
 // "Definitions file formats…" — reachable from the Help menu regardless of
-// whether anything is loaded, unlike every Lot ▾ dialog (Splits…, Test
-// definitions…, Bin definitions…), which all require a loaded lot. Each row
+// whether anything is loaded, unlike every Setup ▾ dialog (Tests…, Bin
+// definitions…, Splits…), which all require a loaded lot: the Setup button is
+// hidden entirely until something is open. That is why this lives under Help
+// and not alongside the dialogs it describes. Each row
 // here saves a realistic filled-in example of one definitions file type via
 // the SAME formatter its real Save button uses, so a user can see the exact
 // column layout tsmap reads — without reading docs, and without having
@@ -31,7 +33,7 @@ function exampleWafers(): WaferData[] {
 const ROWS: TemplateRow[] = [
   {
     label: 'Test definitions',
-    description: 'Test names, spec limits, units, and parametric/functional type — see Lot ▾ → Test definitions… and the test selector\'s Save/Load list.',
+    description: 'Test names, spec limits, units, and parametric/functional type — read and written by Save/Load definitions in Setup ▾ → Tests….',
     fileName: 'test-definitions-template.csv',
     content: () => formatTestListCsv([
       { num: 1001, name: 'Vdd', loLimit: 1.6, hiLimit: 2.0, units: 'V', testType: 'P' },
@@ -41,17 +43,17 @@ const ROWS: TemplateRow[] = [
   },
   {
     label: 'Splits',
-    description: 'Wafer-to-split assignment (process corners, experiment groups, etc.) — see Lot ▾ → Splits….',
+    description: 'Wafer-to-split assignment (process corners, experiment groups, etc.) — see Setup ▾ → Splits….',
     fileName: 'splits-template.csv',
     content: () => formatSplitsCsv(exampleWafers()),
   },
   {
     label: 'Bin definitions',
-    description: 'Hard/soft bin names and pass/fail flags — see Lot ▾ → Bin definitions…, or the mapping overlay\'s "Load bin definitions…" for CSV/JSON/Parquet.',
+    description: 'Hard/soft bin names, pass/fail flags and optional map colours — see Setup ▾ → Bin definitions…, or the mapping overlay\'s "Load bin definitions…" for CSV/JSON/Parquet.',
     fileName: 'bin-definitions-template.csv',
     content: () => formatBinDefsCsv([
-      { bin: 1, type: 'hard', name: 'Pass', pass: true },
-      { bin: 2, type: 'hard', name: 'Contact Open', pass: false },
+      { bin: 1, type: 'hard', name: 'Pass', pass: true, color: '#2ca02c' },
+      { bin: 2, type: 'hard', name: 'Contact Open', pass: false, color: '#d62728' },
       { bin: 10, type: 'soft', name: 'Leakage Fail', pass: false },
     ]),
   },

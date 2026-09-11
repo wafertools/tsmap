@@ -455,6 +455,128 @@ unattended.
 A further idea building on this scenario (turning it into a produced video, with narration
 and a visible-cursor replay) is tracked outside this repo — see this repo's `CLAUDE.md`.
 
+## Editing bin definitions in the app
+
+- [ ] **A bin editor, to match the test editor.** Considered 2026-09-10 and deliberately not
+      done. Recorded so the asymmetry is a decision rather than an oversight.
+
+      **The asymmetry.** After the 0.1.34 consolidation, `Setup ▾` offers **Tests…** (choose
+      which are imported, rename, set limits/units/type, save and load) and **Bin definitions…**
+      (save and load only). You cannot rename a bin or change a pass flag in the app; you edit a
+      CSV outside and load it.
+
+      **Why it was left alone.** Symmetry is not a user need, and the two are not symmetric in
+      practice. Test names, limits and types get adjusted ad hoc, per engineer, per
+      investigation — which is what earns in-app editing. Bin definitions are usually an
+      *organisational* standard: they come from the test program or the MES, and a site wants
+      them identical for everyone. A file is the right source of truth for that, and "load the
+      standard bin definitions CSV" is arguably the behaviour to encourage rather than design
+      around.
+
+      **The part that would need real care if it is built.** Bin definitions carry **which hard
+      bins count as pass**. Editing that re-computes every yield figure in the session — the
+      lot summary, every finding, every report. That is not an inline table edit: it wants to be
+      explicit, confirmed and logged, in the same way the app already treats other things that
+      move a yield number. A bin *name* is cosmetic; a pass flag is not, and an editor that
+      treats them as two columns of the same table invites the mistake.
+
+      **If demand appears**, the evidence to look for is people hand-editing CSVs repeatedly for
+      one-off corrections rather than maintaining a shared standard file — that would mean the
+      file-as-source-of-truth assumption above is wrong for how they actually work.
+
+## File System Access API — persistent file handles on the web
+
+- [ ] **Re-read a remembered file in the browser build, via `FileSystemFileHandle`.**
+      Investigated 2026-09-10, not started. Worth revisiting; not obviously worth doing.
+
+      **The problem it would solve.** The browser's ordinary file picker hands the page a
+      file's *contents* and never its location, which is why `recentFiles.ts` is desktop-only
+      and why `recentDefinitions.ts` stores content rather than a path. For definitions files
+      that is mostly fine — they are kilobytes, so caching the content works — except that a
+      cached copy cannot be checked against the file it came from. A test-definitions file can
+      set **spec limits**, and reapplying a superseded copy produces capability figures and
+      out-of-spec marks that look entirely normal and are wrong. 0.1.34 mitigates that with
+      framing (a header on the recents menu, dated rows, and a warning-level log naming the
+      file when it sets limits) — a compromise, not a fix.
+
+      **The mechanism.** `window.showOpenFilePicker()` returns a `FileSystemFileHandle`, which
+      is structured-cloneable and so can be stored in IndexedDB and retrieved in a later
+      session. `queryPermission`/`requestPermission` re-grant access in one click — no
+      re-navigating the file system — and `handle.getFile()` then reads the file *as it is
+      now*. That would let the browser do exactly what the desktop already does: re-read,
+      compare, and report that the file has changed. It would **retire the caveat rather than
+      restate it**, and would also make a browser Recent-*files* list possible for the first
+      time.
+
+      **Two catches specific to us, which are why this is not already scoped:**
+
+      1. **It needs a secure context** — HTTPS or localhost. The self-hosted intranet bundle
+         shipped in 0.1.34 explicitly documents plain `http://` as fine, and it is for
+         everything tsmap does today. So the deployment aimed at the audience *least* able to
+         run the desktop app is also where this API is *least* likely to be available, unless
+         those sites serve over HTTPS. It degrades to the current behaviour rather than
+         failing, but it cannot be relied on for the people who would benefit most.
+      2. **Browser support is Chromium-only** — Chrome, Edge, Opera. Firefox does not have it;
+         Safari's support does not extend to persistent handles for user-visible files. Fine
+         for a fab standardised on Chrome or Edge, not a general answer.
+
+      Together those produce a **three-way behaviour matrix**: desktop (path, always fresh),
+      web-with-handles (fresh after a permission click), web-fallback (cached copy, today).
+      That runs against this repo's own "prefer a single-dimension mechanism over a
+      combinatorial one", and the third branch still needs every piece of caveat plumbing that
+      exists now. That trade — not the difficulty — is the reason to think before building.
+
+      **If it is picked up, the honest scoping:**
+
+      - Do **definitions files first**, not data files. Smaller blast radius, and it retires an
+        existing compromise instead of adding a new capability.
+      - Keep the cached copy as the fallback so behaviour degrades rather than disappears.
+      - Gate on `'showOpenFilePicker' in window`, which covers browser support and secure
+        context in one check.
+      - Raw IndexedDB rather than `idb-keyval`: one key-value pair does not justify a runtime
+        dependency in a project that has kept them minimal.
+      - `showOpenFilePicker` must be called synchronously from a user gesture — the same
+        constraint `main.ts` already documents for the current `<input type="file">` path, so
+        it fits the existing shape.
+      - Verify current browser support at the time rather than trusting this note; this area
+        has moved and may move again (Safari in particular).
+
+## One "open" dialog — tsmap's own home for opening, scanning and filtering
+
+- [ ] **Make the file filter the place every open starts, alongside the system chooser.**
+      Discussed 2026-09-11, not started; aimed at a future release, not the current one.
+
+      **The idea.** Today there are three entry points that each open the system
+      chooser — Open files, Add files, Scan a folder — and the file filter only appears
+      after the fact. Instead, one tsmap dialog would open first and behave much like a
+      standard chooser: recent folders and files, browsing into folders, and a choice between
+      loading what is picked directly and scanning it into the filter table first. The kind
+      buttons, format families and blank-column hiding added to the filter on 2026-09-11 are
+      already most of the "what's in here" half.
+
+      **Complement the system chooser, don't replace it.** The OS dialog brings favourites,
+      search, network and cloud drives, drive letters, OS-level recents and its own
+      accessibility — all expensive to rebuild well, and a navigator missing any of them feels
+      worse than the one people already know. So: our dialog as the home screen, with a
+      **Browse…** button that still opens the system chooser.
+
+      **Per platform:**
+
+      - **Desktop.** Cheap: `list_dir_files` already lists folders from Rust, so a breadcrumb
+        path plus subfolder list is mostly UI. Recent *folders* would join the existing recent
+        files (`recentFiles.ts`), with paths stored as today.
+      - **Web.** The only way the browser keeps a location between sessions is a stored
+        `FileSystemDirectoryHandle` / `FileSystemFileHandle` — the mechanism, and its two
+        catches (secure context; Chromium only), are written up in the File System Access API
+        section above rather than restated here. This dialog would be that investigation's
+        most visible payoff: a web Recent-folders list that reopens with one permission click.
+        Elsewhere it falls back to the ordinary file input, as now.
+
+      **Before scoping:** it multiplies that section's three-way behaviour matrix across more
+      of the UI, so settle that trade first; decide whether "load directly" and "scan first"
+      are one flow with a choice or two buttons; and follow UI_STANDARDS.md for the navigator
+      (keyboard navigation of the folder list, focus handling when moving into a folder).
+
 ## Prioritization (if picking three to start)
 
 1. Cpk/Ppk — closes the biggest functional gap for the target audience. **Done** 2026-07-10
@@ -464,3 +586,10 @@ and a visible-cursor replay) is tracked outside this repo — see this repo's `C
 3. Recent-files list — cheap, removes daily friction. **Done** 2026-07-09.
 
 All three original picks have shipped — revisit this list next time priorities are discussed.
+
+Open at 2026-09-10, in rough order of value: remembering the **test selection per test
+program** (the natural next step after the definitions-file recents, and the same
+workflow one step further), **window size and position on desktop** (still 1000x700 every
+launch, no `tauri-plugin-window-state`), and the File System Access API investigation
+above — which is the only one of the three whose value is uncertain rather than merely
+unbuilt.

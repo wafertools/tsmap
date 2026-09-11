@@ -158,6 +158,11 @@ export interface Platform {
    *  pure-JS shortcut — this always goes through the WASM worker on web, and
    *  through the native command on Tauri. */
   parquetHeaders(file: FileHandle): Promise<HeadersResult>;
+  /** Distinct combinations of `columns`' values across the whole Parquet file
+   *  — the file filter's wafer count, as distinct (lot, wafer) pairs. Parquet
+   *  only: it reads just those columns, where CSV/JSON would mean reading every
+   *  byte of the file during what is meant to be a quick header scan. */
+  parquetDistinctCount(file: FileHandle, columns: string[]): Promise<number>;
   /** `title` — see `pickFiles`'s doc: desktop-only, replaces the OS's own
    *  generic default with copy naming what's being saved. */
   savePng(blob: Blob, stem: string, title?: string): Promise<void>;
@@ -175,8 +180,14 @@ export interface Platform {
   parseAtdfFiltered(file: FileHandle, selected: number[]): Promise<RustParsedFile>;
   /** `title`s — see `pickFiles`'s doc: desktop-only, name what's being
    *  saved/loaded rather than leaving the OS's generic default in place. */
-  saveTextFile(content: string, defaultName: string, title?: string): Promise<void>;
-  pickTextFile(title?: string): Promise<{ content: string; name: string } | null>;
+  /** Returns what was written, or null if the user cancelled. `path` is desktop-only.
+   *  Callers use it to remember a saved definitions file, so a list you just wrote is
+   *  one click away next time (see recentDefinitions.ts). */
+  saveTextFile(content: string, defaultName: string, title?: string): Promise<{ name: string; path?: string } | null>;
+  /** `path` is desktop-only — the browser picker exposes none. It is what lets a
+   *  remembered definitions file be re-read fresh instead of served from the
+   *  copy cached at pick time (see recentDefinitions.ts). */
+  pickTextFile(title?: string): Promise<{ content: string; name: string; path?: string } | null>;
   /** Returns a FileHandle for the bundled synthetic demo lot (13 wafers, 5
    *  process corners), for the empty state's "Load sample data" action. */
   getSampleFile(): Promise<FileHandle>;
@@ -387,6 +398,11 @@ function makeTauriPlatform(): Platform {
       return invoke<HeadersResult>('parquet_headers', { path: file.path });
     },
 
+    async parquetDistinctCount(file, columns) {
+      const invoke = await getInvoke();
+      return invoke<number>('parquet_distinct_count', { path: file.path, columns });
+    },
+
     async savePng(blob, stem, title) {
       const { save: dialogSave } = await getDialog();
       const { writeFile } = await getFs();
@@ -459,7 +475,9 @@ function makeTauriPlatform(): Platform {
         defaultPath: defaultName,
         filters: [{ name: FILTER_NAMES[ext] ?? ext.toUpperCase(), extensions: [ext] }],
       });
-      if (path) await writeTextFile(path, content);
+      if (!path) return null;
+      await writeTextFile(path, content);
+      return { name: path.split(/[\\/]/).pop() ?? path, path };
     },
 
     async pickTextFile(title) {
@@ -473,7 +491,7 @@ function makeTauriPlatform(): Platform {
       if (!path || Array.isArray(path)) return null;
       const content = await readTextFile(path);
       const name = path.split(/[\\/]/).pop() ?? path;
-      return { content, name };
+      return { content, name, path };
     },
 
     async getSampleFile() {
@@ -610,10 +628,9 @@ function openBlockedLinkNotice(url: string): void {
 // thread. The worker owns its own WASM instance; this side just correlates
 // request/response messages by id.
 
-type ParserOp =
-  | 'parseStdf' | 'parseAtdf' | 'parseCsv' | 'parseJson' | 'parseParquet' | 'parquetHeaders'
-  | 'stdfTestNames' | 'atdfTestNames' | 'stdfFileMeta' | 'atdfFileMeta'
-  | 'parseStdfFiltered' | 'parseAtdfFiltered';
+// The worker's own list, not a restatement of it — this copy had to be kept in
+// step by hand with parserWorker.ts's.
+type ParserOp = import('./parserWorker').ParserOp;
 
 interface PendingCall {
   resolve: (value: unknown) => void;
@@ -652,20 +669,20 @@ function getWorker(): Worker {
 
 /**
  * Call the parser worker. Copies `bytes` once and transfers the copy so the
- * caller's original buffer stays intact (the "Filter tests…" re-parse flow
+ * caller's original buffer stays intact (the "Tests…" re-parse flow
  * re-reads the same file from memory). The copy cost is negligible vs parse time.
  */
 function callWorker(
   op: ParserOp,
   bytes: Uint8Array,
-  extra?: { mapping?: CsvMapping; selected?: number[] },
+  extra?: { mapping?: CsvMapping; selected?: number[]; columns?: string[] },
 ): Promise<unknown> {
   const id = nextCallId++;
   const copy = bytes.slice();
   return new Promise((resolve, reject) => {
     pendingCalls.set(id, { resolve, reject });
     getWorker().postMessage(
-      { id, op, bytes: copy, mapping: extra?.mapping, selected: extra?.selected },
+      { id, op, bytes: copy, mapping: extra?.mapping, selected: extra?.selected, columns: extra?.columns },
       [copy.buffer],
     );
   });
@@ -878,6 +895,10 @@ function makeWebPlatform(): Platform {
       return await callWorker('parquetHeaders', file.bytes) as HeadersResult;
     },
 
+    async parquetDistinctCount(file, columns) {
+      return await callWorker('parquetDistinctCount', file.bytes, { columns }) as number;
+    },
+
     async savePng(blob, stem) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -943,6 +964,9 @@ function makeWebPlatform(): Platform {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      // A browser download reports neither a path nor whether the user kept it —
+      // the name we asked for is the whole truth available here.
+      return { name: defaultName };
     },
 
     pickTextFile() {

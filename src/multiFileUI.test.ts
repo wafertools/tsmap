@@ -96,6 +96,23 @@ describe('detectMismatches', () => {
     expect(warnings.some(w => w.message.includes('Duplicate'))).toBe(true);
   });
 
+  it('says how duplicate IDs from different lots will be told apart', () => {
+    const src = (lot: string, file: string) => ({ sourceFile: file, fields: [{ key: 'lotId', value: lot }] });
+    const existing: WaferData[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src('LOT-A', 'a.stdf') }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src('LOT-B', 'b.stdf') }];
+    const msg = detectMismatches(incoming, existing).find(w => w.message.includes('Duplicate'))!.message;
+    expect(msg).toContain('LOT-A · W01, LOT-B · W01');
+    expect(msg).not.toContain('load order');
+  });
+
+  it('flags a duplicate that only load order separates as possibly the same wafer twice', () => {
+    const src = { sourceFile: 'a.stdf', fields: [{ key: 'lotId', value: 'LOT-A' }] };
+    const existing: WaferData[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src }];
+    const msg = detectMismatches(incoming, existing).find(w => w.message.includes('Duplicate'))!.message;
+    expect(msg).toContain('load order');
+  });
+
   it('can produce multiple warnings at once', () => {
     const existing = [makeExisting(100, [1, 2])];
     const incoming = [makeIncoming('W1', 50, [3, 4])]; // die count, bin set, duplicate

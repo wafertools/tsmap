@@ -21,15 +21,13 @@
 
 import { openModal } from './modal';
 import { buildFilterTable, formatFilterFile, parseFilterFile, type FilterTableColumn, type FilterTableRow, type FilterTableHandle, type FilterCriteria } from './filterTable';
-import { effectiveFileExtension, checkSameExtension } from './lib';
+import { effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
 import type { Platform, FileHandle, FileMeta } from './platform';
 import { isTauri } from './platform';
-
-const BASELINE_COLUMNS: FilterTableColumn[] = [
-  { key: '__name', label: 'Name' },
-  { key: '__size', label: 'Size' },
-  { key: '__modified', label: 'Modified' },
-];
+import { storageKey } from './storageKeys';
+import { detectRole } from './mappingUI';
+import { labelFor, orderFieldKeys } from './metadata';
+import { buildToggleGroup, type ToggleGroup } from './toggleGroup';
 
 function fmtBytes(n: number | undefined): string {
   if (n === undefined) return '';
@@ -121,7 +119,7 @@ const SCAN_CONCURRENCY = 4;
  * found 3 files", which is exactly the kind of unexplained state this app's
  * splits-restore path also refuses to create.
  */
-const LAST_FILTER_KEY = 'tsmap.fileFilter.lastCriteria';
+const LAST_FILTER_KEY = storageKey('tsmap:file-filter');
 
 function loadLastCriteria(): FilterCriteria | null {
   try {
@@ -145,8 +143,10 @@ function saveLastCriteria(criteria: FilterCriteria): void {
 }
 
 /** Human-readable summary of what a restored filter is doing, for the notice. */
-function describeCriteria(criteria: FilterCriteria): string {
-  const parts = Object.keys(criteria.columnValues).map(k => k.replace(/^__/, ''));
+/** Names a filter's columns by their on-screen labels (`labelOf`), never by
+ *  key — the notice used to say "format" and "lotId". */
+function describeCriteria(criteria: FilterCriteria, labelOf: (key: string) => string): string {
+  const parts = Object.keys(criteria.columnValues).map(labelOf);
   if (criteria.searchText.trim()) parts.push(`search "${criteria.searchText.trim()}"`);
   return parts.join(', ');
 }
@@ -223,8 +223,7 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
     // returns, so peak memory is bounded by SCAN_CONCURRENCY, not batch size.
     const file = await materializePicked(picked);
     const meta = await (async (): Promise<FileMeta | null> => {
-      if (ext === 'stdf' || ext === 'std') return platform.stdfFileMeta(file);
-      if (ext === 'atdf' || ext === 'atd') return platform.atdfFileMeta(file);
+      if (isTesterExt(ext)) return isAtdfExt(ext) ? platform.atdfFileMeta(file) : platform.stdfFileMeta(file);
       if (ext === 'csv' || ext === 'txt' || ext === 'dat') {
         const h = await platform.csvHeaders(file);
         return headersToFileMeta(h.headers, h.sample);
@@ -235,7 +234,21 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
       }
       if (ext === 'parquet') {
         const h = await platform.parquetHeaders(file);
-        return headersToFileMeta(h.headers, h.sample);
+        const meta = headersToFileMeta(h.headers, h.sample);
+        // Wafers, for Parquet only (see parquetDistinctCount — CSV/JSON would
+        // mean reading the whole file): distinct (lot, wafer) pairs, the
+        // identity a load gives a wafer. Columns are found with detectRole,
+        // the first match winning, as headersToFileMeta does for the lot. A
+        // failed count leaves Wafers blank rather than failing the scan.
+        const roleCol = (role: string) => h.headers.find(c => detectRole(c, h.sample) === role);
+        const waferCol = roleCol('wafer');
+        if (waferCol) {
+          const lotCol = roleCol('lot');
+          meta.waferCount = await platform
+            .parquetDistinctCount(file, lotCol ? [lotCol, waferCol] : [waferCol])
+            .catch(() => 0);
+        }
+        return meta;
       }
       return null;
     })();
@@ -250,12 +263,43 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
  *  MIR) — the closest equivalent is "every header, valued from the first
  *  sample row." A column whose sampled rows disagree is marked "(varies)"
  *  rather than showing an arbitrarily-picked value that could mislead. */
+const VARIES = '(varies)';
+
+/** Column roles that are per-die by definition — a die's position, its bins,
+ *  its site, or a long-format test row's identity/value/limits. A file-level
+ *  column can never be one of these, whatever the sample shows: the sample is
+ *  the first five rows, which routinely agree on `y` (one die row) and often on
+ *  a bin, so "(varies)" alone left `x`/`y`/`hbin`/`sbin` showing as if they
+ *  were lot metadata. Uses the column-mapping dialog's own `detectRole`, so the
+ *  filter and the loader agree on what a column is. The catch-all numeric
+ *  `test` role is deliberately NOT listed: an unrecognised numeric column may
+ *  well be file-level (`temperature_c`), so it keeps the "(varies)" rule.
+ *
+ *  `wafer` is here too: it is per-wafer, and a flat file routinely holds
+ *  several wafers, so its first five rows showed `W01` for files holding
+ *  W01–W10 — a file-level value that was simply wrong. */
+const PER_DIE_ROLES = new Set<string>([
+  'x', 'y', 'hbin', 'sbin', 'site', 'wafer', 'testname', 'testnumber', 'testvalue', 'loLimit', 'hiLimit', 'units',
+]);
+
 function headersToFileMeta(headers: string[], sample: Record<string, string>[]): FileMeta {
-  const fields = headers.map(h => {
+  const fields: { key: string; value: string }[] = [];
+  const seen = new Set<string>();
+  for (const h of headers) {
+    const role = detectRole(h, sample);
+    if (PER_DIE_ROLES.has(role)) continue;
+    // A lot column (`lot`, `LOT_ID`, `lot_no`…) is filed under the STDF/ATDF
+    // lot record's own key, `lotId` — the key the parser also gives it when
+    // the file is loaded. Under its raw header it became a second lot column,
+    // so a mixed scan showed the STDF lots in one column and the Parquet lots
+    // in another, each looking mostly empty. First lot-like column wins.
+    const key = role === 'lot' ? 'lotId' : h;
+    if (seen.has(key)) continue;
+    seen.add(key);
     const values = new Set(sample.map(r => r[h] ?? ''));
-    const value = values.size > 1 ? '(varies)' : (sample[0]?.[h] ?? '');
-    return { key: h, value };
-  });
+    const value = values.size > 1 ? VARIES : (sample[0]?.[h] ?? '');
+    fields.push({ key, value });
+  }
   return { lotMeta: { fields }, waferCount: 0 };
 }
 
@@ -276,20 +320,50 @@ function metaToRow(sf: ScannedFile, dynamicKeys: string[]): FilterTableRow {
   if (sf.error) {
     columns.__error = sf.error;
   } else if (sf.meta) {
-    for (const f of sf.meta.lotMeta.fields) columns[f.key] = f.value;
+    // Only the kept columns — a dropped one's "(varies)" cells would otherwise
+    // still match the search box while showing nowhere.
+    const kept = new Set(dynamicKeys);
+    for (const f of sf.meta.lotMeta.fields) if (kept.has(f.key)) columns[f.key] = f.value;
+    const tested = testedAt(sf.meta);
+    if (tested) {
+      columns.__tested = tested.text;
+      if (tested.ms !== undefined) sortValues.__tested = tested.ms;
+    }
     if (sf.meta.waferCount > 0) columns.waferCount = String(sf.meta.waferCount);
-    if (sf.meta.earliestStart) columns.earliestStart = sf.meta.earliestStart;
-    if (sf.meta.latestFinish) columns.latestFinish = sf.meta.latestFinish;
-    if (sf.meta.siteCount !== undefined) columns.siteCount = String(sf.meta.siteCount);
+    // `!= null`, not `!== undefined`: the parser sends `null` for "no SDR", which
+    // String() turned into a literal "null" in the Sites column.
+    if (sf.meta.siteCount != null) columns.siteCount = String(sf.meta.siteCount);
   }
   for (const k of dynamicKeys) columns[k] ??= '';
   return { id: sf.id, columns, sortValues };
 }
 
-const WAFER_AGGREGATE_COLUMNS: FilterTableColumn[] = [
+/** When a file was tested — the one time worth showing to tell files apart,
+ *  e.g. to pick the newest of several retests of one lot. The earliest wafer
+ *  start (WIR START_T) where the tester recorded one, else the lot start (MIR
+ *  START_T). This replaced separate "Earliest start"/"Latest finish" columns,
+ *  which sat beside a raw `startT` column carrying almost the same value and
+ *  left the reader to reconcile three timestamps. `ms` is undefined for text
+ *  that is not a parseable time (an ATDF value in an unrecognised convention
+ *  passes through as-is — see the parser's `FileMeta`), which then sorts as text. */
+function testedAt(meta: FileMeta): { text: string; ms?: number } | undefined {
+  const raw = meta.earliestStart
+    ?? meta.lotMeta.fields.find(f => f.key === TESTED_FALLBACK_KEY)?.value;
+  if (!raw || raw === VARIES) return undefined;
+  const ms = Date.parse(raw);
+  return Number.isNaN(ms) ? { text: raw } : { text: fmtDate(ms), ms };
+}
+
+/** The lot-record field folded into the Tested column, and so not given a
+ *  column of its own. */
+const TESTED_FALLBACK_KEY = 'startT';
+
+/** Columns only some files can fill — CSV/JSON produce none of them, and
+ *  STDF/ATDF writers often leave times unset. Blank ones drop out of view via
+ *  the table's own hideEmptyColumns, not a second rule here. */
+const OPTIONAL_COLUMNS: FilterTableColumn[] = [
+  { key: '__tested', label: 'Tested' },
   { key: 'waferCount', label: 'Wafers' },
-  { key: 'earliestStart', label: 'Earliest start' },
-  { key: 'latestFinish', label: 'Latest finish' },
   { key: 'siteCount', label: 'Sites' },
 ];
 
@@ -380,6 +454,10 @@ export async function openFileFilterDialog(
       body.style.cssText += 'padding:16px;display:flex;flex-direction:column;gap:10px;';
       const status = el('div', { fontSize: '12px', color: 'var(--text-muted)' }, `Scanning 0 / ${picked.length}…`);
       body.appendChild(status);
+      // Format quick filter — filled once the scan knows which kinds it holds.
+      const formatBar = el('div', { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '12px' });
+      formatBar.hidden = true;
+      body.appendChild(formatBar);
       const tableMount = el('div', { flex: '1', minHeight: '0', display: 'flex', flexDirection: 'column' });
       body.appendChild(tableMount);
       // Inline problem line — a refusal to load has to be visible in the dialog
@@ -406,36 +484,104 @@ export async function openFileFilterDialog(
         scannedFiles = results;
         const errorCount = results.filter(r => r.error).length;
         const formats = new Set(results.map(r => effectiveFileExtension(r.picked.handle.name)));
+        // A load takes one format family (STDF and ATDF are one — see
+        // formatFamily), so only a mix of families needs choosing between.
+        // The Format column still appears for any mix of extensions.
+        const families = new Set([...formats].map(formatFamily));
         const summary = `Scanned ${results.length} file${results.length === 1 ? '' : 's'}`;
         status.textContent = [
           summary,
-          formats.size > 1 ? `${formats.size} formats — a load must pick just one` : null,
+          families.size > 1 ? `${[...families].join(', ')} files — a load takes one kind (STDF and ATDF count as one)` : null,
           errorCount > 0 ? `${errorCount} failed to scan` : null,
         ].filter(Boolean).join(' — ');
 
         const dynamicKeySet = new Set<string>();
-        for (const r of results) for (const f of r.meta?.lotMeta.fields ?? []) dynamicKeySet.add(f.key);
+        // A column only earns its place if at least one file gives it a real
+        // value. Blank everywhere, or "(varies)" in every file that has it,
+        // means a per-die field (x, y, a bin, a test result) or unused
+        // metadata — nothing to tell files apart by. Blank in SOME files is
+        // kept: "has this field vs doesn't" is itself a distinction.
+        for (const r of results) {
+          for (const f of r.meta?.lotMeta.fields ?? []) {
+            if (f.value !== '' && f.value !== VARIES) dynamicKeySet.add(f.key);
+          }
+        }
+        // Shown as the Tested column instead — see testedAt.
+        dynamicKeySet.delete(TESTED_FALLBACK_KEY);
         const dynamicKeys = [...dynamicKeySet].sort();
+        const rows = results.map(r => metaToRow(r, dynamicKeys));
 
-        // Wafer aggregates only exist for STDF/ATDF; include the columns when
-        // any scanned file actually produced one, rather than guessing from the
-        // batch's format up front (it may now hold several).
-        const hasWaferAggregates = results.some(r => r.meta && (
-          r.meta.waferCount > 0 || r.meta.earliestStart || r.meta.latestFinish || r.meta.siteCount !== undefined
-        ));
 
+        // Ordered by the questions asked when triaging a batch: which file,
+        // which lot and how much of it, when it was tested (with Modified
+        // beside Tested, as the two are read together), what was run, then
+        // file-system detail that rarely decides anything. Lot fields use the
+        // facet table's own labels and order (metadata.ts), so the dialog and
+        // the gallery's facets name a field the same way.
+        const pick = (key: string) => OPTIONAL_COLUMNS.filter(c => c.key === key);
+        const fieldCol = (key: string): FilterTableColumn => ({ key, label: labelFor(key) });
+        const LOT = 'lotId';
         const columns: FilterTableColumn[] = [
-          ...BASELINE_COLUMNS,
+          { key: '__name', label: 'Name' },
+          ...(dynamicKeySet.has(LOT) ? [fieldCol(LOT)] : []),
+          ...pick('waferCount'),
+          ...pick('__tested'),
+          { key: '__modified', label: 'Modified' },
+          ...orderFieldKeys(dynamicKeys).filter(k => k !== LOT).map(fieldCol),
+          ...pick('siteCount'),
+          { key: '__size', label: 'Size' },
           // Only worth a column when there's something to distinguish.
           ...(formats.size > 1 ? [{ key: '__format', label: 'Format' }] : []),
-          ...dynamicKeys.map(k => ({ key: k, label: k })),
-          ...(hasWaferAggregates ? WAFER_AGGREGATE_COLUMNS : []),
           ...(errorCount > 0 ? [{ key: '__error', label: 'Error' }] : []),
         ];
 
-        table = buildFilterTable({ columns, ariaLabel: 'Scanned files' });
+        // Format quick filter state. Declared before the table because the
+        // table reports filter changes from its very first applyCriteria (the
+        // remembered filter, below); the buttons themselves are built after.
+        let formatToggle: ToggleGroup<string> | null = null;
+        // The remembered filter reapplied on open, while its notice is shown.
+        // The notice explains a short table, so it goes as soon as that filter
+        // is no longer fully in effect (Clear filters, a column menu) — but not
+        // when the kind buttons merely add a Format filter on top of it.
+        let reappliedFilter: FilterCriteria | null = null;
+        const stillIncludes = (cur: FilterCriteria, applied: FilterCriteria) =>
+          (!applied.searchText.trim() || cur.searchText === applied.searchText)
+          && Object.entries(applied.columnValues).every(([k, vals]) => {
+            const now = cur.columnValues[k] ?? [];
+            return now.length === vals.length && vals.every(v => now.includes(v));
+          });
+        const labelOfColumn = (key: string) => columns.find(c => c.key === key)?.label ?? labelFor(key);
+        const ALL_FORMATS = '__all';
+        const extsOf = (fam: string) => [...formats].filter(e => formatFamily(e) === fam);
+        /** The button a filter state corresponds to: All when the Format column
+         *  is unfiltered, a family when its filter is exactly that family's
+         *  extensions, and none when the column menu chose something else. */
+        const formatChoiceOf = (c: ReturnType<FilterTableHandle['getCriteria']>): string | null => {
+          const v = c.columnValues.__format;
+          if (!v?.length) return ALL_FORMATS;
+          const fams = new Set(v.map(formatFamily));
+          if (fams.size !== 1) return null;
+          const [fam] = fams;
+          return extsOf(fam).every(e => v.includes(e)) ? fam : null;
+        };
+
+        table = buildFilterTable({
+          columns,
+          ariaLabel: 'Scanned files',
+          onFilterChange: c => {
+            formatToggle?.setActive(formatChoiceOf(c));
+            if (reappliedFilter && !stillIncludes(c, reappliedFilter)) {
+              reappliedFilter = null;
+              showNotice(null);
+            }
+          },
+          // The columns are a union over unlike files — STDF header fields next
+          // to CSV/JSON/Parquet files that carry none — so any one kind shown
+          // alone would be mostly blank columns.
+          hideEmptyColumns: true,
+        });
         tableMount.appendChild(table.el);
-        table.setRows(results.map(r => metaToRow(r, dynamicKeys)));
+        table.setRows(rows);
 
         // Re-apply the last filter that was used to load — see LAST_FILTER_KEY.
         // `select: false` so rows aren't pre-ticked behind the user's back, and
@@ -443,15 +589,56 @@ export async function openFileFilterDialog(
         const remembered = loadLastCriteria();
         if (remembered) {
           const { unknownColumns } = table.applyCriteria(remembered, { select: false });
-          const applied = describeCriteria({
+          const effective: FilterCriteria = {
             columnValues: Object.fromEntries(
               Object.entries(remembered.columnValues).filter(([k]) => !unknownColumns.includes(k)),
             ),
             searchText: remembered.searchText,
-          });
+          };
+          const applied = describeCriteria(effective, labelOfColumn);
+          // Set after applyCriteria: its own change notification must not
+          // judge the filter against itself mid-apply.
+          reappliedFilter = applied ? effective : null;
           showNotice(applied
             ? `Reapplied your last filter (${applied}) — showing ${table.rowCount() > 0 ? '' : 'no '}matches. Use Clear filters to see all ${results.length}.`
             : null);
+        }
+
+        // Format quick filter. A load takes one format family (formatFamily),
+        // so a scan holding several needs a choice before Load — made here in
+        // one click rather than through the Format column's menu. The buttons
+        // set that column's own filter, so the menu, Clear filters, Save
+        // filter… and the remembered filter all see one state, and
+        // onFilterChange (above) keeps the buttons showing it.
+        if (families.size > 1 && table) {
+          const t = table;
+          const counts = new Map<string, number>();
+          for (const r of results) {
+            const fam = formatFamily(effectiveFileExtension(r.picked.handle.name));
+            counts.set(fam, (counts.get(fam) ?? 0) + 1);
+          }
+          const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+          const choose = (choice: string) => {
+            const cur = t.getCriteria();
+            const columnValues = { ...cur.columnValues };
+            if (choice === ALL_FORMATS) delete columnValues.__format;
+            else columnValues.__format = extsOf(choice);
+            t.applyCriteria({ columnValues, searchText: cur.searchText }, { select: false });
+          };
+          formatToggle = buildToggleGroup<string>({
+            options: [
+              { value: ALL_FORMATS, label: `All (${results.length})` },
+              ...ranked.map(([fam, n]) => ({ value: fam, label: `${fam} (${n})` })),
+            ],
+            active: formatChoiceOf(t.getCriteria()),
+            ariaLabel: 'File kind to show',
+            onChange: choose,
+          });
+          formatBar.append(el('span', { color: 'var(--text-muted)' }, 'Show:'), formatToggle.el);
+          formatBar.hidden = false;
+          // Start on the most common kind unless a filter already chose one: a
+          // mixed selection cannot load, so opening on All only defers the choice.
+          if (!t.getCriteria().columnValues.__format?.length) choose(ranked[0][0]);
         }
       });
 

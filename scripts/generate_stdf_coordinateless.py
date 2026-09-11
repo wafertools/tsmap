@@ -52,12 +52,22 @@ def far() -> bytes:
     return record(*FAR, u1(2) + u1(4))
 
 def mir(lot_id: str, part_typ: str, job_nam: str, tstr_typ: str, node_nam: str) -> bytes:
+    # STDF V4 field order, as generate_stdf.py writes it. This copy used to put
+    # four stray C*1 and two U*4 between CMOD_COD and LOT_ID (fields that belong
+    # to no MIR), and JOB_NAM in the 10th string slot instead of the 5th — so a
+    # spec reader took a space (0x20) as LOT_ID's length and read 32 bytes of
+    # padding as the lot, and the file-filter scan showed this lot as blank.
     body = (
-        u4(0) + u4(0) + u1(1) + c1('P') + c1(' ') + c1(' ') + u2(0xFFFF) + c1(' ') +
-        c1(' ') + c1(' ') + c1(' ') + c1(' ') + u4(0xFFFFFFFF) + u4(0xFFFFFFFF) +
-        cn(lot_id) + cn(part_typ) + cn(node_nam) + cn(tstr_typ) + cn('') + cn('') +
-        cn('') + cn('') + cn('') + cn(job_nam) + cn('') + cn('') + cn('') + cn('') +
-        cn('') + cn('') + cn('') + cn('')
+        u4(0) + u4(0) +      # setup_t, start_t
+        u1(1) +              # stat_num
+        c1('P') +            # mode_cod
+        c1(' ') +            # rtst_cod
+        c1(' ') +            # prot_cod
+        u2(0xFFFF) +         # burn_tim
+        c1(' ') +            # cmod_cod
+        cn(lot_id) + cn(part_typ) + cn(node_nam) + cn(tstr_typ) + cn(job_nam) +
+        cn('') + cn('') + cn('') + cn('') + cn('') + cn('') + cn('') +   # job_rev … tst_temp
+        cn('') + cn('') + cn('') + cn('')                                 # user_txt … famly_id
     )
     return record(*MIR, body)
 

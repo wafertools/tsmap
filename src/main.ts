@@ -3,7 +3,7 @@ declare const __BUILD_DATE__: string;
 
 import { buildWaferMap } from '@wafertools/wafermap';
 import type { WaferMapResult, BinDef } from '@wafertools/wafermap';
-import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide } from '@wafertools/wafermap/render';
+import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide, WMAP_VERSION, WMAP_BUILD_TIME } from '@wafertools/wafermap/render';
 import type { FindingsNotice } from '@wafertools/wafermap/render';
 import { estimateValueFindingsMs, lotHasTestValues, describeDuration,
          maxTestCount, VALUE_FINDINGS_AUTO_BUDGET_MS } from './valueFindings';
@@ -11,7 +11,7 @@ import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/w
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
+import { basename, rustToLocal, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
@@ -28,6 +28,7 @@ import { openModal } from './modal';
 import { showSplitsModal } from './splitsUI';
 import { getEdgeExclusionMm, getWaferDiameterMm, normalizeWaferGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
+import { loadMapColorPrefs, saveMapColorPrefs } from './mapColorPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
@@ -35,8 +36,12 @@ import type { InferredDiameterHint } from './waferGeometryUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
 import { showFileAssociationsModal } from './fileAssociationsUI';
 import { showDefinitionsTemplatesDialog } from './definitionsTemplatesUI';
-import { getSplitLabel, setSplitLabel, waferDisplayLabel, splitsFingerprint, parseSplitsCsv } from './splits';
+import { waferLabels, splitsFingerprint, legacySplitsFingerprint, parseSplitsCsv, splitAssignments, restoreSplitAssignments, splitRowsToAssignments, type SplitRow } from './splits';
 import { getRecentFiles, addRecentFiles, removeRecentFile, formatRecentTime } from './recentFiles';
+import { makeLoadDefinitionsButton } from './recentDefinitionsUI';
+import { getRecentDefinitions, addRecentDefinition, recentDefinitionKey, describeAge, type DefinitionKind } from './recentDefinitions';
+import { storageKey } from './storageKeys';
+import { showResetSettingsDialog } from './resetSettingsUI';
 import { TSMAP_GUIDE_HTML } from './guideExtension';
 
 const platform = createPlatform();
@@ -63,7 +68,6 @@ const openBtn         = document.getElementById('open-btn')!;
 const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
 const openMoreBtn     = document.getElementById('open-more-btn') as HTMLButtonElement;
 const addMoreBtn      = document.getElementById('add-more-btn') as HTMLButtonElement;
-const recentBtn       = document.getElementById('recent-btn') as HTMLButtonElement;
 const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
@@ -74,7 +78,7 @@ const logToggle       = document.getElementById('log-toggle')!;
 const logPanel        = document.getElementById('log-panel')!;
 
 /**
- * Show/hide the whole "a lot is loaded" half of the toolbar — the Lot ▾
+ * Show/hide the whole "a lot is loaded" half of the toolbar — the Setup ▾
  * trigger, the Clear button, and the group separators that frame them.
  * The separators are toggled here rather than left permanently in the markup
  * because a divider with nothing on one side of it reads as a rendering bug;
@@ -175,7 +179,7 @@ function logPassBinCollisions(collisions: PassBinCollision[]): void {
   for (const c of collisions) {
     log('warn', `Hard bin ${c.bin} is a PASS bin in ${c.files[0]} but a FAIL bin in ${c.files[1]}. `
       + "Each file's wafers are counted using its own pass bins, so per-wafer yield is correct — "
-      + 'but any lot-wide yield figure combines two different pass/fail conventions.');
+      + 'but any yield figure pooled across these files combines two different pass/fail conventions.');
   }
 }
 
@@ -220,12 +224,11 @@ let currentHbinDefs: BinDef[] | undefined;
 let currentSbinDefs: BinDef[] | undefined;
 let currentPassHbins: number[] | undefined;
 
-// Tracks the most recently loaded STDF/ATDF files so "Filter tests…" can re-parse them.
+// Tracks the most recently loaded STDF/ATDF files so "Tests…" can re-parse them.
 let currentBinaryFiles: FileHandle[] = [];
-let currentBinaryExt = ''; // 'stdf' | 'std' | 'atdf' | 'atd'
-let currentTestNames: StdfTestNames | null = null; // first-pass scan result, reused by "Filter tests…"
+let currentTestNames: StdfTestNames | null = null; // first-pass scan result, reused by "Tests…"
 // Whether the current test list came from the largest file only or all files —
-// so "Filter tests…" can still offer to widen the scan if it wasn't already.
+// so "Tests…" can still offer to widen the scan if it wasn't already.
 let binaryScanScope: 'largest' | 'all' = 'largest';
 
 
@@ -492,7 +495,35 @@ if (isTauri) {
     e.preventDefault();
     setDragActive(false);
     if (busy) return;
-    const items = Array.from(e.dataTransfer?.files ?? []);
+
+    // Folders have to be spotted BEFORE the first await: `dataTransfer.items`
+    // is only valid while the event is being dispatched, and reading it after
+    // an await returns an empty list.
+    //
+    // A dropped folder arrives in `dataTransfer.files` as a single zero-byte
+    // entry named after the directory, which the parser can only fail on — the
+    // same silent nonsense the desktop build had until 0.1.33, where a dropped
+    // directory path was wrapped as a FileHandle and sent to be parsed. The
+    // desktop can walk a folder and does; a browser is handed a dropped item's
+    // *contents* and never its location, so there is nothing here to walk.
+    // Saying so, and naming the button that does work, is the honest response —
+    // a parse error for "EDGE-LOT-01" tells the user nothing about why.
+    const droppedDirs = Array.from(e.dataTransfer?.items ?? [])
+      .map(item => (typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null))
+      .filter((entry): entry is FileSystemEntry => !!entry?.isDirectory)
+      .map(entry => entry.name);
+
+    const items = Array.from(e.dataTransfer?.files ?? [])
+      // Drop the folder placeholders, keeping any real files dropped alongside.
+      .filter(f => !droppedDirs.includes(f.name));
+
+    if (droppedDirs.length > 0) {
+      const which = droppedDirs.length === 1 ? `"${droppedDirs[0]}"` : `${droppedDirs.length} folders`;
+      log('warn', items.length > 0
+        ? `Ignored ${which} — a browser cannot read a dropped folder. Loading the ${items.length} file${items.length === 1 ? '' : 's'} dropped alongside; use "Scan a folder…" for the folder.`
+        : `Cannot open ${which} — a browser cannot read a dropped folder. Drop the files inside it, or use "Scan a folder…".`);
+    }
+
     if (items.length === 0) return;
     // size/lastModified come free from the File and are what the file-filter
     // table's baseline columns read — a dropped file should carry them just
@@ -559,13 +590,16 @@ const WMAP_WARNING_LOG_LEVEL: Record<ReturnType<typeof severityOf>, LogLevel> = 
 // everything, even a warning identical to one from the previous file.
 const loggedWmapWarnings = new Set<string>();
 
-function logWmapWarnings(waferId: string, waferMap: WaferMapResult, statsSummary?: StatsSummary | null) {
+/** `waferLabel` is the wafer's unique on-screen label (see `waferLabels`), not
+ *  its bare ID: two lots' W01 each get their own log lines rather than the
+ *  second being de-duplicated away as a repeat of the first. */
+function logWmapWarnings(waferLabel: string, waferMap: WaferMapResult, statsSummary?: StatsSummary | null) {
   for (const warning of collectWarnings({ result: waferMap, statsSummary })) {
-    const key = `${waferId}:${warning.code}:${warning.message}`;
+    const key = `${waferLabel}:${warning.code}:${warning.message}`;
     if (loggedWmapWarnings.has(key)) continue;
     loggedWmapWarnings.add(key);
     const conf = warning.confidence !== undefined ? ` (confidence ${(warning.confidence * 100).toFixed(0)}%)` : '';
-    log(WMAP_WARNING_LOG_LEVEL[severityOf(warning)], `Wafer ${waferId} [${warning.code}]: ${warning.message}${conf}`);
+    log(WMAP_WARNING_LOG_LEVEL[severityOf(warning)], `Wafer ${waferLabel} [${warning.code}]: ${warning.message}${conf}`);
   }
 }
 
@@ -586,7 +620,6 @@ function logWmapWarnings(waferId: string, waferMap: WaferMapResult, statsSummary
  */
 function buildWmapConfig(
   w: WaferData,
-  displayId: string,
   testDefs: ReturnType<typeof toWmapTestDefs>,
   wcr: ReturnType<typeof wcrGeometryFrom> | undefined,
 ) {
@@ -594,7 +627,12 @@ function buildWmapConfig(
     results: w.results,
     testDefs,
     waferConfig: {
-      metadata: toWmapWaferMeta(w.source, displayId, w.fields),
+      // The REAL wafer ID — metadata reaches reports and CSV exports as the
+      // wafer ID column. On-screen disambiguation ("LOT-A · W01", a split
+      // suffix) belongs to the card label only; it used to be passed here, so
+      // exports recorded "W01 · TT" as a wafer ID. Lot and split still travel
+      // as their own metadata fields.
+      metadata: toWmapWaferMeta(w.source, w.waferId, w.fields),
       // Precedence: user override > this file's own WCR record > wmap's own
       // geometric inference (see waferGeometry.ts's module doc).
       diameter: waferDiameterMm ?? wcr?.waferConfig.diameter,
@@ -627,13 +665,15 @@ function buildLotStatsSummary(wafers: WaferData[]) {
     if (!wcrCache.has(source)) wcrCache.set(source, wcrGeometryFrom(source));
     return wcrCache.get(source);
   };
-  const items = wafers.map(w => {
-    const displayId = waferDisplayLabel(w, showSplitSuffix);
+  // Unique across the whole set — two lots' W01 (or a retest of one wafer in
+  // the same file) must not produce two cards with the same heading.
+  const labels = waferLabels(wafers, showSplitSuffix);
+  const items = wafers.map((w, i) => {
     const wcr = wcrFor(w.source);
-    const waferMap = buildWaferMap(buildWmapConfig(w, displayId, wmapTestDefsForWafer(w), wcr));
+    const waferMap = buildWaferMap(buildWmapConfig(w, wmapTestDefsForWafer(w), wcr));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
-    logWmapWarnings(w.waferId, waferMap, statsSummary);
-    return { ...waferMap, label: displayId, statsSummary };
+    logWmapWarnings(labels[i], waferMap, statsSummary);
+    return { ...waferMap, label: labels[i], statsSummary };
   });
   const perWaferSummaries = items.map(i => i.statsSummary);
   const lotStatsSummary = analyzeWaferLot(items, { perWaferSummaries, ...analyzeOpts() });
@@ -648,7 +688,7 @@ function buildLotStatsSummary(wafers: WaferData[]) {
 // lot ID + wafer ID, not the source file — so a different lot never inherits
 // stale assignments.
 
-const SPLITS_LS_KEY = 'tsmap:wafer-splits';
+const SPLITS_LS_KEY = storageKey('tsmap:wafer-splits');
 
 /**
  * Set by the "Load sample data" flow just before calling handleFiles, since
@@ -659,7 +699,7 @@ const SPLITS_LS_KEY = 'tsmap:wafer-splits';
  * wafers exist, then defers entirely to the existing restore path (auto-open
  * dialog, log message, etc.) — no separate apply/UI logic duplicated.
  */
-let pendingSampleSplitSeed: Map<string, string> | null = null;
+let pendingSampleSplitSeed: SplitRow[] | null = null;
 
 /**
  * Set by `applyCliArgs` just before calling `handleFiles`, from a CLI-supplied
@@ -713,20 +753,45 @@ type SplitsRestore = 'none' | 'restored' | 'seeded';
 
 function loadSavedSplits(wafers: WaferData[]): SplitsRestore {
   try {
+    const fingerprint = splitsFingerprint(wafers);
     const store = JSON.parse(localStorage.getItem(SPLITS_LS_KEY) ?? '{}');
+
+    // No lot identity — see splitsFingerprint. Nothing to restore, and any
+    // entry an older build wrote for these wafers is now unreachable, so drop
+    // it rather than leave Help ▸ Reset saved settings… reporting stored splits
+    // that can never be applied.
+    if (fingerprint === null) {
+      const legacy = legacySplitsFingerprint(wafers);
+      if (store[legacy] !== undefined) {
+        delete store[legacy];
+        if (Object.keys(store).length > 0) localStorage.setItem(SPLITS_LS_KEY, JSON.stringify(store));
+        else localStorage.removeItem(SPLITS_LS_KEY);
+      }
+      pendingSampleSplitSeed = null;
+      return 'none';
+    }
+
     const fromSeed = pendingSampleSplitSeed !== null;
     if (pendingSampleSplitSeed) {
-      store[splitsFingerprint(wafers)] = Object.fromEntries(pendingSampleSplitSeed);
+      store[fingerprint] = splitRowsToAssignments(wafers, pendingSampleSplitSeed);
       localStorage.setItem(SPLITS_LS_KEY, JSON.stringify(store));
       pendingSampleSplitSeed = null;
     }
-    const saved: Record<string, string> | undefined = store[splitsFingerprint(wafers)];
-    if (!saved) return 'none';
-    let applied = false;
-    for (const w of wafers) {
-      if (getSplitLabel(w) === undefined && saved[w.waferId]) { setSplitLabel(w, saved[w.waferId]); applied = true; }
+
+    // Carry across an entry written under the pre-0.1.34 key shape, so a user
+    // upgrading does not appear to have lost the splits they assigned.
+    const legacy = legacySplitsFingerprint(wafers);
+    if (store[fingerprint] === undefined && store[legacy] !== undefined) {
+      store[fingerprint] = store[legacy];
+      delete store[legacy];
+      localStorage.setItem(SPLITS_LS_KEY, JSON.stringify(store));
     }
-    if (!applied) return 'none';
+
+    const saved: Record<string, string> | undefined = store[fingerprint];
+    if (!saved) return 'none';
+    // Keyed by lot + wafer ID + occurrence; an older bare-wafer-ID entry is
+    // honoured only where that ID is unambiguous (see restoreSplitAssignments).
+    if (!restoreSplitAssignments(wafers, saved)) return 'none';
     return fromSeed ? 'seeded' : 'restored';
   } catch { return 'none'; }
 }
@@ -734,13 +799,26 @@ function loadSavedSplits(wafers: WaferData[]): SplitsRestore {
 function saveSplits(wafers: WaferData[]): void {
   try {
     const store = JSON.parse(localStorage.getItem(SPLITS_LS_KEY) ?? '{}');
-    const assignments: Record<string, string> = {};
-    for (const w of wafers) {
-      const v = getSplitLabel(w);
-      if (v) assignments[w.waferId] = v;
-    }
-    store[splitsFingerprint(wafers)] = assignments;
-    localStorage.setItem(SPLITS_LS_KEY, JSON.stringify(store));
+    // Keyed per wafer identity, not bare wafer ID — two lots' W01 would
+    // otherwise share one entry and one would overwrite the other.
+    const assignments = splitAssignments(wafers);
+    // Drop the record rather than storing an empty one. "Clear all" in the
+    // splits dialog routes here, so an empty map would leave the key present
+    // with nothing in it — and Help ▸ Reset saved settings…, which lists only
+    // what is actually stored, would then report "Wafer split assignments" to a
+    // user who has just cleared them. A dialog whose whole job is telling the
+    // truth about what is kept must not be fed a record that means nothing.
+    // Refuse to persist without a lot identity: the key would match unrelated
+    // data (see splitsFingerprint). The splits still apply to what is loaded and
+    // can still be saved to CSV — they are just not remembered.
+    const fingerprint = splitsFingerprint(wafers);
+    if (fingerprint === null) return;
+
+    if (Object.keys(assignments).length > 0) store[fingerprint] = assignments;
+    else delete store[fingerprint];
+
+    if (Object.keys(store).length > 0) localStorage.setItem(SPLITS_LS_KEY, JSON.stringify(store));
+    else localStorage.removeItem(SPLITS_LS_KEY);
   } catch { /* quota exceeded — silently skip */ }
 }
 
@@ -763,7 +841,7 @@ function renderWafers(
   addBtn.disabled = wafers.length === 0;
   addMoreBtn.disabled = addBtn.disabled;
   // One trigger for every lot-scoped dialog (see openLotMenu). Its rows
-  // handle their own availability — "Filter tests…" greys out for a file with
+  // handle their own availability — "Tests…" greys out for a file with
   // no test data — so this only needs the "is anything loaded at all" gate.
   setToolbarGroupVisible(wafers.length > 0);
   // Value findings are only meaningful when there are test values. Reset
@@ -791,7 +869,7 @@ function renderWafers(
       // The sample lot ships with its own splits, so seeing them is expected.
       // Log it rather than stacking a second dialog on the test selector the
       // user has just worked through.
-      log('info', 'The sample lot includes wafer splits — edit them via Lot ▾ → Splits….');
+      log('info', 'The sample lot includes wafer splits — edit them via Setup ▾ → Splits….');
     }
   }));
 }
@@ -864,7 +942,7 @@ function renderWaferView(wafers: WaferData[], label: string) {
     container.classList.remove('gallery');
     const singleWcr = wcrGeometryFrom(wafers[0].source);
     const waferMap = buildWaferMap(buildWmapConfig(
-      wafers[0], waferDisplayLabel(wafers[0], showSplitSuffix), wmapTestDefsForWafer(wafers[0]), singleWcr,
+      wafers[0], wmapTestDefsForWafer(wafers[0]), singleWcr,
     ));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     logWmapWarnings(wafers[0].waferId, waferMap, statsSummary);
@@ -881,7 +959,10 @@ function renderWaferView(wafers: WaferData[], label: string) {
       downloadFilename: stem,
       onSaveImage,
       onSaveText,
-      viewOptions: { plotMode },
+      // The colour choices persist across loads and restarts (mapColorPrefs.ts);
+      // the plot mode is per-load, derived from the data.
+      viewOptions: { plotMode, ...loadMapColorPrefs() },
+      onViewOptionsChange: saveMapColorPrefs,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default). It and tsmap's log deliberately show the same advisories:
       // the toolbar indicator is discoverable and persists with the map, the
@@ -911,7 +992,9 @@ function renderWaferView(wafers: WaferData[], label: string) {
       downloadFilename: stem,
       onSaveImage,
       onSaveText,
-      viewOptions: { plotMode },
+      // Same persisted colour choices as the single-wafer call above.
+      viewOptions: { plotMode, ...loadMapColorPrefs() },
+      onViewOptionsChange: saveMapColorPrefs,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default) — see the note on the single-wafer call above. The gallery
       // collects across every card and de-duplicates, so a lot-wide geometry
@@ -944,6 +1027,21 @@ function showLoadingState(msg: string) {
 }
 
 
+/*
+ * The "or drag files anywhere" line exists because drag and drop was advertised
+ * only by the toolbar's #drop-hint, which a `max-width: 1100px` rule hides — and
+ * the desktop window opens 1000px wide by default (tauri.conf.json). On a fresh
+ * install the single place it was mentioned was therefore invisible, and the
+ * empty state said nothing about it at all.
+ *
+ * The empty state is the better home: it is the moment the user needs to know,
+ * and it has room, whereas the toolbar legitimately sheds decorative text when
+ * cramped. The toolbar hint stays on as the reminder once data is loaded.
+ *
+ * The wording covers FILES only, deliberately. Dropping a folder is
+ * desktop-only — it needs `platform.isDirectory`, which the web platform does
+ * not implement — and "Scan a folder…" sits directly below it on both builds.
+ */
 function showEmptyState() {
   currentWafers = [];
   currentTestDefs = {};
@@ -954,7 +1052,6 @@ function showEmptyState() {
   currentSbinDefs = undefined;
   currentPassHbins = undefined;
   currentBinaryFiles = [];
-  currentBinaryExt = '';
   currentTestNames = null;
   binaryScanScope = 'largest';
   clearLotStatsCache();
@@ -1020,6 +1117,7 @@ function showEmptyState() {
       </svg>
       <div style="font-size:15px;color:var(--text-dim);">Open a file to get started</div>
       <div style="font-size:12px;color:var(--text-veryfaint);">Supports STDF, ATDF, CSV, JSON and Parquet</div>
+      <div style="font-size:12px;color:var(--text-veryfaint);">or drag files anywhere in this window</div>
     </div>`;
 
   const column = container.firstElementChild as HTMLElement;
@@ -1128,7 +1226,6 @@ function buildRecentRows(onOpen: () => void, onRemove: () => void): HTMLElement 
     removeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       removeRecentFile(entry.paths);
-      syncRecentBtn();
       onRemove();
     });
 
@@ -1138,48 +1235,7 @@ function buildRecentRows(onOpen: () => void, onRemove: () => void): HTMLElement 
   return list;
 }
 
-/** Shows/hides the toolbar's Recent button based on whether any entries exist —
- *  independent of load state, so it stays available once data is loaded (the
- *  gap this closes: the recent list previously only appeared on the empty
- *  state, which disappears the moment a file is open). */
-function syncRecentBtn() {
-  if (!isTauri) return;
-  recentBtn.style.display = getRecentFiles().length > 0 ? '' : 'none';
-}
-
-let closeRecentMenu: (() => void) | null = null;
 let closeLotMenu: (() => void) | null = null;
-
-/** Opens (or closes, if already open) a themed dropdown of recent files
- *  anchored under `anchor`, reusing buildRecentRows for the row UI. */
-function openRecentMenu(anchor: HTMLElement) {
-  if (closeRecentMenu) { closeRecentMenu(); return; }
-
-  closeRecentMenu = openAnchoredMenu(
-    anchor,
-    {
-      padding: '8px', minWidth: '260px', maxWidth: '360px', fontSize: '12px',
-      onClose: () => { closeRecentMenu = null; },
-    },
-    (popup, close) => {
-      const heading = document.createElement('div');
-      heading.style.cssText = 'font-size:12px;color:var(--text-veryfaint);text-transform:uppercase;' +
-        'letter-spacing:var(--tracking);margin-bottom:6px;';
-      heading.textContent = 'Recent';
-      popup.appendChild(heading);
-
-      // Re-entrant: removing the last entry from inside a row closes the menu.
-      const rebuild = () => {
-        popup.querySelector('.recent-rows')?.remove();
-        if (getRecentFiles().length === 0) { close(); return; }
-        const rows = buildRecentRows(close, rebuild);
-        rows.classList.add('recent-rows');
-        popup.appendChild(rows);
-      };
-      rebuild();
-    },
-  );
-}
 
 // ── Multi-file load flow ──────────────────────────────────────────────────────
 
@@ -1213,11 +1269,12 @@ function setIdle(msg = '') {
  * binary files, merging their test definitions into a single map. Used both for
  * the default largest-file scan and for the selector's "scan all files" toggle.
  * `dieCount` is the exact sum of dies across the scanned files. Returns null only
- * if every scan failed; a per-file failure is logged and skipped. Relies on
- * `currentBinaryExt` for the format (all binary files in a load share it).
+ * if every scan failed; a per-file failure is logged and skipped. The scanner
+ * is chosen per file: a load may mix STDF and ATDF. (It used to be chosen once,
+ * from the largest file, so "scan all files" ran the STDF scanner over any
+ * ATDF in a mixed zip and dropped its tests from the list with a warning.)
  */
 async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: StdfTestNames; dieCount: number } | null> {
-  const isAtdf = currentBinaryExt === 'atdf' || currentBinaryExt === 'atd';
   // The first-pass scan's own cross-file merge. This was
   // `Object.assign(merged, result.testDefs)` — last-wins — under a comment
   // asserting "test numbers are the identity key", which is exactly the
@@ -1235,7 +1292,7 @@ async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: S
     setBusy(`Scanning ${file.name} for tests…`);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
-      const result: ScanResult = isAtdf
+      const result: ScanResult = isAtdfExt(effectiveFileExtension(file.name))
         ? await platform.atdfTestNames(file)
         : await platform.stdfTestNames(file);
       scanned.push({ fileName: file.name, testDefs: result.testDefs });
@@ -1338,8 +1395,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   // ── Parse phase ──────────────────────────────────────────────────────────
   // For STDF/ATDF: first-pass scan to get testDefs cheaply, then filtered parse.
   // For CSV/JSON/Parquet: parse fully now (fast), use parsed testDefs for the selector.
-  const isBinaryExt = (e: string) => e === 'stdf' || e === 'std' || e === 'atdf' || e === 'atd';
-  const binaryFiles = files.filter(f => isBinaryExt(effectiveFileExtension(f.name)));
+  const binaryFiles = files.filter(f => isTesterExt(effectiveFileExtension(f.name)));
 
   // firstPassTestDefs: merged testDefs from first-pass scan (STDF/ATDF) and/or full parse (CSV/JSON).
   let firstPassTestDefs: StdfTestNames | null = null;
@@ -1355,7 +1411,6 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       return aSize >= bSize ? a : b;
     });
     currentBinaryFiles = binaryFiles;
-    currentBinaryExt = effectiveFileExtension(largestBinary.name);
     binaryScanScope = 'largest';
 
     // Default scan scope: the largest file only — a fast, representative test
@@ -1372,7 +1427,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   }
 
   // Parse CSV/JSON files now; collect their testDefs for the selector.
-  const nonBinaryFiles = files.filter(f => !isBinaryExt(effectiveFileExtension(f.name)));
+  const nonBinaryFiles = files.filter(f => !isTesterExt(effectiveFileExtension(f.name)));
   for (const file of nonBinaryFiles) {
     const fileExt = effectiveFileExtension(file.name);
     setBusy(`Parsing ${file.name}…`);
@@ -1457,9 +1512,16 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
             preloadListText: testListPreload ?? undefined,
             capacity: totalDieCount > 0 ? { dieCount: totalDieCount, totalTests: allTestNums.size } : undefined,
             onSave: async (saveEntries: TestListEntry[]) => {
-              await platform.saveTextFile(formatTestListCsv(saveEntries), 'test-definitions.csv', 'Save these test definitions to a file');
+              const csv = formatTestListCsv(saveEntries);
+              const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'Save these test definitions to a file');
+              // Remember what was just written: the list you build here is the one
+              // you reload for the next dataset, so saving it should put it a click
+              // away rather than back behind the file picker.
+              if (saved) addRecentDefinition({ kind: 'tests', name: saved.name, path: saved.path, content: csv });
             },
-            onLoad: async () => (await platform.pickTextFile('Select a test definitions file to load'))?.content ?? null,
+            onLoad: () => pickDefinitionsFile('tests', 'Select a test definitions file to load'),
+            recentLoads: () => recentDefinitionRows('tests'),
+            recentNote: recentDefinitionsNote(),
             onLog: log,
             onAsk: (msg) => platform.confirm(msg),
           },
@@ -1477,7 +1539,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
         if (scan) {
           scopedDefs = scan.testDefs;
           firstPassTestDefs = scan.testDefs;   // so the full parse below sees every test
-          currentTestNames = scan.testDefs;    // so "Filter tests…" re-uses the widened list
+          currentTestNames = scan.testDefs;    // so "Tests…" re-uses the widened list
           binaryScanDieCount = scan.dieCount;  // exact total now, not extrapolated
           binaryScanScope = 'all';
           scanScope = 'all';
@@ -1524,7 +1586,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       const fileExt = effectiveFileExtension(file.name);
 
       // CSV/JSON already parsed above — just collect.
-      if (!isBinaryExt(fileExt)) {
+      if (!isTesterExt(fileExt)) {
         const pre = preParsed.get(file.name);
         if (pre) entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed: pre });
         continue;
@@ -1534,10 +1596,10 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       try {
         // If scan failed (firstPassTestDefs null), fall back to unfiltered parse.
         const raw = firstPassTestDefs === null
-          ? (fileExt === 'atdf' || fileExt === 'atd'
+          ? (isAtdfExt(fileExt)
             ? await platform.parseAtdf(file)
             : await platform.parseStdf(file))
-          : (fileExt === 'atdf' || fileExt === 'atd'
+          : (isAtdfExt(fileExt)
             ? await platform.parseAtdfFiltered(file, testSelection ?? [])
             : await platform.parseStdfFiltered(file, testSelection ?? []));
         const parsed = rustToLocal(raw, file.name);
@@ -1639,7 +1701,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       { hbinDefs: bins.hbinDefs, sbinDefs: bins.sbinDefs, passHbins: bins.passHbins },
       defsBySourceFrom(renamed),
     );
-    if (originalPaths) { addRecentFiles(originalPaths); syncRecentBtn(); }
+    if (originalPaths) addRecentFiles(originalPaths);
   }
 }
 
@@ -1648,7 +1710,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
  * own argv/stdin at launch, or argv forwarded from a second `tsmap <files>`
  * launch via the single-instance plugin (see the `cli-open-files` listener
  * below). `--splits`/`--tests` reuse the exact seed/preload mechanisms the
- * "Load sample data" flow and the test selector's own "Load list" button
+ * "Load sample data" flow and the test selector's own "Load definitions" button
  * already use — nothing here is a new, silent code path.
  *
  * `--url`/`--url-format` never reach here as such: the Rust side resolves
@@ -1693,7 +1755,7 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
       args.edgeExclusion ?? edgeExclusionMm,
     );
     if (args.edgeExclusion != null && normalized.edgeExclusionMm === undefined) {
-      log('warn', '--edge-exclusion ignored: no wafer diameter is set — pass --wafer-diameter too, or set one via Lot ▾ → Diameter & edge exclusion… first');
+      log('warn', '--edge-exclusion ignored: no wafer diameter is set — pass --wafer-diameter too, or set one via Setup ▾ → Diameter & edge exclusion… first');
     }
     waferDiameterMm = normalized.diameterMm;
     edgeExclusionMm = normalized.edgeExclusionMm;
@@ -1850,7 +1912,7 @@ function openPickMenu(anchor: HTMLElement, isAppend: boolean) {
   closePickMenu = openAnchoredMenu(
     anchor,
     {
-      stack: true, minWidth: '260px',
+      stack: true, minWidth: '300px', maxWidth: '420px',
       onClose: () => { closePickMenu = null; anchor.setAttribute('aria-expanded', 'false'); },
     },
     (popup, close) => {
@@ -1866,6 +1928,31 @@ function openPickMenu(anchor: HTMLElement, isAppend: boolean) {
         enabled: !busy,
         onClick: () => { void scanFolderAndFilter(isAppend); },
       }));
+
+      // Recent files are a third way to answer "which file" — the same question
+      // this caret exists for — so they belong here rather than behind a
+      // separate toolbar button. Deliberately only under Open: reopening a
+      // recent replaces the current data (see buildRecentRows), and offering
+      // them under Add would promise an append-from-recent that does not exist.
+      //
+      // Desktop only, because reopening needs a native path.
+      if (isAppend || !isTauri || getRecentFiles().length === 0) return;
+
+      const heading = document.createElement('div');
+      heading.style.cssText = 'font-size:12px;color:var(--text-veryfaint);text-transform:uppercase;'
+        + 'letter-spacing:var(--tracking);margin:8px 0 4px;';
+      heading.textContent = 'Recent';
+      popup.appendChild(heading);
+
+      // Re-entrant: removing the last entry from inside a row closes the menu.
+      const rebuild = () => {
+        popup.querySelector('.recent-rows')?.remove();
+        if (getRecentFiles().length === 0) { close(); return; }
+        const rows = buildRecentRows(close, rebuild);
+        rows.classList.add('recent-rows');
+        popup.appendChild(rows);
+      };
+      rebuild();
     },
   );
 }
@@ -1922,8 +2009,6 @@ if (isTauri) {
   startFilePick = (isAppend) => { void pickAndHandle(isAppend); };
   openBtn.addEventListener('click', () => startFilePick(false));
   addBtn.addEventListener('click', () => startFilePick(true));
-  recentBtn.addEventListener('click', () => openRecentMenu(recentBtn));
-  syncRecentBtn();
 } else {
   // On web, trigger the native file input synchronously from the click event
   // so the browser treats it as a user gesture (async calls block the picker).
@@ -1973,7 +2058,7 @@ if (isTauri) {
 openMoreBtn.addEventListener('click', () => openPickMenu(openMoreBtn, false));
 addMoreBtn.addEventListener('click', () => openPickMenu(addMoreBtn, true));
 
-/** Toggle regional test-value findings and re-analyse. Reached from the Lot ▾
+/** Toggle regional test-value findings and re-analyse. Reached from the Setup ▾
  *  menu (`openLotMenu`); a named function rather than an inline listener so the
  *  menu row can call it directly. */
 function toggleValueFindings() {
@@ -2002,7 +2087,7 @@ resetBtn.addEventListener('click', () => {
 });
 
 /**
- * Capacity figures for the "Filter tests…" selector's memory advisory, derived
+ * Capacity figures for the "Tests…" selector's memory advisory, derived
  * from what's already loaded rather than from a fresh scan. `dieCount` is the
  * real total across the current wafers; `totalTests` is the widest test list we
  * know about (the first-pass scan if there was one, else the loaded defs), so
@@ -2017,8 +2102,8 @@ function filterCapacity(): { dieCount: number; totalTests: number } | undefined 
   return { dieCount, totalTests };
 }
 
-/** "Filter tests…" — re-run the test selector against the loaded lot and
- *  re-parse. Reached from the Lot ▾ menu (`openLotMenu`); a named function
+/** "Tests…" — re-run the test selector against the loaded lot and
+ *  re-parse. Reached from the Setup ▾ menu (`openLotMenu`); a named function
  *  rather than an inline listener so the menu row can call it directly. */
 async function openFilterTests() {
   if (busy || Object.keys(currentTestDefs).length === 0) return;
@@ -2073,10 +2158,20 @@ async function openFilterTests() {
           // the themed platform dialog instead of falling back to a bare
           // window.confirm on one path and not the other.
           capacity: filterCapacity(),
+          // Same definitions plumbing as the first-load selector — this path had
+          // been left on raw platform calls, so the recents list simply did not
+          // appear on the one screen a returning user reaches most often.
           onSave: async (entries: TestListEntry[]) => {
-            await platform.saveTextFile(formatTestListCsv(entries), 'test-definitions.csv', 'Save these test definitions to a file');
+            const csv = formatTestListCsv(entries);
+            const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'Save these test definitions to a file');
+            if (saved) addRecentDefinition({ kind: 'tests', name: saved.name, path: saved.path, content: csv });
           },
-          onLoad: async () => (await platform.pickTextFile('Select a test definitions file to load'))?.content ?? null,
+          onLoad: () => pickDefinitionsFile('tests', 'Select a test definitions file to load'),
+          recentLoads: () => recentDefinitionRows('tests'),
+          recentNote: recentDefinitionsNote(),
+          // Reopening an existing lot is not an import: narrowing or relabelling
+          // applies in memory, and only widening re-reads the files.
+          confirmLabel: (n) => (n === 0 ? 'Apply (bin data only) →' : `Apply to ${n} test${n !== 1 ? 's' : ''} →`),
           onLog: log,
           onAsk: (msg) => platform.confirm(msg),
         },
@@ -2099,7 +2194,29 @@ async function openFilterTests() {
       continue filterLoop;
     }
 
-    filterTestOverrides = result.overrides;
+    // A test number the loaded files disagree about does NOT identify one test,
+    // so an override for it cannot be applied honestly — writing one name/unit
+    // across two different measurements is the conflation the whole per-file
+    // definitions path exists to stop. Refused individually, named, and the rest
+    // still applies.
+    //
+    // A LIMITS disagreement is deliberately not refused: an explicit limit is
+    // the user stating the spec, which resolves the ambiguity rather than hiding
+    // it, and once every file agrees wmap stops withholding capability.
+    //
+    // This guard used to live only in the lightweight "Test definitions…"
+    // dialog. Folding that dialog into this one would have dropped it silently,
+    // leaving the surviving door the unguarded one.
+    const blocked = new Set(currentTestDefCollisions.filter(c => c.kind !== 'limits').map(c => c.testNumber));
+    const refused = [...result.overrides.keys()].filter(n => blocked.has(String(n)));
+    filterTestOverrides = new Map(
+      [...result.overrides].filter(([n]) => !blocked.has(String(n))),
+    );
+    if (refused.length > 0) {
+      log('error', `Not applied to test${refused.length !== 1 ? 's' : ''} ${refused.join(', ')} — the `
+        + 'loaded files disagree about what this test number measures, so one definition cannot '
+        + 'describe it. Load those files separately to define it.');
+    }
     testSelection = result.selection;
     break;
   }
@@ -2157,12 +2274,10 @@ async function openFilterTests() {
   // New selection adds tests not in the current load — must re-parse.
   const entries: FileWaferEntry[] = [];
   for (const file of currentBinaryFiles) {
-    const parts = file.name.split('.');
-    const ext = parts.pop()?.toLowerCase() ?? '';
-    const fileExt = ext === 'gz' ? (parts.pop()?.toLowerCase() ?? ext) : ext;
+    const fileExt = effectiveFileExtension(file.name);
     setBusy(`Parsing ${file.name}…`);
     try {
-      const raw = fileExt === 'atdf' || fileExt === 'atd'
+      const raw = isAtdfExt(fileExt)
         ? await platform.parseAtdfFiltered(file, testSelection)
         : await platform.parseStdfFiltered(file, testSelection);
       const parsed = rustToLocal(raw, file.name);
@@ -2209,8 +2324,12 @@ async function openFilterTests() {
 function openSplitsDialog() {
   if (currentWafers.length === 0) return;
   showSplitsModal(currentWafers, {
-    onSave: (csv) => platform.saveTextFile(csv, 'wafer-splits.csv', 'Save wafer splits to a file'),
-    onLoad: () => platform.pickTextFile('Select a wafer splits file to load').then(f => f?.content ?? null),
+    onSave: async (csv) => {
+      const saved = await platform.saveTextFile(csv, 'wafer-splits.csv', 'Save wafer splits to a file');
+      if (saved) addRecentDefinition({ kind: 'splits', name: saved.name, path: saved.path, content: csv });
+    },
+    onLoad: () => pickDefinitionsFile('splits', 'Select a wafer splits file to load'),
+    persistable: splitsFingerprint(currentWafers) !== null,
     onLog: log,
     onAsk: (msg) => platform.confirm(msg),
     showSplitSuffix,
@@ -2276,7 +2395,7 @@ function openWaferGeometryDialog() {
 }
 
 /**
- * Shared shell for the Lot ▾ "definitions" dialogs (Test/Bin definitions) —
+ * Shared shell for the Setup ▾ "definitions" dialogs (Test/Bin definitions) —
  * same modal chrome, button layout, save/load try-catch-log wrapping, and
  * post-load re-render sequence. `onSave` returns the CSV text to write;
  * `onLoad` parses+applies the loaded text and returns whether anything was
@@ -2291,10 +2410,12 @@ function openSaveLoadDefinitionsDialog(opts: {
   description: string;
   saveDisabled?: boolean;
   saveFileName: string;
+  /** Which recents list this dialog's files belong to. */
+  kind: DefinitionKind;
   onSave: () => string;
   onLoad: (text: string) => boolean;
 }): void {
-  const { title, errorLabel, savedMessage, description, saveDisabled, saveFileName, onSave, onLoad } = opts;
+  const { title, errorLabel, savedMessage, description, saveDisabled, saveFileName, kind, onSave, onLoad } = opts;
 
   const modalHandle = openModal({
     title,
@@ -2317,25 +2438,16 @@ function openSaveLoadDefinitionsDialog(opts: {
       saveBtn.style.opacity = saveBtn.disabled ? '0.5' : '';
       saveBtn.addEventListener('click', async () => {
         try {
-          await platform.saveTextFile(onSave(), saveFileName, `Save ${errorLabel} to a file`);
+          const csv = onSave();
+          const saved = await platform.saveTextFile(csv, saveFileName, `Save ${errorLabel} to a file`);
+          if (saved) addRecentDefinition({ kind, name: saved.name, path: saved.path, content: csv });
           log('info', savedMessage);
         } catch (e) {
           log('error', `Failed to save ${errorLabel}: ${errMsg(e)}`);
         }
       });
 
-      const loadBtn = document.createElement('button');
-      loadBtn.textContent = 'Load…';
-      loadBtn.className = 'btn-secondary';
-      loadBtn.addEventListener('click', async () => {
-        let text: string | null;
-        try {
-          text = (await platform.pickTextFile(`Select a ${errorLabel} file to load`))?.content ?? null;
-        } catch (e) {
-          log('error', `Failed to load ${errorLabel}: ${errMsg(e)}`);
-          return;
-        }
-        if (text === null) return;
+      const applyLoaded = (text: string) => {
         if (!onLoad(text)) return;
         clearLotStatsCache();
         const label = currentFileName;
@@ -2345,6 +2457,14 @@ function openSaveLoadDefinitionsDialog(opts: {
           setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
         }));
         modalHandle.close();
+      };
+      const loadBtn = makeLoadDefinitionsButton({
+        label: 'Load…',
+        pick: () => pickDefinitionsFile(kind, `Select a ${errorLabel} file to load`),
+        recents: () => recentDefinitionRows(kind),
+        note: recentDefinitionsNote(),
+        onText: applyLoaded,
+        onError: (msg) => log('error', `Failed to load ${errorLabel}: ${msg}`),
       });
 
       buttonRow.append(saveBtn, loadBtn);
@@ -2353,77 +2473,109 @@ function openSaveLoadDefinitionsDialog(opts: {
   });
 }
 
-// Lightweight Save/Load for the current test list — no selection checkboxes,
-// unlike the full Test Selector overlay reached via "Filter tests…". Shares
-// parseTestListFile/formatTestListCsv/applyTestOverrides with the selector's
-// own Save/Load and with --tests, so there is exactly one implementation of
-// "apply a test-list file" regardless of entry point. Can only override
-// tests already imported into currentTestDefs (applyTestOverrides silently
-// ignores the rest) — importing a *new* test still requires "Filter tests…"'s
-// re-selection flow.
-function openTestDefinitionsDialog(): void {
-  if (currentWafers.length === 0 || Object.keys(currentTestDefs).length === 0) return;
+// ── Recently used definitions files ─────────────────────────────────────────
 
-  const entries: TestListEntry[] = Object.entries(currentTestDefs).map(([key, def]) => ({
-    num: Number(key),
-    name: def.name,
-    loLimit: def.loLimit,
-    hiLimit: def.hiLimit,
-    units: def.units,
-    testType: def.testType,
-  }));
-
-  openSaveLoadDefinitionsDialog({
-    title: 'Test definitions',
-    errorLabel: 'test definitions',
-    savedMessage: 'Test definitions saved',
-    description:
-      `Save the ${entries.length} currently imported test${entries.length !== 1 ? 's' : ''} `
-      + '(names, limits, units, type) to a CSV, or load a CSV to update them in place. '
-      + 'Loading only overrides tests already imported here — to change which tests are '
-      + 'imported, use Filter tests… instead.',
-    saveFileName: 'test-definitions.csv',
-    onSave: () => formatTestListCsv(entries),
-    onLoad: (text) => {
-      const parsed = parseTestListFile(text, (lineNo, msg) => log('warn', `Test definitions line ${lineNo}: ${msg}`));
-      if (parsed.length === 0) { log('warn', 'Test definitions file contained no valid rows'); return false; }
-      const matched = parsed.filter(e => String(e.num) in currentTestDefs).length;
-      const unmatched = parsed.length - matched;
-      // A test number the loaded files disagree about does NOT identify one
-      // test, so an override for it cannot be applied honestly — writing one
-      // name/unit across two different measurements is the very conflation this
-      // whole path exists to stop. Refused individually, named, and the rest of
-      // the file still applies.
-      //
-      // A LIMITS disagreement is deliberately not refused: an explicit limit is
-      // the user stating the spec, which resolves the ambiguity rather than
-      // hiding it, and once every file agrees wmap stops withholding capability
-      // for that test.
-      const blocked = new Set(currentTestDefCollisions.filter(c => c.kind !== 'limits').map(c => c.testNumber));
-      const overrides = new Map<number, TestOverride>(
-        parsed.filter(e => !blocked.has(String(e.num))).map(e => [e.num, e]),
-      );
-      const refused = parsed.filter(e => blocked.has(String(e.num))).map(e => e.num);
-      // Applied to the union AND to every file's own defs — the union drives
-      // tsmap's own UI, the per-file defs are what wmap actually renders from,
-      // so overriding only the first would silently stop reaching the map.
-      applyTestOverrides(currentTestDefs, overrides);
-      for (const fd of currentDefsBySource.values()) applyTestOverrides(fd.testDefs, overrides);
-      log('info', `Test definitions loaded: ${matched} matched${unmatched > 0 ? `, ${unmatched} unmatched (not currently imported)` : ''}`);
-      if (refused.length > 0) {
-        log('error', `Not applied to test${refused.length !== 1 ? 's' : ''} ${refused.join(', ')} — the `
-          + 'loaded files disagree about what this test number measures, so one definition cannot '
-          + 'describe it. Load those files separately to define it.');
-      }
-      return true;
-    },
-  });
+/**
+ * Pick a definitions file and remember it. Wraps `platform.pickTextFile` so
+ * every interactive load feeds the recents list from one place — a file the user
+ * picked is exactly the file they are likely to want again next dataset.
+ */
+async function pickDefinitionsFile(kind: DefinitionKind, title: string): Promise<string | null> {
+  const picked = await platform.pickTextFile(title);
+  if (!picked) return null;
+  addRecentDefinition({ kind, name: picked.name, path: picked.path, content: picked.content });
+  return picked.content;
 }
 
-// Same shape as openTestDefinitionsDialog above — Save/Load only, no
-// selection UI. Unlike test definitions, bin defs feed buildWaferMap
-// directly (hbinDefs/sbinDefs/passBins), so a Load re-renders rather than
-// just updating in-memory metadata for next render.
+/**
+ * Resolve a remembered definitions file to text, preferring the file on disk.
+ *
+ * The stored copy is a fallback, not the source of truth. A definitions file
+ * carries spec limits, and a limit that has since been edited would otherwise be
+ * drawn across a real measurement as though it were current — the silent-wrong
+ * failure this codebase treats as the expensive one. So when there is a path and
+ * a filesystem to read it with, the file wins, and a difference is reported
+ * rather than absorbed. The browser has neither, and says so plainly instead of
+ * implying a freshness it cannot offer.
+ */
+async function loadRecentDefinition(
+  kind: DefinitionKind,
+  key: string,
+): Promise<string | null> {
+  const entry = getRecentDefinitions(kind).find(e => recentDefinitionKey(e) === key);
+  if (!entry) return null;
+
+  if (entry.path && isTauri) {
+    try {
+      const fresh = await platform.readTextFile(entry.path);
+      if (fresh !== entry.content) {
+        log('info', `${entry.name} has changed since it was last used — loading the current file.`);
+        addRecentDefinition({ kind, name: entry.name, path: entry.path, content: fresh });
+      }
+      return fresh;
+    } catch {
+      log('warn', `${entry.name} could not be read from ${entry.path} — using the copy remembered ${describeAge(entry.time)}.`);
+      return entry.content;
+    }
+  }
+  // A cached copy, with no way to check it against the file it came from. Say so
+  // in the log — the one place that records what was actually applied — and say
+  // it more loudly when the payload is spec limits, which is where being quietly
+  // out of date stops being an inconvenience and starts producing confident
+  // wrong numbers (a Cpk against superseded limits, out-of-spec marks on dies
+  // that are fine).
+  const carriesLimits = kind === 'tests' && definitionsCarryLimits(entry.content);
+  if (carriesLimits) {
+    log('warn',
+      `Applied ${entry.name} from the copy saved ${describeAge(entry.time)}. It sets spec limits, `
+      + 'and the browser cannot re-read the original file to check it is current — '
+      + 'use "Choose a file…" to re-pick it if it has changed.');
+  } else {
+    log('info',
+      `Applied ${entry.name} from the copy saved ${describeAge(entry.time)} `
+      + '(the original file is not re-read in the browser).');
+  }
+  return entry.content;
+}
+
+/** Does this test-definitions file set any spec limit? Parsed rather than
+ *  pattern-matched so it agrees with what actually gets applied. */
+function definitionsCarryLimits(text: string): boolean {
+  try {
+    return parseTestListFile(text).some(e => e.loLimit !== undefined || e.hiLimit !== undefined);
+  } catch {
+    // Unparseable here means the load itself will report it — assume the
+    // riskier answer rather than staying quiet.
+    return true;
+  }
+}
+
+/**
+ * The caveat shown above the recent rows, or undefined when there isn't one.
+ *
+ * Only the browser has one, and it applies to every row equally — it is a
+ * property of the platform's file picker, which hands over content and no path,
+ * not of any particular file. Stated once, visibly, above the list rather than
+ * buried in each row's hover text.
+ */
+function recentDefinitionsNote(): string | undefined {
+  return isTauri ? undefined : 'Saved copies — the original files are not re-read';
+}
+
+/** The rows the selector's "Load definitions ▾" renders. */
+function recentDefinitionRows(kind: DefinitionKind) {
+  return getRecentDefinitions(kind).map(e => {
+    const key = recentDefinitionKey(e);
+    const age = describeAge(e.time);
+    return {
+      label: e.name,
+      hint: e.path
+        ? `${e.path} — used ${age}. Re-read from disk if it is still there.`
+        : `Saved ${age}. This is the copy taken then, not the file as it is now.`,
+      run: () => loadRecentDefinition(kind, key),
+    };
+  });
+}
 function openBinDefinitionsDialog(): void {
   if (currentWafers.length === 0) return;
 
@@ -2432,6 +2584,7 @@ function openBinDefinitionsDialog(): void {
 
   openSaveLoadDefinitionsDialog({
     title: 'Bin definitions',
+    kind: 'bins',
     errorLabel: 'bin definitions',
     savedMessage: 'Bin definitions saved',
     description: hbinCount === 0 && sbinCount === 0
@@ -2443,8 +2596,8 @@ function openBinDefinitionsDialog(): void {
     onSave: () => {
       const passSet = new Set(currentPassHbins ?? []);
       const entries: BinDefEntry[] = [
-        ...(currentHbinDefs ?? []).map(d => ({ bin: d.bin, type: 'hard' as const, name: d.name, pass: passSet.has(d.bin) })),
-        ...(currentSbinDefs ?? []).map(d => ({ bin: d.bin, type: 'soft' as const, name: d.name })),
+        ...(currentHbinDefs ?? []).map(d => ({ bin: d.bin, type: 'hard' as const, name: d.name, pass: passSet.has(d.bin), color: d.color })),
+        ...(currentSbinDefs ?? []).map(d => ({ bin: d.bin, type: 'soft' as const, name: d.name, color: d.color })),
       ];
       return formatBinDefsCsv(entries);
     },
@@ -2512,20 +2665,21 @@ function openHelpMenu(anchor: HTMLElement) {
         hint: 'Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first',
         onClick: () => {
           showDefinitionsTemplatesDialog(
-            (content, fileName, label) => platform.saveTextFile(content, fileName, `Save ${label.toLowerCase()} example file`),
+            async (content, fileName, label) => { await platform.saveTextFile(content, fileName, `Save ${label.toLowerCase()} example file`); },
             (level, message) => log(level, message),
           );
         },
       }));
 
-      // No such concept in a browser (there's no OS-level "default app for a file
-      popup.appendChild(makeMenuRow(close, {
-        label: 'About tsmap…',
-        hint: 'Version, licence, and the projects this is built on',
-        onClick: () => { showAboutModal(); },
-      }));
-
-      // type" a web page can register), so this row only exists on desktop.
+      // OS integration, not data: this is about how the machine treats tsmap,
+      // which is why it sits here rather than in Setup ▾. Setup is hidden until
+      // a file is open, and associating file types is precisely the thing you
+      // do right after installing, with nothing loaded — the same reachability
+      // argument that keeps Definitions file formats… and Reset saved settings…
+      // in this menu.
+      //
+      // No such concept in a browser (there is no OS-level "default app for a
+      // file type" a web page can register), so this row only exists on desktop.
       if (isTauri) {
         popup.appendChild(makeMenuRow(close, {
           label: 'File associations…',
@@ -2538,6 +2692,27 @@ function openHelpMenu(anchor: HTMLElement) {
           },
         }));
       }
+
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Reset saved settings…',
+        hint: 'See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it',
+        onClick: () => {
+          showResetSettingsDialog({ isDesktop: isTauri, onLog: log });
+        },
+      }));
+
+      // About goes last, as it does in every other application's help menu. It
+      // had drifted into the middle — inserted, at some point, into the middle
+      // of the comment above, which is how it ended up split in two.
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:1px;background:var(--border-dim);margin:6px 0;';
+      popup.appendChild(sep);
+
+      popup.appendChild(makeMenuRow(close, {
+        label: 'About tsmap…',
+        hint: 'Version, licence, and the projects this is built on',
+        onClick: () => { showAboutModal(); },
+      }));
     },
   );
 }
@@ -2560,7 +2735,7 @@ function showAboutModal(): void {
     mount(body) {
       body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light);overflow-y:auto';
 
-      const row = (label: string, value: string): HTMLElement => {
+      const row = (label: string, value: string, detail?: string): HTMLElement => {
         const d = document.createElement('div');
         d.style.cssText = 'display:flex;gap:8px';
         const k = document.createElement('span');
@@ -2568,6 +2743,10 @@ function showAboutModal(): void {
         k.style.cssText = 'color:var(--text-muted);min-width:82px;flex-shrink:0';
         const v = document.createElement('span');
         v.textContent = value;
+        // Secondary precision on hover rather than in the line. A build
+        // timestamp matters when telling two builds of one version apart, which
+        // is a developer's question, not something to widen every row for.
+        if (detail) attachTooltip(v, detail);
         d.append(k, v);
         return d;
       };
@@ -2584,6 +2763,17 @@ function showAboutModal(): void {
       body.appendChild(blurb);
 
       body.appendChild(row('Version', `${__APP_VERSION__}  ·  built ${__BUILD_DATE__}`));
+      // The rendering/analysis engine underneath. Reported by the bundle itself
+      // rather than read from package.json, so it names the build actually
+      // loaded — the two differ whenever tsmap is linked to a local wmap
+      // checkout. When a map looks wrong, which engine drew it is the first
+      // thing worth knowing, and it was previously only on a console line.
+      //
+      // "Engine" as the label so the value does not restate it, and no second
+      // build date on the line: two rows each ending "· built <date>" read as
+      // repetition, and a published version is immutable anyway. The exact
+      // timestamp is on hover, for telling a local build apart from the release.
+      body.appendChild(row('Engine', `wafermap ${WMAP_VERSION}`, `Built ${WMAP_BUILD_TIME}`));
       body.appendChild(row('Author', 'Paul Robins'));
       body.appendChild(row('Licence', 'MIT — free to use, modify and redistribute'));
 
@@ -2615,7 +2805,7 @@ function showAboutModal(): void {
 }
 
 /**
- * The **Lot ▾** menu — every dialog that acts on the already-loaded lot.
+ * The **Setup ▾** menu — every dialog that acts on the already-loaded lot.
  * These were three separate toolbar buttons (Filter tests…, Splits…, Die
  * list…); they're homogeneous (all open a modal, all only meaningful once
  * data is loaded) and they're the group that keeps growing, so they collapse
@@ -2638,21 +2828,32 @@ function openLotMenu(anchor: HTMLElement) {
     },
     (popup, close) => {
       const hasTests = Object.keys(currentTestDefs).length > 0;
+
+      // Grouped, because six unrelated dialogs behind one caret cannot be
+      // described by any button label. The headers do the describing the label
+      // cannot — the same reason the recents menus carry one.
+      const heading = (text: string, first = false) => {
+        const el = document.createElement('div');
+        el.style.cssText = 'font-size:12px;color:var(--text-veryfaint);text-transform:uppercase;'
+          + `letter-spacing:var(--tracking);margin:${first ? '0' : '8px'} 0 4px;`;
+        el.textContent = text;
+        popup.appendChild(el);
+      };
+
+      heading('Tests & bins', true);
+      // One entry, not two. "Tests…" and "Test definitions…" were the
+      // same file format and the same overrides through two doors; the only
+      // real difference was that one could re-parse. That is a consequence of
+      // what you changed, not a choice to put to the user — and the selector
+      // already re-parses only when the selection *widens* (see needsReparse),
+      // so the lightweight dialog's one advantage had already evaporated.
       popup.appendChild(makeMenuRow(close, {
-        label: 'Filter tests…',
+        label: 'Tests…',
         hint: hasTests
-          ? 'Change which tests are imported, then re-parse'
-          : 'This file has no test data to filter',
-        enabled: hasTests && !busy,
-        onClick: () => { void openFilterTests(); },
-      }));
-      popup.appendChild(makeMenuRow(close, {
-        label: 'Test definitions…',
-        hint: hasTests
-          ? 'Save or load test names/limits (see also Filter tests… to change which tests are imported)'
+          ? 'Choose which tests are imported, rename them, and set limits, units and type'
           : 'This file has no test data',
         enabled: hasTests && !busy,
-        onClick: openTestDefinitionsDialog,
+        onClick: () => { void openFilterTests(); },
       }));
       popup.appendChild(makeMenuRow(close, {
         label: 'Bin definitions…',
@@ -2662,6 +2863,7 @@ function openLotMenu(anchor: HTMLElement) {
         enabled: !busy,
         onClick: openBinDefinitionsDialog,
       }));
+      heading('Wafers');
       popup.appendChild(makeMenuRow(close, {
         label: 'Splits…',
         hint: 'Define and assign wafer splits (process corners, experiment groups, etc.)',
@@ -2671,7 +2873,7 @@ function openLotMenu(anchor: HTMLElement) {
         label: 'Diameter & edge exclusion…',
         hint: waferDiameterMm !== undefined
           ? `${waferDiameterMm} mm wafer${edgeExclusionMm !== undefined ? `, ${edgeExclusionMm} mm exclusion` : ''}`
-          : 'Set the wafer diameter and edge-exclusion band (mm), applied to every wafer in this lot',
+          : 'Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer',
         onClick: openWaferGeometryDialog,
       }));
       // Moved out of the app bar, where it was a bare switch reading "Value
@@ -2680,11 +2882,12 @@ function openLotMenu(anchor: HTMLElement) {
       // controls instead of beside the file buttons.
       const hasTestValues = currentWafers.some(w =>
         w.results.some(d => d.testValues && Object.keys(d.testValues).length > 0));
+      heading('Analysis');
       popup.appendChild(makeMenuRow(close, {
         label: 'Show test-value findings',
         hint: hasTestValues
-          ? 'Add regional test-value findings to the summary panel (slower on large lots)'
-          : 'This lot has no test values to analyse',
+          ? 'Add regional test-value findings to the summary panel (slower on large loads)'
+          : 'The loaded wafers have no test values to analyse',
         enabled: hasTestValues && !busy,
         checked: valueFindings,
         onClick: toggleValueFindings,

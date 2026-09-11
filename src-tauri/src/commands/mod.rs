@@ -31,7 +31,7 @@ pub use parse_atdf::parse_atdf;
 pub use parse_atdf_filtered::parse_atdf_filtered;
 pub use parse_csv::{csv_headers, parse_csv};
 pub use parse_json::{json_headers, parse_json};
-pub use parse_parquet::{parquet_headers, parse_parquet};
+pub use parse_parquet::{parquet_distinct_count, parquet_headers, parse_parquet};
 pub use parse_stdf::parse_stdf;
 pub use parse_stdf_filtered::parse_stdf_filtered;
 pub use read_text_file::read_text_file;

@@ -20,13 +20,34 @@ export function effectiveFileExtension(name: string): string {
   return ext === 'gz' ? (parts.pop()?.toLowerCase() ?? ext) : ext;
 }
 
+/** STDF or ATDF (by effective extension) — tester files, parsed per record by
+ *  the Rust parsers rather than through a column mapping. The one copy of this
+ *  test: main.ts and the file filter each used to spell it out inline. */
+export function isTesterExt(ext: string): boolean {
+  return ext === 'stdf' || ext === 'std' || ext === 'atdf' || ext === 'atd';
+}
+
+/** ATDF (by effective extension) — picks the ATDF parser over the STDF one. */
+export function isAtdfExt(ext: string): boolean {
+  return ext === 'atdf' || ext === 'atd';
+}
+
+/** The group a file's format belongs to for loading together. STDF and ATDF
+ *  are one group: the same records in binary and text, dispatched per file to
+ *  parsers that return the same shape. Every other format is its own group —
+ *  CSV/JSON/Parquet share one column mapping per load, so mixing them, or
+ *  mixing them with tester files, is not the same question. */
+export function formatFamily(ext: string): string {
+  return isTesterExt(ext) ? 'STDF/ATDF' : ext.toUpperCase();
+}
+
 /**
- * Checks that every file in `names` shares the same effective extension
- * (see `effectiveFileExtension`) — the "you can't mix STDF and CSV in one
- * load" rule. Returns `null` when they agree (or when `relaxed` is true,
- * e.g. a zip whose extracted contents may legitimately be mixed formats —
- * `handleFiles`'s own `needsCleanup` case); otherwise a ready-to-log error
- * message naming the offending extensions.
+ * Checks that every file in `names` belongs to one format family (see
+ * `formatFamily`) — the "you can't mix STDF and CSV in one load" rule, which
+ * lets STDF and ATDF load together. Returns `null` when they agree (or when
+ * `relaxed` is true, e.g. a zip whose extracted contents may legitimately be
+ * mixed formats — `handleFiles`'s own `needsCleanup` case); otherwise a
+ * ready-to-log error message naming the offending extensions.
  *
  * Extracted from `handleFiles` (main.ts) so the file-filter table's own
  * picker enforces the identical rule rather than a second copy of it — see
@@ -34,8 +55,9 @@ export function effectiveFileExtension(name: string): string {
  */
 export function checkSameExtension(names: string[], relaxed = false): string | null {
   const exts = [...new Set(names.map(effectiveFileExtension))];
-  if (exts.length > 1 && !relaxed) {
-    return `Mixed formats not supported: ${exts.join(', ')} — please select files of the same type`;
+  const families = new Set(exts.map(formatFamily));
+  if (families.size > 1 && !relaxed) {
+    return `Mixed formats not supported: ${exts.join(', ')} — STDF and ATDF can be loaded together, but not with other formats`;
   }
   return null;
 }
@@ -58,7 +80,9 @@ export const DATA_FILE_EXTENSIONS = [
   'zip',
 ] as const;
 
-export const URL_IMPORT_FORMATS = ['stdf', 'atdf', 'csv', 'json', 'parquet'] as const;
+/** `zip` lets one URL carry several files (e.g. one STDF per lot); it takes the
+ *  same expand-then-load route in `handleFiles` as a zip opened from disk. */
+export const URL_IMPORT_FORMATS = ['stdf', 'atdf', 'csv', 'json', 'parquet', 'zip'] as const;
 export type UrlImportFormat = typeof URL_IMPORT_FORMATS[number];
 
 export function isUrlImportFormat(format: string): format is UrlImportFormat {
@@ -130,12 +154,22 @@ export function rustToLocal(r: RustParsedFile, fileName: string): ParsedFile {
  * `parse_stdf.rs`/`parse_atdf.rs`). Returns `undefined` when every input was
  * empty/absent, so `ParsedFile`'s "absent means nothing to show" convention
  * survives a merge rather than becoming a present-but-empty array.
+ *
+ * A bin's `color` follows the same "last wins" rule, except that a later entry
+ * with no colour keeps an earlier one's — an HBR record never carries a colour,
+ * so without that a second file would silently strip the colours a bin
+ * definitions file had supplied.
  */
 export function mergeBinDefs(lists: Array<BinDef[] | undefined>): BinDef[] | undefined {
-  const byBin = new Map<number, string>();
-  for (const list of lists) for (const d of list ?? []) byBin.set(d.bin, d.name);
+  const byBin = new Map<number, BinDef>();
+  for (const list of lists) {
+    for (const d of list ?? []) {
+      const color = d.color ?? byBin.get(d.bin)?.color;
+      byBin.set(d.bin, color ? { bin: d.bin, name: d.name, color } : { bin: d.bin, name: d.name });
+    }
+  }
   if (byBin.size === 0) return undefined;
-  return [...byBin.entries()].map(([bin, name]) => ({ bin, name })).sort((a, b) => a.bin - b.bin);
+  return [...byBin.values()].sort((a, b) => a.bin - b.bin);
 }
 
 /**
@@ -544,7 +578,17 @@ export function wcrGeometryFrom(source: WaferSource | undefined): WcrGeometry | 
   if (!fields?.length) return null;
   const get = (key: string): string | undefined => fields.find(f => f.key === key)?.value;
 
-  const mmPerUnit = WCR_UNIT_TO_MM[get('wfUnits') ?? ''];
+  // STDF V4 defines WF_UNITS as 0 (unknown) through 4. Anything else means
+  // the record was not read as the spec lays it out, and then no field in it
+  // can be trusted — not even the unit-free centre, notch or axis directions.
+  // The bundled sample, written with WCR's fields 2 bytes out of place, read
+  // back as units 135 with a centre 17,000 dies away, and the map it drew
+  // never finished rendering. 0 is legitimate: centre, notch and directions
+  // need no units, only sizes do (and `toMm` drops those without them).
+  const units = get('wfUnits');
+  if (units !== undefined && !['0', '1', '2', '3', '4'].includes(units)) return null;
+
+  const mmPerUnit = WCR_UNIT_TO_MM[units ?? ''];
   const toMm = (raw: string | undefined): number | undefined => {
     if (raw === undefined || mmPerUnit === undefined) return undefined;
     const n = Number(raw);
@@ -643,7 +687,7 @@ export function applyTestOverrides(
  * Diffs two TestDefs for the fields TestOverride can carry, returning only
  * the fields that actually differ (or `undefined` if none do). Used to seed
  * a fresh selector re-open with whatever overrides are already baked into
- * `current` but not reflected in `original` (e.g. re-opening "Filter tests…"
+ * `current` but not reflected in `original` (e.g. re-opening "Tests…"
  * after an earlier rename/limit-load pass).
  */
 export function diffTestOverride(current: TestDef, original: TestDef): TestOverride | undefined {

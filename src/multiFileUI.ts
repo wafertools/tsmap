@@ -4,6 +4,7 @@ import type { FileDefs, ParsedFile, WaferData, WaferSource } from './types';
 import { makeWaferSource, escapeHtml as esc } from './lib';
 import { openModal } from './modal';
 import { hasPosition } from '@wafertools/wafermap';
+import { waferLabels } from './splits';
 
 // ── Rename overlay ────────────────────────────────────────────────────────────
 
@@ -317,12 +318,22 @@ export function detectMismatches(incoming: RenamedWafer[], existing: WaferData[]
   }
 
   // Duplicate wafer IDs
+  // Not an error — two lots' W01 are two real wafers — but say what follows:
+  // how their cards will be told apart (the same `waferLabels` the gallery
+  // uses), and that splits are matched per lot rather than by ID alone.
   const existingIds = new Set(existing.map(w => w.waferId));
-  const dupes = incoming.map(w => w.waferId).filter(id => existingIds.has(id));
+  const dupes = [...new Set(incoming.map(w => w.waferId).filter(id => existingIds.has(id)))];
   if (dupes.length > 0) {
+    const all = [...existing, ...incoming];
+    const labels = waferLabels(all, false);
+    const example = all.map((w, i) => (w.waferId === dupes[0] ? labels[i] : null)).filter(Boolean);
+    const byOrderOnly = example.some(l => /#\d+$/.test(l!));
     warnings.push({
       level: 'warn',
-      message: `Duplicate wafer ID${dupes.length > 1 ? 's' : ''}: ${dupes.join(', ')} — already in gallery`,
+      message: `Duplicate wafer ID${dupes.length > 1 ? 's' : ''}: ${dupes.join(', ')} — already in gallery. `
+        + `Their cards will be labelled apart (${example.join(', ')})`
+        + (byOrderOnly ? ' — by load order only, since lot and file are the same; check these are not the same wafer loaded twice' : '')
+        + '. Split assignments are matched by lot as well as wafer ID.',
     });
   }
 

@@ -1,5 +1,5 @@
-// Bin definitions: a human-readable name and pass/fail flag per hard or soft
-// bin number, either overriding what STDF/ATDF's own HBR/SBR records
+// Bin definitions: a human-readable name, pass/fail flag and optional display
+// colour per hard or soft bin number, either overriding what STDF/ATDF's own HBR/SBR records
 // supplied, or supplying it outright for CSV/JSON/Parquet (which have no
 // HBR/SBR equivalent at all — see WCR/HBR/SBR work in packages/parsers).
 //
@@ -23,9 +23,14 @@ export interface BinDefEntry {
    *  (wmap's own `die.hbin ?? die.sbin` precedence), but not rejected for a
    *  soft-bin row — the user opted into this file, not an automatic guess. */
   pass?: boolean;
+  /** `#rrggbb`, lower-cased. The colour this bin is drawn in on every map —
+   *  a site's standard bin colour sheet, typically. wmap honours it over the
+   *  palette (`BinDef.color`), and the viewer can switch that off in the map's
+   *  Colour scheme menu. undefined = no override. */
+  color?: string;
 }
 
-type BinDefField = 'bin' | 'type' | 'name' | 'pass';
+type BinDefField = 'bin' | 'type' | 'name' | 'pass' | 'color';
 
 /** Header cell (normalized: trimmed, lowercased, spaces/dashes/underscores
  *  collapsed) -> canonical column. `hbin`/`sbin` (and their long forms) map
@@ -37,6 +42,7 @@ const HEADER_FIELD_ALIASES: Record<string, BinDefField> = {
   type: 'type', bintype: 'type',
   name: 'name', binname: 'name',
   pass: 'pass', passfail: 'pass', pf: 'pass',
+  color: 'color', colour: 'color', bincolor: 'color', bincolour: 'color', hex: 'color',
 };
 
 /** Header names that imply a bin type without a separate `type` column. */
@@ -59,9 +65,20 @@ function parsePassFlag(raw: string): boolean | undefined {
   return undefined;
 }
 
+/** `#rgb` / `#rrggbb` → `#rrggbb` lower-cased; anything else → undefined.
+ *  Hex only, deliberately: CSS colour names and `rgb()` would be accepted by
+ *  a browser but not by every tool a colour sheet is edited in, and a typo'd
+ *  name (`"gren"`) would reach the canvas as an invalid colour and draw black. */
+function parseHexColor(raw: string): string | undefined {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(raw.trim());
+  if (!m) return undefined;
+  const hex = m[1].toLowerCase();
+  return '#' + (hex.length === 3 ? [...hex].map(c => c + c).join('') : hex);
+}
+
 /**
  * Parses a bin-definitions file: comma-delimited, **header row required**
- * (`bin,type,name,pass`, any order/subset, case-insensitive with synonyms —
+ * (`bin,type,name,pass,color`, any order/subset, case-insensitive with synonyms —
  * see HEADER_FIELD_ALIASES). Unlike the test list, there's no legacy
  * header-less mode to preserve — this is a new format with nothing to stay
  * compatible with.
@@ -113,6 +130,7 @@ export function parseBinDefsFile(
     let type: 'hard' | 'soft' | undefined = headerImpliedType;
     let name: string | undefined;
     let pass: boolean | undefined;
+    let color: string | undefined;
 
     for (let c = 0; c < fields.length; c++) {
       const field = columns[c];
@@ -141,19 +159,25 @@ export function parseBinDefsFile(
           else onWarn?.(lineNo, `Invalid pass value "${raw}" ignored (expected P/F, Y/N, true/false)`);
           break;
         }
+        case 'color': {
+          const hex = parseHexColor(raw);
+          if (hex !== undefined) color = hex;
+          else onWarn?.(lineNo, `Invalid colour "${raw}" ignored (expected a hex colour such as #1f77b4)`);
+          break;
+        }
       }
     }
 
     if (bin === undefined) continue; // unidentifiable bin number — skip the row
-    results.push({ bin, type: type ?? 'hard', name, pass });
+    results.push({ bin, type: type ?? 'hard', name, pass, color });
   }
 
   return results;
 }
 
 /** Serializes bin-definition entries back to the file `parseBinDefsFile`
- *  reads — canonical header, one row per entry, all 4 columns always
- *  present (blank for unset name/pass). Commas inside `name` are replaced
+ *  reads — canonical header, one row per entry, all 5 columns always
+ *  present (blank for unset name/pass/color). Commas inside `name` are replaced
  *  with a space (no CSV quoting support), same lossy-edge-case tradeoff
  *  `formatTestListCsv` already accepts. */
 export function formatBinDefsCsv(entries: BinDefEntry[]): string {
@@ -161,12 +185,13 @@ export function formatBinDefsCsv(entries: BinDefEntry[]): string {
   const lines = [
     '# tsmap bin definitions',
     `# Saved: ${new Date().toISOString()}`,
-    'bin,type,name,pass',
+    'bin,type,name,pass,color',
     ...entries.map(e => [
       e.bin,
       e.type,
       e.name !== undefined ? clean(e.name) : '',
       e.pass === undefined ? '' : e.pass ? 'P' : 'F',
+      e.color ?? '',
     ].join(',')),
   ];
   return lines.join('\n');
@@ -183,8 +208,8 @@ interface BinDefParts {
  * `(type, bin)` pair — hard bin 1 and soft bin 1 are different entries, the
  * same independent-number-spaces rule documented throughout this codebase.
  * Only fields an override actually specifies are touched, mirroring
- * `applyTestOverrides`'s rule exactly: a blank `name` leaves an existing name
- * alone; `pass === undefined` leaves existing pass-membership alone;
+ * `applyTestOverrides`'s rule exactly: a blank `name` or `color` leaves the
+ * existing value alone; `pass === undefined` leaves existing pass-membership alone;
  * `pass === true`/`false` explicitly adds/removes that hard bin from
  * `passHbins`. Empty results collapse to `undefined`, matching `ParsedFile`'s
  * "absent means nothing to show" convention.
@@ -194,23 +219,34 @@ interface BinDefParts {
  * (`current: {}`).
  */
 export function applyBinDefOverrides(current: BinDefParts, overrides: BinDefEntry[]): BinDefParts {
-  const hbinNames = new Map<number, string>((current.hbinDefs ?? []).map(d => [d.bin, d.name]));
-  const sbinNames = new Map<number, string>((current.sbinDefs ?? []).map(d => [d.bin, d.name]));
+  type Def = { name: string; color?: string };
+  const byBin = (defs: BinDef[] | undefined) =>
+    new Map<number, Def>((defs ?? []).map(d => [d.bin, { name: d.name, color: d.color }]));
+  const hbins = byBin(current.hbinDefs);
+  const sbins = byBin(current.sbinDefs);
   const passHbins = new Set<number>(current.passHbins ?? []);
 
   for (const o of overrides) {
-    const names = o.type === 'hard' ? hbinNames : sbinNames;
-    if (o.name !== undefined) names.set(o.bin, o.name);
+    const defs = o.type === 'hard' ? hbins : sbins;
+    if (o.name !== undefined || o.color !== undefined) {
+      const prev = defs.get(o.bin);
+      // A colour-only row for an unnamed bin keeps an empty name — wmap reads
+      // an empty name as "no name" and labels the bin by number, rather than
+      // this inventing a name the file never gave.
+      defs.set(o.bin, { name: o.name ?? prev?.name ?? '', color: o.color ?? prev?.color });
+    }
     if (o.type === 'hard' && o.pass !== undefined) {
       if (o.pass) passHbins.add(o.bin); else passHbins.delete(o.bin);
     }
   }
 
-  const toDefs = (m: Map<number, string>): BinDef[] =>
-    [...m.entries()].map(([bin, name]) => ({ bin, name })).sort((a, b) => a.bin - b.bin);
+  const toDefs = (m: Map<number, Def>): BinDef[] =>
+    [...m.entries()]
+      .map(([bin, d]) => (d.color ? { bin, name: d.name, color: d.color } : { bin, name: d.name }))
+      .sort((a, b) => a.bin - b.bin);
 
-  const hbinDefs = toDefs(hbinNames);
-  const sbinDefs = toDefs(sbinNames);
+  const hbinDefs = toDefs(hbins);
+  const sbinDefs = toDefs(sbins);
   const passList = [...passHbins].sort((a, b) => a - b);
 
   return {

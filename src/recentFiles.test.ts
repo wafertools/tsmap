@@ -7,7 +7,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { getRecentFiles, addRecentFiles, removeRecentFile, formatRecentTime } from './recentFiles';
 
-const KEY = 'tsmap-recent-files';
+// Must track recentFiles.ts's real key (see storageKeys.ts). Pointing this at
+// the pre-registry name left the corrupt-storage cases below writing to a key
+// nothing reads — they passed against an empty store rather than against the
+// guard they exist to test.
+const KEY = 'tsmap:recent-files';
 
 // The suite runs on vitest's `node` environment (vite.config.ts) — every other
 // test file here is pure logic and needs no DOM. Rather than pull in jsdom or

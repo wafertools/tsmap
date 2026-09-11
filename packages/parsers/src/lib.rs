@@ -1,6 +1,7 @@
 pub mod types;
 pub mod read_file;
 pub mod test_identity;
+pub mod flat_wafers;
 pub mod parse_stdf;
 pub mod parse_atdf;
 pub mod parse_csv;
@@ -72,6 +73,15 @@ mod wasm {
     pub fn parquet_headers(bytes: &[u8]) -> Result<JsValue, JsValue> {
         crate::parse_parquet::parquet_headers_from_bytes(bytes)
             .map(|r| to_js(&r))
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
+    /// `columns` is a JS string array. See `parquet_distinct_count_from_bytes`.
+    #[wasm_bindgen]
+    pub fn parquet_distinct_count(bytes: &[u8], columns: JsValue) -> Result<usize, JsValue> {
+        let columns: Vec<String> = serde_wasm_bindgen::from_value(columns)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        crate::parse_parquet::parquet_distinct_count_from_bytes(bytes, &columns)
             .map_err(|e| JsValue::from_str(&e))
     }
 

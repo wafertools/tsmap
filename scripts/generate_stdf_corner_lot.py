@@ -91,8 +91,10 @@ def sdr(sites: list[int]) -> bytes:
 
 def wcr(wafr_siz: float, die_ht: float, die_wid: float, wf_units: int, wf_flat: str,
         center_x: int, center_y: int, pos_x: str, pos_y: str) -> bytes:
+    # STDF V4 WCR: WAFR_SIZ DIE_HT DIE_WID WF_UNITS WF_FLAT CENTER_X CENTER_Y POS_X
+    # POS_Y. There is no HEAD_NUM/SITE_GRP — this used to write them, and the
+    # parser read them back the same wrong way.
     body = (
-        u1(1) + u1(255) +
         r4(wafr_siz) + r4(die_ht) + r4(die_wid) +
         u1(wf_units) + c1(wf_flat) +
         i2(center_x) + i2(center_y) +

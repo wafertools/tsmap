@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension } from './lib';
+import { basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -51,6 +51,27 @@ describe('checkSameExtension', () => {
   });
   it('returns null for a single file', () => {
     expect(checkSameExtension(['only.stdf'])).toBeNull();
+  });
+  it('lets STDF and ATDF load together — one family, parsed per file', () => {
+    expect(checkSameExtension(['a.stdf', 'b.atdf', 'c.std', 'd.atd.gz'])).toBeNull();
+  });
+  it('still refuses tester files mixed with table files, or table formats mixed', () => {
+    expect(checkSameExtension(['a.atdf', 'b.csv'])).toContain('atdf');
+    expect(checkSameExtension(['a.csv', 'b.parquet'])).not.toBeNull();
+  });
+});
+
+describe('formatFamily / isTesterExt / isAtdfExt', () => {
+  it('groups STDF and ATDF, and leaves every other format on its own', () => {
+    expect(formatFamily('stdf')).toBe(formatFamily('atd'));
+    expect(formatFamily('csv')).not.toBe(formatFamily('json'));
+    expect(formatFamily('csv')).not.toBe(formatFamily('stdf'));
+  });
+  it('recognises both spellings of each tester format', () => {
+    expect(['stdf', 'std', 'atdf', 'atd'].every(isTesterExt)).toBe(true);
+    expect(isTesterExt('csv')).toBe(false);
+    expect(isAtdfExt('atd')).toBe(true);
+    expect(isAtdfExt('stdf')).toBe(false);
   });
 });
 
@@ -499,6 +520,19 @@ describe('wcrGeometryFrom', () => {
   it('converts cm units (wfUnits=2) to mm', () => {
     const g = wcrGeometryFrom(source({ wafrSiz: '30', wfUnits: '2' }))!;
     expect(g.waferConfig.diameter).toBe(300);
+  });
+
+  it('ignores the whole record when WF_UNITS is outside the spec (0–4) — it was misread', () => {
+    // The shape a 2-byte-shifted WCR reads back as: units 135, a centre far
+    // off the data, a flat letter. None of it may reach wmap.
+    expect(wcrGeometryFrom(source({ wafrSiz: '9e-41', wfUnits: '135', wfFlat: 'D', centerX: '17411', centerY: '0' }))).toBeNull();
+  });
+
+  it('keeps unit-free fields when WF_UNITS is 0 (unknown), dropping only sizes', () => {
+    const g = wcrGeometryFrom(source({ wafrSiz: '300', wfUnits: '0', wfFlat: 'D', centerX: '1', centerY: '2' }))!;
+    expect(g.waferConfig.diameter).toBeUndefined();
+    expect(g.waferConfig.center).toEqual({ x: 1, y: 2 });
+    expect(g.waferConfig.notch).toEqual({ type: 'bottom' });
   });
 
   it('converts mil units (wfUnits=4) to mm', () => {

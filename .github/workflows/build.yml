@@ -44,6 +44,7 @@ jobs:
           | **Linux — Fedora** (installer) | `tsmap-VERSION-linux-x86_64.rpm` |
           | **Linux — other / portable** (no install) | `tsmap-VERSION-linux-x86_64.AppImage` |
           | **Linux — RHEL / Rocky / Alma 8 or 9** | [browser version](https://wafertools.github.io/tsmap/app/) — no install |
+          | **Host it yourself** (intranet / air-gapped) | `tsmap-VERSION-web.zip` |
 
           **Not sure on Mac?**  Apple menu → About This Mac. "Apple M…" = Apple Silicon; "Intel" = Intel.
 
@@ -53,6 +54,12 @@ jobs:
           **On RHEL / Rocky / Alma?** The desktop app's webview needs newer system libraries
           than those releases ship — run the [browser version](https://wafertools.github.io/tsmap/app/)
           instead. It works in any modern browser, with no install.
+
+          **`tsmap-VERSION-web.zip`** is the browser version as a static site, for hosting on
+          your own intranet. Unpack it into any web server's document root and browse to it —
+          no installer, no server-side component, and no internet access required, at install
+          time or afterwards. Wafer files are parsed in the browser and never leave the machine.
+          See [Hosting tsmap on your own server](https://wafertools.github.io/tsmap/web/#hosting-tsmap-on-your-own-server).
           EOF
           sed -i "s/VERSION/${GITHUB_REF_NAME#v}/g" notes.md
           gh release create "$GITHUB_REF_NAME" \
@@ -158,6 +165,59 @@ jobs:
           if [ ${#files[@]} -gt 0 ]; then
             gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           fi
+
+  # The self-hostable browser build. Same bundle deploy.yml publishes to Pages,
+  # packaged so a site can serve it from its own intranet instead.
+  #
+  # This is not a convenience copy of the Pages version: there is no service
+  # worker in the bundle, so "works offline" on the hosted app rests entirely on
+  # HTTP cache — a hard refresh, an evicted cache or a fresh profile all need
+  # github.io again. A fab that blocks external internet cannot reach it even
+  # once. Self-hosting is therefore the only dependable browser-based offline
+  # option, and the only one for sites that will not send lot data off-site.
+  #
+  # Nothing needs building differently: vite already emits the web app with
+  # `base: './'`, so the bundle is relative-path and works from any subdirectory
+  # (verified serving it from /tools/tsmap/), and it requests no external origin.
+  web-bundle:
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Full history: build:web -> prebuild:web -> check-testdata-parser-published.js
+      # needs git log on packages/parsers/ to detect crate drift, exactly as in
+      # deploy.yml. A shallow clone makes that check silently pass.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build web app
+        run: npm run build:web
+
+      - name: Package the bundle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIR="tsmap-web-${VERSION}"
+          # A top-level directory inside the zip, so unpacking it in a web root
+          # does not splatter assets/ and index.html across whatever is there.
+          mkdir -p "$DIR"
+          cp -r dist/* "$DIR"/
+          cp .github/assets/web-bundle-README.txt "$DIR/README.txt"
+          sed -i "s/VERSION/${VERSION}/g" "$DIR/README.txt"
+          zip -qr "tsmap-${VERSION}-web.zip" "$DIR"
+          gh release upload "$GITHUB_REF_NAME" "tsmap-${VERSION}-web.zip" \
+            --clobber --repo "$GITHUB_REPOSITORY"
 
   # NOTE: a native RHEL 8/9 build is deliberately NOT provided. Investigated and
   # rejected (2026-06-22): RHEL 8 ships glib 2.56 and RHEL 9 ships glib 2.68, both

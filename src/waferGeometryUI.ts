@@ -81,8 +81,8 @@ export function showWaferGeometryDialog(
       } else if (inferredHint.source !== 'none' && Math.abs(inferredHint.diameter - current.diameterMm) > 0.5) {
         diameterHintText.style.color = 'var(--warn-text)';
         diameterHintText.textContent = inferredHint.source === 'wcr'
-          ? `This file's WCR record specifies ${inferredHint.diameter} mm — confirm this is still the right lot.`
-          : `wmap's own estimate for this wafer is now ~${inferredHint.diameter} mm — confirm this is still the right lot.`;
+          ? `This file's WCR record specifies ${inferredHint.diameter} mm — check the saved value still suits the data now loaded.`
+          : `wmap's own estimate for this wafer is now ~${inferredHint.diameter} mm — check the saved value still suits the data now loaded.`;
       }
 
       // ── Edge exclusion ────────────────────────────────────────────────────

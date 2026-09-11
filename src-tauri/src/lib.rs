@@ -1,6 +1,7 @@
 mod cli_files;
 mod commands;
-use commands::{atdf_file_meta, atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, list_dir_files, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_file_meta, stdf_test_names, write_temp_html};
+mod migrate;
+use commands::{atdf_file_meta, atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, list_dir_files, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_distinct_count, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_file_meta, stdf_test_names, write_temp_html};
 use commands::get_startup_files::set_startup_args;
 use tauri::{Emitter, Manager, WindowEvent};
 
@@ -195,6 +196,25 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            // FIRST, before any webview exists: carry across data written under
+            // an older bundle identifier or last_dir's old hardcoded path.
+            // Without it, the rename to com.wafertools.tsmap presents to every
+            // existing user as the app having forgotten their theme, recent
+            // files, column mappings and splits — with nothing to say why, since
+            // from the app's side it is simply a first run. See migrate.rs.
+            for from in migrate::migrate_legacy_app_data(app.handle()) {
+                eprintln!("tsmap: migrated settings from {}", from.display());
+            }
+
+            // The main window is `"create": false` in tauri.conf.json so that it
+            // is built here, after the migration. Tauri builds `create: true`
+            // windows BEFORE calling this hook, and on Linux/Windows the webview
+            // creates its data directory — the very directory migrated into —
+            // as it starts, so the migration would find it in use and skip.
+            for cfg in app.config().app.windows.clone() {
+                tauri::WebviewWindowBuilder::from_config(app.handle(), &cfg)?.build()?;
+            }
+
             // Self-registers the tsmap:// scheme at every startup, mirroring
             // file_associations.rs's own "self-heal a dev/unpacked binary"
             // approach — a packaged .deb/.msi install gets this for free from
@@ -229,7 +249,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![atdf_file_meta, atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, list_dir_files, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_file_meta, stdf_test_names, write_temp_html])
+        .invoke_handler(tauri::generate_handler![atdf_file_meta, atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, list_dir_files, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_distinct_count, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_file_meta, stdf_test_names, write_temp_html])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

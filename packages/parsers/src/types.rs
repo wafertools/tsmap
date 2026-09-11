@@ -164,6 +164,89 @@ impl LotMeta {
     }
 }
 
+/// Split per-wafer metadata into the fields EVERY wafer carries with the same
+/// value — lot/file-level — and what remains on each wafer. The one rule for
+/// "is this a lot property or a wafer property", shared by the flat-file
+/// assembler and by STDF/ATDF files holding more than one lot record. With one
+/// wafer, everything is common, which keeps single-lot output unchanged.
+pub fn split_common_fields(per_wafer: Vec<Vec<MetaField>>) -> (Vec<MetaField>, Vec<Vec<MetaField>>) {
+    let common: Vec<MetaField> = match per_wafer.first() {
+        None => return (Vec::new(), per_wafer),
+        Some(first) => first.iter()
+            .filter(|f| per_wafer.iter().all(|w| w.iter().any(|g| g.key == f.key && g.value == f.value)))
+            .cloned()
+            .collect(),
+    };
+    let residual = per_wafer.into_iter()
+        .map(|w| w.into_iter().filter(|g| !common.iter().any(|c| c.key == g.key)).collect())
+        .collect();
+    (common, residual)
+}
+
+/// Lot records (STDF/ATDF MIR) in a file, and which one each wafer was tested
+/// under. The spec allows one per file, but concatenated streams — some
+/// systems' way of returning a multi-lot selection as one response — carry
+/// several. Assigning each MIR over the file's metadata, as the parsers did,
+/// labelled every wafer with the LAST lot. File-level extras (WCR geometry)
+/// are kept apart so they survive regardless of where they sit relative to a MIR.
+#[derive(Default)]
+pub struct LotRecords {
+    current: Vec<MetaField>,
+    count: usize,
+    per_wafer: Vec<Vec<MetaField>>,
+    file_fields: Vec<MetaField>,
+}
+
+impl LotRecords {
+    /// A MIR: the lot record for every wafer that follows it.
+    pub fn set_lot(&mut self, fields: Vec<MetaField>) {
+        self.current = fields;
+        self.count += 1;
+    }
+
+    /// File-level fields that are not lot identity (WCR geometry, the V4-2007 VUR).
+    pub fn extend_file(&mut self, fields: Vec<MetaField>) {
+        self.file_fields.extend(fields);
+    }
+
+    /// Push a wafer and record the lot it was tested under — the only way
+    /// wafers may be added. This was once a separate `wafer_pushed()` call to
+    /// pair with each `wafers.push`; three of the seven push sites forgot it,
+    /// and any mismatch makes `finish` fall back to the last lot for every
+    /// wafer. One call cannot drift out of step.
+    pub fn push_wafer(&mut self, wafers: &mut Vec<WaferData>, wafer: WaferData) {
+        wafers.push(wafer);
+        self.per_wafer.push(self.current.clone());
+    }
+
+    /// The file's `LotMeta`. With one lot record — the normal case — this is
+    /// exactly what the parsers produced before (MIR fields, then WCR). With
+    /// several, fields every wafer shares stay file-level and the rest move
+    /// onto each wafer, ahead of its own WIR/WRR fields.
+    pub fn finish(self, wafers: &mut [WaferData], warnings: &mut Vec<String>) -> LotMeta {
+        let mut fields;
+        if self.count <= 1 || self.per_wafer.len() != wafers.len() {
+            fields = self.current;
+        } else {
+            let (common, residual) = split_common_fields(self.per_wafer);
+            if residual.iter().any(|r| !r.is_empty()) {
+                warnings.push(format!(
+                    "This file holds {} lot records (MIR), so each wafer is labelled with the lot it was \
+                     tested under. Bin names and pass bins from the file's HBR/SBR records apply to all of them.",
+                    self.count
+                ));
+            }
+            for (w, mut r) in wafers.iter_mut().zip(residual) {
+                r.extend(std::mem::take(&mut w.fields));
+                w.fields = r;
+            }
+            fields = common;
+        }
+        fields.extend(self.file_fields);
+        LotMeta { fields }
+    }
+}
+
 /// Shared helper: append a non-empty field. Used for both lot- and wafer-level.
 pub fn push_field(fields: &mut Vec<MetaField>, key: &str, value: Option<String>) {
     if let Some(v) = value {

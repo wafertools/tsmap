@@ -123,7 +123,8 @@ Options:
                          self-authenticating (e.g. a presigned link) — tsmap
                          sends no auth of its own by default.
   --url-format <FORMAT> The format of --url's data: one of stdf, atdf, csv,
-                         json, parquet. Required whenever --url is given.
+                         json, parquet, zip (a zip may hold several files,
+                         e.g. one per lot). Required whenever --url is given.
   --url-headers <FILE>  Headers to send with the --url fetch, one
                          'Header-Name: value' per line (blank lines and '#'
                          comments skipped) — e.g. an Authorization bearer

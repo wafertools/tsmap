@@ -104,9 +104,11 @@ fn decode_wrr(b: &[u8], o: ByteOrder) -> WrrData {
     WrrData { wafer_id, part_cnt, good_cnt, fields }
 }
 
-/// WCR record body (2·30): HEAD_NUM(U1) SITE_GRP(U1) WAFR_SIZ(R4) DIE_HT(R4)
-/// DIE_WID(R4) WF_UNITS(U1) WF_FLAT(C1) CENTER_X(I2) CENTER_Y(I2) POS_X(C1) POS_Y(C1).
-/// Fully fixed-width, no Cn run — unlike MIR. STDF's own missing-value
+/// WCR record body (2·30), per the STDF V4 table: WAFR_SIZ(R4) DIE_HT(R4) DIE_WID(R4)
+/// WF_UNITS(U1) WF_FLAT(C1) CENTER_X(I2) CENTER_Y(I2) POS_X(C1) POS_Y(C1) — 20 bytes.
+/// There is no HEAD_NUM/SITE_GRP: until 2026-09-11 this read every field 2 bytes
+/// late, expecting that prefix (see SPEC_CONFORMANCE.md). Fully fixed-width, no
+/// Cn run — unlike MIR. STDF's own missing-value
 /// conventions are applied before emitting (0 for R4, `SENTINEL_I2` for I2,
 /// blank for C1), so a field the tester's software never populated is
 /// omitted, not emitted as literal zero/sentinel data — the frontend treats
@@ -118,16 +120,28 @@ fn decode_wrr(b: &[u8], o: ByteOrder) -> WrrData {
 fn wcr_fields(b: &[u8], o: ByteOrder) -> Vec<MetaField> {
     let mut f = Vec::new();
     let r4_present = |v: Option<f32>| v.filter(|&x| x > 0.0);
-    push_field(&mut f, "wafrSiz", r4_present(read_f32(b, 2, o)).map(|v| v.to_string()));
-    push_field(&mut f, "dieHt",   r4_present(read_f32(b, 6, o)).map(|v| v.to_string()));
-    push_field(&mut f, "dieWid",  r4_present(read_f32(b, 10, o)).map(|v| v.to_string()));
-    push_field(&mut f, "wfUnits", b.get(14).map(|v| v.to_string()));
-    push_field(&mut f, "wfFlat",  read_c1(b, 15));
+    push_field(&mut f, "wafrSiz", r4_present(read_f32(b, 0, o)).map(|v| v.to_string()));
+    push_field(&mut f, "dieHt",   r4_present(read_f32(b, 4, o)).map(|v| v.to_string()));
+    push_field(&mut f, "dieWid",  r4_present(read_f32(b, 8, o)).map(|v| v.to_string()));
+    push_field(&mut f, "wfUnits", b.get(12).map(|v| v.to_string()));
+    push_field(&mut f, "wfFlat",  read_c1(b, 13));
     let i2_present = |v: Option<i16>| v.filter(|&x| x != SENTINEL_I2);
-    push_field(&mut f, "centerX", i2_present(read_i2(b, 16, o)).map(|v| v.to_string()));
-    push_field(&mut f, "centerY", i2_present(read_i2(b, 18, o)).map(|v| v.to_string()));
-    push_field(&mut f, "posX", read_c1(b, 20));
-    push_field(&mut f, "posY", read_c1(b, 21));
+    push_field(&mut f, "centerX", i2_present(read_i2(b, 14, o)).map(|v| v.to_string()));
+    push_field(&mut f, "centerY", i2_present(read_i2(b, 16, o)).map(|v| v.to_string()));
+    push_field(&mut f, "posX", read_c1(b, 18));
+    push_field(&mut f, "posY", read_c1(b, 19));
+    f
+}
+
+/// VUR record body (0·30, STDF V4-2007): UPD_NAM(Cn), the version update name —
+/// `"V4-2007"` for that revision. The record means the file may also hold records
+/// only V4-2007 defines (PSR, NMR, CNR, SSR, SCR, STR); every dispatch skips those.
+/// V4-2007 requires VUR straight after the FAR, i.e. BEFORE the MIR, so callers
+/// must keep it apart from the MIR's fields rather than let a MIR overwrite it.
+fn vur_fields(b: &[u8]) -> Vec<MetaField> {
+    let mut f = Vec::new();
+    let (upd_nam, _) = read_cn_str(b, 0);
+    push_field(&mut f, "updNam", nonempty(upd_nam));
     f
 }
 
@@ -382,13 +396,17 @@ fn ptr_defs_from_raw(b: &[u8], o: ByteOrder) -> (String, Option<f64>, Option<f64
         return (test_txt, None, None, None);
     }
     let pos = pos + 3; // skip res_scal, llm_scal, hlm_scal (1 byte each)
-    let lo = if opt_flag & 0x40 == 0 {
+    // OPT_FLAG (STDF V4): bit 4 = LO_LIMIT invalid in this record (use the
+    // default from the first PTR), bit 6 = no low limit for this test; bits 5/7
+    // are the same for the high limit. Either makes the bytes here meaningless.
+    // Only bits 6/7 mean "no limit" — see ptr_limits_explicitly_absent.
+    let lo = if opt_flag & 0x50 == 0 {
         read_f32(b, pos, o).map(|v| v as f64)
     } else {
         None
     };
     let pos = pos + 4;
-    let hi = if opt_flag & 0x80 == 0 {
+    let hi = if opt_flag & 0xA0 == 0 {
         read_f32(b, pos, o).map(|v| v as f64)
     } else {
         None
@@ -565,7 +583,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
     let order = detect_byte_order(bytes)?;
     let mut iter = RecordIter { bytes, pos: 0, order };
 
-    let mut meta = LotMeta::default();
+    let mut lots = LotRecords::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
     let mut hbin_names: HashMap<u32, String> = HashMap::new();
     let mut sbin_names: HashMap<u32, String> = HashMap::new();
@@ -747,15 +765,18 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
             }
 
             // ── Structural records (cold: a handful per file) ─────────────
-            (1, 10) => { // MIR
-                meta.fields = mir_fields(b, order);
+            (1, 10) => { // MIR — the lot for the wafers that follow (see LotRecords)
+                lots.set_lot(mir_fields(b, order));
             }
             // WCR conventionally follows MIR in the stream (SEMI E10/STDF V4:
             // "may appear anywhere between the MIR and the MRR, typically near
             // the beginning") — extend rather than replace, so it never
             // depends on arriving before MIR's own assignment above.
             (2, 30) => { // WCR
-                meta.fields.extend(wcr_fields(b, order));
+                lots.extend_file(wcr_fields(b, order));
+            }
+            (0, 30) => { // VUR (V4-2007) — file-level, and precedes the MIR
+                lots.extend_file(vur_fields(b));
             }
             (1, 80) => { // SDR
                 let (head, site_nums) = decode_sdr(b);
@@ -793,7 +814,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
                     } else {
                         None
                     };
-                    wafers.push(wafer);
+                    lots.push_wafer(&mut wafers, wafer);
                 }
             }
             (1, 40) => { // HBR
@@ -811,12 +832,13 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
 
     if let Some(wafer) = current_wafer.take() {
         if !wafer.results.is_empty() {
-            wafers.push(wafer);
+            lots.push_wafer(&mut wafers, wafer);
         }
     }
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
+    let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
     let sbin_defs = finish_bin_defs(sbin_names);
     let mut pass_hbins: Vec<u32> = pass_hbins.into_iter().collect();
@@ -926,11 +948,15 @@ pub fn parse_stdf_file_meta(bytes: &[u8]) -> Result<crate::types::FileMeta, Stri
     let mut earliest_start: Option<String> = None;
     let mut latest_finish: Option<String> = None;
     let mut site_nums: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    // File-level fields kept apart from the MIR's, which are assigned outright:
+    // VUR precedes the MIR, so folding it in first would be overwritten.
+    let mut file_fields: Vec<MetaField> = Vec::new();
 
     while let Some(raw) = iter.next_record() {
         let b = raw.body;
         match (raw.typ, raw.sub) {
             (1, 10) => { lot_meta.fields = mir_fields(b, order); } // MIR
+            (0, 30) => { file_fields.extend(vur_fields(b)); } // VUR (V4-2007)
             (1, 80) => { // SDR
                 let (_, sites) = decode_sdr(b);
                 site_nums.extend(sites);
@@ -956,6 +982,7 @@ pub fn parse_stdf_file_meta(bytes: &[u8]) -> Result<crate::types::FileMeta, Stri
         }
     }
 
+    lot_meta.fields.extend(file_fields);
     Ok(crate::types::FileMeta {
         lot_meta,
         wafer_count,
@@ -977,7 +1004,7 @@ pub fn parse_stdf_from_bytes_filtered(
     let order = detect_byte_order(bytes)?;
     let mut iter = RecordIter { bytes, pos: 0, order };
 
-    let mut meta = LotMeta::default();
+    let mut lots = LotRecords::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
     let mut hbin_names: HashMap<u32, String> = HashMap::new();
     let mut sbin_names: HashMap<u32, String> = HashMap::new();
@@ -1144,11 +1171,14 @@ pub fn parse_stdf_from_bytes_filtered(
                 if let Some(ref mut wafer) = current_wafer { wafer.results.push(die); }
             }
 
-            (1, 10) => { // MIR
-                meta.fields = mir_fields(b, order);
+            (1, 10) => { // MIR — the lot for the wafers that follow (see LotRecords)
+                lots.set_lot(mir_fields(b, order));
             }
             (2, 30) => { // WCR — see the full-parse dispatch's own comment on ordering.
-                meta.fields.extend(wcr_fields(b, order));
+                lots.extend_file(wcr_fields(b, order));
+            }
+            (0, 30) => { // VUR (V4-2007) — see vur_fields.
+                lots.extend_file(vur_fields(b));
             }
             (1, 80) => { // SDR
                 let (head, site_nums) = decode_sdr(b);
@@ -1184,7 +1214,7 @@ pub fn parse_stdf_from_bytes_filtered(
                     } else {
                         None
                     };
-                    wafers.push(wafer);
+                    lots.push_wafer(&mut wafers, wafer);
                 }
             }
             (1, 40) => { // HBR
@@ -1201,11 +1231,12 @@ pub fn parse_stdf_from_bytes_filtered(
     }
 
     if let Some(wafer) = current_wafer.take() {
-        if !wafer.results.is_empty() { wafers.push(wafer); }
+        if !wafer.results.is_empty() { lots.push_wafer(&mut wafers, wafer); }
     }
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
+    let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
     let sbin_defs = finish_bin_defs(sbin_names);
     let mut pass_hbins: Vec<u32> = pass_hbins.into_iter().collect();
@@ -1235,7 +1266,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
     let order = detect_byte_order(bytes)?;
     let mut iter = RecordIter { bytes, pos: 0, order };
 
-    let mut meta = LotMeta::default();
+    let mut lots = LotRecords::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
     let mut test_defs: HashMap<String, TestDef> = HashMap::new();
     let mut test_num_to_key: HashMap<u32, String> = HashMap::new();
@@ -1393,7 +1424,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                     wafer.fail_count = if wrr.good_cnt != SENTINEL_U4 && wrr.part_cnt != SENTINEL_U4 {
                         Some(wrr.part_cnt.saturating_sub(wrr.good_cnt))
                     } else { None };
-                    wafers.push(wafer);
+                    lots.push_wafer(&mut wafers, wafer);
                 }
             }
             _ => {}
@@ -1404,7 +1435,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
     let p2_ms = p2_hashmap_ns / 1_000_000;
 
     if let Some(wafer) = current_wafer.take() {
-        if !wafer.results.is_empty() { wafers.push(wafer); }
+        if !wafer.results.is_empty() { lots.push_wafer(&mut wafers, wafer); }
     }
 
     let timing = ParseTiming {
@@ -1416,6 +1447,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
+    let meta = lots.finish(&mut wafers, &mut warnings);
     // Bench-only path deliberately skips HBR/SBR (and WIR/WRR field
     // extraction, see above) — it measures raw parse throughput, not
     // metadata completeness.
@@ -1718,6 +1750,31 @@ mod tests {
         assert!(f.failed);
         let n = parse_ptr_fast(&mk(0x40), ByteOrder::Little).unwrap();
         assert_eq!(n.pass, None);
+    }
+
+    #[test]
+    fn ptr_limits_flagged_invalid_are_not_read_as_limits() {
+        // STDF V4 OPT_FLAG: bit 4/5 = LO/HI_LIMIT invalid in this record (use
+        // the first PTR's default), bit 6/7 = the test has no low/high limit.
+        // The parser used to honour only 6/7, reading the unused bytes of a
+        // bit-4/5 record as a real limit.
+        let mk = |opt: u8| {
+            let mut b = vec![7, 0, 0, 0, 1, 2, 0, 0];          // TEST_NUM, HEAD, SITE, TEST_FLG, PARM_FLG
+            b.extend_from_slice(&1.5f32.to_le_bytes());       // RESULT
+            b.extend_from_slice(&[1, b'T', 0, opt, 0, 0, 0]); // TEST_TXT "T", ALARM_ID "", OPT_FLAG, 3 × scale
+            b.extend_from_slice(&0.5f32.to_le_bytes());       // LO_LIMIT
+            b.extend_from_slice(&5.5f32.to_le_bytes());       // HI_LIMIT
+            b.extend_from_slice(&[2, b'n', b'A']);            // UNITS
+            b
+        };
+        let lim = |opt| { let (_, lo, hi, _) = ptr_defs_from_raw(&mk(opt), ByteOrder::Little); (lo, hi) };
+        assert_eq!(lim(0x00), (Some(0.5), Some(5.5)));
+        assert_eq!(lim(0x10), (None, Some(5.5)), "bit 4: LO_LIMIT invalid in this record");
+        assert_eq!(lim(0x20), (Some(0.5), None), "bit 5: HI_LIMIT invalid in this record");
+        assert_eq!(lim(0x40), (None, Some(5.5)), "bit 6: no low limit");
+        assert_eq!(lim(0x80), (Some(0.5), None), "bit 7: no high limit");
+        assert!(!ptr_limits_explicitly_absent(&mk(0x30)), "invalid-here is not 'this test has no limit'");
+        assert!(ptr_limits_explicitly_absent(&mk(0xC0)));
     }
 
     #[test]
@@ -2054,6 +2111,74 @@ mod tests {
             assert_eq!(be.test_defs.get("1000").map(|d| d.name.as_str()), Some("VDD"));
         }
 
+        // ── Several lot records in one stream ───────────────────────────────────
+
+        /// Two single-lot files concatenated — how some systems return a
+        /// multi-lot selection. Each wafer must carry its own lot, not the last.
+        fn two_lots() -> Vec<u8> {
+            let a = build(ByteOrder::Little);
+            let b: Vec<u8> = {
+                let mut v = build(ByteOrder::Little);
+                let at = v.windows(6).position(|w| w == b"LOT-BE").unwrap();
+                v[at..at + 6].copy_from_slice(b"LOT-XX");
+                v
+            };
+            [a, b].concat()
+        }
+
+        #[test]
+        fn concatenated_lots_label_each_wafer_with_its_own_lot() {
+            let bytes = two_lots();
+            for r in [
+                parse_stdf_from_bytes(&bytes).unwrap(),
+                parse_stdf_from_bytes_filtered(&bytes, &std::collections::HashSet::new()).unwrap(),
+            ] {
+                assert_eq!(r.wafers.len(), 2);
+                let lot = |i: usize| r.wafers[i].fields.iter()
+                    .find(|f| f.key == "lotId").map(|f| f.value.clone());
+                assert_eq!(lot(0).as_deref(), Some("LOT-BE"));
+                assert_eq!(lot(1).as_deref(), Some("LOT-XX"));
+                // Shared fields stay file-level; the differing one does not.
+                assert_eq!(r.meta.get("partType"), Some("WIDGET"));
+                assert_eq!(r.meta.get("lotId"), None);
+                assert!(r.warnings.iter().any(|w| w.contains("2 lot records")));
+            }
+        }
+
+        #[test]
+        fn a_truncated_last_wafer_keeps_its_own_lot() {
+            // Drop the final record — the second lot's WRR — so that wafer is
+            // only added by the end-of-file flush. The filtered parser's flush
+            // once skipped the lot bookkeeping, and every wafer then got the
+            // last lot.
+            let mut bytes = two_lots();
+            let (mut pos, mut last) = (0, 0);
+            while pos + 4 <= bytes.len() {
+                last = pos;
+                pos += 4 + u16::from_le_bytes([bytes[pos], bytes[pos + 1]]) as usize;
+            }
+            assert_eq!(&bytes[last + 2..last + 4], &[2, 20], "the final record should be the WRR");
+            bytes.truncate(last);
+            for r in [
+                parse_stdf_from_bytes(&bytes).unwrap(),
+                parse_stdf_from_bytes_filtered(&bytes, &std::collections::HashSet::new()).unwrap(),
+            ] {
+                assert_eq!(r.wafers.len(), 2);
+                let lot = |i: usize| r.wafers[i].fields.iter()
+                    .find(|f| f.key == "lotId").map(|f| f.value.clone());
+                assert_eq!(lot(0).as_deref(), Some("LOT-BE"));
+                assert_eq!(lot(1).as_deref(), Some("LOT-XX"));
+            }
+        }
+
+        #[test]
+        fn single_lot_file_keeps_lot_at_file_level() {
+            let r = parse_stdf_from_bytes(&build(ByteOrder::Little)).unwrap();
+            assert_eq!(r.meta.get("lotId"), Some("LOT-BE"));
+            assert!(r.wafers[0].fields.iter().all(|f| f.key != "lotId"));
+            assert!(!r.warnings.iter().any(|w| w.contains("lot records")));
+        }
+
         // ── WCR (wafer geometry) ────────────────────────────────────────────────
 
         /// Minimal FAR + MIR + WCR file — no dies needed, this only exercises
@@ -2081,7 +2206,8 @@ mod tests {
             b: &Builder, wafr_siz: f32, die_ht: f32, die_wid: f32, wf_units: u8,
             wf_flat: u8, center_x: i16, center_y: i16, pos_x: u8, pos_y: u8,
         ) -> Vec<u8> {
-            let mut v = vec![1, 0]; // HEAD_NUM, SITE_GRP
+            // STDF V4 WCR has no HEAD_NUM/SITE_GRP — it starts with WAFR_SIZ.
+            let mut v = Vec::new();
             v.extend_from_slice(&b.f32(wafr_siz));
             v.extend_from_slice(&b.f32(die_ht));
             v.extend_from_slice(&b.f32(die_wid));
@@ -2128,6 +2254,38 @@ mod tests {
             assert_eq!(result.meta.get("centerY"), None);
             assert_eq!(result.meta.get("posX"), None);
             assert_eq!(result.meta.get("posY"), None);
+        }
+
+        // ── STDF V4-2007 ────────────────────────────────────────────────────────
+
+        #[test]
+        fn v4_2007_file_loads_and_reports_its_revision() {
+            // FAR – VUR – MIR (a V4-2007 initial sequence), then two records only
+            // V4-2007 defines (PSR 1·90, STR 15·30), which every dispatch skips.
+            let b = Builder::new(ByteOrder::Little);
+            let mut out = Builder::new(ByteOrder::Little);
+            out.rec(0, 10, &[2, 4]);                  // FAR
+            out.rec(0, 30, &b.cn("V4-2007"));         // VUR
+            let mut mir = Vec::new();
+            mir.extend_from_slice(&b.u4(0));
+            mir.extend_from_slice(&b.u4(0));
+            mir.push(1);
+            mir.extend_from_slice(b" \0\0");
+            mir.extend_from_slice(&b.u2(0));
+            mir.push(b' ');
+            mir.extend_from_slice(&b.cn("LOT-2007"));
+            out.rec(1, 10, &mir);                     // MIR
+            out.rec(1, 90, &[0, 0, 0, 0]);            // PSR (V4-2007 only)
+            out.rec(15, 30, &[0; 12]);                // STR (V4-2007 only)
+
+            let result = parse_stdf_from_bytes(&out.buf).unwrap();
+            assert_eq!(result.meta.get("updNam"), Some("V4-2007"));
+            assert_eq!(result.meta.get("lotId"), Some("LOT-2007"));
+
+            let meta = parse_stdf_file_meta(&out.buf).unwrap();
+            assert_eq!(meta.lot_meta.get("updNam"), Some("V4-2007"),
+                "VUR precedes the MIR; the file-meta scan must not let the MIR overwrite it");
+            assert_eq!(meta.lot_meta.get("lotId"), Some("LOT-2007"));
         }
 
         #[test]

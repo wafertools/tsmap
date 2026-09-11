@@ -13,6 +13,8 @@ scratch/
 .claude/
 .mcp.json
 CLAUDE.md
+# Python bytecode from the scripts/generate_*.py sample-data generators
+__pycache__/
 
 # Test data files — these can be large or proprietary
 *.stdf

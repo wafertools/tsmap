@@ -140,10 +140,13 @@ def atdf_sdr() -> str:
     return f'SDR:1{D}1{D}1'
 
 def atdf_wir(wafer_id: str) -> str:
-    return f'WIR:1{D}0{D}1{D}{wafer_id}'
+    # START_T blank, not '0': ATDF times are `hh:mm:ss DD-MMM-YYYY` text, so a
+    # bare 0 (STDF's "not recorded") was shown as a start time of "0".
+    return f'WIR:1{D}{D}1{D}{wafer_id}'
 
 def atdf_wrr(wafer_id: str, part_cnt: int, good_cnt: int) -> str:
-    return f'WRR:1{D}0{D}{part_cnt}{D}{wafer_id}{D}1{D}0{D}{good_cnt}'
+    # ATDF WRR: HEAD|FINISH_T|PART_CNT|WAFER_ID|SITE_GRP|RTST_CNT|ABRT_CNT|GOOD_CNT
+    return f'WRR:1{D}{D}{part_cnt}{D}{wafer_id}{D}1{D}{D}0{D}{good_cnt}'   # FINISH_T blank — see atdf_wir
 
 def atdf_pir(site: int) -> str:
     return f'PIR:1{D}{site}'
@@ -159,7 +162,10 @@ def atdf_ptr(test_num: int, site: int, value: float, passed: bool, test_txt: str
     if first and (lo is not None or hi is not None):
         lo_s = f'{lo:.4f}' if lo is not None else ''
         hi_s = f'{hi:.4f}' if hi is not None else ''
-        return f'PTR:{test_num}{D}1{D}{site}{D}{value:.4f}{D}{pf}{D}{D}{D}{test_txt}{D}{D}{D}{units}{D}{lo_s}{D}{hi_s}'
+        # ATDF PTR: …|pass/fail|alarm flags|TEST_TXT|ALARM_ID|limit compare|UNITS|LO|HI.
+        # One extra blank field here used to push the name into ALARM_ID and
+        # the units into LO_LIMIT — the parser read every limit wrong.
+        return f'PTR:{test_num}{D}1{D}{site}{D}{value:.4f}{D}{pf}{D}{D}{test_txt}{D}{D}{D}{units}{D}{lo_s}{D}{hi_s}'
     return f'PTR:{test_num}{D}1{D}{site}{D}{value:.4f}{D}{pf}'
 
 # ── Wafer geometry ────────────────────────────────────────────────────────────

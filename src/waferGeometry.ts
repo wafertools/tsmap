@@ -1,3 +1,4 @@
+import { storageKey } from './storageKeys';
 // Persistence for wafer geometry overrides passed to wmap as
 // `buildWaferMap({ waferConfig: { diameter, edgeExclusion } })`. Both are
 // single global values applied to every wafer in whatever's currently loaded
@@ -14,8 +15,8 @@
 // diameter is set" — every caller (the dialog, the CLI) goes through it
 // rather than re-deriving the rule.
 
-const DIAMETER_KEY = 'tsmap:wafer-diameter-mm';
-const EXCLUSION_KEY = 'tsmap:edge-exclusion-mm';
+const DIAMETER_KEY = storageKey('tsmap:wafer-diameter-mm');
+const EXCLUSION_KEY = storageKey('tsmap:edge-exclusion-mm');
 
 /** The persisted wafer diameter in mm, or `undefined` if unset/invalid. */
 export function getWaferDiameterMm(): number | undefined {

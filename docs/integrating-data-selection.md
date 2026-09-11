@@ -34,12 +34,29 @@ that returns the selected data:
 - **Desktop from a web page:**
   `tsmap://open?url=<URL-encoded-data-URL>&format=<format>`
 
-`<format>` is one of `stdf`, `atdf`, `csv`, `json`, or `parquet`.
+`<format>` is one of `stdf`, `atdf`, `csv`, `json`, `parquet`, or `zip`.
 
 One response may contain multiple wafers or lots. This is the preferred way to represent a
 multi-selection: have the endpoint return one combined, supported file/response. A URL launch
 currently performs one fetch; it cannot combine several separate endpoints into one tsmap
-session.
+session. What that one response can be:
+
+- **A `zip` of several files** — for example one STDF per lot. tsmap unpacks it and loads
+  every file inside, exactly as if they had been opened together. **This is the recommended
+  way to return several STDF or ATDF lots.** Both formats define one lot record (MIR) per
+  file, so a file per lot keeps each lot's bin names and pass/fail bins (HBR/SBR) and its
+  test-selection scan to itself.
+- **One CSV, JSON or Parquet table holding several lots.** Map a lot column: each wafer is
+  then identified by lot + wafer ID, so two lots' W01 stay two separate wafers. Other mapped
+  columns (temperature, test program, …) are recorded per wafer. If the same wafer appears
+  more than once — tested at two temperatures, say — and a mapped column tells the passes
+  apart, each pass becomes its own wafer map; otherwise the repeats are treated as retests and
+  the log says so.
+- **One STDF or ATDF stream with several lot records (MIR)**, which some systems produce by
+  concatenating files. This is outside the spec and is handled as a fallback: each wafer is
+  labelled with the lot record it was tested under, but the bin summaries (HBR/SBR) of every
+  lot are merged into one set, and the test-selection step lists only one lot's details.
+  Prefer a zip.
 
 For CSV, JSON, and Parquet, tsmap can map the source columns to its expected fields. The data
 must nevertheless contain the logical die/wafer/test information needed to produce a wafer map;

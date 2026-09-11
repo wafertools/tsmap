@@ -1,34 +1,39 @@
 use std::collections::HashMap;
 use crate::types::*;
 
+// ── ATDF field orders ─────────────────────────────────────────────────────────
+// Taken from the ATDF specification (Teradyne, V5.00.00_flx), each checked
+// against the spec's own sample record — see packages/parsers/SPEC_CONFORMANCE.md.
+// ATDF has its OWN field order per record; it is NOT the STDF binary order
+// (MIR, WRR and WCR all differ). Never derive a layout here from the STDF table:
+// that is how MIR, WRR and WCR were all wrong until 2026-09-11.
+
+// Spec sample: MIR:A3002B|80386|80386HOT|akbar|J971|8:14:59 23-JUL-1992|
+//              8:23:02 23-JUL-1992|Sandy|P|1|2B|HOT|N|3.1.2|IG900|2.4|||300|100|…
 const MIR: &[&str] = &[
-    "LOT_ID","PART_TYP","JOB_NAM","NODE_NAM","TSTR_TYP","TSTR_SN","SUPR_NAM",
-    "JOB_REV","EXEC_TYP","EXEC_VER","TEST_COD","TST_TEMP","USER_TXT","AUX_FILE",
-    "PKG_TYP","FAMLY_ID","DATE_COD","FACIL_ID","FLOOR_ID","PROC_ID","OPER_FRQ",
-    "SPEC_NAM","SPEC_VER","FLOW_ID","SETUP_ID","DSGN_REV","ENG_ID","ROM_COD",
-    "SERL_NUM","OPER_NAM","SBLOT_ID","SETUP_T","START_T","STAT_NUM","MODE_COD",
-    "RTST_COD","PROT_COD","BURN_TIM",
+    "LOT_ID","PART_TYP","JOB_NAM","NODE_NAM","TSTR_TYP","SETUP_T","START_T",
+    "OPER_NAM","MODE_COD","STAT_NUM","SBLOT_ID","TEST_COD","RTST_COD","JOB_REV",
+    "EXEC_TYP","EXEC_VER","PROT_COD","CMOD_COD","BURN_TIM","TST_TEMP","USER_TXT",
+    "AUX_FILE","PKG_TYP","FAMLY_ID","DATE_COD","FACIL_ID","FLOOR_ID","PROC_ID",
+    "OPER_FRQ","SPEC_NAM","SPEC_VER","FLOW_ID","SETUP_ID","DSGN_REV","ENG_ID",
+    "ROM_COD","SERL_NUM","SUPR_NAM",
 ];
 const WIR: &[&str] = &["HEAD_NUM","START_T","SITE_GRP","WAFER_ID"];
+// Unlike STDF, ATDF puts WAFER_ID fourth. RTST_CNT sits between SITE_GRP and
+// ABRT_CNT — without it every later field, GOOD_CNT included, reads one slot early.
 const WRR: &[&str] = &[
-    "HEAD_NUM","FINISH_T","PART_CNT","WAFER_ID","SITE_GRP","ABRT_CNT",
-    "GOOD_CNT","FUNC_CNT","WAFER_ID2","FABWF_ID","FRAME_ID","MASK_ID",
+    "HEAD_NUM","FINISH_T","PART_CNT","WAFER_ID","SITE_GRP","RTST_CNT",
+    "ABRT_CNT","GOOD_CNT","FUNC_CNT","FABWF_ID","FRAME_ID","MASK_ID",
     "USR_DESC","EXC_DESC",
 ];
 // SDR: site description. HEAD_NUM, SITE_GRP, SITE_CNT, then SITE_NUM (a
 // sub-delimited list), followed by per-site descriptor fields we don't surface.
 const SDR: &[&str] = &["HEAD_NUM","SITE_GRP","SITE_CNT","SITE_NUM"];
-// Field order assumed to match the STDF V4 binary WCR record (2·30) — but
-// note ATDF does NOT always preserve STDF's binary field order (WRR above is
-// a real counter-example: ATDF promotes WAFER_ID ahead of SITE_GRP/ABRT_CNT
-// for readability, unlike the binary layout). Not independently verified
-// against a real ATDF file carrying this record (this repo's own generators
-// never wrote one before now, and no ATDF spec reference or real-equipment
-// sample with a WCR line was available while writing this) — worth
-// confirming against real test-floor output if one becomes available.
+// Spec sample: WCR:D|R|D|5|.3|.25|1|23|19 — the orientation fields come first,
+// and there is no HEAD_NUM/SITE_GRP (STDF's WCR has none either).
 const WCR: &[&str] = &[
-    "HEAD_NUM","SITE_GRP","WAFR_SIZ","DIE_HT","DIE_WID","WF_UNITS","WF_FLAT",
-    "CENTER_X","CENTER_Y","POS_X","POS_Y",
+    "WF_FLAT","POS_X","POS_Y","WAFR_SIZ","DIE_HT","DIE_WID","WF_UNITS",
+    "CENTER_X","CENTER_Y",
 ];
 // Same caveat as WCR above — assumed to match STDF's binary HBR/SBR field
 // order (HEAD_NUM, SITE_NUM, BIN_NUM, BIN_CNT, BIN_PF, BIN_NAM), not
@@ -280,7 +285,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     };
     let (records, delim) = split_atdf_records(raw);
 
-    let mut meta = LotMeta::default();
+    let mut lots = LotRecords::default();
     let mut test_defs: HashMap<String, TestDef> = HashMap::new();
     let mut wafers: Vec<WaferData> = Vec::new();
     let mut current_wafer: Option<WaferData> = None;
@@ -311,15 +316,15 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
             // ── Cold records (a handful per file): keep `field_map` so metadata
             //    extraction stays identical — no field can be dropped. ──
             "MIR" => {
+                // The lot for the wafers that follow — see LotRecords.
                 let f = field_map(MIR, &raw_fields);
-                meta.fields = fields_from(&f, MIR_KEYS);
+                lots.set_lot(fields_from(&f, MIR_KEYS));
             }
-            // WCR conventionally follows MIR in the stream, same as the STDF
-            // parser's own WCR handling — extend rather than replace, so it
-            // never depends on arriving before MIR's own assignment above.
+            // WCR is file-level geometry, kept apart from lot records so it
+            // survives wherever it sits relative to a MIR.
             "WCR" => {
                 let f = field_map(WCR, &raw_fields);
-                meta.fields.extend(fields_from(&f, WCR_KEYS));
+                lots.extend_file(fields_from(&f, WCR_KEYS));
             }
             "HBR" => {
                 let f = field_map(HBR, &raw_fields);
@@ -376,7 +381,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                         (Some(p), Some(g)) => Some(p.saturating_sub(g)),
                         _ => None,
                     };
-                    wafers.push(w);
+                    lots.push_wafer(&mut wafers, w);
                 }
             }
             // ── Hot records (~99% of lines): positional field access, packed
@@ -497,12 +502,13 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
 
     if let Some(w) = current_wafer {
         if !w.results.is_empty() {
-            wafers.push(w);
+            lots.push_wafer(&mut wafers, w);
         }
     }
 
     let mut warnings = soft_bin_warning(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
+    let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
     let sbin_defs = finish_bin_defs(sbin_names);
     let mut pass_hbins: Vec<u32> = pass_hbins.into_iter().collect();
@@ -694,22 +700,25 @@ mod tests {
     fn far() -> &'static str { "FAR:A|4\n" }
 
     fn mir_full() -> String {
-        let mut fields = vec![""; 31];
+        // ATDF MIR order — SBLOT_ID is field 11 (index 10). It used to sit at
+        // index 30 here, matching the parser's old, non-spec layout.
+        let mut fields = vec![""; 11];
         fields[0]  = "LOT-01";
         fields[1]  = "WIDGET";
         fields[2]  = "JOB1";
         fields[3]  = "NODE1";
         fields[4]  = "TSTR-A";
-        fields[30] = "SUBLOT-1";
+        fields[10] = "SUBLOT-1";
         format!("MIR:{}\n", fields.join("|"))
     }
 
+    /// Arguments in STDF order for readability; written in the ATDF order.
     #[allow(clippy::too_many_arguments)]
     fn wcr(
         wafr_siz: &str, die_ht: &str, die_wid: &str, wf_units: &str, wf_flat: &str,
         center_x: &str, center_y: &str, pos_x: &str, pos_y: &str,
     ) -> String {
-        format!("WCR:1||{wafr_siz}|{die_ht}|{die_wid}|{wf_units}|{wf_flat}|{center_x}|{center_y}|{pos_x}|{pos_y}\n")
+        format!("WCR:{wf_flat}|{pos_x}|{pos_y}|{wafr_siz}|{die_ht}|{die_wid}|{wf_units}|{center_x}|{center_y}\n")
     }
 
     fn hbr(bin: u32, cnt: u32, pf: &str, name: &str) -> String {
@@ -721,7 +730,8 @@ mod tests {
 
     fn wir(id: &str) -> String { format!("WIR:1||1|{id}\n") }
     fn wrr(id: &str, part: u32, good: u32) -> String {
-        format!("WRR:1||{part}|{id}||0|{good}\n")
+        // HEAD|FINISH_T|PART_CNT|WAFER_ID|SITE_GRP|RTST_CNT|ABRT_CNT|GOOD_CNT
+        format!("WRR:1||{part}|{id}|||0|{good}\n")
     }
     fn pir(head: u8, site: u8) -> String { format!("PIR:{head}|{site}\n") }
     fn prr(head: u8, site: u8, x: i32, y: i32, hbin: u32, sbin: u32) -> String {
@@ -748,6 +758,63 @@ mod tests {
         assert_eq!(result.meta.get("nodeName"), Some("NODE1"));
         assert_eq!(result.meta.get("testerType"), Some("TSTR-A"));
         assert_eq!(result.meta.get("sublotId"), Some("SUBLOT-1"));
+    }
+
+    /// Pins the MIR, WCR and WRR layouts to the ATDF specification itself rather
+    /// than to this crate's own writers — every earlier test used helpers built
+    /// to the same wrong layouts as the parser, so they could never disagree.
+    /// MIR and WCR are the spec's sample records verbatim (MIR cut after
+    /// TST_TEMP); the WRR line is spec-shaped with distinct values per count.
+    #[test]
+    fn spec_sample_records_parse_to_the_right_fields() {
+        let text = format!(
+            "{}{}{}{}{}{}",
+            far(),
+            "MIR:A3002B|80386|80386HOT|akbar|J971|8:14:59 23-JUL-1992|8:23:02 23-JUL-1992|Sandy|P|1|2B|HOT|N|3.1.2|IG900|2.4|||300|100\n",
+            "WCR:D|R|D|5|.3|.25|1|23|19\n",
+            wir("W01"),
+            pir(1,1) + &prr(1,1,0,0,1,1),
+            "WRR:1|11:02:42 23-JUL-1992|492|W01|3|5|11|470|480|MOS-4|F54|S3-1|Glass buildup|Yield alarm\n",
+        );
+        let r = parse_atdf_str(&text, None).unwrap();
+        for (key, want) in [
+            ("lotId", "A3002B"), ("partType", "80386"), ("jobName", "80386HOT"),
+            ("nodeName", "akbar"), ("testerType", "J971"),
+            ("setupT", "1992-07-23T08:14:59Z"), ("startT", "1992-07-23T08:23:02Z"),
+            ("operName", "Sandy"), ("sublotId", "2B"), ("testCode", "HOT"),
+            ("jobRev", "3.1.2"), ("execType", "IG900"), ("execVer", "2.4"), ("testTemp", "100"),
+            ("wfFlat", "D"), ("posX", "R"), ("posY", "D"), ("wafrSiz", "5"),
+            ("dieHt", ".3"), ("dieWid", ".25"), ("wfUnits", "1"), ("centerX", "23"), ("centerY", "19"),
+        ] {
+            assert_eq!(r.meta.get(key), Some(want), "{key}");
+        }
+        let w = &r.wafers[0];
+        assert_eq!(w.part_count, Some(492));
+        assert_eq!(w.good_count, Some(470), "GOOD_CNT is field 8, after RTST_CNT and ABRT_CNT");
+        let field = |k: &str| w.fields.iter().find(|f| f.key == k).map(|f| f.value.clone());
+        assert_eq!(field("fabWaferId").as_deref(), Some("MOS-4"));
+        assert_eq!(field("frameId").as_deref(), Some("F54"));
+        assert_eq!(field("maskId").as_deref(), Some("S3-1"));
+    }
+
+    #[test]
+    fn concatenated_lots_label_each_wafer_with_its_own_lot() {
+        let die = pir(1,1) + &prr(1,1,0,0,1,1);
+        let second = format!("{}{}{}{}", mir_full().replace("LOT-01", "LOT-02"), wir("W1"), die, wrr("W1", 4, 3));
+        let text = one_wafer("W1", &die) + &second;
+        for r in [
+            parse_atdf_str(&text, None).unwrap(),
+            parse_atdf_str(&text, Some(&std::collections::HashSet::new())).unwrap(),
+        ] {
+            assert_eq!(r.wafers.len(), 2);
+            let lot = |i: usize| r.wafers[i].fields.iter()
+                .find(|f| f.key == "lotId").map(|f| f.value.clone());
+            assert_eq!(lot(0).as_deref(), Some("LOT-01"));
+            assert_eq!(lot(1).as_deref(), Some("LOT-02"));
+            assert_eq!(r.meta.get("partType"), Some("WIDGET"));
+            assert_eq!(r.meta.get("lotId"), None);
+            assert!(r.warnings.iter().any(|w| w.contains("2 lot records")));
+        }
     }
 
     #[test]
@@ -1192,9 +1259,9 @@ mod tests {
         // so an hour-of-day comparison would pick the wrong pair.
         let text = format!(
             "{}{}\
-             WIR:1|09:00:00 02-FEB-2026|1|W01\nWRR:1|10:00:00 02-FEB-2026|1|W01|1|0|1\n\
-             WIR:1|23:00:00 01-FEB-2026|1|W02\nWRR:1|23:30:00 01-FEB-2026|1|W02|1|0|1\n\
-             WIR:1|11:00:00 03-FEB-2026|1|W03\nWRR:1|12:00:00 03-FEB-2026|1|W03|1|0|1\n",
+             WIR:1|09:00:00 02-FEB-2026|1|W01\nWRR:1|10:00:00 02-FEB-2026|1|W01|1||0|1\n\
+             WIR:1|23:00:00 01-FEB-2026|1|W02\nWRR:1|23:30:00 01-FEB-2026|1|W02|1||0|1\n\
+             WIR:1|11:00:00 03-FEB-2026|1|W03\nWRR:1|12:00:00 03-FEB-2026|1|W03|1||0|1\n",
             far(), mir_full(),
         );
         let meta = parse_atdf_file_meta(text.as_bytes()).unwrap();

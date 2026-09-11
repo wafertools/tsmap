@@ -4,6 +4,7 @@
 import { escapeHtml as esc, testNumberForColumn } from './lib';
 import { upgradeTitleTooltips } from './tooltip';
 import { parseBinDefsFile, type BinDefEntry } from './binDefs';
+import { storageKey } from './storageKeys';
 
 export interface CsvTestCol {
   col: string;
@@ -143,7 +144,7 @@ export function detectRole(col: string, sample: Record<string, string>[]): ColRo
 
 // ── localStorage persistence ──────────────────────────────────────────────────
 
-const LS_KEY = 'tsmap:csv-mappings';
+const LS_KEY = storageKey('tsmap:csv-mappings');
 
 function fingerprintHeaders(headers: string[]): string {
   return [...headers].sort().join('\x00');

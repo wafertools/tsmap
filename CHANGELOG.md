@@ -4,10 +4,451 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
-## [Unreleased]
+## [0.1.34] — 2026-09-11
 
-### Fixed
+### Added
 
+- **STDF V4-2007 files say which revision they are.** The V4-2007 Version Update Record
+  (VUR) is now read, and its `UPD_NAM` (e.g. `V4-2007`) appears as the file-level field
+  **STDF revision** (`updNam`; `metadata.ts`). V4-2007 files already loaded — records only
+  that revision defines (PSR, NMR, CNR, SSR, SCR, STR) are skipped — but nothing showed a
+  file was one. VUR precedes the MIR, so the file-filter scan keeps it apart from the MIR's
+  fields instead of letting them overwrite it (`parse_stdf.rs`). Part of the
+  `@wafertools/testdata-parser` bump noted under Fixed.
+- **Files holding several lots, temperatures or test programs load as they should.** Before this,
+  a CSV/JSON/Parquet table was keyed on wafer ID alone: two lots' W01 merged into one wafer, the
+  whole file took its metadata from the first row, and in long format a second pass of the same
+  wafer silently overwrote the first. Now (in the parser's new `flat_wafers.rs`) a wafer is
+  identified by lot + wafer ID; mapped metadata is recorded per wafer, with values every wafer
+  shares kept at file level; a column whose value changes within a wafer is dropped from the
+  wafer's properties, and the log says so; and a wafer that appears more than once becomes one map per
+  pass when a mapped column tells the passes apart (otherwise retests, as before, and the log
+  says which). A concatenated STDF/ATDF stream with several lot records (MIR) now labels each
+  wafer with its own lot instead of the last one (`LotRecords` in the parser's `types.rs`). URL
+  loads accept `zip` (`--url-format zip`, `dataFormat=zip`), which is the recommended way to
+  return several STDF/ATDF lots from one URL; the integration guide says so. Card labels for
+  wafers that still share an ID after the lot is added now use a per-wafer field that differs
+  (`W01 · Temperature 85`) before falling back to file name and load order. **Needs a
+  `@wafertools/testdata-parser` version bump and publish before release** (developed via
+  `parser:link`).
+- **Wafer map colour choices are remembered, and bin definitions files can set bin colours.**
+  Whatever is picked in a map's Colour scheme menu — bin colours, value colours, and whether
+  bin-definition colours are used — now carries over to the next file and the next start
+  (`src/mapColorPrefs.ts`, stored as `tsmap:map-colors`, listed in Reset settings as *Wafer map
+  colours*). A saved scheme that is no longer registered is dropped on load rather than leaving the
+  menu with nothing ticked. Bin definitions files gain an optional `color` column (`#rgb` or
+  `#rrggbb`; `colour` and `hex` accepted as the header), carried through Save, Load, the template and
+  multi-file merges — where a later file's HBR record, which never has a colour, no longer strips one
+  an earlier bin definitions file supplied. Built on wmap's split `binColorScheme` /
+  `valueColorScheme` and its reworked bin palettes (unpublished; tsmap is linked — WMAP_ISSUES.md
+  #52). Before that wmap had one `colorScheme` that it reset on every switch into a bin mode, so no
+  choice could be persisted honestly.
+- **The docs site gained a light/dark theme, and most of Markdown.** Zensical bumped
+  0.0.51 → 0.0.60 in `requirements.txt`, and the config now uses what it offers.
+  The find that prompted it: **declaring any `[project.markdown_extensions.*]` section replaces
+  Zensical's default set wholesale rather than merging into it.** Setting only `toc` and
+  `pymdownx.highlight` had been silently switching off `admonition`, `abbr`, `def_list`,
+  `attr_list`, `tasklist`, `mark`, `caret` and `tilde` for the life of the site, with nothing to
+  report it — unsupported syntax renders as ordinary paragraph text, which reads as a choice
+  rather than a fault. The full set is now listed explicitly with the trap written down beside
+  it. Same change in wafermap and the org site, which had the same config shape.
+  New: a **light/dark/system palette toggle in the header** (the site was light-only, for an app
+  that ships sixteen themes), plus `toc.follow`, `navigation.top`, `navigation.tracking`,
+  `navigation.footer`, `search.highlight`/`share`, `content.code.annotate`/`select`,
+  `content.tabs.link` — useful here specifically, since these docs split desktop vs browser
+  constantly and linked tabs let a reader choose once — and `content.tooltips` fed by a shared
+  `includes/abbreviations.md` of domain terms (STDF, PTR, HBR/SBR, Cpk), so an unfamiliar
+  acronym explains itself where it appears instead of sending the reader to a glossary.
+  Verified in a real browser, and checked that the newly-enabled `smartsymbols` did not mangle
+  any CLI flag: `--tests`, `--splits`, `--wafer-diameter`, `--edge-exclusion` and
+  `--url-headers` all survive as written.
+- **`Lot ▾` is now `Setup ▾`, grouped, and its two overlapping test entries are one.** The
+  button named a noun and delivered a settings menu: nothing in it was lot-scoped in any
+  consistent way — diameter and edge exclusion persist across lots, test definitions apply per
+  file, splits are per wafer — and a user looking for lot *information* (ID, yield, wafer count)
+  would reasonably try it and find none, since that lives in the Summary panel. Its tooltip also
+  advertised "the lot-wide die list", which has not been in that menu since the die list moved
+  into the Summary panel. Renamed, retooltipped, and grouped under `TESTS & BINS` / `WAFERS` /
+  `ANALYSIS`, because no single word can describe six unrelated dialogs — the headers do the
+  work the label cannot.
+  **`Filter tests…` and `Test definitions…` collapse into one `Tests…`.** They read and wrote
+  the same file, applied the same overrides, and differed only in whether the files were
+  re-parsed — a consequence of what you changed, not a choice worth putting to a user. The
+  selector already re-parsed *only when the selection widens*, so the lightweight dialog's one
+  advantage had already gone. Its confirm button now reads **Apply to N tests →** when reopened
+  over an existing lot, rather than describing an "Import" that isn't happening.
+  Two things were repaired in the process, both of which had been invisible: the reopened
+  selector had never been given the recently-used-definitions list (only the first-load selector
+  and the Lot dialogs had it), so the screen a returning user reaches most often was the one
+  without it; and the **collision guard lived only in the dialog being deleted**. A test number
+  the loaded files disagree about cannot honestly take one name or unit, and the surviving path
+  applied overrides with no such check — so folding the dialogs in would have silently removed a
+  correctness protection. It now guards the merged path, refusing per test number, naming them
+  in the log, and still applying the rest (limits remain deliberately un-refused: stating the
+  spec resolves the ambiguity rather than hiding it).
+  Bin definitions stay save/load-only. The asymmetry is now explicit rather than accidental, and
+  the reasoning — plus what a bin editor would have to get right about pass flags — is recorded
+  in `IDEAS.md`.
+  The What's New entry dated 2026-08-28 names `Lot ▾` twice (bin definitions, and diameter &
+  edge exclusion); it now carries a dated forward note pointing at the new paths, rather than
+  being rewritten — it remains a correct record of what shipped then.
+  **Help → Definitions file formats… was audited against the new structure** and had two stale
+  descriptions. One was self-inflicted by the rename: it read "see Setup ▾ → Tests… and the
+  test selector's Save/Load list", pointing at the same place twice as though they were two
+  things — the exact confusion the merge removed, reintroduced in the text describing it. The
+  other predated all of this: "Save/Load **list**" was the wording from before 0.1.33 renamed
+  those buttons to Save/Load **definitions**, and had survived in three code comments too
+  because nothing ties that dialog's prose to the UI it describes.
+- **Dropping a folder on the web build now explains itself instead of failing a parse.** A
+  dropped folder arrives in `dataTransfer.files` as a single zero-byte entry named after the
+  directory, which went straight to the parser — the same silent nonsense the desktop build had
+  until 0.1.33, where a dropped directory path was wrapped as a `FileHandle` and sent to be
+  parsed. The desktop can walk a folder and does; a browser is handed a dropped item's
+  *contents* and never its location, so there is nothing there to walk. It now says
+  "a browser cannot read a dropped folder. Drop the files inside it, or use Scan a folder…",
+  which is the actionable version — a parse error for "EDGE-LOT-01" tells the user nothing about
+  why. Files dropped alongside a folder still load; only the folder is skipped, and the message
+  says how many were loaded.
+  Detection reads `webkitGetAsEntry()` off `dataTransfer.items` **before the first await**, since
+  that list is only valid while the event is dispatched. Verified both paths in a browser
+  (folder alone, and folder + file together).
+- **Drag and drop is advertised again — and on a default desktop install, for the first time.**
+  It was mentioned in exactly one place, the toolbar's "or drop a file anywhere" hint, which a
+  `max-width: 1100px` rule hides so the right-hand controls never scroll out of view. The desktop
+  window opens **1000px** wide (`tauri.conf.json`), so on a fresh install that single mention was
+  below the breakpoint and invisible, and the empty state said nothing about dropping at all —
+  a feature both builds support, unadvertised by default. Verified in a browser at both widths.
+  The empty state now reads "or drag files anywhere in this window", which is the right home: it
+  is the moment the user needs to know and it has room, whereas the toolbar legitimately sheds
+  decorative text when cramped. The toolbar hint stays on as the reminder once data is loaded and
+  the empty state is gone.
+  The wording says **files** deliberately. Dropping a *folder* is desktop-only — it needs
+  `platform.isDirectory`, which the web platform does not implement — and "Scan a folder…" sits
+  directly below it on both builds.
+- **Recent files moved into `Open files ▾`, and the standalone Recent button is gone.** The
+  same control was answering two different questions: in the toolbar the caret meant "how do I
+  pick?" (Choose files… / Scan a folder…), while the identical caret on `Load definitions ▾`
+  meant "which remembered file, or pick one?". Recents are a third way to answer *which file* —
+  the question the caret exists for, per the split button's own rationale in 0.1.33 — so they
+  now sit under Open ▾ beneath the two picking actions, under a `RECENT` header, all eight
+  entries with their timestamps and × remove buttons intact.
+  Deliberately **only** under Open: reopening a recent replaces the current data, so offering
+  them under `Add files ▾` would promise an append-from-recent that does not exist. The start
+  screen keeps its own list, which is doing a different job — prominence when nothing is
+  loaded, not a menu. Net effect is one fewer toolbar button (7 → 6), against the overflow
+  pressure `IDEAS.md` has been tracking, and one idiom for both menus: actions first, then a
+  labelled list of remembered items.
+  The trade is that recents are one click deeper once data is loaded. Judged worth it: the
+  caret is where you already go to open something, and the alternative — keeping the button
+  *and* adding the list — is two routes to one thing, which is how they drift apart.
+- **About tsmap… now names the wafer map engine underneath.** A new **Engine** row reads
+  `wafermap 0.28.0`, taken from the bundle itself (wmap's newly public `WMAP_VERSION` /
+  `WMAP_BUILD_TIME`) rather than read from a `package.json`. Those are different
+  things whenever tsmap is linked to a local wmap checkout, and the one worth reporting is the
+  build that actually drew the map. Until now the numbers only reached a console line, which is
+  not an answer you can give a user asking why a map looks wrong.
+  The row is deliberately terse: labelled *Engine* so the value does not restate the label, and
+  with no second build date, since two rows each ending "· built <date>" read as repetition and a
+  published version is immutable anyway. The exact build timestamp is on hover, which is where a
+  developer's question — telling a local build apart from the release — belongs.
+  **Requires wafermap ≥ 0.28.0** — the export is new there — so this release must follow that
+  publish and pin it.
+- **Help menu reordered: About tsmap… is last, as it is in every other application.** On desktop
+  it was not — *File associations…* came after it. The cause is visible in the source: the
+  two-line comment explaining why file associations are desktop-only had the About row inserted
+  *between its halves*, so About was appended at some point with no attention to ordering and
+  left a mangled comment behind. Now: User guide, Definitions file formats…, File associations…
+  (desktop), Reset saved settings…, then a separator, then About.
+  **File associations stays in Help rather than moving to `Setup ▾`**, and the reason is now
+  written down beside it: Setup is hidden until a file is open, and associating file types is
+  precisely what you do straight after installing with nothing loaded. It is also about how the
+  machine treats tsmap, not about the data in front of you — the same reachability argument that
+  keeps *Definitions file formats…* and *Reset saved settings…* in this menu.
+- **wmap's Overlays and Orientation menus gained undo actions, and "Mark failing dies" moved
+  into Overlays** — inherited from wafermap, no tsmap change needed beyond re-recording the
+  surface snapshot. Orientation's **Reset** is the one worth telling users about: rotation and
+  mirroring do not combine in the order you applied them, so clicking back is unreliable where
+  Reset is exact.
+- **`scripts/ui-surface.mjs` (new) records the whole interactive surface to a committed text
+  file**, so a UI change shows up as a diff and the surface can be read end to end. `npm run
+  ui:surface` regenerates `docs/ui-surface.txt`; `npm run ui:surface:check` fails when it moved
+  without being re-recorded. wafermap has the same script for its own three scenes.
+  Every other check in this repo asks whether the UI is built *correctly* — one shared button
+  class, values on the scale, contrast on every ground. None asked what it *says*, or whether the
+  surface reads sensibly as a whole, and that is where this session's defects lived: a tooltip
+  advertising a die list that had moved, a dialog describing buttons renamed two releases
+  earlier, two menu entries doing the same thing, About sitting mid-menu. Each was found by a
+  person opening a menu and reading it; none was findable by any check in either repo, because
+  labels, hints and ordering are data nothing looked at.
+  It records rather than asserts — an assertion would be a second copy of the design with its own
+  maintenance. It walks two scenes (start screen, sample lot loaded), opens every menu, and opens
+  the six Setup ▾/Help dialogs by the menu row that reaches them, so a renamed row surfaces as a
+  failure to open rather than a section quietly vanishing. Repeated per-card chrome collapses to
+  one line with a count, or a 13-wafer gallery would bury every real change. Not wired into
+  `npm run check`: it needs a browser and a built `dist/`, the same reason `screenshots` is a
+  local command.
+- **Saved splits could be applied to the wrong lot.** The key identifying "this set of wafers"
+  was `lotId + partType + waferId` per wafer, concatenated with nothing between the fields and
+  joined between wafers with a space. Three ways that collided, all reproduced before fixing:
+  - **No lot ID at all** — the key degenerated to the wafer IDs alone, so two unrelated files
+    both containing W01–W03 (the ordinary case for a CSV export with no lot column) were
+    indistinguishable, and the second silently inherited the first's splits: every chart
+    grouping, map title and report relabelled from data it knew nothing about.
+  - **Ambiguous field boundaries** — `lot=AB part=C` and `lot=A part=BC` both produced `ABC01`.
+  - **A space in a lot ID** — `LOT 1` blurred the boundary between one wafer's token and the
+    next, since wafers were space-joined.
+
+  Fields are now separated by NUL and wafers by newline, neither of which can occur in an ID
+  from any parser. And **without a lot ID on every wafer the identity is refused outright**:
+  `splitsFingerprint` returns `null`, nothing is saved or restored, and the Splits dialog footer
+  says so instead of promising it — assignments still apply to what is loaded and **Save
+  splits…** still writes a CSV. A convenience is not worth relabelling someone else's lot, and
+  "detectable, because the restore opens the dialog" is weaker than "cannot happen". Requiring a
+  lot ID on *every* wafer, not just one, is deliberate: a multi-file load can mix a labelled STDF
+  with an unlabelled CSV, and a key covering only the identifiable half would still match wrongly.
+  An entry written by an older build is migrated to the new key shape on first load, so nobody
+  appears to have lost splits they assigned; where the new key is refused, the old unreachable
+  entry is pruned rather than left for **Reset saved settings…** to report as stored.
+  Six new tests cover each collision and each refusal. The replaced test had only asserted the
+  no-lot-ID fallback did not *throw* — never that it was safe.
+- **Clearing all splits no longer leaves an empty record behind.** "Clear all" in the Splits
+  dialog routes through the same persistence as assigning, so it wrote `{ <lot fingerprint>: {} }`
+  rather than removing the entry. Harmless until **Help → Reset saved settings…** existed — that
+  dialog lists only what is *actually* stored, so it would have reported "Wafer split
+  assignments" to someone who had just cleared them, which is precisely the kind of thing a
+  dialog about what the app remembers must not get wrong. Empty records are now deleted, and the
+  key is removed entirely once nothing is left. Verified in the browser build: the key is present
+  after the sample lot seeds its splits and gone after Clear all.
+  The Splits dialog also now states the persistence model on its own footer — "Changes apply
+  immediately, and are remembered for this lot on this machine — including clearing them" —
+  since nothing previously said that clearing was itself remembered.
+- **One registry for every saved preference, and a way to reset them.** tsmap's persisted
+  settings had accumulated one feature at a time into eight keys with three different separators
+  (`tsmap-theme`, `tsmap.fileFilter.lastCriteria`, `tsmap:csv-mappings`) and no list of them
+  anywhere. The practical cost was not untidiness: with nothing enumerating the set, there was no
+  way to tell a user what the app remembers about them, and **no way to undo any of it** — a
+  wrong saved column mapping was reapplied on every load of that layout, with devtools as the
+  only remedy, and none at all on a locked-down machine.
+  `src/storageKeys.ts` now names all eight in one scheme, with a label and a plain-language
+  description each. The three odd names are **migrated, not renamed** — renaming would have read
+  as the user's settings being silently wiped, since the new key reads empty while the old value
+  sits there unreachable. Migration runs lazily on the first `storageKey()` call, which every
+  consumer makes at module init, so the before-first-read ordering holds without `main.ts` having
+  to remember to call anything.
+  **Help → Reset saved settings…** (`src/resetSettingsUI.ts`) lists what is *actually* stored
+  rather than everything that could be — eight rows where six are empty would imply the app holds
+  far more than it does — says what each one means, and forgets only what is ticked.
+  Also documented for users, in the guide's new "What tsmap remembers, and how to forget it".
+  15 new tests cover the registry's own integrity (no duplicate or colliding keys, every item
+  describable), the migration in both directions, and clearing. One existing test was found
+  passing for the wrong reason: `recentFiles.test.ts` wrote its corrupt-storage fixtures to the
+  pre-registry key, so it had been exercising an empty store rather than the guard — corrected,
+  and confirmed to fail when the guard is removed.
+- **Recently used definitions files, offered behind a caret on "Load definitions".** Anyone
+  following a product or test-program series reloads the same test-definitions file for every
+  dataset, and was walking the file picker each time to find it. The button is now a split
+  button — the verb stays on it, the caret lists the definitions files you have recently loaded
+  **or saved** — matching the `Open files ▾` pattern from 0.1.33. It is wired into the test
+  selector overlay and into `Lot ▾ → Test definitions… / Bin definitions…`, and the wafer-splits
+  dialog feeds the same store; each kind keeps its own list, so a bin file is never offered where
+  a test file belongs.
+  Deliberately **not** modelled on `recentFiles.ts`, which is desktop-only because a wafer file
+  can be hundreds of megabytes and a web `File` carries no path to reopen it by. Neither holds
+  here: a definitions CSV is kilobytes and `pickTextFile` already returned its content on both
+  platforms, so this stores the content and **works in the browser build too** — which is what
+  RHEL users and anyone self-hosting on an intranet actually run.
+  The path is stored as well when there is one, and on desktop it wins: a remembered copy of
+  limits that have since been edited would be drawn across a real measurement as though it were
+  current, which is the silent-wrong failure this codebase exists to avoid. So the file on disk
+  is re-read when it still resolves, a difference is reported rather than absorbed, and the
+  cached copy is the fallback for a moved or unmounted file — announced, not silent. The browser
+  has no path and says so in the row's own tooltip rather than implying a freshness it cannot
+  offer.
+  `platform.saveTextFile` now reports what it wrote (`{ name, path? }`, or null if cancelled) so
+  a file you just saved is remembered too; the popup lives in one shared
+  `recentDefinitionsUI.ts` rather than being built at each of the two call sites, which
+  `check-clones` would otherwise have started flagging.
+  **On the browser half, the staleness is framed rather than left implicit.** A browser picker
+  hands over a file's contents and never its location, so a remembered entry there is the copy
+  taken at pick time and nothing can check it against the file since. That is fine for a
+  selection or a set of renames and *not* fine for spec limits, which decide what reads as out
+  of spec and what the capability numbers are — a superseded copy produces results that look
+  entirely normal and are wrong. So: the menu states it once above the list ("Saved copies — the
+  original files are not re-read"), each row dates its copy rather than implying freshness, and
+  applying one logs what happened — at **warning** level, naming the file and its age, when the
+  file actually sets limits, and quietly at info level when it does not. The guide explains the
+  difference and says plainly to re-pick through "Choose a file…" if the file may have moved on.
+  Sizing was also corrected before release: the per-file cap was 256 KB, which across 6 entries
+  and 3 kinds *permitted* ~9 MB of a ~5 MB localStorage budget once UTF-16 is counted. Since
+  localStorage throws rather than evicting, the casualty would not have been this list but
+  whatever saved next — a user's splits or column mapping silently ceasing to persist. Now 32 KB
+  per file (still ~50x a real one) under a 192 KB total budget, trimmed oldest-first across all
+  kinds.
+- **Releases now ship `tsmap-<version>-web.zip` — the browser build, packaged for self-hosting.**
+  A new `web-bundle` job in `.github/workflows/build.yml` builds the web app and uploads it into
+  the same release as the desktop installers, with a `README.txt` covering the whole procedure.
+  No application change was needed: vite already emits the web build with `base: './'`, so the
+  bundle is relative-path and runs from any subdirectory — verified end to end by unpacking the
+  zip into `/tools/tsmap/` on a plain static server, where it loaded the sample lot, parsed it
+  through WASM and rendered all 13 wafers with **zero external origins requested**.
+  This is not a convenience copy of the hosted app. There is no service worker in the bundle,
+  so "works offline" on the Pages version rests entirely on HTTP cache — a hard refresh, an
+  evicted cache or a fresh browser profile all send it back to `github.io`, which a site with no
+  external internet cannot reach even once. Self-hosting is therefore the only dependable
+  browser-based offline option, and the only one for sites that will not let lot data reach an
+  external origin at all.
+  Surfaced where that audience actually arrives: a "Host it yourself" section on the docs
+  landing page, a pointer under the README's download line, a row in the release notes'
+  "Which download do I need?" table, and the two deployment failure modes (wrong `.wasm`
+  MIME type, `file://`) as troubleshooting entries.
+- **`docs/tutorial.md` (new)** — "Analyse your first wafer lot", a guided ~10-minute walk
+  through the bundled `PVT-LOT-05` corner lot: load the sample, import its tests, read the lot
+  summary, re-sort the wafer-yield list, and discover that the two worst wafers are both the
+  **SS** corner while the two best are both **TT** — a real process-corner effect that slot
+  order (the default) hides. Then hard vs soft bin, Insights grouped by Split, and one export.
+  Every step, control name and number in it was taken from driving the actual app, not from
+  reading the source: the yield ranking, the 4 findings, and the pre-ticked 7-test selector are
+  what the app really produces.
+- **`docs/troubleshooting.md` (new)** — a symptom-first page covering installation (unsigned
+  installers on Windows/macOS, the Apple Silicon "damaged" quarantine case), loading and
+  parsing, definitions files, geometry, yield, opening data from a link, and desktop-only
+  features. Every entry follows symptom → cause → fix → confirm, and each one is drawn from a
+  message tsmap actually emits or a documented behaviour, not from guesswork: the withheld
+  spec-yield entry describes the real per-file pass-bin rule, and the memory entry quotes the
+  selector's actual amber/red thresholds. Linked from the landing page and the nav; wafermap
+  has had an equivalent page for some time and this closes the gap on the tsmap side.
+- `scripts/check-doc-links.mjs` (new, wired into `npm run check:docs`) resolves every internal
+  documentation link and fails on a dead one. Zensical has no link validation and no redirect
+  map, so a wrong anchor is silent: the browser lands at the top of the page and nothing in the
+  build says a word. It checks that link targets exist, that every `#anchor` names a heading the
+  Markdown really produces (using Python-Markdown's slug algorithm, the one Zensical runs), that
+  no two headings in a page slugify to the same id, and that every `zensical.toml` nav entry
+  resolves — including the pretty-URL form (`../user-guide/`) the hand-written demo pages use.
+  Shared with wafermap, which carries the same script; `check-drift.mjs` watches the two copies.
+- `scripts/check-theme-contrast.mjs`, wired into `check:docs` — fails the build when any theme's
+  `--accent` drops below AA as text on one of its own grounds, so a retuned or newly added theme
+  cannot ship unmeasured. It deliberately also reads Auto's light half out of its media query:
+  that block is invisible to a `[data-theme]` sweep, and is exactly where one of the five
+  failures was hiding.
+
+### Changed
+
+- **The file filter hides columns with nothing to show, and counts Parquet wafers.** Its columns
+  are a union over unlike files — STDF header fields beside CSV/JSON/Parquet files that carry
+  none — so showing one kind left most columns blank. `buildFilterTable`'s new `hideEmptyColumns`
+  hides any column blank in every row currently shown, re-judged as the filter or search
+  changes; a column with an active filter is never hidden, and Columns ▾ marks the hidden ones
+  "(blank in every row shown)". It replaces the dialog's own "only if some file has a value"
+  rule for Tested/Wafers/Sites rather than sitting beside it. Parquet files now fill **Wafers**:
+  the parser's new `parquet_distinct_count` counts distinct (lot, wafer) pairs — how a load
+  identifies a wafer — reading only those columns (a projection), wired through the WASM
+  binding, the Tauri command and `Platform.parquetDistinctCount`. CSV/JSON get no wafer count,
+  since it would mean reading every byte during a header scan. The three copies of the Parquet
+  gz-or-plain open branch are now one `with_path_reader!` macro, and `platform.ts` takes the
+  worker's `ParserOp` list instead of restating it. **Needs a `@wafertools/testdata-parser`
+  bump and publish before release** (the web build uses the new WASM function).
+- **The file filter's "Reapplied your last filter" notice goes when that filter does.** It stayed
+  after Clear filters. It now clears as soon as the reapplied filter is no longer fully in
+  effect, but not when the kind buttons only add a Format filter on top. It also names columns
+  by their labels ("Format", "Lot") rather than keys ("format", "lotId").
+- **The file filter chooses the kind of file in one click.** When a scan holds more than one
+  format family, buttons above the table — *All* plus one per family with its file count, e.g.
+  **STDF/ATDF (24) · CSV (3)** — show just that kind, and the dialog opens on the most common,
+  since a mixed selection cannot load. They set the Format column's own filter rather than
+  keeping a second one, so the column menu, Clear filters, Save filter… and the remembered
+  filter stay in step; `buildFilterTable` gained an `onFilterChange` callback (fired by the
+  column menus, Clear filters and `applyCriteria`) for that. The segmented-toggle shape moved
+  into `toggleGroup.ts`, now shared with the test selector's All / Parametric / Functional
+  filter, which was its only copy, and the group carries an accessible name.
+- **STDF and ATDF files load together.** The same-format rule (`checkSameExtension`, shared by
+  Open/Add files and the file filter) now compares format families (`formatFamily` in
+  `lib.ts`): STDF and ATDF are one — the same records in binary and text, dispatched per file
+  to parsers returning the same shape — while CSV/JSON/Parquet each stay on their own, since a
+  load applies one column mapping. The load and the test re-selection re-parse already chose
+  the parser per file; the one path that did not was the test-list scan, which picked it once
+  from the largest file (`currentBinaryExt`, now removed) — so "scan all files" on a mixed zip
+  ran the STDF scanner over its ATDF files and dropped their tests with a warning. That is
+  fixed, and the three inline copies of the STDF/ATDF extension test in `main.ts` and the file
+  filter now use `isTesterExt`/`isAtdfExt`.
+- **The file filter table leads with what decides which files you want.** Columns now run
+  Name · Lot · Wafers · Tested · Modified · the other lot fields · Sites · Size · Format, where
+  before they followed the code's construction order (file-system columns first, lot fields
+  alphabetically by raw key, counts last). Lot fields use the facet table's plain-language
+  labels and order (`labelFor`/`orderFieldKeys` in `metadata.ts`, the ordering now shared
+  with `buildFacetTable`), so the dialog shows "Part type" and "Program" rather than
+  `partType` and `jobName`. **Earliest start** and **Latest finish** are replaced by one
+  **Tested** column — the earliest wafer start (WIR START_T), else the lot start (MIR START_T),
+  shown as a local date and sorted as one — since the two sat beside a raw `startT` column
+  carrying nearly the same value. Tested, Wafers and Sites each appear only when some file has
+  a value: a wafer count alone used to bring in both time columns, blank in every row whenever
+  the tester recorded no wafer times, as in every bundled sample. `generate_sample_files.py`
+  now writes wafer start/finish times (the bundled samples are not yet regenerated from it).
+- **The file filter table is leaner.** For CSV/JSON/Parquet files, columns the column-mapping
+  auto-detection (`detectRole`) recognises as per-die or per-wafer — `x`, `y`, `hbin`, `sbin`,
+  site, wafer ID, and long-format test name/number/value/limits/units — are no longer offered
+  as file metadata. Before, a column was judged only from its first five rows, which often
+  agree (one die row shares a `y`), so files showed things like `hbin = 2`, `y = 8`, and a
+  file holding W01–W10 showed wafer `W01`. A flat file's lot column (`lot`, `LOT_ID`, …) now
+  shares the STDF/ATDF `lotId` column — the key the parser gives it on load — instead of
+  forming a second lot column, so a mixed scan shows every file's lot in one place.
+  `sample_data/COORDLESS-LOT-01.stdf` is regenerated: its generator
+  (`scripts/generate_stdf_coordinateless.py`) wrote 12 stray bytes into the MIR ahead of
+  `LOT_ID` and put `JOB_NAM` in the wrong slot, so its lot read as blank. Die data is
+  unchanged (the generator is seeded). Metadata columns that no
+  file gives a real value for — blank everywhere, or "(varies)" in every file that has them —
+  are dropped too (`fileFilterUI.ts`); a column filled in only some files is kept. The checkbox column is gone:
+  the row highlight is the selection indicator, rows take keyboard focus in a `role="grid"`
+  with `aria-selected`, and Space toggles the focused row. Selection behaviour is unchanged — a
+  click still adds or removes a row, as in the test selector and splits dialog, so a selection
+  can still be built across several searches. The right-click cell menu is removed; filter from
+  the **▾** in the column heading. `UI_STANDARDS.md` notes the checkbox-free variant.
+- **"Lot" now means a lot.** With wafers from several lots loaded (or none recording a lot ID),
+  tsmap's own text no longer calls them "this lot": the Setup menu hints read "every loaded
+  wafer" / "The loaded wafers have no test values to analyse", the pass-bin collision warning
+  speaks of "any yield figure pooled across these files", and the diameter dialog asks you to
+  check the saved value "still suits the data now loaded". wmap's summary panel, findings and
+  reports make the same distinction (WMAP_ISSUES.md #52's batch): *Lot PVT-LOT-05 · 13 wafers*
+  for one lot, *26 wafers from 2 lots* otherwise. Tutorial, use-cases and troubleshooting text
+  updated to match.
+- **`docs/use-cases.md` is now four executable procedures rather than four descriptions.** Each
+  gains "Use this when", what it needs, numbered steps, what you should see, how to read the
+  result, and where to go next. The correlation workflow in particular now says how to reach
+  the matrix, quotes the thresholds it prints for itself (|r| ≥ 0.7 strong, 0.4–0.7 moderate),
+  and warns about the two ways to misread it — treating *r* as causation, and pooling wafers
+  whose different offsets manufacture a trend that vanishes per wafer. Steps and control names
+  were checked against the running app, which corrected two: the Lot menu row is "Splits…",
+  and `--tests` only *pre-fills* the test selector — the overlay still appears and still needs
+  a confirm click, so the previous "no dialogs" framing was wrong.
+
+- **The bundle identifier is now `com.wafertools.tsmap`** (was `com.paul.tsmap`, which predated
+  the move to the wafertools org). Every platform derives its per-application data directory
+  from that string, so changing it points the app at an empty one — which to an existing user
+  looks exactly like tsmap forgetting their theme, recent files, saved column mappings and
+  splits, with nothing to say why, since from the app's side it is simply a first run.
+  `src-tauri/src/migrate.rs` therefore runs **before the window is created**, while nothing is
+  holding those files open, and copies the whole legacy directory across. It copies the tree
+  rather than named files deliberately: the WebView keeps localStorage — where nearly all of
+  those settings live — in a layout that is its own business, and copying wholesale carries it
+  without this code needing to understand it. It never writes into a directory that already has
+  contents (that would overwrite newer settings with older), leaves the original in place, and
+  is idempotent; a failure is best-effort and never blocks startup. Eight tests cover it.
+  File associations are unaffected — `file_associations.rs` registers under `tsmap.<ext>` and a
+  `tsmap` desktop entry, not the identifier.
+  **Needs confirming on a real packaged build of each platform before release** — the migration
+  is unit-tested, but nothing here can exercise an actual WebView store moving between two
+  identifiers. Note also that on Windows and macOS a changed identifier means the installer may
+  place the new version alongside the old rather than upgrading it.
+
+- **`docs/web.md`'s "Offline use: Yes (once loaded)" overstated the hosted app.** With no
+  service worker, that depends entirely on the browser's cache surviving. The row now says what
+  it actually rests on and points at the self-hosted bundle for a dependable offline install.
+- **`docs/web.md` claimed the test selector only appears above 200 tests.** It appears for
+  every STDF/ATDF load — the overlay *is* the import step. What the size actually decides is
+  whether the tests arrive pre-ticked (`AUTOSELECT_CELL_BUDGET`, on tests × dies, not test
+  count). Found by driving the app for the new tutorial, where a 7-test lot raised the overlay
+  the docs said it would skip. `docs/user-guide.md` had it right all along ("tsmap always shows
+  a test selector overlay"), so the two pages had been contradicting each other; the same stale
+  ">200" claim in `scripts/capture-definitions.mjs`'s header comment is corrected too.
 - **Four themes' accent colour failed WCAG AA as text on their own surfaces.** `--accent` is a
   text colour (`.tb-btn:hover`, `.btn-row:hover`, `.btn-chip:hover`, `.btn-secondary:hover`,
   `.btn-caret.is-on`, `#help-btn:hover`) but is chosen for how it looks against the page, and a
@@ -17,13 +458,78 @@ technical record, including internal changes.
   the smallest distance that clears 4.5:1 everywhere it is used: `#1d6ba2`, `#65addf`,
   `#1865b4`, `#1865b4`, `#8437e8`.
 
-### Added
+### Fixed
 
-- `scripts/check-theme-contrast.mjs`, wired into `check:docs` — fails the build when any theme's
-  `--accent` drops below AA as text on one of its own grounds, so a retuned or newly added theme
-  cannot ship unmeasured. It deliberately also reads Auto's light half out of its media query:
-  that block is invisible to a `[data-theme]` sweep, and is exactly where one of the five
-  failures was hiding.
+- **STDF wafer geometry (WCR) was read 2 bytes out of place.** The STDF V4 WCR record starts
+  with the wafer size; `parse_stdf.rs` expected a head/site-group prefix that record doesn't
+  have, so a real file's wafer size, die size, flat orientation and axis directions were
+  misread. The PVT-LOT-05 generator wrote the same prefix, so its test passed; generator
+  fixed and `sample_data/PVT-LOT-05.stdf` patched in place. Its gzipped twin
+  `sample_data/sample-lot.stdf.gz` — what **Load sample data** and the desktop bundle load — was
+  missed and still carried the old layout, so the sample read as dies ~1e-8 mm wide and never
+  finished rendering (the wmap side of that hang is WMAP_ISSUES.md #53); it is now regenerated from
+  the corrected file. `wcrGeometryFrom` also ignores a WCR record whose `WF_UNITS` is outside the
+  spec's 0–4, the signature of a misread record, instead of passing its centre and notch on.
+  Also from the STDF V4 check: a
+  PTR whose option flag marks its limits *invalid in that record* (bits 4/5, "use the first
+  PTR's default") no longer has those unused bytes read as real limits — previously only the
+  "no limit" bits (6/7) were honoured. Every other STDF record the parser reads matched the
+  spec (`packages/parsers/SPEC_CONFORMANCE.md`).
+- **ATDF files are read by the ATDF specification's field order, not STDF's.** Checked
+  record by record against the Teradyne ATDF spec (V5.00.00_flx), with each order confirmed
+  against the spec's own sample records (`packages/parsers/SPEC_CONFORMANCE.md`). Three records
+  were wrong in `parse_atdf.rs`: **MIR** from field 6 on (setup/start time, operator, sublot,
+  test code, temperature, revision and exec fields all came from the wrong slots); **WRR**
+  lacked `RTST_CNT`, so the good count was read from the abort-count slot; **WCR** used the
+  STDF order plus a head/site-group prefix ATDF doesn't have, misreading wafer size, die size,
+  flat and axis directions. A new test parses the spec's sample records, because every earlier
+  test used helpers built to the same wrong layouts. The fixture generators had matching bugs:
+  `generate_sample_files.py` wrote a hardcoded five-field ATDF MIR (so every ATDF sample file
+  disagreed with its STDF twin — different job, node and tester, no operator or temperature),
+  and both it and `generate_test_suite.py` wrote PTR with one extra blank field, so ATDF test
+  names were lost and limits read from the wrong slots (test 1001 loaded as `1001`, no units,
+  high limit 0.5, instead of `leakage`, nA, 0.5–5.5). The generators are fixed and the existing
+  `.atdf` fixtures were rewritten in place (MIR, PTR and WRR lines only; die data unchanged) —
+  regenerating `testdata/` now reproduces every file byte for byte, and each sample ATDF file
+  parses identically to its STDF twin. The generators also wrote a bare `0` into ATDF WIR/WRR
+  start and finish times (STDF's "not recorded", but not a valid ATDF time), which the file
+  filter showed as start/finish `0`; those fields are now blank. **Needs a
+  `@wafertools/testdata-parser` minor bump and publish before release** (developed via
+  `parser:link`).
+- **File filter: the Sites column showed the text `null`** for a file with no site records —
+  the scan returns `null`, which the check for `undefined` let through (`fileFilterUI.ts`).
+- **Wafers sharing an ID were indistinguishable, and their saved splits could cross over.**
+  Loading or adding several lots gives each its own W01; one STDF can also hold the same wafer
+  twice (a retest pass). The gallery showed identical card headings, the Splits dialog listed
+  identical rows, and — the part that changed data — saved split assignments were keyed on the
+  bare wafer ID, so one lot's W01 split overwrote the other's on the next restore; a splits CSV
+  row `W01,TT` applied to every W01 loaded. Now: labels are unique (`LOT-A · W01`, then the file,
+  then load order `#2`) via one `waferLabels` helper; saved splits are keyed on lot + wafer ID +
+  occurrence (older bare-ID entries still restore where the ID is unambiguous, and are refused
+  where it is not); the splits CSV gains optional `lot` and `occurrence` columns — old
+  `waferId,split` files still load, and a lot-less row naming a shared ID is skipped and
+  reported instead of applied to all. The duplicate-ID warning on Add now says how the cards
+  will be told apart, and flags a duplicate only load order separates as possibly the same
+  wafer loaded twice. Also: the display label (with its lot prefix or split suffix) is no
+  longer written into wmap's wafer metadata, so reports and CSV exports carry the real wafer
+  ID again — "W01 · TT" had been recorded as a wafer ID whenever split labels were shown; and
+  wmap warnings for the second of two same-ID wafers are no longer de-duplicated out of the log.
+- **The last-used directory was never remembered on Windows, and had not been since it was
+  written.** `commands/last_dir.rs` resolved its state file as
+  `$HOME/.local/share/tsmap/last_dir`, and a normally-launched Windows GUI process does not set
+  `HOME` — it sets `USERPROFILE`. `std::env::var("HOME")` returned `Err`, the function returned
+  `None`, and the feature silently did nothing: no error, no log, the picker simply always
+  opened at the OS default. On macOS it worked but wrote to a Linux XDG path rather than
+  `~/Library/Application Support`, and on Linux it ignored `XDG_DATA_HOME` — which its sibling
+  `file_associations.rs` honours, so two files in one directory disagreed about where
+  application data lives. It now asks Tauri for the platform's own app-data directory.
+  `docs/web.md` had promised "Last used directory — Remembered between sessions" for desktop,
+  unqualified, the whole time.
+  Found by asking what actually verified desktop persistence rather than assuming it: the
+  localStorage half was fine (Recent files has depended on it since 2026-07-09 and would have
+  been visibly dead otherwise) — this, the one preference kept outside localStorage, was not.
+  Six tests now cover it, including that a remembered directory which has since been deleted or
+  unmounted is refused rather than handed to a dialog as its starting point.
 
 ## [0.1.33] — 2026-09-09
 

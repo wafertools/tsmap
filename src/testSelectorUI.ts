@@ -2,6 +2,8 @@ import type { TestDef, TestOverride } from './types';
 import { createRangeSelection } from './listSelection';
 import { ICONS } from './icons';
 import { attachTooltip } from './tooltip';
+import { buildToggleGroup } from './toggleGroup';
+import { makeLoadDefinitionsButton, type RecentLoadRow } from './recentDefinitionsUI';
 
 export interface CapacityInfo {
   /** Total dies across all files being loaded. */
@@ -32,6 +34,30 @@ export interface TestSelectorOptions {
   capacity?: CapacityInfo;
   onSave?: (entries: TestListEntry[]) => Promise<void>;
   onLoad?: () => Promise<string | null>;
+  /**
+   * Recently-used definitions files, offered behind a caret beside "Load
+   * definitions" so a user who reloads the same list for every dataset does not
+   * have to walk the file picker each time.
+   *
+   * Supplied as ready-to-run rows rather than as stored records: resolving one
+   * may need to re-read from disk and report that the file has changed, which is
+   * platform work this module has no business knowing about. It renders labels
+   * and calls `run`; `null` from `run` means "nothing loaded", exactly as
+   * `onLoad` already does for a cancelled picker.
+   */
+  recentLoads?: () => RecentLoadRow[];
+  /** Caveat shown once above the recent rows — see `note` in recentDefinitionsUI. */
+  recentNote?: string;
+  /**
+   * Confirm-button text, given the number of selected tests. Defaults to the
+   * "Import …" wording used on first load.
+   *
+   * Reopening the selector to adjust an existing lot is not an import — the data
+   * is already here, and narrowing or relabelling applies in memory without
+   * re-reading anything. Calling that "Import" described the machinery rather
+   * than the act.
+   */
+  confirmLabel?: (selectedCount: number) => string;
   /**
    * Same file format the "Load definitions" button accepts — applied once, before
    * the overlay's first render, so the selection/renames are already checked
@@ -409,7 +435,7 @@ export function showTestSelectorOverlay(
   // ── Overlay shell ─────────────────────────────────────────────────────────
 
   // z-modal: this overlay is shown both pre-render (initial load) and
-  // post-render ("Filter tests…" re-invokes it over an already-rendered
+  // post-render ("Tests…" re-invokes it over an already-rendered
   // wafer map/gallery) — it must clear wmap's own toolbar band (--wmap-z,
   // default 6000) in the post-render case, same as any other app modal
   // opened over a rendered map. See the z-index note in CLAUDE.md.
@@ -470,34 +496,21 @@ export function showTestSelectorOverlay(
     'font-size:12px',
   ].join(';');
 
-  const typeFilter = document.createElement('div');
-  typeFilter.style.cssText = 'display:flex;gap:4px';
   let activeType: 'all' | 'P' | 'F' = 'all';
-  const typeLabels: Array<['all' | 'P' | 'F', string]> = [['all', 'All'], ['P', 'Parametric'], ['F', 'Functional']];
-  const typeBtns: HTMLButtonElement[] = [];
-  for (const [val, label] of typeLabels) {
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.dataset.type = val;
-    // Marked below, once every button exists — `activeType` starts at 'all', and
-    // nothing used to reflect that until the first click, so the filter row
-    // opened with no selection shown at all.
-    btn.className = 'btn-secondary';
-    btn.setAttribute('aria-pressed', String(val === activeType));
-    btn.addEventListener('click', () => {
+  const typeFilter = buildToggleGroup<'all' | 'P' | 'F'>({
+    options: [
+      { value: 'all', label: 'All' },
+      { value: 'P', label: 'Parametric' },
+      { value: 'F', label: 'Functional' },
+    ],
+    active: activeType,
+    ariaLabel: 'Test type',
+    onChange: val => {
       activeType = val;
       setRangeMsg('');   // the reachable set just changed — the message is stale
-      typeBtns.forEach(b => {
-        const active = b.dataset.type === val;
-        b.classList.toggle('is-on', active);
-        b.setAttribute('aria-pressed', String(active));
-      });
       renderList();
-    });
-    typeBtns.push(btn);
-    btn.classList.toggle('is-on', val === activeType);
-    typeFilter.appendChild(btn);
-  }
+    },
+  }).el;
 
   controls.append(searchInput, typeFilter);
 
@@ -694,7 +707,7 @@ export function showTestSelectorOverlay(
       // is visually identical to the old static span. Committing happens on
       // blur/Enter (not per keystroke) — clearing or retyping the original
       // name removes the override so displayName() falls back to e.def.name.
-      // Lives in `testOverrides`, the same map Save list / Load list already
+      // Lives in `testOverrides`, the same map Save/Load definitions already
       // read and write, so no separate save-path wiring is needed. Merges
       // into any existing entry (rather than replacing it) so renaming a test
       // never discards a limit/type override loaded from a file on the same row.
@@ -757,7 +770,7 @@ export function showTestSelectorOverlay(
       // Values are *effective* (override-aware, like displayName()) rather than
       // the raw parsed def — the only visible confirmation that a loaded
       // limit/type override actually took effect, since there's no inline
-      // editor for these fields (Save/Load list is the whole edit workflow).
+      // editor for these fields (Save/Load definitions is the whole edit workflow).
       const eff = effectiveLimits(e.num, e.def);
 
       const limitsSpan = document.createElement('span');
@@ -920,24 +933,16 @@ export function showTestSelectorOverlay(
   }
 
   if (options.onLoad) {
-    const loadBtn = document.createElement('button');
-    loadBtn.textContent = 'Load definitions';
-    loadBtn.className = 'btn-secondary';
-    loadBtn.addEventListener('click', async () => {
-      let text: string | null;
-      try {
-        text = await options.onLoad!();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        options.onLog?.('error', `Failed to load test definitions: ${msg}`);
-        return;
-      }
-      if (text === null) return;
-      applyLoadedList(text);
-      renderList();
-      updateFooter();
-    });
-    btnRow.appendChild(loadBtn);
+    // Applying is identical however the text was obtained — picker, recent row,
+    // or the CLI's --tests preload. Only the source differs, which is what makes
+    // a recents list cheap to add here.
+    btnRow.appendChild(makeLoadDefinitionsButton({
+      pick: () => options.onLoad!(),
+      recents: options.recentLoads,
+      note: options.recentNote,
+      onText: (text) => { applyLoadedList(text); renderList(); updateFooter(); },
+      onError: (msg) => options.onLog?.('error', `Failed to load test definitions: ${msg}`),
+    }));
   }
 
   const cancelBtn = document.createElement('button');
@@ -1004,7 +1009,9 @@ export function showTestSelectorOverlay(
   function updateFooter(): void {
     const n = selected.size;
     countLabel.textContent = `${n} of ${allNums.length} tests selected`;
-    confirmBtn.textContent = n === 0 ? 'Import (bin data only) →' : `Import ${n} test${n !== 1 ? 's' : ''} →`;
+    confirmBtn.textContent = options.confirmLabel
+      ? options.confirmLabel(n)
+      : (n === 0 ? 'Import (bin data only) →' : `Import ${n} test${n !== 1 ? 's' : ''} →`);
     updateMemAdvisory();
   }
 

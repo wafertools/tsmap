@@ -91,11 +91,11 @@ def stdf_sdr():
     body = u1(1) + u1(1) + u1(1) + u1(1) + cn('') * 14
     return stdf_rec(*SDR, body)
 
-def stdf_wir(wafer_id):
-    return stdf_rec(*WIR, u1(1) + u1(255) + u4(0) + cn(wafer_id))
+def stdf_wir(wafer_id, start_t=0):
+    return stdf_rec(*WIR, u1(1) + u1(255) + u4(start_t) + cn(wafer_id))
 
-def stdf_wrr(wafer_id, part_cnt, good_cnt):
-    body = (u1(1) + u1(255) + u4(0) + u4(part_cnt) +
+def stdf_wrr(wafer_id, part_cnt, good_cnt, finish_t=0):
+    body = (u1(1) + u1(255) + u4(finish_t) + u4(part_cnt) +
             u4(0xFFFFFFFF) + u4(0xFFFFFFFF) + u4(good_cnt) + u4(0xFFFFFFFF) +
             cn(wafer_id) + cn('') + cn('') + cn('') + cn('') + cn(''))
     return stdf_rec(*WRR, body)
@@ -122,6 +122,23 @@ def stdf_ptr(tnum, site, value, passed, tname, units, lo, hi, include_limits):
             r4(value) + cn(tname) + cn('') + optional)
     return stdf_rec(*PTR, body)
 
+WAFER_MINUTES = 40  # probe slot per wafer; wafers run back to back from the lot start
+
+def wafer_times(lot_id, wafer_id, index):
+    """(start_t, finish_t) epochs for one wafer: its slot after the lot's MIR
+    start, so the file-filter dialog's Tested column has real wafer times to
+    show. The slot comes from the wafer number (W03 → third), not the position
+    in this file, so a single-wafer file carries the same time as that wafer
+    in the whole-lot file. (0, 0) — STDF's "not recorded" — when the lot has
+    no start time."""
+    start = LOT_META.get(lot_id, {}).get('start_t', 0)
+    if not start:
+        return 0, 0
+    digits = ''.join(ch for ch in wafer_id if ch.isdigit())
+    slot = int(digits) - 1 if digits else index
+    t = start + slot * WAFER_MINUTES * 60
+    return t, t + (WAFER_MINUTES - 5) * 60
+
 def build_stdf(lot_id, part_typ, wafer_data: dict) -> bytes:
     """wafer_data: {wafer_id: [row, ...]}"""
     buf = bytearray()
@@ -130,8 +147,9 @@ def build_stdf(lot_id, part_typ, wafer_data: dict) -> bytes:
     buf += stdf_sdr()
     part_id = 1
     first_limits = True
-    for wafer_id, rows in wafer_data.items():
-        buf += stdf_wir(wafer_id)
+    for index, (wafer_id, rows) in enumerate(wafer_data.items()):
+        start_t, finish_t = wafer_times(lot_id, wafer_id, index)
+        buf += stdf_wir(wafer_id, start_t)
         part_cnt = good_cnt = 0
         for row in rows:
             x, y = int(row['x']), int(row['y'])
@@ -148,7 +166,7 @@ def build_stdf(lot_id, part_typ, wafer_data: dict) -> bytes:
             part_cnt += 1
             if passed:
                 good_cnt += 1
-        buf += stdf_wrr(wafer_id, part_cnt, good_cnt)
+        buf += stdf_wrr(wafer_id, part_cnt, good_cnt, finish_t)
     return bytes(buf)
 
 # ── ATDF helpers ──────────────────────────────────────────────────────────────
@@ -158,15 +176,47 @@ D = '|'
 def arec(name, *fields):
     return name + ':' + D.join(str(f) for f in fields)
 
+ATDF_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+
+def atdf_time(epoch: int) -> str:
+    """ATDF's `hh:mm:ss DD-MMM-YYYY` (UTC). 0 = not recorded → blank field."""
+    if not epoch:
+        return ''
+    from datetime import datetime, timezone
+    t = datetime.fromtimestamp(epoch, tz=timezone.utc)
+    return f'{t.hour}:{t.minute:02}:{t.second:02} {t.day:02}-{ATDF_MONTHS[t.month - 1]}-{t.year}'
+
+def atdf_mir(lot_id, part_typ, meta):
+    """The same values stdf_mir writes, in the ATDF MIR order — which is NOT the
+    STDF order (ATDF spec): LOT_ID PART_TYP JOB_NAM NODE_NAM TSTR_TYP SETUP_T
+    START_T OPER_NAM MODE_COD STAT_NUM SBLOT_ID TEST_COD RTST_COD JOB_REV
+    EXEC_TYP EXEC_VER PROT_COD CMOD_COD BURN_TIM TST_TEMP. This used to write
+    only a hardcoded job/node/tester, so every ATDF twin disagreed with its STDF.
+    Also used by the fixture rewrite, so the two can never drift apart."""
+    return arec('MIR', lot_id, part_typ,
+                meta.get('program', 'test_program'), meta.get('node', 'node-01'), meta.get('tstr', 'Tester-1'),
+                '',                                   # setup_t (STDF writes 0 = not recorded)
+                atdf_time(meta.get('start_t', 0)),    # start_t
+                meta.get('oper', ''),                 # oper_nam
+                'P', 1,                               # mode_cod, stat_num
+                '', '', '',                           # sblot_id, test_cod, rtst_cod (STDF: space)
+                '1.0',                                # job_rev
+                '', '', '', '', '',                   # exec_typ, exec_ver, prot_cod, cmod_cod, burn_tim (STDF 65535 = n/a)
+                meta.get('temp', '25C'))              # tst_temp
+
 def build_atdf(lot_id, part_typ, wafer_data: dict) -> str:
     lines = []
     lines.append(arec('FAR', 'A' + D + '4'))
-    lines.append(arec('MIR', lot_id, part_typ, 'test_program', 'node-01', 'Tester-1'))
+    lines.append(atdf_mir(lot_id, part_typ, LOT_META.get(lot_id, {})))
     lines.append(arec('SDR', '1', '1', '1'))
     part_id = 1
     first_limits = True
-    for wafer_id, rows in wafer_data.items():
-        lines.append(arec('WIR', '1', '0', '1', wafer_id))
+    for index, (wafer_id, rows) in enumerate(wafer_data.items()):
+        start_t, finish_t = wafer_times(lot_id, wafer_id, index)
+        # atdf_time writes a blank for 0, not '0': ATDF times are
+        # `hh:mm:ss DD-MMM-YYYY` text, so a bare 0 (STDF's "not recorded") was
+        # shown as a start time of "0".
+        lines.append(arec('WIR', '1', atdf_time(start_t), '1', wafer_id))
         part_cnt = good_cnt = 0
         for row in rows:
             x, y = int(row['x']), int(row['y'])
@@ -178,7 +228,10 @@ def build_atdf(lot_id, part_typ, wafer_data: dict) -> str:
                 tpassed = lo <= value <= hi
                 pf = 'P' if tpassed else 'F'
                 if first_limits:
-                    lines.append(arec('PTR', tnum, '1', '1', f'{value:.4f}', pf, '', '', tname, '', '', units, lo, hi))
+                    # ATDF PTR: …|pass/fail|alarm flags|TEST_TXT|ALARM_ID|limit compare|UNITS|LO|HI.
+                    # One extra blank field here used to push the name into ALARM_ID
+                    # and the units into LO_LIMIT.
+                    lines.append(arec('PTR', tnum, '1', '1', f'{value:.4f}', pf, '', tname, '', '', units, lo, hi))
                 else:
                     lines.append(arec('PTR', tnum, '1', '1', f'{value:.4f}', pf))
             first_limits = False
@@ -188,7 +241,8 @@ def build_atdf(lot_id, part_typ, wafer_data: dict) -> str:
             part_cnt += 1
             if passed:
                 good_cnt += 1
-        lines.append(arec('WRR', '1', '0', part_cnt, wafer_id, '1', '0', good_cnt))
+        # ATDF WRR: HEAD|FINISH_T|PART_CNT|WAFER_ID|SITE_GRP|RTST_CNT|ABRT_CNT|GOOD_CNT
+        lines.append(arec('WRR', '1', atdf_time(finish_t), part_cnt, wafer_id, '1', '', '0', good_cnt))
     return '\n'.join(lines) + '\n'
 
 # ── Scenarios ─────────────────────────────────────────────────────────────────

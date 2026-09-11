@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "tsmap",
   "version": "../package.json",
-  "identifier": "com.paul.tsmap",
+  "identifier": "com.wafertools.tsmap",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,6 +13,8 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
+        "create": false,
         "title": "tsmap",
         "width": 1000,
         "height": 700,

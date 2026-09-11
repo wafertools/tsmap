@@ -1,9 +1,11 @@
 use bytes::Bytes;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::{Field, Row};
+use parquet::schema::types::Type;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use crate::types::*;
+use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
 use crate::parse_csv::CsvMapping;
 
 #[derive(Serialize)]
@@ -108,17 +110,31 @@ fn is_gz_path(path: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Opens `path` as a Parquet reader bound to `$r` and evaluates `$body` with
+/// it — the one copy of the gz-or-plain branch described above, which every
+/// path entry point needs. A macro rather than a function because the two
+/// branches' readers are different types (`SerializedFileReader<Bytes>` vs
+/// `<File>`). It was written out in full in each entry point until a third
+/// (`parquet_distinct_count_inner`) came along.
+#[cfg(feature = "native")]
+macro_rules! with_path_reader {
+    ($path:expr, |$r:ident| $body:expr) => {{
+        let path: &str = $path;
+        if is_gz_path(path) {
+            let bytes = crate::read_file::read_bytes(path)?;
+            let $r = SerializedFileReader::new(Bytes::from(bytes)).map_err(|e| e.to_string())?;
+            $body
+        } else {
+            let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+            let $r = SerializedFileReader::new(file).map_err(|e| e.to_string())?;
+            $body
+        }
+    }};
+}
+
 #[cfg(feature = "native")]
 pub fn parquet_headers_inner(path: String) -> Result<ParquetHeadersResult, String> {
-    if is_gz_path(&path) {
-        let bytes = crate::read_file::read_bytes(&path)?;
-        let reader = SerializedFileReader::new(Bytes::from(bytes)).map_err(|e| e.to_string())?;
-        headers_from_reader(&reader)
-    } else {
-        let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-        let reader = SerializedFileReader::new(file).map_err(|e| e.to_string())?;
-        headers_from_reader(&reader)
-    }
+    with_path_reader!(&path, |reader| headers_from_reader(&reader))
 }
 
 fn headers_from_reader<R: FileReader>(reader: &R) -> Result<ParquetHeadersResult, String> {
@@ -159,6 +175,53 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> Result<ParquetHeadersResult
     Ok(ParquetHeadersResult { headers, sample, row_count, column_types })
 }
 
+/// How many distinct combinations of `columns`' values the file holds — the
+/// file filter's wafer count, asked for as (lot, wafer) pairs because that is
+/// how a load identifies a wafer (`flat_wafers.rs`). Reads only those columns
+/// (a projection), which is what makes this affordable during a header scan;
+/// CSV/JSON have no such shortcut and so get no wafer count. Values are
+/// trimmed, and a row blank in every column is not a wafer. A column name
+/// missing from the schema is an error rather than a count of nothing.
+pub fn parquet_distinct_count_from_bytes(bytes: &[u8], columns: &[String]) -> Result<usize, String> {
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes: &[u8] = &bytes;
+    let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(|e| e.to_string())?;
+    distinct_count_from_reader(&reader, columns)
+}
+
+#[cfg(feature = "native")]
+pub fn parquet_distinct_count_inner(path: String, columns: Vec<String>) -> Result<usize, String> {
+    with_path_reader!(&path, |reader| distinct_count_from_reader(&reader, &columns))
+}
+
+fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String]) -> Result<usize, String> {
+    let schema = reader.metadata().file_metadata().schema();
+    if let Some(missing) = columns.iter().find(|c| !schema.get_fields().iter().any(|f| f.name() == c.as_str())) {
+        return Err(format!("column '{missing}' not found"));
+    }
+    // Schema order, not `columns` order: a projection must be a subset of the
+    // schema as laid out. The count does not depend on the order.
+    let fields = schema.get_fields().iter()
+        .filter(|f| columns.iter().any(|c| c == f.name()))
+        .cloned()
+        .collect();
+    let projection = Type::group_type_builder(schema.name())
+        .with_fields(fields)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let mut seen: HashSet<Vec<String>> = HashSet::new();
+    for row in reader.get_row_iter(Some(projection)).map_err(|e| e.to_string())? {
+        let row = row.map_err(|e| e.to_string())?;
+        let key: Vec<String> = row.get_column_iter()
+            .map(|(_, f)| field_to_string(f).trim().to_string())
+            .collect();
+        if key.iter().all(|v| v.is_empty()) { continue; }
+        seen.insert(key);
+    }
+    Ok(seen.len())
+}
+
 pub fn parse_parquet_from_bytes(bytes: &[u8], mapping: CsvMapping) -> Result<ParsedStdf, String> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
@@ -170,15 +233,7 @@ pub fn parse_parquet_from_bytes(bytes: &[u8], mapping: CsvMapping) -> Result<Par
 
 #[cfg(feature = "native")]
 pub fn parse_parquet_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String> {
-    if is_gz_path(&path) {
-        let bytes = crate::read_file::read_bytes(&path)?;
-        let reader = SerializedFileReader::new(Bytes::from(bytes)).map_err(|e| e.to_string())?;
-        parse_from_reader(&reader, mapping)
-    } else {
-        let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-        let reader = SerializedFileReader::new(file).map_err(|e| e.to_string())?;
-        parse_from_reader(&reader, mapping)
-    }
+    with_path_reader!(&path, |reader| parse_from_reader(&reader, mapping))
 }
 
 fn parse_from_reader<R: FileReader>(reader: &R, mapping: CsvMapping) -> Result<ParsedStdf, String> {
@@ -287,104 +342,44 @@ fn parse_wide_format(
     let site_i = opt_idx(&mapping.site);
     let wafer_i = opt_idx(&mapping.wafer);
     let lot_i = opt_idx(&mapping.lot);
-    let split_i: Vec<(String, usize)> = mapping.split_by.iter()
-        .filter_map(|c| idx(c).map(|i| (c.clone(), i))).collect();
-    let test_i: Vec<(String, usize)> = mapping.tests.iter()
-        .filter_map(|t| idx(&t.col).map(|i| (t.test_number.to_string(), i))).collect();
-    let meta_i: Vec<(String, usize)> = mapping.meta.iter()
-        .filter_map(|c| idx(c).map(|i| (c.clone(), i))).collect();
+    // (test number, its string key for mismatch messages, column index).
+    let test_i: Vec<(u32, String, usize)> = mapping.tests.iter()
+        .filter_map(|t| idx(&t.col).map(|i| (t.test_number, t.test_number.to_string(), i))).collect();
+    let meta_i: Vec<Option<usize>> = mapping.meta.iter().map(|c| idx(c)).collect();
 
-    let pass_bin_set: HashSet<u32> = mapping.pass_bins.iter().copied().collect();
     let mut mismatches: HashMap<String, u32> = HashMap::new();
-
-    let mut groups: indexmap::IndexMap<String, WaferData> = indexmap::IndexMap::new();
-    let mut row_index_by_group: HashMap<String, u32> = HashMap::new();
-    let mut first_kept: Option<HashMap<String, String>> = None;
+    let mut rows: Vec<FlatRow> = Vec::new();
 
     for row_result in row_iter {
         let row = row_result.map_err(|e| e.to_string())?;
         let fields = row_fields(&row);
         let cell = |i: usize| fields.get(i).copied();
-
+        let text = |i: Option<usize>| i.and_then(cell).map(field_to_string).unwrap_or_default();
         // No x/y column mapped, or this cell doesn't coerce to a number —
         // kept as a coordinate-less die rather than dropped.
-        let x: Option<i32> = x_i.and_then(cell).and_then(field_to_f64).map(|v| v as i32);
-        let y: Option<i32> = y_i.and_then(cell).and_then(field_to_f64).map(|v| v as i32);
-        let (x, y) = if x.is_some() && y.is_some() { (x, y) } else { (None, None) };
+        let num = |i: Option<usize>| i.and_then(cell).and_then(field_to_f64);
 
-        let wafer_field = wafer_i.and_then(cell);
-        let wid = wafer_field.map(field_to_string).filter(|v| !v.is_empty()).unwrap_or_else(|| "W1".to_string());
-
-        let key = if split_i.is_empty() {
-            wid.clone()
-        } else {
-            let parts: Vec<String> = split_i.iter()
-                .filter_map(|(name, i)| {
-                    let v = cell(*i).map(field_to_string)?;
-                    if v.is_empty() { None } else { Some(format!("{}: {}", name, v)) }
-                })
-                .collect();
-            if parts.is_empty() { wid.clone() } else { format!("{} · {}", wid, parts.join(" · ")) }
-        };
-
+        let mut tests: Vec<(u32, f64)> = Vec::with_capacity(test_i.len());
+        for (t, key, i) in &test_i {
+            if let Some(v) = coerce_role_f64(cell(*i), key, &mut mismatches) { tests.push((*t, v)); }
+        }
         let hbin = coerce_role_f64(hbin_i.and_then(cell), "hbin", &mut mismatches).map(|v| v as u32);
         let sbin = coerce_role_f64(sbin_i.and_then(cell), "sbin", &mut mismatches).map(|v| v as u32);
         let site_num = coerce_role_f64(site_i.and_then(cell), "site", &mut mismatches).map(|v| v as u32);
 
-        let mut test_values: HashMap<String, f64> = HashMap::with_capacity(test_i.len());
-        for (tnum, i) in &test_i {
-            if let Some(v) = coerce_role_f64(cell(*i), tnum, &mut mismatches) {
-                test_values.insert(tnum.clone(), v);
-            }
-        }
-
-        if first_kept.is_none() {
-            let mut m = HashMap::new();
-            if let Some(i) = lot_i { m.insert("__lot".to_string(), field_to_string(fields[i])); }
-            for (name, i) in &meta_i { m.insert(name.clone(), field_to_string(fields[*i])); }
-            first_kept = Some(m);
-        }
-
-        let die_index = if x.is_none() {
-            let counter = row_index_by_group.entry(key.clone()).or_insert(0);
-            let idx = *counter;
-            *counter += 1;
-            Some(idx)
-        } else {
-            None
-        };
-
-        let wafer = groups.entry(key).or_insert_with(|| WaferData {
-            wafer_id: wid,
-            results: Vec::new(),
-            part_count: None, good_count: None, fail_count: None,
-            fields: Vec::new(),
+        rows.push(FlatRow {
+            lot: text(lot_i),
+            wafer: text(wafer_i),
+            split_parts: split_parts(&mapping.split_by, |c| text(idx(c))),
+            meta: meta_i.iter().map(|i| text(*i)).collect(),
+            x: num(x_i).map(|v| v as i32),
+            y: num(y_i).map(|v| v as i32),
+            hbin, sbin, site_num, tests,
         });
-        wafer.results.push(DieResult { x, y, die_index, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
     }
 
-    let wafers: Vec<WaferData> = groups.into_values().map(|mut w| {
-        let part = w.results.len() as u32;
-        let good = w.results.iter().filter(|d|
-            pass_bin_set.is_empty()
-            || d.hbin.map_or(false, |b| pass_bin_set.contains(&b))
-            || d.sbin.map_or(false, |b| pass_bin_set.contains(&b))
-        ).count() as u32;
-        w.part_count = Some(part);
-        w.good_count = Some(good);
-        w.fail_count = Some(part - good);
-        w
-    }).collect();
-
-    let mut meta = LotMeta::default();
-    if let Some(m) = &first_kept {
-        if mapping.lot.is_some() { meta.push("lotId", m.get("__lot").cloned()); }
-        for col in &mapping.meta { meta.push(col, m.get(col).cloned()); }
-    }
-
-    let mut warnings = mismatch_warnings(&mismatches, &test_defs);
-    warnings.extend(position_warnings(&wafers));
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings })
+    let extra = mismatch_warnings(&mismatches, &test_defs);
+    Ok(into_parsed(rows, mapping, false, test_defs, extra))
 }
 
 /// Long/pivot format: one row per (die, test) rather than one column per test.
@@ -402,170 +397,76 @@ fn parse_long_format(
     let num_col = mapping.testnumber_col.as_deref();
     let val_col = mapping.testvalue_col.as_deref().unwrap();
 
-    let mut die_map: indexmap::IndexMap<String, HashMap<String, String>> = indexmap::IndexMap::new();
     let mut long_fmt_test_numbers: HashMap<String, u32> = HashMap::new();
     let mut used_test_numbers: HashSet<u32> = mapping.tests.iter().map(|t| t.test_number).collect();
     let mut next_order: u32 = 0;
+    let mut rows: Vec<FlatRow> = Vec::new();
 
-    for (row_idx, row_result) in row_iter.enumerate() {
+    for row_result in row_iter {
         let row = row_result.map_err(|e| e.to_string())?;
         let mut cells: HashMap<String, String> = HashMap::new();
         for (name, field) in row.get_column_iter() {
             cells.insert(name.clone(), field_to_string(field));
         }
-
-        let x = mapping.x.as_deref().and_then(|c| cells.get(c)).map(|s| s.as_str()).unwrap_or("");
-        let y = mapping.y.as_deref().and_then(|c| cells.get(c)).map(|s| s.as_str()).unwrap_or("");
-        let has_position = !x.is_empty() && !y.is_empty();
-        let wafer = mapping.wafer.as_deref().and_then(|c| cells.get(c)).map(|s| s.as_str()).unwrap_or("");
-        let lot = mapping.lot.as_deref().and_then(|c| cells.get(c)).map(|s| s.as_str()).unwrap_or("");
-        // Positioned rows pivot together by (wafer, lot, x, y) as before. A
-        // coordinate-less row has no position to group by — rather than
-        // merging unrelated rows under a shared empty key, each becomes its
-        // own die (row_idx guarantees a unique key).
-        let key = if has_position {
-            format!("{}\x00{}\x00{}\x00{}", wafer, lot, x, y)
-        } else {
-            format!("{}\x00{}\x00__row_{}", wafer, lot, row_idx)
+        let get = |c: &str| cells.get(c).cloned().unwrap_or_default();
+        let opt = |c: &Option<String>| c.as_deref().map(get).unwrap_or_default();
+        let mut out = FlatRow {
+            lot: opt(&mapping.lot),
+            wafer: opt(&mapping.wafer),
+            split_parts: split_parts(&mapping.split_by, get),
+            meta: mapping.meta.iter().map(|c| get(c)).collect(),
+            x: opt(&mapping.x).parse().ok(),
+            y: opt(&mapping.y).parse().ok(),
+            hbin: opt(&mapping.hbin).parse().ok(),
+            sbin: opt(&mapping.sbin).parse().ok(),
+            site_num: opt(&mapping.site).trim().parse().ok(),
+            tests: Vec::new(),
         };
 
-        let wide = die_map.entry(key).or_insert_with(|| {
-            let mut m = HashMap::new();
-            if has_position {
-                if let Some(c) = &mapping.x { m.insert(c.clone(), x.to_string()); }
-                if let Some(c) = &mapping.y { m.insert(c.clone(), y.to_string()); }
-            }
-            if let Some(c) = &mapping.wafer { m.insert(c.clone(), wafer.to_string()); }
-            if let Some(c) = &mapping.lot   { m.insert(c.clone(), lot.to_string()); }
-            if let Some(c) = &mapping.hbin  { m.insert(c.clone(), cells.get(c).cloned().unwrap_or_default()); }
-            if let Some(c) = &mapping.sbin  { m.insert(c.clone(), cells.get(c).cloned().unwrap_or_default()); }
-            if let Some(c) = &mapping.site  { m.insert(c.clone(), cells.get(c).cloned().unwrap_or_default()); }
-            for c in &mapping.meta { m.insert(c.clone(), cells.get(c).cloned().unwrap_or_default()); }
-            m
-        });
-
-        let test_name = name_col.and_then(|c| cells.get(c)).map(|s| s.as_str()).unwrap_or("");
-        let test_val = cells.get(val_col).map(|s| s.as_str()).unwrap_or("");
-        if test_val.is_empty() { continue; }
+        let test_name = name_col.map(get).unwrap_or_default();
+        let test_val = get(val_col);
         // A row's own number, when the column is mapped and this row's value
         // parses — takes priority over the name as the test's real identity.
         let real_number: Option<u32> = num_col
-            .and_then(|c| cells.get(c))
+            .map(get)
             .filter(|s| !s.is_empty())
             .and_then(|s| s.trim().parse::<u32>().ok());
-        if test_name.is_empty() && real_number.is_none() { continue; }
 
-        let identity_key = match real_number {
-            Some(n) => format!("#{n}"),
-            None => test_name.to_string(),
-        };
-
-        let tnum = *long_fmt_test_numbers.entry(identity_key).or_insert_with(|| {
-            let n = match real_number {
-                Some(n) => { used_test_numbers.insert(n); n }
-                None => crate::test_identity::stable_test_number(test_name, &mut used_test_numbers),
+        if !test_val.is_empty() && !(test_name.is_empty() && real_number.is_none()) {
+            let identity_key = match real_number {
+                Some(n) => format!("#{n}"),
+                None => test_name.clone(),
             };
-            let order = next_order;
-            next_order += 1;
-            let lo_limit = mapping.lo_limit_col.as_deref()
-                .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-            let hi_limit = mapping.hi_limit_col.as_deref()
-                .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-            let units = mapping.units_col.as_deref()
-                .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).cloned();
-            // No name column (or this row's name cell was empty): the
-            // number is all we have, so it doubles as the display name.
-            let display_name = if test_name.is_empty() { n.to_string() } else { test_name.to_string() };
-            test_defs.insert(n.to_string(), TestDef {
-                name: display_name,
-                test_type: "P".to_string(),
-                lo_limit, hi_limit, units,
-                order: Some(order),
+            let tnum = *long_fmt_test_numbers.entry(identity_key).or_insert_with(|| {
+                let n = match real_number {
+                    Some(n) => { used_test_numbers.insert(n); n }
+                    None => crate::test_identity::stable_test_number(&test_name, &mut used_test_numbers),
+                };
+                let order = next_order;
+                next_order += 1;
+                let lo_limit = mapping.lo_limit_col.as_deref()
+                    .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let hi_limit = mapping.hi_limit_col.as_deref()
+                    .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let units = mapping.units_col.as_deref()
+                    .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).cloned();
+                // No name column (or this row's name cell was empty): the
+                // number is all we have, so it doubles as the display name.
+                let display_name = if test_name.is_empty() { n.to_string() } else { test_name.clone() };
+                test_defs.insert(n.to_string(), TestDef {
+                    name: display_name,
+                    test_type: "P".to_string(),
+                    lo_limit, hi_limit, units,
+                    order: Some(order),
+                });
+                n
             });
-            n
-        });
-        wide.insert(format!("__test_{}", tnum), test_val.to_string());
-    }
-
-    let active_rows: Vec<HashMap<String, String>> = die_map.into_values().collect();
-    let pass_bin_set: HashSet<u32> = mapping.pass_bins.iter().copied().collect();
-
-    let mut groups: indexmap::IndexMap<String, Vec<&HashMap<String, String>>> = indexmap::IndexMap::new();
-    for row in &active_rows {
-        let wid = mapping.wafer.as_deref()
-            .and_then(|c| row.get(c))
-            .filter(|v| !v.is_empty())
-            .cloned()
-            .unwrap_or_else(|| "W1".to_string());
-        let split_parts: Vec<String> = mapping.split_by.iter()
-            .filter_map(|col| {
-                let v = row.get(col)?;
-                if v.is_empty() { None } else { Some(format!("{}: {}", col, v)) }
-            })
-            .collect();
-        let key = if split_parts.is_empty() { wid } else { format!("{} · {}", wid, split_parts.join(" · ")) };
-        groups.entry(key).or_default().push(row);
-    }
-
-    let mut wafers: Vec<WaferData> = Vec::new();
-    for (wid, rows) in &groups {
-        let mut dies: Vec<DieResult> = Vec::new();
-        let mut row_index_in_wafer: u32 = 0;
-        for row in rows {
-            let x: Option<i32> = mapping.x.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
-            let y: Option<i32> = mapping.y.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
-            let (x, y) = if x.is_some() && y.is_some() { (x, y) } else { (None, None) };
-            let die_index = if x.is_none() {
-                let idx = row_index_in_wafer;
-                row_index_in_wafer += 1;
-                Some(idx)
-            } else {
-                None
-            };
-            let hbin: Option<u32> = mapping.hbin.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
-            let sbin: Option<u32> = mapping.sbin.as_deref().and_then(|c| row.get(c)).and_then(|v| v.parse().ok());
-            let site_num: Option<u32> = mapping.site.as_deref().and_then(|c| row.get(c)).and_then(|v| v.trim().parse().ok());
-
-            let mut test_values: HashMap<String, f64> = HashMap::new();
-            for tnum in long_fmt_test_numbers.values() {
-                let k = format!("__test_{}", tnum);
-                if let Some(v) = row.get(&k).and_then(|s| s.parse::<f64>().ok()) {
-                    test_values.insert(tnum.to_string(), v);
-                }
-            }
-
-            dies.push(DieResult { x, y, die_index, hbin, sbin, site_num, part_id: None, test_values, test_pass: HashMap::new() });
+            if let Ok(v) = test_val.parse::<f64>() { out.tests.push((tnum, v)); }
         }
-
-        let part_count = dies.len() as u32;
-        let good_count = dies.iter()
-            .filter(|d| pass_bin_set.is_empty()
-                || d.hbin.map_or(false, |b| pass_bin_set.contains(&b))
-                || d.sbin.map_or(false, |b| pass_bin_set.contains(&b)))
-            .count() as u32;
-
-        wafers.push(WaferData {
-            wafer_id: wid.clone(),
-            results: dies,
-            part_count: Some(part_count),
-            good_count: Some(good_count),
-            fail_count: Some(part_count - good_count),
-            fields: Vec::new(),
-        });
+        rows.push(out);
     }
 
-    let mut meta = LotMeta::default();
-    if let Some(first) = active_rows.first() {
-        if let Some(lot_col) = mapping.lot.as_deref() {
-            meta.push("lotId", first.get(lot_col).cloned());
-        }
-        for col in &mapping.meta {
-            meta.push(col, first.get(col).cloned());
-        }
-    }
-
-    let warnings = position_warnings(&wafers);
-    Ok(ParsedStdf { meta, wafers, test_defs, sites: vec![], hbin_defs: vec![], sbin_defs: vec![], pass_hbins: vec![], warnings })
+    Ok(into_parsed(rows, mapping, true, test_defs, Vec::new()))
 }
 
 #[cfg(test)]
@@ -655,6 +556,19 @@ mod tests {
             CsvTestCol { col: "t2".to_string(), test_number: 2, name: "T2".to_string() },
         ];
         m
+    }
+
+    #[test]
+    fn distinct_count_counts_combinations_of_the_named_columns() {
+        // Fixture: three rows, all wafer W1, hbins 1, 1, 2.
+        let bytes = write_fixture(parquet::basic::Compression::SNAPPY);
+        let count = |cols: &[&str]| parquet_distinct_count_from_bytes(
+            &bytes, &cols.iter().map(|c| c.to_string()).collect::<Vec<_>>());
+        assert_eq!(count(&["wafer"]), Ok(1));
+        // Pairs, whatever order they are asked in: (W1,1) and (W1,2).
+        assert_eq!(count(&["wafer", "hbin"]), Ok(2));
+        assert_eq!(count(&["hbin", "wafer"]), Ok(2));
+        assert!(count(&["no_such_column"]).is_err());
     }
 
     #[test]

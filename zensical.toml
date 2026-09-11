@@ -8,8 +8,10 @@ nav = [
   { "Home"         = "index.md"                       },
   { "Features"     = "features.md"                    },
   { "Use cases"    = "use-cases.md"                    },
+  { "Tutorial"     = "tutorial.md"                     },
   { "User guide"   = "user-guide.md"                   },
   { "Integrations" = "integrating-data-selection.md"   },
+  { "Troubleshooting" = "troubleshooting.md"           },
   { "Open-from-link demo" = "demos/open-from-link.html" },
   { "Web app"      = "web.md"                          },
   { "Parser API"   = "parser-api.md"                   },
@@ -23,12 +25,92 @@ logo    = "images/tsmap-readme-header-256.png"
 features = [
   "navigation.tabs",
   "content.code.copy",
+  "navigation.top",
+  # Updates the address bar to the section you are reading, so a link copied
+  # from a long page points at the part you were actually on.
+  "navigation.tracking",
+  "navigation.footer",
+  "content.code.select",
+  "content.code.annotate",
+  # Renders `abbr` definitions as real tooltips — see the shared
+  # includes/abbreviations.md appended to every page below.
+  "content.tooltips",
+  "content.footnote.tooltips",
+  # A reader who picks "Desktop" in one tabbed block gets it in all of them.
+  "content.tabs.link",
+  "toc.follow",
+  "search.highlight",
+  "search.share",
 ]
 
-[project.markdown_extensions.toc]
-permalink = true
+# Light / dark / follow-the-system, in that cycle. These sites were light-only
+# until now, which sat oddly beside two products that ship extensive theming of
+# their own.
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
 
-[project.markdown_extensions.pymdownx.highlight]
-anchor_linenums     = true
-line_spans          = "__span"
-pygments_lang_class = true
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+# ── Markdown extensions ─────────────────────────────────────────────────────
+#
+# The FULL set has to be listed, including the ones that look like Zensical's own
+# defaults. Declaring any `[project.markdown_extensions.*]` section replaces the
+# default set wholesale rather than merging into it — so the previous config,
+# which set only `toc` and `pymdownx.highlight`, was silently switching off
+# `admonition`, `abbr`, `def_list`, `attr_list`, `tasklist`, `mark`, `caret`,
+# `tilde` and the rest. Nothing reported it: unsupported syntax renders as
+# ordinary paragraph text, which reads as "we don't use admonitions here" rather
+# than as a fault. Verified by removing the sections entirely, at which point
+# `!!! note` and `*[ABBR]:` both started working.
+#
+# (Mermaid is unaffected either way — Zensical renders ```mermaid fences
+# natively rather than through `superfences`.)
+[project.markdown_extensions]
+abbr        = {}
+admonition  = {}
+attr_list   = {}
+def_list    = {}
+footnotes   = {}
+md_in_html  = {}
+
+toc.permalink = true
+
+pymdownx.arithmatex.generic          = true
+pymdownx.betterem                    = {}
+pymdownx.caret                       = {}
+pymdownx.details                     = {}
+pymdownx.emoji.emoji_generator       = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index           = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight.anchor_linenums   = true
+pymdownx.highlight.line_spans        = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite                = {}
+pymdownx.keys                        = {}
+pymdownx.magiclink                   = {}
+pymdownx.mark                        = {}
+pymdownx.smartsymbols                = {}
+pymdownx.superfences.custom_fences   = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style      = true
+pymdownx.tabbed.combine_header_slug  = true
+pymdownx.tasklist.custom_checkbox    = true
+pymdownx.tilde                       = {}
+
+# Deliberately OUTSIDE docs/: a snippet inside the docs tree is also built as a
+# page of its own. Domain terms only — tooltipping every "API"/"UI"/"CSV" put a
+# dotted underline through most sentences and told the reader nothing.
+pymdownx.snippets.base_path   = ["."]
+pymdownx.snippets.auto_append = ["includes/abbreviations.md"]

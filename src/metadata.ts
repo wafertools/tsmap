@@ -87,11 +87,26 @@ const FIELD_META: Record<string, FieldMeta> = {
   processId:  { label: 'Process',      facet: false },
   designRev:  { label: 'Design rev',   facet: false },
   serialNum:  { label: 'Tester serial', facet: false },
+  // STDF V4-2007 Version Update Record — present only in files that declare
+  // that revision (e.g. "V4-2007"); a plain V4 file has no such field.
+  updNam:     { label: 'STDF revision', facet: false },
 };
 
 const DISPLAY_ORDER = Object.keys(FIELD_META);
 
-function labelFor(key: string): string {
+/** Metadata keys in display order: curated fields in FIELD_META's order (most
+ *  useful first), then unknown ones in the order given — for a CSV that is its
+ *  header order. One rule for the facet table and the file-filter columns. */
+export function orderFieldKeys(keys: Iterable<string>): string[] {
+  const present = new Set(keys);
+  return [
+    ...DISPLAY_ORDER.filter(k => present.has(k)),
+    ...[...present].filter(k => !(k in FIELD_META)),
+  ];
+}
+
+/** A metadata key's display label — curated where known, the raw key otherwise. */
+export function labelFor(key: string): string {
   return FIELD_META[key]?.label ?? key;
 }
 
@@ -142,10 +157,7 @@ export function buildFacetTable(wafers: WaferData[], facetableOnly = true): Face
     for (const f of w.fields ?? []) present.add(f.key);
   }
 
-  const ordered: string[] = [
-    ...DISPLAY_ORDER.filter(k => present.has(k)),
-    ...[...present].filter(k => !(k in FIELD_META)),
-  ];
+  const ordered = orderFieldKeys(present);
 
   const table: FacetField[] = [];
   for (const key of ordered) {

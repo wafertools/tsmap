@@ -1,3 +1,4 @@
+import { storageKey } from './storageKeys';
 // App theme selection. tsmap's colours are driven by a `data-theme` attribute
 // on <html> (see the token blocks in index.html). This module owns applying
 // that attribute, persisting the choice to localStorage, and notifying the app
@@ -50,7 +51,7 @@ export const THEME_GROUPS: ReadonlyArray<{
 const ALL_THEME_VALUES: ReadonlySet<string> =
   new Set(THEME_GROUPS.flatMap(g => g.themes.map(t => t.value)));
 
-const STORAGE_KEY = 'tsmap-theme';
+const STORAGE_KEY = storageKey('tsmap:theme');
 const listeners = new Set<() => void>();
 
 function isTheme(v: string | null): v is Theme {
