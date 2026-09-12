@@ -33,11 +33,13 @@ cargo test           # parser tests (run from packages/parsers/)
 ## Generating test files
 
 ```bash
-python3 scripts/generate_stdf.py /tmp/test.stdf         # synthetic STDF — 3 wafers, 4 tests
-python3 scripts/generate_stdf_large.py /tmp/large.stdf  # large STDF — 25 wafers, 50 tests, ~10k dies/wafer
-python3 scripts/generate_atdf.py /tmp/test.atdf         # synthetic ATDF — same structure
-python3 scripts/generate_parquet.py /tmp/test.parquet   # synthetic Parquet (requires pyarrow) — 3 wafers, 10 tests; --large, --correlated, --codec also available
+python3 scripts/generate_stdf.py        # synthetic STDF — 3 wafers, 4 tests
+python3 scripts/generate_stdf_large.py  # large STDF — 25 wafers, 50 tests, ~10k dies/wafer
+python3 scripts/generate_atdf.py        # synthetic ATDF — same structure
+python3 scripts/generate_parquet.py     # synthetic Parquet (requires pyarrow) — 3 wafers, 10 tests; --large, --correlated, --codec also available
 ```
+
+Files land in `~/.cache/wafertools/fixtures/` — override with `WAFERTOOLS_FIXTURES`, or pass a path as the first argument. Not `/tmp`: that is a RAM-backed tmpfs on systemd distros, and these files are large (the STDF one is 341 MB).
 
 ## Architecture
 

@@ -105,10 +105,12 @@ cargo test              # run parser tests (run from packages/parsers/)
 ### Generating test files
 
 ```bash
-python3 scripts/generate_stdf.py /tmp/test.stdf         # synthetic STDF — 3 wafers, 4 tests
-python3 scripts/generate_stdf_large.py /tmp/large.stdf  # large STDF — 25 wafers, 50 tests, ~10k dies/wafer (341 MB)
-python3 scripts/generate_atdf.py /tmp/test.atdf         # synthetic ATDF — same structure
+python3 scripts/generate_stdf.py        # synthetic STDF — 3 wafers, 4 tests
+python3 scripts/generate_stdf_large.py  # large STDF — 25 wafers, 50 tests, ~10k dies/wafer (341 MB)
+python3 scripts/generate_atdf.py        # synthetic ATDF — same structure
 ```
+
+Files land in `~/.cache/wafertools/fixtures/` — override with `WAFERTOOLS_FIXTURES`, or pass a path as the first argument. Not `/tmp`: that is a RAM-backed tmpfs on systemd distros, and these files are large (the STDF one is 341 MB).
 
 ### Building and publishing the WASM parser package
 
@@ -187,6 +189,8 @@ packages/parsers/     — shared Rust crate (native + WASM targets), published a
   src/flat_wafers.rs  — the one place CSV/JSON/Parquet rows become wafers (lot + wafer ID)
   src/test_identity.rs — stable test numbering derived from test name / source column
   src/read_file.rs    — read_bytes / read_text, plus maybe_gunzip transparent .gz handling
+  src/bench_fixtures.rs — where the `bench`-feature benches look for generated fixtures;
+                        mirrors scripts/fixture_paths.py, which must stay in step
 
 src-tauri/src/
   lib.rs              — app setup: single-instance, tsmap:// scheme registration, and
@@ -213,6 +217,8 @@ src-tauri/src/
 
 scripts/
   generate_*.py       — synthetic STDF/ATDF/CSV/JSON/Parquet fixtures and benchmarks
+  fixture_paths.py    — one resolver for where those fixtures land (XDG cache, not /tmp,
+                        which is a RAM-backed tmpfs); WAFERTOOLS_FIXTURES overrides
   capture-screenshots.mjs — drives the web build to regenerate the docs screenshots
   run-scenario.mjs    — deterministic, assertion-checked replay of a scripted investigation
   check-*.js/.mjs     — release guards: version sync, wmap/parser published, config drift

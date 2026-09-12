@@ -922,10 +922,10 @@ mod tests {
     #[cfg(feature = "bench")]
     #[test]
     fn bench_parse_csv() {
-        let path = "/tmp/bench.csv";
-        let bytes = match std::fs::read(path) {
+        let path = crate::bench_fixtures::fixture("bench.csv");
+        let bytes = match std::fs::read(&path) {
             Ok(b) => b,
-            Err(_) => { eprintln!("SKIP: {path} not found — run scripts/generate_csv_json_bench.py"); return; }
+            Err(_) => { eprintln!("SKIP: {} not found — run scripts/generate_csv_json_bench.py", path.display()); return; }
         };
         let file_mb = bytes.len() as f64 / 1_048_576.0;
         let mapping = bench_mapping(50);

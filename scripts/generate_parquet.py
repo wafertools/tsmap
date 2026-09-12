@@ -11,11 +11,15 @@ exports come from.
 Requires: pip install pyarrow
 
 Usage:
-    python3 scripts/generate_parquet.py /tmp/test.parquet
-    python3 scripts/generate_parquet.py /tmp/test.parquet --codec zstd
-    python3 scripts/generate_parquet.py /tmp/large.parquet --large --codec snappy
-    python3 scripts/generate_parquet.py /tmp/corr.parquet --correlated
-    python3 scripts/generate_parquet.py /tmp/custom.parquet --wafers 3 --radius 13 --tests 20
+    python3 scripts/generate_parquet.py
+    python3 scripts/generate_parquet.py --codec zstd
+    python3 scripts/generate_parquet.py --large --codec snappy
+    python3 scripts/generate_parquet.py --correlated
+    python3 scripts/generate_parquet.py --wafers 3 --radius 13 --tests 20
+    python3 scripts/generate_parquet.py /elsewhere/custom.parquet   # explicit path
+
+Output defaults to test.parquet under the fixture dir (see
+scripts/fixture_paths.py); pass a path to override the name as well.
 
 --large matches generate_stdf_large.py's scale (25 wafers, 50 tests, ~10k
 dies/wafer) for a rough native-vs-web perf comparison. --codec zstd is
@@ -37,6 +41,7 @@ from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from fixture_paths import fixture_path
 
 random.seed(42)
 
@@ -194,7 +199,7 @@ def build_correlated_table(n_wafers: int = 5, radius: int = 8) -> pa.Table:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('output', nargs='?', default='/tmp/test.parquet', type=Path)
+    ap.add_argument('output', nargs='?', default=fixture_path('test.parquet'), type=Path)
     ap.add_argument('--codec', choices=CODECS, default='snappy')
     ap.add_argument('--large', action='store_true', help='25 wafers, 50 tests, ~10k dies/wafer (matches generate_stdf_large.py)')
     ap.add_argument('--correlated', action='store_true', help='5 wafers, 30 tests with designed Pearson r ranges (ports generate_stdf_correlated.py)')

@@ -4,6 +4,7 @@
 """
 import math, random, sys
 from pathlib import Path
+from fixture_paths import fixture_path
 
 random.seed(42)
 
@@ -83,4 +84,4 @@ def generate(out: Path):
     print(f"Written {out} — {len(WAFERS)} wafers × ~{len(dies)} dies")
 
 if __name__ == '__main__':
-    generate(Path(sys.argv[1]) if len(sys.argv) > 1 else Path('/tmp/test.atdf'))
+    generate(Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('test.atdf'))

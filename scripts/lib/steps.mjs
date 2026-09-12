@@ -33,7 +33,7 @@
  */
 
 import { injectFile, injectFiles, addFile } from './inject.mjs';
-import { mkdtemp, copyFile } from 'node:fs/promises';
+import { mkdtemp, copyFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 
@@ -280,7 +280,7 @@ export async function dismissSelectorSelectNone(page) {
 
 // ─── Step runner ────────────────────────────────────────────────────────────
 
-async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
+async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempDirs = [] }) {
   switch (name) {
 
     case 'loadFile': {
@@ -316,8 +316,17 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
       // 17 entries would be scanned where the doc text promises four. So the
       // requested files are staged into a temp directory and THAT is scanned,
       // which keeps the caller's file list meaningful.
+      //
+      // The staged copy CANNOT be removed when this step returns: setFiles
+      // only hands Chromium the path, and the scan that actually reads those
+      // files is still in flight until waitForFilterScan. So the dir is
+      // registered with the run and torn down by runSetup's finally instead.
+      // Without that it leaked a full copy of every requested fixture per
+      // run — on a tmpfs /tmp that is leaked RAM, not disk (40 abandoned
+      // dirs / 2.5 GB had accumulated before this was fixed).
       const files = Array.isArray(args[0]) ? args[0] : [args[0]];
       const scanDir = await mkdtemp(join(tmpdir(), 'tsmap-scan-'));
+      tempDirs.push(scanDir);
       await Promise.all(files.map(f => copyFile(f, join(scanDir, basename(f)))));
       const [chooser] = await Promise.all([
         page.waitForEvent('filechooser'),
@@ -686,25 +695,45 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict }) {
  * failure — the thrown error carries `.stepResults` (everything that
  * succeeded before the failure) and `.failedStep` for callers that want to
  * report exactly where things broke.
+ *
+ * Owns the lifetime of any scratch directory a step stages files into
+ * (currently only filterFiles): steps push onto `tempDirs` and every entry is
+ * removed here, on the success and failure paths alike. Run-scoped rather
+ * than step-scoped because a step's directory is still being read by the app
+ * after the step itself returns.
  */
 export async function runSetup(page, steps, baseUrl, opts = {}) {
   const allowCosmetic = opts.allowCosmetic ?? true;
   const strict = opts.strict ?? false;
   const results = [];
-  for (let i = 0; i < steps.length; i++) {
-    const [name, ...args] = steps[i];
-    const t0 = Date.now();
-    try {
-      await runStep(page, name, args, baseUrl, { allowCosmetic, strict });
-      results.push({ index: i, name, args, ms: Date.now() - t0, ok: true });
-    } catch (err) {
-      results.push({ index: i, name, args, ms: Date.now() - t0, ok: false, error: err.message });
-      const wrapped = new Error(`step ${i} [${name}] failed: ${err.message}`);
-      wrapped.cause = err;
-      wrapped.stepResults = results;
-      wrapped.failedStep = { index: i, name, args };
-      throw wrapped;
+  const tempDirs = [];
+  try {
+    for (let i = 0; i < steps.length; i++) {
+      const [name, ...args] = steps[i];
+      const t0 = Date.now();
+      try {
+        await runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempDirs });
+        results.push({ index: i, name, args, ms: Date.now() - t0, ok: true });
+      } catch (err) {
+        results.push({ index: i, name, args, ms: Date.now() - t0, ok: false, error: err.message });
+        const wrapped = new Error(`step ${i} [${name}] failed: ${err.message}`);
+        wrapped.cause = err;
+        wrapped.stepResults = results;
+        wrapped.failedStep = { index: i, name, args };
+        throw wrapped;
+      }
+    }
+    return results;
+  } finally {
+    // Never let teardown mask a step failure: a scratch dir that won't delete
+    // is a disk-space nuisance, not a reason to lose the error that says which
+    // step broke.
+    for (const dir of tempDirs) {
+      try {
+        await rm(dir, { recursive: true, force: true });
+      } catch (err) {
+        console.warn(`warning: could not remove scratch dir ${dir}: ${err.message}`);
+      }
     }
   }
-  return results;
 }

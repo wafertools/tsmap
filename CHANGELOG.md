@@ -4,6 +4,40 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.35] — 2026-09-12
+
+### Changed
+
+- **Wafer maps now use the Viridis gradient by default.** Value maps and the three stacked
+  modes previously ran blue → cyan → yellow → red. That is a rainbow ramp, and its lightness
+  is not monotonic — cyan and yellow both sit near peak brightness while blue and red are much
+  darker — so two genuinely different readings could look equally intense, and the fast hue
+  turns at cyan and yellow drew contour rings that were not in the data. Viridis rises steadily
+  from dark to light across its whole range, which is what lets a dense die grid show small
+  differences honestly. On a stacked map it also puts the emphasis the right way round: the
+  healthy bulk of the wafer (fail count 0) sits back as dark ground while an edge ring or a
+  scratch lights up. Every other gradient except Traffic and Jet now reads the same way,
+  low = dark, high = light; four of them (Cividis, Plasma, Inferno and Greyscale) had been
+  running inverted, so changing gradient used to flip the map. The old ramp is not gone —
+  **Jet** is the same rainbow family, now labelled as such. From wmap 0.29.0.
+- **New Reverse gradient option**, in the same Colour scheme menu, for a parameter whose low
+  end is the notable one — or for monochrome print, where more ink should mean more. It is
+  remembered across restarts alongside the bin and value colour schemes (`mapColorPrefs.ts`).
+- **`@wafertools/wafermap` pinned to `^0.29.0`** (was `^0.28.0`).
+
+### Internal
+
+- **Generated test fixtures moved out of `/tmp` to `~/.cache/wafertools/fixtures/`.** On a
+  systemd distro `/tmp` is a tmpfs, so these deliberately large files — `generate_stdf_large.py`
+  alone emits ~341 MB — were held in RAM with nowhere to go but swap; enough leftover runs put
+  4 GB of a 14 GB machine permanently out of reach and earned a global OOM kill. Cache is the
+  right category: the files are reproducible from the scripts that made them, but expensive
+  enough to build that a reboot should not discard them. The ten generators no longer need a
+  path argument (one is still accepted), and `WAFERTOOLS_FIXTURES` overrides the directory.
+  The resolution order lives in exactly one place per language — `scripts/fixture_paths.py` and
+  the new `packages/parsers/src/bench_fixtures.rs`, which the `bench`-feature benches read —
+  rather than being restated at fourteen call sites.
+
 ## [0.1.34] — 2026-09-11
 
 ### Added

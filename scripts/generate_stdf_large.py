@@ -10,6 +10,7 @@ import math
 import random
 import sys
 from pathlib import Path
+from fixture_paths import fixture_path
 
 random.seed(42)
 
@@ -313,5 +314,5 @@ def generate(output_path: Path) -> None:
     print(f"  {len(WAFERS)} wafers × {len(dies)} dies × {len(TESTS)} PTR + 1 FTR tests")
 
 if __name__ == '__main__':
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('/tmp/test-large.stdf')
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('large.stdf')
     generate(out)

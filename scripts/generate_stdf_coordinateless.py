@@ -19,6 +19,7 @@ import math
 import random
 import sys
 from pathlib import Path
+from fixture_paths import fixture_path
 
 random.seed(7)
 
@@ -216,5 +217,5 @@ def generate(output_path: Path) -> None:
           f"{WAFERS[2][0]} 100% coordinate-less")
 
 if __name__ == '__main__':
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('/tmp/coordinateless.stdf')
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('coordinateless.stdf')
     generate(out)

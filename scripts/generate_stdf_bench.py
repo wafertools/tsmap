@@ -2,7 +2,9 @@
 """Parametric STDF V4 generator for benchmark test matrix.
 
 Usage:
-    python3 scripts/generate_stdf_bench.py --tests 1000 --radius 40 --wafers 3 /tmp/t1000_d5000.stdf
+    python3 scripts/generate_stdf_bench.py --tests 1000 --radius 40 --wafers 3
+    (no path → bench.stdf in the fixture dir; see scripts/fixture_paths.py.
+     An explicit path is taken as given, so a bare name lands in the CWD.)
 
 Die count by radius (approximate):
     radius 13 → ~530 dies
@@ -17,6 +19,7 @@ import random
 import struct
 import sys
 from pathlib import Path
+from fixture_paths import fixture_path
 
 random.seed(42)
 
@@ -196,7 +199,7 @@ def generate(output_path: Path, n_tests: int, radius: int, n_wafers: int) -> Non
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate a parametric STDF benchmark file')
-    parser.add_argument('output', nargs='?', default='/tmp/bench.stdf', help='Output path')
+    parser.add_argument('output', nargs='?', default=fixture_path('bench.stdf'), help='Output path')
     parser.add_argument('--tests',  type=int, default=50,  help='Number of PTR tests per die')
     parser.add_argument('--radius', type=int, default=13,  help='Wafer radius (dies ≈ π·r²)')
     parser.add_argument('--wafers', type=int, default=3,   help='Number of wafers')

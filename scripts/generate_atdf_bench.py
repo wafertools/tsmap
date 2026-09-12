@@ -5,7 +5,7 @@ Mirrors the CSV/JSON bench fixtures (scripts/generate_csv_json_bench.py) so the
 four parsers compare on equivalent logical data: WAFERS × DIES_PER_WAFER dies,
 each with N_TESTS parametric (PTR) results, plus PIR/PRR per die and WIR/WRR.
 
-Writes /tmp/bench.atdf.
+Writes bench.atdf to the fixture dir (see scripts/fixture_paths.py).
 
 Usage:
     python3 scripts/generate_atdf_bench.py [wafers] [dies_per_wafer] [tests]
@@ -15,6 +15,7 @@ Usage:
 import random
 import sys
 from pathlib import Path
+from fixture_paths import fixture_path
 
 random.seed(42)
 
@@ -79,4 +80,4 @@ def generate(out: Path):
 
 
 if __name__ == "__main__":
-    generate(Path(sys.argv[4]) if len(sys.argv) > 4 else Path('/tmp/bench.atdf'))
+    generate(Path(sys.argv[4]) if len(sys.argv) > 4 else fixture_path('bench.atdf'))

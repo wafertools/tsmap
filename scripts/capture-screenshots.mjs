@@ -25,7 +25,7 @@
  *
  * Prerequisites:
  *   npm run build:web          — builds the app to dist/
- *   npm run screenshots:data   — generates demo STDF/CSV files in /tmp/
+ *   npm run screenshots:data   — generates demo STDF/CSV files in testdata/
  *
  * NOTE ../wafermap/scripts/capture-screenshots.mjs is the same kind of
  * harness (static server + headless Chromium + a setup-step vocabulary)

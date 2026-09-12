@@ -41,6 +41,7 @@ import math
 import random
 import sys
 from pathlib import Path
+from fixture_paths import fixture_path
 
 random.seed(42)
 
@@ -306,5 +307,5 @@ def generate(output_path: Path) -> None:
 
 
 if __name__ == '__main__':
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('/tmp/correlated.stdf')
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('correlated.stdf')
     generate(out)

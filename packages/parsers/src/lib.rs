@@ -8,6 +8,11 @@ pub mod parse_csv;
 pub mod parse_json;
 pub mod parse_parquet;
 
+// Fixture-path resolution shared by the `bench` benches (see the module docs
+// and scripts/fixture_paths.py).
+#[cfg(feature = "bench")]
+pub mod bench_fixtures;
+
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     use wasm_bindgen::prelude::*;

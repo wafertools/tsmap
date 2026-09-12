@@ -1,6 +1,6 @@
 // The user's wafer-map colour choices — the bin colour scheme, the value
-// colour scheme, and whether colours from a bin definitions file are used —
-// remembered across loads and restarts.
+// colour scheme, whether that gradient is reversed, and whether colours from a
+// bin definitions file are used — remembered across loads and restarts.
 //
 // wmap keeps bin and value colours as separate preferences (`binColorScheme`,
 // `valueColorScheme`), each reported through `onViewOptionsChange`, so this is
@@ -15,9 +15,17 @@ import { storageKey } from './storageKeys';
 
 const KEY = storageKey('tsmap:map-colors');
 
-export type MapColorPrefs = Pick<WaferViewOptions, 'binColorScheme' | 'valueColorScheme' | 'useDefinedBinColors'>;
+export type MapColorPrefs = Pick<
+  WaferViewOptions,
+  'binColorScheme' | 'valueColorScheme' | 'reverseValueScheme' | 'useDefinedBinColors'
+>;
 
-const PREF_KEYS: readonly (keyof MapColorPrefs)[] = ['binColorScheme', 'valueColorScheme', 'useDefinedBinColors'];
+// `reverseValueScheme` belongs here and not with the view state because it sits
+// in the same Colour scheme menu as the gradient it flips: persisting the
+// gradient but not its direction would restore half of one choice.
+const PREF_KEYS: readonly (keyof MapColorPrefs)[] = [
+  'binColorScheme', 'valueColorScheme', 'reverseValueScheme', 'useDefinedBinColors',
+];
 
 /**
  * The saved choices, to spread into `viewOptions` at mount. Empty when nothing
@@ -42,6 +50,7 @@ export function loadMapColorPrefs(): MapColorPrefs {
   if (typeof bin === 'string' && listBinColorSchemes().some(s => s.name === bin)) prefs.binColorScheme = bin;
   const value = saved.valueColorScheme;
   if (typeof value === 'string' && listValueColorSchemes().some(s => s.name === value)) prefs.valueColorScheme = value;
+  if (typeof saved.reverseValueScheme === 'boolean') prefs.reverseValueScheme = saved.reverseValueScheme;
   if (typeof saved.useDefinedBinColors === 'boolean') prefs.useDefinedBinColors = saved.useDefinedBinColors;
   return prefs;
 }
@@ -57,6 +66,7 @@ export function saveMapColorPrefs(opts: WaferViewOptions, changed: readonly (key
   const prefs: MapColorPrefs = {};
   if (opts.binColorScheme !== undefined) prefs.binColorScheme = opts.binColorScheme;
   if (opts.valueColorScheme !== undefined) prefs.valueColorScheme = opts.valueColorScheme;
+  if (opts.reverseValueScheme !== undefined) prefs.reverseValueScheme = opts.reverseValueScheme;
   if (opts.useDefinedBinColors !== undefined) prefs.useDefinedBinColors = opts.useDefinedBinColors;
   try {
     localStorage.setItem(KEY, JSON.stringify(prefs));

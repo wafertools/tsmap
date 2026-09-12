@@ -1401,7 +1401,12 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                 }
                 if let Some(ref mut wafer) = current_wafer { wafer.results.push(die); }
             }
-            (1, 10) => { meta.fields = mir_fields(b, order); }
+            // MIR — the lot for the wafers that follow. Goes through
+            // LotRecords like the full and filtered dispatches above: this
+            // arm was left assigning a bare `meta.fields` when afaffa9 moved
+            // lot metadata onto the accumulator, which broke every `bench`
+            // build (see the equivalence test below).
+            (1, 10) => { lots.set_lot(mir_fields(b, order)); }
             (1, 80) => {
                 let (head, site_nums) = decode_sdr(b);
                 for site in site_nums { sites.push(SiteInfo { head_num: head, site_num: site }); }
@@ -1917,15 +1922,79 @@ mod tests {
         }
     }
 
+    // The bench-only dispatch in parse_stdf_from_bytes_timed is a fourth copy
+    // of the record loop, and until this test existed nothing compiled it: the
+    // `bench` feature is opt-in and no CI job passes --features, so when
+    // afaffa9 moved lot metadata onto LotRecords the MIR arm there kept
+    // assigning a bare `meta.fields` and every bench build broke for months.
+    //
+    // Scoped to the MIR lot fields on purpose. The timed path deliberately
+    // skips HBR/SBR and WIR/WRR extraction (see its closing comment) because
+    // it measures raw parse throughput, not metadata completeness — so a
+    // blanket meta-equality assertion against the canonical parser would fail
+    // by design. Lot identity is the one thing both must agree on, and it is
+    // exactly what the broken arm produced.
+    // The single-MIR test above cannot tell `lots.set_lot(..)` from
+    // `lots.extend_file(..)`: finish() folds file_fields into the same output
+    // vector, so on a one-lot file either spelling yields identical metadata.
+    // They diverge only once a stream carries several MIRs — set_lot bumps the
+    // lot count and attributes fields per wafer, while extend_file leaves the
+    // count at zero and piles every lot's fields together at file level,
+    // duplicating keys. sample_data has no multi-MIR fixture, so this builds
+    // one the way real multi-lot responses arrive: two single-lot files
+    // concatenated (see LotRecords' own doc comment).
+    #[cfg(feature = "bench")]
+    #[test]
+    fn timed_dispatch_handles_multi_lot_streams() {
+        let mut bytes = std::fs::read(SINGLE_WAFER).unwrap();
+        bytes.extend_from_slice(&std::fs::read(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_W02.stdf"),
+        ).unwrap());
+
+        let (timed, _) = parse_stdf_from_bytes_timed(&bytes).unwrap();
+
+        assert_eq!(timed.wafers.len(), 2, "concatenated stream should yield both wafers");
+
+        // Piling both MIRs into file_fields duplicates every lot key; routing
+        // them through set_lot collapses the shared ones back to one entry.
+        let lot_ids = timed.meta.fields.iter().filter(|f| f.key == "lotId").count();
+        assert_eq!(lot_ids, 1, "lotId appears {lot_ids} times — MIR fields are being accumulated, not set");
+
+        let canonical = parse_stdf_from_bytes(&bytes).unwrap();
+        assert_eq!(timed.meta.get("lotId"), canonical.meta.get("lotId"));
+    }
+
+    #[cfg(feature = "bench")]
+    #[test]
+    fn timed_dispatch_agrees_with_canonical_on_lot_meta() {
+        let bytes = std::fs::read(SINGLE_WAFER).unwrap();
+        let canonical = parse_stdf_from_bytes(&bytes).unwrap();
+        let (timed, _) = parse_stdf_from_bytes_timed(&bytes).unwrap();
+
+        // Guard against both sides being vacuously empty.
+        assert!(
+            canonical.meta.get("lotId").is_some(),
+            "fixture has no MIR lotId — this test would prove nothing"
+        );
+
+        for key in ["lotId", "partType", "jobName", "testerType", "nodeName"] {
+            assert_eq!(
+                timed.meta.get(key),
+                canonical.meta.get(key),
+                "timed dispatch lost MIR field {key:?}"
+            );
+        }
+    }
+
     // Run with: cargo test --manifest-path packages/parsers/Cargo.toml --features bench -- --nocapture bench_parse_large
     #[cfg(feature = "bench")]
     #[test]
     fn bench_parse_large() {
-        let path = "/tmp/large.stdf";
-        let bytes = match std::fs::read(path) {
+        let path = crate::bench_fixtures::fixture("large.stdf");
+        let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(_) => {
-                eprintln!("SKIP: {path} not found — run scripts/generate_stdf_large.py first");
+                eprintln!("SKIP: {} not found — run scripts/generate_stdf_large.py first", path.display());
                 return;
             }
         };
@@ -1967,11 +2036,11 @@ mod tests {
     #[cfg(feature = "bench")]
     #[test]
     fn bench_file_meta() {
-        let path = "/tmp/large.stdf";
-        let bytes = match std::fs::read(path) {
+        let path = crate::bench_fixtures::fixture("large.stdf");
+        let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(_) => {
-                eprintln!("SKIP: {path} not found — run scripts/generate_stdf_large.py first");
+                eprintln!("SKIP: {} not found — run scripts/generate_stdf_large.py first", path.display());
                 return;
             }
         };

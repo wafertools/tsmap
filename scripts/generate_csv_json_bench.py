@@ -5,9 +5,9 @@ Mirrors the STDF bench scale so the four parsers can be compared on equivalent
 logical data: WAFERS × DIES_PER_WAFER dies, each with X/Y/hbin/sbin/site/lot/wafer
 plus N_TESTS parametric test-value columns.
 
-Writes:
-    /tmp/bench.csv
-    /tmp/bench.json   (array of flat row objects — the shape json_headers expects)
+Writes, to the fixture dir (see scripts/fixture_paths.py):
+    bench.csv
+    bench.json   (array of flat row objects — the shape json_headers expects)
 
 Usage:
     python3 scripts/generate_csv_json_bench.py [wafers] [dies_per_wafer] [tests]
@@ -17,6 +17,7 @@ Usage:
 import json
 import random
 import sys
+from fixture_paths import fixture_path
 
 random.seed(42)
 
@@ -76,8 +77,8 @@ def write_json(path):
 if __name__ == "__main__":
     import os
 
-    n_csv, p_csv = write_csv("/tmp/bench.csv")
-    n_json, p_json = write_json("/tmp/bench.json")
+    n_csv, p_csv = write_csv(fixture_path("bench.csv"))
+    n_json, p_json = write_json(fixture_path("bench.json"))
     for n, p in ((n_csv, p_csv), (n_json, p_json)):
         mb = os.path.getsize(p) / 1_048_576
         print(f"{p}: {n:,} dies, {N_TESTS} tests, {mb:.1f} MB")

@@ -38,6 +38,7 @@ import random
 import struct
 import sys
 from pathlib import Path
+from fixture_paths import fixture_path
 
 random.seed(7)
 
@@ -360,5 +361,5 @@ def generate(output_path: Path) -> None:
 
 
 if __name__ == '__main__':
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('/tmp/corner_lot.stdf')
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('corner_lot.stdf')
     generate(out)

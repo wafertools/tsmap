@@ -18,14 +18,29 @@ describe('map colour preferences', () => {
     expect(loadMapColorPrefs()).toEqual({});
   });
 
-  it('round-trips bin scheme, value scheme and the definition-colour toggle', () => {
+  it('round-trips bin scheme, value scheme, gradient direction and the definition-colour toggle', () => {
     saveMapColorPrefs(
-      { plotMode: 'value', binColorScheme: 'accessible', valueColorScheme: 'viridis', useDefinedBinColors: false },
+      {
+        plotMode: 'value', binColorScheme: 'accessible', valueColorScheme: 'mako',
+        reverseValueScheme: true, useDefinedBinColors: false,
+      },
       ['valueColorScheme'],
     );
     expect(loadMapColorPrefs()).toEqual({
-      binColorScheme: 'accessible', valueColorScheme: 'viridis', useDefinedBinColors: false,
+      binColorScheme: 'accessible', valueColorScheme: 'mako',
+      reverseValueScheme: true, useDefinedBinColors: false,
     });
+  });
+
+  it('persists Reverse gradient on its own — it is its own changed key', () => {
+    saveMapColorPrefs({ valueColorScheme: 'mako', reverseValueScheme: true }, ['reverseValueScheme']);
+    expect(loadMapColorPrefs()).toEqual({ valueColorScheme: 'mako', reverseValueScheme: true });
+  });
+
+  it('persists Reverse gradient turned back OFF, rather than treating false as unset', () => {
+    saveMapColorPrefs({ reverseValueScheme: true }, ['reverseValueScheme']);
+    saveMapColorPrefs({ reverseValueScheme: false }, ['reverseValueScheme']);
+    expect(loadMapColorPrefs()).toEqual({ reverseValueScheme: false });
   });
 
   it('keeps the two schemes independent — saving one never clears the other', () => {
@@ -40,14 +55,14 @@ describe('map colour preferences', () => {
   });
 
   it('drops a saved scheme name that is no longer registered', () => {
-    store.set('tsmap:map-colors', JSON.stringify({ binColorScheme: 'gone', valueColorScheme: 'viridis' }));
-    expect(loadMapColorPrefs()).toEqual({ valueColorScheme: 'viridis' });
+    store.set('tsmap:map-colors', JSON.stringify({ binColorScheme: 'gone', valueColorScheme: 'mako' }));
+    expect(loadMapColorPrefs()).toEqual({ valueColorScheme: 'mako' });
   });
 
   it('survives malformed storage', () => {
     store.set('tsmap:map-colors', '{not json');
     expect(loadMapColorPrefs()).toEqual({});
-    store.set('tsmap:map-colors', JSON.stringify({ useDefinedBinColors: 'yes' }));
+    store.set('tsmap:map-colors', JSON.stringify({ useDefinedBinColors: 'yes', reverseValueScheme: 'yes' }));
     expect(loadMapColorPrefs()).toEqual({});
   });
 });
