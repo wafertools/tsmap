@@ -37,6 +37,23 @@ technical record, including internal changes.
     A service worker inside the Tauri WebView would serve a stale frontend after an upgrade,
     with none of the browser's devtools available to clear it.
 
+### Fixed
+
+- **The browser said "Upload" while tsmap was telling users nothing is uploaded.** Scanning a
+  folder on the web used an `<input webkitdirectory>`, which the browser labels itself: an
+  *Open file* dialog with an **Upload** button, followed by *"Upload N files to this site?"*.
+  Those strings cannot be changed from the page, and they contradicted the product's central
+  promise in the browser's own voice, at the one moment the user was paying attention. Chrome,
+  Chromium and Edge now get `showDirectoryPicker()` instead — *"Let this site view files?"*,
+  which is both reassuring and accurate. Firefox and Safari implement no equivalent and keep
+  the old wording, so tsmap states the truth in its own voice at every entry point to a folder
+  scan (empty state, both menu hints, and the status line while the picker is open), and
+  `docs/web.md` explains the discrepancy with two ways to verify it.
+- **Web folder scans are now bounded** at 5000 files and 3 levels deep, the same caps the
+  desktop's Rust walk has always applied, so a mistaken pick cannot walk an unbounded tree and
+  a folder that scans fully on the desktop does not silently truncate in the browser. Both web
+  paths report `truncated`, which already surfaces as the existing safety-limit notice.
+
 ### Internal
 
 - **`npm run check:pwa`** (`scripts/check-pwa-build.mjs`) asserts the built service worker

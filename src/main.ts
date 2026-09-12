@@ -1160,9 +1160,17 @@ function showEmptyState() {
   scanFolderBtn.className = 'btn-secondary';
   scanFolderBtn.style.cssText = 'margin-top:4px;';   // layout only
   scanFolderBtn.textContent = 'Scan a folder…';
-  attachTooltip(scanFolderBtn, 'Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load');
+  attachTooltip(scanFolderBtn, 'Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load'
+    + (isTauri ? '' : `. ${NO_UPLOAD_NOTE}`));
   scanFolderBtn.addEventListener('click', () => void scanFolderAndFilter(false));
   column.appendChild(scanFolderBtn);
+
+  if (!isTauri) {
+    const note = document.createElement('div');
+    note.style.cssText = 'margin-top:6px;font-size:12px;color:var(--text-dim);text-align:center';
+    note.textContent = NO_UPLOAD_NOTE;
+    column.appendChild(note);
+  }
 
   // Recent files needs a persistent native path to reopen without the picker —
   // only available on desktop (webPlatform's File objects have no path). Also
@@ -1815,8 +1823,10 @@ async function offerFilterFirst(picked: PickedFile[], isAppend: boolean, prevLab
  * Subfolders are opt-in and only offered when there are any: a recursive walk
  * of a mistaken pick (a home directory, a network mount) is the one thing here
  * that could take real time, so it is never the silent default. On the web
- * there is no choice to offer — `webkitdirectory` returns the whole subtree —
- * so the prompt is desktop-only by construction.
+ * there is no choice to offer — both browser paths deliver the whole subtree in
+ * one go (`webkitdirectory` by definition, and the File System Access walk
+ * because a second prompt cannot be avoided by descending lazily) — so the
+ * prompt is desktop-only by construction.
  */
 /** Scan one or more dropped folders into the filter table. Shares the whole
  *  tail of `scanFolderAndFilter` — subfolder prompt, truncation notice, empty
@@ -1925,7 +1935,8 @@ function openPickMenu(anchor: HTMLElement, isAppend: boolean) {
       }));
       popup.appendChild(makeMenuRow(close, {
         label: 'Scan a folder…',
-        hint: 'Read every wafer-map file in a folder, then filter by lot metadata and pick from a table',
+        hint: 'Read every wafer-map file in a folder, then filter by lot metadata and pick from a table'
+          + (isTauri ? '' : ` ${NO_UPLOAD_NOTE}`),
         enabled: !busy,
         onClick: () => { void scanFolderAndFilter(isAppend); },
       }));
@@ -1958,10 +1969,31 @@ function openPickMenu(anchor: HTMLElement, isAppend: boolean) {
   );
 }
 
+/**
+ * The reassurance shown wherever a folder scan is offered in the browser.
+ *
+ * Needed because the browser talks over us at the worst moment. Firefox and
+ * Safari have no `showDirectoryPicker`, so tsmap falls back to an
+ * `<input webkitdirectory>` there, which Chrome and the others label "Open
+ * file" / "Upload" and follow with "Upload N files to this site?" — the
+ * browser's own voice, at the one moment the user is paying attention, flatly
+ * contradicting the promise the whole product rests on. Those strings are the
+ * browser's and cannot be changed from the page (see the notes above
+ * `pickFolderViaHandle` in platform.ts for the half we CAN fix).
+ *
+ * So tsmap says it plainly itself, in the places the user is looking before and
+ * during that prompt. Desktop has no such problem and gets no such line —
+ * reassurance nobody needed reads as protesting too much.
+ */
+const NO_UPLOAD_NOTE = 'Folders are read in your browser — no files are uploaded.';
+
 async function scanFolderAndFilter(isAppend: boolean) {
   if (busy) return;
   const prevLabel = fileLabel.textContent ?? '';
-  setBusy('Waiting for folder selection…');
+  // Kept short: #file-label is nowrap with an ellipsis and shrinks on a narrow
+  // window, so the reassurance has to survive being clipped. The full sentence
+  // is on the empty state and both menu hints.
+  setBusy(isTauri ? 'Waiting for folder selection…' : 'Waiting for folder selection — nothing is uploaded');
   let scan;
   try {
     scan = await platform.pickFolder(

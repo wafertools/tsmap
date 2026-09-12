@@ -777,6 +777,102 @@ function parseJsonHeaders(bytes: Uint8Array): HeadersResult {
 }
 
 
+// ── Folder scanning on web ───────────────────────────────────────────────────
+//
+// Two implementations, tried in order, because the better one is Chromium-only.
+//
+// 1. `showDirectoryPicker()` (File System Access API). Preferred for ONE reason
+//    above all: wording. The `webkitdirectory` input below is labelled entirely
+//    by the browser, and Chrome labels it "Open file" / "Upload", then asks
+//    "Upload N files to this site?" — telling the user, in the browser's own
+//    voice and at the one moment they are paying attention, the exact opposite
+//    of what tsmap does and of what every page of our documentation promises.
+//    Nothing on the page can change those strings. `showDirectoryPicker` asks
+//    "Let this site view files?" with a "View files" button, which is both
+//    reassuring and accurate: we read the folder, in the browser, and send
+//    nothing anywhere.
+//
+// 2. `<input type="file" webkitdirectory>` — the fallback, for Firefox and
+//    Safari, which implement no equivalent. They keep the misleading wording,
+//    which is why `main.ts` also states the truth in tsmap's own voice while
+//    the picker is open: that line is not redundant with this preference, it
+//    covers the browsers this preference cannot reach.
+//
+// Both paths produce the same `FolderScan`, so nothing upstream branches.
+
+/** Caps on a folder walk, mirroring `MAX_FILES`/`MAX_DEPTH` in
+ *  `src-tauri/src/commands/list_dir_files.rs` — deliberately the same numbers,
+ *  so `truncated` means the same thing to a user on either platform and a
+ *  folder that scans fully on the desktop does not silently truncate in the
+ *  browser. Change them together. */
+const SCAN_MAX_FILES = 5000;
+const SCAN_MAX_DEPTH = 3;
+
+/** Whether a filename is one of the wafer data formats worth listing. */
+function isDataFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return DATA_FILE_EXTENSIONS.some(e => lower.endsWith(`.${e}`));
+}
+
+/** The slice of the File System Access API this uses. Not in the TS DOM lib
+ *  (TypeScript 5.9 declares neither `showDirectoryPicker` nor the handle's
+ *  `values()`), so it is declared here at exactly the width needed rather than
+ *  pulling in a dependency for two methods. */
+interface FsFileHandle { kind: 'file'; name: string; getFile(): Promise<File> }
+interface FsDirectoryHandle {
+  kind: 'directory';
+  name: string;
+  values(): AsyncIterableIterator<FsFileHandle | FsDirectoryHandle>;
+}
+type DirectoryPicker = (opts?: { mode?: 'read' | 'readwrite'; id?: string }) => Promise<FsDirectoryHandle>;
+
+/**
+ * Folder scan via the File System Access API.
+ *
+ * Returns `undefined` — distinct from `null` — when this path is unavailable
+ * and the caller should fall back: the API is absent, or the call was refused
+ * for a reason a retry would not fix (no user activation, enterprise policy).
+ * `null` means the user cancelled, which is an answer, not a failure, and must
+ * NOT open a second picker in their face.
+ */
+async function pickFolderViaHandle(): Promise<FolderScan | null | undefined> {
+  const picker = (window as unknown as { showDirectoryPicker?: DirectoryPicker }).showDirectoryPicker;
+  if (typeof picker !== 'function') return undefined;
+
+  let dir: FsDirectoryHandle;
+  try {
+    // `id` makes the browser reopen at the last folder chosen for this purpose,
+    // which is the closest the web has to the desktop's remembered directory.
+    dir = await picker({ mode: 'read', id: 'tsmap-folder-scan' });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
+    return undefined;
+  }
+
+  const files: FileHandle[] = [];
+  let hasSubdirs = false;
+  let truncated = false;
+
+  const walk = async (d: FsDirectoryHandle, depth: number): Promise<void> => {
+    for await (const entry of d.values()) {
+      if (files.length >= SCAN_MAX_FILES) { truncated = true; return; }
+      if (entry.kind === 'directory') {
+        if (depth + 1 > SCAN_MAX_DEPTH) { truncated = true; continue; }
+        await walk(entry, depth + 1);
+      } else if (isDataFile(entry.name)) {
+        if (depth > 0) hasSubdirs = true;
+        // Metadata only — `getFile()` does not read the contents, so a 5000-file
+        // scan still costs nothing until the filter dialog asks for bytes.
+        const file = await entry.getFile();
+        files.push({ name: entry.name, bytes: new Uint8Array(), size: file.size, lastModified: file.lastModified, webFile: file });
+      }
+    }
+  };
+  await walk(dir, 0);
+
+  return { dirPath: '', dirName: dir.name, files, hasSubdirs, truncated };
+}
+
 /** Dedicated hidden directory input — `webkitdirectory`, which every current
  *  browser supports and which returns the folder's whole subtree as ordinary
  *  lazy File handles (no bytes read until something asks). Kept separate from
@@ -809,6 +905,11 @@ function makeWebPlatform(): Platform {
     // caller therefore never gets a subfolder prompt on web — there is nothing
     // to opt into, it already happened.
     async pickFolder(_title, _recursive) {
+      // Preferred path first; `undefined` means it is unavailable here, so fall
+      // through to the input. A `null` (user cancelled) is returned as-is.
+      const viaHandle = await pickFolderViaHandle();
+      if (viaHandle !== undefined) return viaHandle;
+
       const input = getFolderInput();
       const picked = await new Promise<File[]>((resolve) => {
         const done = (files: File[]) => {
@@ -825,10 +926,14 @@ function makeWebPlatform(): Platform {
       });
       if (picked.length === 0) return null;
 
-      const wanted = picked.filter(f => {
-        const lower = f.name.toLowerCase();
-        return DATA_FILE_EXTENSIONS.some(e => lower.endsWith(`.${e}`));
-      });
+      // Depth is read from webkitRelativePath: "folder/a.stdf" is depth 0 inside
+      // the chosen folder, "folder/sub/a.stdf" depth 1. Capped like the handle
+      // path and like the desktop's Rust walk, so one folder does not scan
+      // fully on one platform and truncate on another.
+      const withinCaps = (f: File) =>
+        (f.webkitRelativePath.match(/\//g)?.length ?? 1) - 1 <= SCAN_MAX_DEPTH;
+      const eligible = picked.filter(f => isDataFile(f.name));
+      const wanted = eligible.filter(withinCaps).slice(0, SCAN_MAX_FILES);
       const rel = picked[0].webkitRelativePath || picked[0].name;
       const dirName = rel.includes('/') ? rel.split('/')[0] : '';
       const files: FileHandle[] = await Promise.all(
@@ -839,7 +944,7 @@ function makeWebPlatform(): Platform {
         dirName,
         files,
         hasSubdirs: wanted.some(f => (f.webkitRelativePath.match(/\//g)?.length ?? 0) > 1),
-        truncated: false,
+        truncated: wanted.length < eligible.length,
       };
     },
 

@@ -24,6 +24,21 @@ arrive already ticked: a small lot is pre-selected, while a large one starts emp
 importing everything can never be the accidental default. A **Setup ▾ → Tests…** entry in the
 toolbar lets you change your selection at any time after load.
 
+### "Upload" in the browser's own dialog
+
+**Scan a folder…** may show a dialog headed *Open file* with an **Upload** button, then ask
+*"Upload N files to this site?"* — in Firefox and Safari, which is alarming and, for tsmap,
+untrue. That wording belongs to the browser and is attached to the only folder-picking
+mechanism those browsers offer; a page cannot change it. Nothing is uploaded: the folder is
+read in your browser, and no file, name, or measurement leaves the machine.
+
+Chrome, Chromium and Edge implement a newer picker that tsmap uses instead, which asks *"Let
+this site view files?"* — a fair description of what happens next.
+
+If you would rather verify than take our word for it, open your browser's developer tools on
+the Network tab and scan a folder: there are no outbound requests. Or disconnect from the
+network entirely and use the app offline, which works.
+
 ## Try it with sample data
 
 No wafer files to hand? Download one of these synthetic samples and open it in the app:
