@@ -1027,7 +1027,8 @@ machine to someone else, or when you simply want to see what the app is holding.
 | PNG save | Native save dialog | Browser download folder |
 | Zip extraction | Native Rust | In-browser (fflate) |
 | Interface zoom (Ctrl +/−/0) | Yes | Yes (the browser's own page zoom) |
-| Offline use | Yes | Yes (once page loaded) |
+| Offline use | Yes | Yes — cached on first visit, then opens with no network |
+| Install as an app | Yes (installer) | Yes in Chrome, Chromium and Edge; Firefox desktop cannot install web apps |
 | Opening data from a URL | `--url`/`--url-format` CLI flags | `?dataUrl=&dataFormat=` query params (subject to the target server's CORS policy) |
 
 The browser version is functionally identical to the desktop app. Files are parsed entirely

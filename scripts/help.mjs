@@ -69,6 +69,7 @@ const GROUPS = [
       ['npm run test:watch', 'Vitest in watch mode'],
       ['npm run demo:test', 'Replay the scripted investigation scenario'],
       ['npm run check:drift', 'Compare agent/tooling config against the config repo'],
+      ['npm run check:pwa', 'After a web build: check the offline cache holds the parser'],
       ['npm run ui:surface:check', 'Fail if the interactive surface moved without being re-recorded'],
     ],
   },

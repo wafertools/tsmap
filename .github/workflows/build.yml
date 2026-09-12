@@ -43,7 +43,7 @@ jobs:
           | **Linux — Ubuntu / Debian** (installer) | `tsmap-VERSION-linux-x86_64.deb` |
           | **Linux — Fedora** (installer) | `tsmap-VERSION-linux-x86_64.rpm` |
           | **Linux — other / portable** (no install) | `tsmap-VERSION-linux-x86_64.AppImage` |
-          | **Linux — RHEL / Rocky / Alma 8 or 9** | [browser version](https://wafertools.github.io/tsmap/app/) — no install |
+          | **Linux — RHEL / Rocky / Alma 8 or 9** | [browser version](https://wafertools.github.io/tsmap/app/) — installable as an app in Chrome/Chromium/Edge |
           | **Host it yourself** (intranet / air-gapped) | `tsmap-VERSION-web.zip` |
 
           **Not sure on Mac?**  Apple menu → About This Mac. "Apple M…" = Apple Silicon; "Intel" = Intel.
@@ -53,7 +53,11 @@ jobs:
 
           **On RHEL / Rocky / Alma?** The desktop app's webview needs newer system libraries
           than those releases ship — run the [browser version](https://wafertools.github.io/tsmap/app/)
-          instead. It works in any modern browser, with no install.
+          instead. It works in any modern browser, and in Chrome, Chromium or Edge it can be
+          installed as an app — its own window and launcher entry, working offline, with no
+          package to install. Firefox on the desktop cannot install web apps, so there is no
+          install button there; it still works as an ordinary page. See
+          [Installing tsmap as an app](https://wafertools.github.io/tsmap/web/#installing-tsmap-as-an-app).
 
           **`tsmap-VERSION-web.zip`** is the browser version as a static site, for hosting on
           your own intranet. Unpack it into any web server's document root and browse to it —
@@ -201,6 +205,13 @@ jobs:
 
       - name: Build web app
         run: npm run build:web
+
+      # The offline cache is silent when it breaks: workbox skips an oversized
+      # file without failing the build, so a published app can install fine and
+      # then be unable to parse anything offline. Checked here rather than in
+      # `npm run verify`, which has no dist/ to look at.
+      - name: Check the offline cache
+        run: npm run check:pwa
 
       - name: Package the bundle
         env:

@@ -18,9 +18,9 @@
 // Unlike the old standalone page this replaces, this fragment is injected
 // into the SAME running app document (Tauri webview / web app), never opened
 // as a separate document — so it has no <!doctype>/<head>/<body> of its own,
-// and its images use app-absolute paths (/guide/images/...), not relative
-// ones, since there is no longer a real public/guide/index.html sitting next
-// to them.
+// and its images are paths relative to that document (guide/images/...), since
+// there is no longer a real public/guide/index.html sitting next to them. See
+// the `renderer.image` override below for why relative and not app-absolute.
 //
 // Run manually with: npm run build:guide
 // Runs automatically via predev / prebuild hooks.
@@ -38,7 +38,8 @@ const ROOT = join(__dirname, '..');
 // tauri.conf.json's bundle output includes the same dist/ tree for Tauri
 // (the app's own webview, not a separately bundled resource — there is no
 // standalone guide page left to bundle as one).
-const IMAGES_OUT_DIR = join(ROOT, 'public/guide/images');
+const GUIDE_OUT_DIR = join(ROOT, 'public/guide');
+const IMAGES_OUT_DIR = join(GUIDE_OUT_DIR, 'images');
 const OUT_MODULE = join(ROOT, 'src/guideExtension.ts');
 
 // ── Slugify heading text to stable anchor IDs (same algorithm as wmap) ────────
@@ -83,8 +84,17 @@ renderer.heading = ({ text, depth }) => {
 // This fragment lives inside the app's own document (see header comment), so
 // every image resolves against the app's own served assets, not a path
 // relative to some standalone page that no longer exists.
+//
+// RELATIVE, not app-absolute. These used to be `/guide/images/...`, which is
+// correct only when the app is served from an origin root — true for Tauri and
+// for `npm run dev`, and false for the deployed browser build, which lives at
+// /tsmap/app/. Every screenshot in the in-app guide was therefore a 404 on the
+// published web version, while working perfectly everywhere we look at it.
+// A relative path resolves against the app document's own URL and so is right
+// in all three: /guide/images/... on desktop, /tsmap/app/guide/images/... on
+// the deployed site, and whatever subdirectory a self-hosted copy sits in.
 renderer.image = ({ href, text }) => {
-  const rel = /^https?:\/\//.test(href) ? href : `/guide/images/${href.replace(/^images\//, '')}`;
+  const rel = /^https?:\/\//.test(href) ? href : `guide/images/${href.replace(/^images\//, '')}`;
   const alt = text ? ` alt="${text}"` : '';
   let sizeAttrs = '';
   if (!/^https?:\/\//.test(href)) {
@@ -187,7 +197,16 @@ const guideCss = `
 `;
 
 // ── Copy images ─────────────────────────────────────────────────────────────────
-rmSync(IMAGES_OUT_DIR, { recursive: true, force: true });
+// Clear the WHOLE of public/guide/, not just its images/ subdirectory. This
+// script owns that directory and is the only thing that writes to it, so
+// anything else in there is output from a version of this script that no
+// longer exists — and Vite copies public/ into dist/ verbatim, so it ships.
+// That is not hypothetical: the standalone `public/guide/index.html` page this
+// architecture replaced went on sitting in dist/ (and, once there was a service
+// worker, in the offline precache) on every machine that had ever built the old
+// version, because only images/ was being cleaned. The directory is gitignored
+// generated output, so a clean checkout never saw it and nothing failed.
+rmSync(GUIDE_OUT_DIR, { recursive: true, force: true });
 mkdirSync(IMAGES_OUT_DIR, { recursive: true });
 for (const f of readdirSync(join(ROOT, 'docs/images'))) {
   copyFileSync(join(ROOT, 'docs/images', f), join(IMAGES_OUT_DIR, f));

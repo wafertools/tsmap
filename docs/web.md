@@ -72,7 +72,8 @@ All five formats are supported in the browser:
 | PNG export | Browser download | Native save dialog |
 | HTML reports | Opens in new tab | Writes to temp file |
 | Zip extraction | In-browser (fflate) | Rust (native) |
-| Offline use | Yes once loaded, but only while the browser cache holds it — [host it yourself](#hosting-tsmap-on-your-own-server) for a dependable offline install | Yes |
+| Offline use | Yes — the app installs a service worker on first visit and then opens with no network at all | Yes |
+| Install as an app | Yes in Chrome, Chromium and Edge — see [Installing tsmap as an app](#installing-tsmap-as-an-app). Firefox on the desktop cannot install web apps at all | Yes (installer) |
 | Opening data from a URL | `?dataUrl=&dataFormat=` query param, subject to the target server's CORS policy | `--url`/`--url-format` CLI flags, a `tsmap://open?url=...&format=...` link, or both — plus optional header-based auth via `--url-headers` |
 | File associations (open `.stdf`/`.atdf`/`.parquet` by double-click) | Not available | **Help → File associations…** |
 
@@ -81,16 +82,67 @@ All five formats are supported in the browser:
 Any modern browser with WebAssembly and `DecompressionStream` support — Chrome 80+,
 Firefox 113+, Safari 16.4+, Edge 80+.
 
+## Installing tsmap as an app
+
+The browser build can be installed, giving it a launcher entry and its own window with no
+browser tabs or address bar — the same way you would use the desktop app. This is the
+closest thing to a package on the Linux distributions we do not ship installers for.
+
+In **Chrome, Chromium or Edge**, open [the app](https://wafertools.github.io/tsmap/app/) and
+use the install icon at the right-hand end of the address bar, or ⋮ ▸ *Cast, save and share*
+▸ *Install page as app*. On **Safari** (macOS and iOS), use *Share* ▸ *Add to Dock* / *Add to
+Home Screen*.
+
+**Firefox on the desktop cannot install web apps.** There is no install button and no way to
+add one — this is a deliberate Firefox decision, not something tsmap can work around. Firefox
+on Android can. The offline behaviour below applies in Firefox either way; only the install
+does not.
+
+### What installing does and does not give you
+
+Installing is a convenience, not a different application. It is the same code, the same
+browser engine and the same sandbox, so everything in the comparison table above still
+applies — notably, there is still no access to native file dialogs, no remembered directory,
+and no file associations.
+
+What it does change:
+
+- **It works offline.** The whole application — including the parser — is cached on first
+  visit, so it opens with no network connection. This happens whether or not you install;
+  installing simply makes it reachable without going through a browser.
+- **Saved settings become durable.** Column mappings, splits, bin definitions and the theme
+  live in browser storage, which a browser is entitled to evict when it needs space.
+  Installed apps are granted persistent storage, so they are not discarded.
+- **The user guide's screenshots are not part of the offline cache.** The guide text works
+  offline; its screenshots need a network connection the first time each one is shown, and may
+  appear broken offline on a machine that has not displayed them before. The guide opens in a
+  separate window, which browsers place outside the offline cache's reach — so this is a
+  limitation we cannot cache our way around, not an oversight. The guide is also published in
+  full at [wafertools.github.io/tsmap/user-guide](https://wafertools.github.io/tsmap/user-guide/).
+
+### Updating an installed app
+
+When a new version is published, tsmap shows a prompt offering to update. It never updates
+by itself, because updating reloads the app and **the browser build cannot re-read your
+files** — anything currently loaded would be lost. Choose *Not now* and it will ask again
+next time.
+
+Your data is never part of this. Files you open are read in the browser and never uploaded,
+installed or not.
+
 ## Hosting tsmap on your own server
 
 The browser build is a plain static site, so you can serve it from your own intranet instead
 of using ours. This is the right choice when the machines that need tsmap cannot reach the
 public internet, or when policy says lot data must not touch an external origin.
 
-It is also the only *dependable* offline option in a browser. The hosted app keeps working
-without a network once loaded, but only because the browser cached it — a hard refresh, an
-evicted cache, or a different browser profile all send it looking for
-`wafertools.github.io` again. A copy on your own server has no such dependency.
+The hosted app is now offline-capable in its own right (see
+[Installing tsmap as an app](#installing-tsmap-as-an-app)), so this is no longer the only way
+to get that. It remains the stronger one: a service-worker cache belongs to one browser
+profile on one machine and can still be cleared, whereas a copy on your own server is
+reachable from every machine on the network, survives a wiped profile, and never involves
+`wafertools.github.io` at all — which is usually the point when policy is what is driving
+the decision.
 
 **Download** `tsmap-<version>-web.zip` from the
 [latest release](https://github.com/wafertools/tsmap/releases/latest). It is the same
@@ -108,7 +160,7 @@ included — and needs no cookies, no special headers and no cross-origin isolat
 Files are parsed in the browser by the same WebAssembly parser the hosted version uses, so
 nothing is uploaded to your server either. It only ever serves the application.
 
-### Two things that catch people out
+### Three things that catch people out
 
 **`.wasm` must be served as `application/wasm`.** The parser is WebAssembly; if the server
 sends it as `text/plain` or `application/octet-stream` the browser refuses to compile it and
@@ -120,10 +172,22 @@ extension `.wasm` to `application/wasm`.
 (a `file://` URL) will not work — browsers block module scripts and web workers on that
 scheme. Any web server will do.
 
+**Offline use and app installation need `https://`.** They are built on a service worker,
+which browsers only allow in a secure context — that means HTTPS, or `http://localhost`. Over
+plain `http://` on an intranet hostname tsmap still works completely; it simply loads from the
+server every time and cannot be installed. If that matters, give the host a certificate (an
+internal CA is fine — it does not have to be publicly trusted).
+
 ### Updating
 
 Replace the directory's contents with a newer bundle. Nothing persists on the server; each
 user's preferences live in their own browser.
+
+If you are serving over HTTPS, browsers will be holding a cached copy, so a user is not
+switched to the new bundle the moment you replace it: tsmap notices the new version and offers
+each user an update, which they accept when it suits them. That is deliberate — reloading
+discards whatever they currently have loaded. Expect a short tail of users on the previous
+version rather than an instant cut-over.
 
 ## Running locally
 

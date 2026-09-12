@@ -74,7 +74,27 @@ export function setTheme(theme: Theme): void {
   if (theme === 'auto') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', theme);
   try { localStorage.setItem(STORAGE_KEY, theme); } catch { /* ignore */ }
+  syncThemeColorMeta();
   for (const fn of listeners) fn();
+}
+
+/**
+ * Keep <meta name="theme-color"> on the resolved toolbar shade.
+ *
+ * This is the browser/OS window chrome — the strip around an installed PWA's
+ * window, and the address-bar tint on mobile. It is the one surface the app
+ * paints that CSS variables cannot reach, so it has to be pushed, and pushed
+ * from HERE: this is the single place a theme is applied, and a second copy of
+ * "what colour is the chrome" would be the thing that goes stale.
+ *
+ * Read AFTER the attribute is set, so getComputedStyle resolves the new theme's
+ * value rather than the outgoing one.
+ */
+function syncThemeColorMeta(): void {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const color = cssVar('--bg-toolbar');
+  if (color) meta.setAttribute('content', color);
 }
 
 /**
@@ -96,7 +116,11 @@ export function initTheme(): void {
   // but tsmap's own modal/menuSelect chrome reads cssVar at build time and need the nudge.)
   if (typeof matchMedia === 'function') {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if (getTheme() === 'auto') for (const fn of listeners) fn();
+      if (getTheme() !== 'auto') return;
+      // No attribute changed, but the resolved colours did — including the
+      // chrome colour, which has no listener of its own.
+      syncThemeColorMeta();
+      for (const fn of listeners) fn();
     });
   }
 }

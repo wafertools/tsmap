@@ -30,8 +30,8 @@ To try it without a server (Python is enough):
     # then open http://localhost:8080/
 
 
-TWO THINGS THAT CATCH PEOPLE OUT
---------------------------------
+THREE THINGS THAT CATCH PEOPLE OUT
+----------------------------------
 
 1. .wasm MUST be served as "application/wasm".
 
@@ -51,6 +51,14 @@ TWO THINGS THAT CATCH PEOPLE OUT
    Double-clicking index.html (a file:// URL) will not work: browsers block
    module scripts and web workers on that scheme. Any web server is fine.
 
+3. Offline use and "install as an app" need https://.
+
+   Both are built on a service worker, which browsers only permit in a secure
+   context: https://, or http://localhost. Over plain http:// on an intranet
+   hostname tsmap still works completely -- it just loads from the server every
+   time and cannot be installed. If that matters, give the host a certificate;
+   an internal CA is fine, it does not have to be publicly trusted.
+
 No other configuration is needed. tsmap sets no cookies, needs no special
 headers, and does not require cross-origin isolation.
 
@@ -60,6 +68,12 @@ UPDATING
 
 Replace the folder's contents with a newer bundle. Nothing persists on the
 server; each user's preferences live in their own browser.
+
+Over https://, browsers hold a cached copy, so users are not switched over the
+instant you replace the files: tsmap spots the new version and offers each user
+an update to accept when it suits them. This is deliberate -- reloading discards
+whatever they have loaded at the time. Expect a short tail of users on the
+previous version rather than an instant cut-over.
 
 
 WHAT YOUR USERS CAN OPEN

@@ -14,6 +14,21 @@
     <link rel="icon" href="/tsmap-favicon.ico" sizes="any" />
     <link rel="icon" href="/tsmap-favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="icon" href="/tsmap-favicon-16.png" type="image/png" sizes="16x16" />
+    <!-- PWA. The manifest link is injected at build time by vite-plugin-pwa
+         (web build only — the Tauri build disables the plugin), so it is
+         deliberately not written here; these two are the parts the plugin
+         does not own.
+
+         `theme-color` is the browser/OS window chrome colour. It starts on the
+         dark theme's toolbar shade because that is the startup default, and
+         src/theme.ts rewrites it on every theme change — an installed app whose
+         title bar stayed dark grey around a Solarized Light window would look
+         broken in the one place the user cannot restyle.
+
+         The apple-touch-icon is what iOS uses for "Add to Home Screen"; Safari
+         ignores the manifest's icons for that. -->
+    <meta name="theme-color" content="#262628" />
+    <link rel="apple-touch-icon" href="/pwa-192.png" />
     <script type="module" src="/src/main.ts" defer></script>
     <script>
       // Last-resort visibility for a module that fails to load/parse — at that

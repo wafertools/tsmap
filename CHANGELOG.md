@@ -4,6 +4,50 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [Unreleased]
+
+### Added
+
+- **The browser build is now a progressive web app: it works offline, and Chrome, Chromium
+  and Edge offer to install it** as a real app with its own window and launcher entry. This
+  is aimed squarely at the platforms we ship no installer for — RHEL in particular — where
+  installing the web build is now a usable substitute for a package. One limitation worth
+  knowing before recommending it: **Firefox on the desktop cannot install web apps at all**,
+  so on a stock RHEL desktop there is no install button. The offline caching applies in
+  Firefox regardless; only the install does not.
+  - The whole application is cached on first visit, the WASM parser included — so an offline
+    tsmap can still actually parse a file, rather than opening as a shell that fails at the
+    one thing it is for.
+  - The user guide's screenshots (6.1 MB against the app's own 3.2 MB) are deliberately
+    *not* precached — making every visitor download triple the app to read a guide most of
+    them never open is the wrong default. Note this is not a choice between caching them and
+    not: wmap opens its guide in a `window.open` popup, and an `about:blank` popup has no
+    service-worker controller, so its image requests bypass the offline cache whether or not
+    they are precached. The guide's text works offline; its screenshots need a network
+    connection the first time each is shown. Logged in `WMAP_ISSUES.md`.
+  - Installed apps are granted persistent storage, so saved column mappings, splits, bin
+    definitions and the theme stop being evictable.
+  - **Updates are never applied silently.** A new version shows a prompt and waits: the
+    browser build holds uploaded bytes in memory and cannot re-read the original files, so
+    an automatic reload would discard a loaded lot with no way back. The prompt says so, and
+    says whether anything is currently loaded.
+  - `<meta name="theme-color">` now follows the selected theme, so an installed window's
+    chrome matches the app instead of staying dark around a light theme.
+  - No effect on the desktop app: `vite.config.ts` disables the plugin for the Tauri build.
+    A service worker inside the Tauri WebView would serve a stale frontend after an upgrade,
+    with none of the browser's devtools available to clear it.
+
+### Internal
+
+- **`npm run check:pwa`** (`scripts/check-pwa-build.mjs`) asserts the built service worker
+  precaches the parser WASM and does *not* precache the guide screenshots. Both failures are
+  silent — workbox skips an oversized file without failing the build — so this runs in CI
+  after the web build, in both `build.yml` and `deploy.yml`. It is not part of `npm run
+  verify`, which has no `dist/` to inspect.
+- **`scripts/generate_pwa_icons.py`** derives the install icons from `src-tauri/icons/icon.png`,
+  the same master the desktop bundle icons come from, so the installed web app and the
+  installed desktop app cannot drift apart. Output is committed; the build needs no Python.
+
 ## [0.1.35] — 2026-09-12
 
 ### Changed

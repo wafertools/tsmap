@@ -43,9 +43,12 @@ it straight away.
 
 ## Download the desktop app
 
-The desktop version adds native file dialogs, drag-and-drop from the OS, and works offline
-without a browser. Builds for Linux, macOS, and Windows are attached to each
+The desktop version adds native file dialogs, drag-and-drop from the OS, file associations,
+and works without a browser at all. Builds for Linux, macOS, and Windows are attached to each
 [GitHub release](https://github.com/wafertools/tsmap/releases).
+
+If there is no build for your distribution, the browser version can be installed as an app
+instead — see [Installing tsmap as an app](web.md#installing-tsmap-as-an-app).
 
 ## Host it yourself
 

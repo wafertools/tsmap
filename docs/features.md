@@ -113,8 +113,9 @@ the user guide.
 
 Every chart has a camera button for a clean PNG export at full resolution, and the wafer map
 toolbar has its own PNG export too. The desktop app and browser build share the same Rust
-parsing core and the same rendering — same maps, same charts, both fully local and both
-usable offline once loaded.
+parsing core and the same rendering — same maps, same charts, and both fully local. The
+browser build caches itself on first visit, so it works offline too, and Chrome, Chromium and
+Edge can install it as an app with its own window and launcher entry.
 
 ![Wafer map toolbar with the plot-mode dropdown open](images/wafer-map-toolbar.png)
 

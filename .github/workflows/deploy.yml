@@ -51,6 +51,13 @@ jobs:
       - name: Build web app
         run: npm run build:web
 
+      # The offline cache is silent when it breaks: workbox skips an oversized
+      # file without failing the build, so a published app can install fine and
+      # then be unable to parse anything offline. Checked here rather than in
+      # `npm run verify`, which has no dist/ to look at.
+      - name: Check the offline cache
+        run: npm run check:pwa
+
       - name: Build documentation site
         run: zensical build --clean
         env:

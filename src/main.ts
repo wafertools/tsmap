@@ -42,6 +42,7 @@ import { makeLoadDefinitionsButton } from './recentDefinitionsUI';
 import { getRecentDefinitions, addRecentDefinition, recentDefinitionKey, describeAge, type DefinitionKind } from './recentDefinitions';
 import { storageKey } from './storageKeys';
 import { showResetSettingsDialog } from './resetSettingsUI';
+import { initPwa } from './pwa';
 import { TSMAP_GUIDE_HTML } from './guideExtension';
 
 const platform = createPlatform();
@@ -2920,6 +2921,19 @@ attachTooltip(fileLabel, () => fileLabel.textContent ?? '');
 // colours are read from CSS at draw time, not live-bound — a CSS var flip alone
 // won't repaint the wafer). Empty state is pure CSS and needs no re-render.
 initTheme();
+
+// ── PWA (web build only) ──────────────────────────────────────────────────
+// Service worker, offline cache, and the "new version available" prompt. Not
+// called on desktop: the Tauri build bundles its assets and disables the plugin
+// entirely (see vite.config.ts), so there is nothing here for it to do.
+if (!isTauri) {
+  initPwa({
+    onLog: log,
+    // Read at prompt time, not now — see PwaOptions. A reload discards these,
+    // and on web the originals cannot be re-read, so the prompt says so.
+    hasLoadedData: () => currentWafers.length > 0,
+  });
+}
 
 function refreshCurrentView(): void {
   if (currentWafers.length === 0) return; // empty state: CSS-only, nothing to redraw

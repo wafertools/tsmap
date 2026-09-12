@@ -1804,3 +1804,109 @@ instead of index `NaN`. Guarded by `tests/hitGrid.test.mjs`.
 `PVT-LOT-05.stdf` (it had been missed when that file was patched), and `wcrGeometryFrom`
 (`src/lib.ts`) now ignores a WCR record whose `WF_UNITS` is outside the spec's 0–4 — the
 signature of a misread record — rather than passing its centre and notch on.
+
+### 54. Guide popup is outside a host PWA's service-worker scope — its screenshots cannot be made available offline
+
+**Where:** `packages/canvas-adapter/toolbar.ts` — `openGuideInPopup`, reached from
+`openUserGuideWindow` / `openWaferMapGuide` / `WaferMapController.openUserGuide()`.
+The popup is created with `ownerWindow.open('', '_blank', …)` and its content written into
+the resulting `about:blank` document.
+
+**Problem (found 2026-09-12, making tsmap's web build a PWA):** an `about:blank` document
+opened with `window.open` has **no service-worker controller**, so every subresource it
+requests bypasses the host's service worker entirely. For a host that is a PWA, that means
+the guide's screenshots can never be served from the offline cache — and crucially, this is
+not something the host can fix by precaching them. Measured both ways on tsmap's build:
+
+| Guide path | `navigator.serviceWorker.controller` | Host runtime cache after opening the guide |
+| --- | --- | --- |
+| `window.open` popup (the normal case) | `false` | 0 entries — the images never reach the worker |
+| in-page floating fallback (popup blocked) | `true` | 12 entries, served offline thereafter |
+
+So the guide is fully offline-capable only in the path wmap treats as a fallback. Offline, in
+the normal path, the images load only if they happen to still be in the browser's ordinary
+HTTP cache; on a machine that has not displayed them before, the guide renders with broken
+images. This matters for exactly the environments tsmap targets — air-gapped and
+intermittently-connected labs — and it is invisible until someone opens the guide offline.
+
+Note wmap's own guide is unaffected in the sense that matters to wmap: its images are
+base64-inlined into `USER_GUIDE_HTML`, so they need no network. It is the **host extension's**
+images (`UserGuideExtension.html`, which is a plain HTML fragment referencing real URLs) that
+are exposed to this. So the gap only appears once a host supplies an extension with images —
+which is the documented way to use the option.
+
+**Suggested fix, in preference order:**
+
+1. **Inline the extension's images the way wmap inlines its own.** Not something wmap can do
+   to a host's fragment automatically, but wmap could *document* that an extension's images
+   must be data URIs to be offline-safe, and say why. Cheapest, and it makes the existing
+   contract honest.
+2. **Offer an in-document guide as a first-class option**, not only as a popup-blocked
+   fallback — e.g. `openWaferMapGuide(extension, anchor, { mode: 'in-page' })`. The in-page
+   path already exists and is already correct here; it just cannot be chosen deliberately. A
+   host that knows it is a PWA would pick it.
+3. Leave the popup as the default either way — it is the better window for a long document,
+   and for a non-PWA host none of this applies.
+
+**tsmap side (done, this repo):** the caching rule for `/guide/images/` is kept, since it does
+cover the fallback path, with a comment recording the measurement; `docs/web.md` now states
+plainly that the guide's screenshots are not part of the offline cache and why, rather than
+implying that opening the guide once makes them available offline.
+
+**Also fixed in the same pass (tsmap-side bug, not wmap's):** the extension fragment's images
+were emitted with app-absolute paths (`/guide/images/…`), which resolve against the origin
+root — correct for Tauri and `npm run dev`, and a 404 for the deployed web build at
+`/tsmap/app/`, where every guide screenshot had been silently broken. They are relative paths
+now. Worth knowing for any other host: an `about:blank` popup inherits its **opener's** base
+URL, so a relative path in an extension fragment resolves against the host app's URL and is
+the portable choice.
+
+### 55. Map-space stroke widths are in DEVICE pixels — every overlay line thins as display scaling rises
+
+**Where:** `packages/canvas-adapter/toCanvas.ts`. The map is drawn under
+`ctx.setTransform(ppm * dpr, 0, 0, -ppm * dpr, …)` (~line 449), and every stroke inside that
+transform divides by the same factor — the ring/quadrant/reticle dual-stroke (`3 / (ppm*dpr)`
+halo, `1 / (ppm*dpr)` core), the plain overlay branch (`overlay.lineWidth / (ppm*dpr)`), die
+outlines (`0.5 / (ppm*dpr)`) and the die spec-mark (`0.6 / (ppm*dpr)`).
+
+**Problem (found 2026-09-12, chasing a report that ring and quadrant lines had become "much
+less visible"):** dividing by `ppm * dpr` under a transform scaled by `ppm * dpr` pins the
+stroke to a fixed number of **device** pixels, so its apparent size is inversely proportional
+to the display's scale factor. Measured on a flat-field wafer, same 520 CSS px box, counting
+the run-length of overlay-affected pixels per row:
+
+| devicePixelRatio | canvas backing store | drawn stroke | apparent width |
+| --- | --- | --- | --- |
+| 1 | 520 px | 3–4 device px | **3–4 CSS px** |
+| 2 | 1040 px | 3–4 device px | **1.5–2 CSS px** |
+| 3 | 1560 px | 3–4 device px | **1–1.33 CSS px** |
+
+The drawn width is constant in device pixels and therefore halves on a 2× display and thirds
+on a 3× one. The white core is the part that suffers: at `1 / (ppm*dpr)` it is one device
+pixel, i.e. **0.5 CSS px at dpr 2 and 0.33 at dpr 3** — sub-pixel, so it is anti-aliased down
+to a fraction of its nominal 0.8 alpha rather than drawn at it. The intended effect (dark halo
+carrying a bright core, legible on any die colour) degrades into a faint hairline exactly on
+the high-DPI laptops and scaled 4K monitors most users have.
+
+This is the opposite of the usual canvas convention, where the backing store is scaled by dpr
+so that a line specified in CSS pixels renders at the same *physical* size everywhere and
+merely gets sharper. wmap already does it that way elsewhere in the same file: the colorbar's
+limit markers (~line 833) are the same "dual-stroke so it reads on any colour" idea written in
+screen space — `lineWidth = 3` then `1`, no dpr division — and so keep their weight at every
+scale factor. Two implementations of one rule, one of which is scale-dependent; that is the
+defect, not a preference about thickness.
+
+Note this is long-standing (the dual-stroke has been unchanged since v0.13.6) and not a
+regression in 0.28.0 or 0.29.0 — `git diff v0.28.0..v0.29.0` over `toCanvas.ts`/`buildView.ts`
+touches only the gradient read-path. It becomes newly visible when a user's display, scaling
+factor, or window zoom changes, which is a hard thing to attribute from the outside.
+
+**Suggested fix:** specify map-space strokes in CSS pixels — divide by `ppm` alone and let the
+`dpr` in the transform do what it is for (more device pixels for the same drawn size). That is
+one edit per stroke site and makes the map agree with the colorbar. If any of those widths were
+tuned by eye on a 1× display, they will look correspondingly heavier at 2× after the change,
+so it is worth re-checking the die outline at `0.5` — the one most likely to have been chosen
+to disappear rather than to be seen.
+
+**tsmap side:** nothing to do — tsmap passes no stroke widths and has no workaround for this.
+Logged here because the report arrived through tsmap and the cause is entirely wmap's.
