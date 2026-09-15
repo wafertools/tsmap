@@ -1,6 +1,6 @@
 # tsmap
 
-[![Test](https://github.com/wafertools/tsmap/actions/workflows/test.yml/badge.svg)](https://github.com/wafertools/tsmap/actions/workflows/test.yml)
+[![Test and deploy](https://github.com/wafertools/tsmap/actions/workflows/deploy.yml/badge.svg)](https://github.com/wafertools/tsmap/actions/workflows/deploy.yml)
 [![Build](https://github.com/wafertools/tsmap/actions/workflows/build.yml/badge.svg)](https://github.com/wafertools/tsmap/actions/workflows/build.yml)
 [![release](https://img.shields.io/github/v/release/wafertools/tsmap)](https://github.com/wafertools/tsmap/releases)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
@@ -163,6 +163,7 @@ src/
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
   definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
+  wcr.ts              — STDF wafer configuration record code tables, shared by geometry and display
   valueFindings.ts    — cost model deciding whether wmap's regional test-value analysis runs unprompted
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
   storageKeys.ts      — the registry of every persisted preference, + legacy-key migration

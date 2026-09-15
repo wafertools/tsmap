@@ -13,7 +13,7 @@ import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
 import { basename, rustToLocal, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt } from './lib';
 import { showMappingOverlay } from './mappingUI';
-import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
+import { showRenameOverlay, showAppendConfirm, needsWaferLabelPrompt } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
 import type { TestListEntry } from './testSelectorUI';
 import type { CsvMapping } from './mappingUI';
@@ -1632,9 +1632,9 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     return;
   }
 
-  // Rename step — always shown for multi-file, or single file with generic wafer ID
+  // Rename step — see needsWaferLabelPrompt for when it is shown.
   const allWafers = entries.flatMap(e => e.parsed.wafers);
-  const needsRename = entries.length > 1 || (allWafers.length === 1 && /^W\d+$/.test(allWafers[0].waferId));
+  const needsRename = needsWaferLabelPrompt(entries);
 
   const getRenamed = (): Promise<RenamedWafer[] | null> => {
     if (!needsRename) {

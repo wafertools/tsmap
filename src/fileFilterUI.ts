@@ -26,7 +26,7 @@ import type { Platform, FileHandle, FileMeta } from './platform';
 import { isTauri } from './platform';
 import { storageKey } from './storageKeys';
 import { detectRole } from './mappingUI';
-import { labelFor, orderFieldKeys } from './metadata';
+import { displayValue, labelFor, orderFieldKeys } from './metadata';
 import { buildToggleGroup, type ToggleGroup } from './toggleGroup';
 
 function fmtBytes(n: number | undefined): string {
@@ -323,7 +323,12 @@ function metaToRow(sf: ScannedFile, dynamicKeys: string[]): FilterTableRow {
     // Only the kept columns — a dropped one's "(varies)" cells would otherwise
     // still match the search box while showing nowhere.
     const kept = new Set(dynamicKeys);
-    for (const f of sf.meta.lotMeta.fields) if (kept.has(f.key)) columns[f.key] = f.value;
+    const lotFields = sf.meta.lotMeta.fields;
+    const get = (k: string) => lotFields.find(x => x.key === k)?.value;
+    for (const f of lotFields) {
+      if (!kept.has(f.key)) continue;
+      columns[f.key] = f.value === VARIES ? f.value : displayValue(f.key, f.value, get);
+    }
     const tested = testedAt(sf.meta);
     if (tested) {
       columns.__tested = tested.text;
@@ -508,7 +513,9 @@ export async function openFileFilterDialog(
         }
         // Shown as the Tested column instead — see testedAt.
         dynamicKeySet.delete(TESTED_FALLBACK_KEY);
-        const dynamicKeys = [...dynamicKeySet].sort();
+        // orderFieldKeys also drops hidden fields (WF_UNITS), so their cells
+        // are never built — a cell with no column would still match the search.
+        const dynamicKeys = orderFieldKeys(dynamicKeySet);
         const rows = results.map(r => metaToRow(r, dynamicKeys));
 
 

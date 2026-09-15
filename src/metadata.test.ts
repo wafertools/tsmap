@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFacetTable, facetValueOf, NONE_VALUE } from './metadata';
+import { buildFacetTable, displayValue, facetValueOf, isHiddenField, NONE_VALUE } from './metadata';
 import type { MetaField, WaferData, WaferSource } from './types';
 
 const fields = (o: Record<string, string>): MetaField[] =>
@@ -16,6 +16,57 @@ function wafer(waferId: string, dieCount: number, source?: WaferSource, waferFie
     fields: waferFields ? fields(waferFields) : undefined,
   };
 }
+
+describe('WCR fields', () => {
+  // The bundled sample's record (PVT-LOT-05), which showed as "Wf Units: 3 · Wf Flat: D".
+  const sample = src({ wafrSiz: '300', dieHt: '16.9', dieWid: '16.9', wfUnits: '3', wfFlat: 'D', centerX: '0', centerY: '0', posX: 'R', posY: 'U' });
+  const getter = (o: Record<string, string>) => (k: string): string | undefined => o[k];
+
+  it('gives sizes their units, never a bare number', () => {
+    const w = wafer('W1', 1, sample);
+    expect(facetValueOf(w, 'wafrSiz')).toBe('300 mm');
+    expect(facetValueOf(w, 'dieWid')).toBe('16.9 mm');
+    expect(facetValueOf(w, 'dieHt')).toBe('16.9 mm');
+  });
+
+  it('decodes every defined units code', () => {
+    expect(displayValue('wafrSiz', '12', getter({ wfUnits: '1' }))).toBe('12 in');
+    expect(displayValue('wafrSiz', '30', getter({ wfUnits: '2' }))).toBe('30 cm');
+    expect(displayValue('dieWid', '1000', getter({ wfUnits: '4' }))).toBe('1000 mil');
+  });
+
+  it('says when units are not recorded, and names an invalid code rather than guessing', () => {
+    expect(displayValue('wafrSiz', '300', getter({ wfUnits: '0' }))).toBe('300 (units not recorded)');
+    expect(displayValue('wafrSiz', '300', getter({}))).toBe('300 (units not recorded)');
+    expect(displayValue('wafrSiz', '300', getter({ wfUnits: '135' }))).toBe('300 (invalid units code 135)');
+  });
+
+  it('decodes the flat side and axis directions to words', () => {
+    const w = wafer('W1', 1, sample);
+    expect(facetValueOf(w, 'wfFlat')).toBe('Bottom');
+    expect(facetValueOf(w, 'posX')).toBe('Right');
+    expect(facetValueOf(w, 'posY')).toBe('Up');
+    expect(displayValue('wfFlat', 'X', getter({}))).toBe('unrecognised code X');
+  });
+
+  it('never shows WF_UNITS as a field of its own — the sizes carry it', () => {
+    expect(isHiddenField('wfUnits')).toBe(true);
+    const keys = buildFacetTable([wafer('W1', 1, sample)], false).map(f => f.key);
+    expect(keys).not.toContain('wfUnits');
+    expect(keys).toContain('wafrSiz');
+  });
+
+  it('labels WCR fields in plain language and keeps them out of the default facets', () => {
+    const all = buildFacetTable([wafer('W1', 1, sample)], false);
+    expect(all.find(f => f.key === 'wfFlat')!.label).toBe('Wafer flat');
+    expect(all.find(f => f.key === 'wafrSiz')!.label).toBe('Wafer diameter');
+    expect(buildFacetTable([wafer('W1', 1, sample)]).map(f => f.key)).not.toContain('wafrSiz');
+  });
+
+  it('passes an ordinary field through unchanged', () => {
+    expect(displayValue('lotId', '3', getter({ wfUnits: '3' }))).toBe('3');
+  });
+});
 
 describe('facetValueOf', () => {
   it('reads a lot-level (source) field', () => {

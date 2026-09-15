@@ -170,11 +170,37 @@ export function showRenameOverlay(
  *      case, e.g. a bare CSV with no lot/wafer columns).
  */
 export function resolveWaferId(contentId: string, fileName: string, lotId?: string): string {
-  const generic = /^W\d+$/.test(contentId); // W1, W01, W12 etc.
-  if (!generic) return contentId;
-  if (lotId && lotId.trim()) return `${lotId} · ${contentId}`;
+  if (!isGenericWaferId(contentId)) return contentId;
+  if (!labelFallsBackToFileName(contentId, lotId)) return `${lotId} · ${contentId}`;
   const stem = fileName.replace(/\.[^.]+$/, '');
   return stem || contentId;
+}
+
+const isGenericWaferId = (id: string) => /^W\d+$/.test(id); // W1, W01, W12 etc.
+
+/** Precedence case 3 of `resolveWaferId`: nothing in the data identifies the
+ *  wafer, so its label can only come from the file name. */
+function labelFallsBackToFileName(contentId: string, lotId?: string): boolean {
+  return isGenericWaferId(contentId) && !lotId?.trim();
+}
+
+/**
+ * Whether a load must stop at the wafer labels overlay before rendering.
+ *
+ * Always for several files at once — each file's wafers need telling apart and
+ * the user should see the list. For a single file, only when its one wafer has
+ * nothing identifying it but the file name (a generic `W06` with no lot ID):
+ * `resolveWaferId` would otherwise label it `<lot> · W06` from the data, and
+ * asking the user to confirm a label the data already supplies is noise.
+ * Multi-wafer files never prompt — their wafer IDs already tell them apart, and
+ * the file-name fallback would give every wafer the same label.
+ */
+export function needsWaferLabelPrompt(entries: FileWaferEntry[]): boolean {
+  if (entries.length !== 1) return entries.length > 1;
+  const { parsed } = entries[0];
+  if (parsed.wafers.length !== 1) return false;
+  const lotId = parsed.meta.fields.find(f => f.key === 'lotId')?.value;
+  return labelFallsBackToFileName(parsed.wafers[0].waferId, lotId);
 }
 
 // ── Append confirmation ───────────────────────────────────────────────────────

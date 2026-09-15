@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveWaferId, detectMismatches, buildRenameRows } from './multiFileUI';
+import { resolveWaferId, detectMismatches, buildRenameRows, needsWaferLabelPrompt } from './multiFileUI';
 import type { RenamedWafer, FileWaferEntry } from './multiFileUI';
 import type { WaferData } from './types';
 
@@ -23,6 +23,46 @@ describe('resolveWaferId', () => {
 
   it('falls back to contentId when neither lot ID nor filename stem is usable', () => {
     expect(resolveWaferId('W1', '.stdf')).toBe('W1');
+  });
+});
+
+// ── needsWaferLabelPrompt ─────────────────────────────────────────────────────
+
+describe('needsWaferLabelPrompt', () => {
+  const file = (fileName: string, waferIds: string[], lotId?: string): FileWaferEntry => ({
+    filePath: `/x/${fileName}`,
+    fileName,
+    parsed: {
+      fileName,
+      meta: { fields: lotId === undefined ? [] : [{ key: 'lotId', value: lotId }] },
+      wafers: waferIds.map(id => ({ waferId: id, results: [{ x: 0, y: 0, hbin: 1 }] })),
+      testDefs: {},
+    },
+  });
+
+  it('does not prompt for one generic-ID wafer whose lot ID already labels it', () => {
+    // PARAM-LOT-02_W06.stdf — resolveWaferId gives "PARAM-LOT-02 · W06" unaided.
+    expect(needsWaferLabelPrompt([file('PARAM-LOT-02_W06.stdf', ['W06'], 'PARAM-LOT-02')])).toBe(false);
+  });
+
+  it('prompts for one generic-ID wafer with no lot ID, whose label would be the file name', () => {
+    expect(needsWaferLabelPrompt([file('wafer06.csv', ['W06'])])).toBe(true);
+    expect(needsWaferLabelPrompt([file('wafer06.csv', ['W06'], '  ')])).toBe(true); // blank lot ignored
+  });
+
+  it('does not prompt for a single wafer with a distinctive ID', () => {
+    expect(needsWaferLabelPrompt([file('x.stdf', ['LOT123-W05'])])).toBe(false);
+  });
+
+  it('does not prompt for a single multi-wafer file, even with generic IDs and no lot', () => {
+    expect(needsWaferLabelPrompt([file('lot.stdf', ['W01', 'W02'])])).toBe(false);
+  });
+
+  it('always prompts for several files', () => {
+    expect(needsWaferLabelPrompt([
+      file('A_W01.stdf', ['W01'], 'A'),
+      file('A_W02.stdf', ['W02'], 'A'),
+    ])).toBe(true);
   });
 });
 

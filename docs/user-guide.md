@@ -465,7 +465,8 @@ After selecting files, what happens depends on the format:
 ![Wafer rename overlay, loading two files together](images/wafer-rename.png)
 
 When loading multiple files (or a zip containing multiple files, or a single file whose
-only wafer has a generic ID like `W01`), tsmap shows a rename overlay listing each wafer
+only wafer has a generic ID like `W01` and no lot ID to go with it), tsmap shows a rename
+overlay listing each wafer
 with an editable label. Labels are pre-filled from whatever identifies the wafer in the
 data — a distinctive wafer ID is used as-is; a generic one (`W01`) is combined with the
 lot ID (`LOT-A · W01`) so wafers stay distinct within and across lots without you needing

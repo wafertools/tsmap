@@ -1,8 +1,8 @@
 name: Test
 
 on:
-  push:
-    branches: [main]
+  # No `push` trigger: deploy.yml runs on every push to main and calls this, so a
+  # push trigger here only ran the same suite twice in parallel on one commit.
   pull_request:
     branches: [main]
   # Reusable: build.yml and deploy.yml call this so releases/deploys are gated on it.

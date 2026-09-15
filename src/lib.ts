@@ -6,6 +6,8 @@ import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
 import type { PlotMode } from '@wafertools/wafermap';
 import type { WaferMetadata } from '@wafertools/wafermap/renderer';
 import type { WaferConfig, DieConfig, BinDef } from '@wafertools/wafermap';
+import { displayValue, isHiddenField } from './metadata';
+import { WCR_FLAT_SIDE, WCR_POS_X, WCR_POS_Y, WCR_UNITS, wcrCode } from './wcr';
 
 export function basename(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;
@@ -515,6 +517,17 @@ const WMAP_META_KEY: Record<string, keyof WaferMetadata> = {
   startT: 'testDate',
   operName: 'operator',
   splitLabel: 'split',
+  // WCR fields. wmap labels an open-index key by splitting its camelCase, so
+  // the raw STDF abbreviations read as "Wafr Siz"/"Wf Flat" — these keys are
+  // chosen to read correctly that way. Values are decoded by `displayValue`.
+  wafrSiz: 'waferDiameter',
+  dieWid: 'dieWidth',
+  dieHt: 'dieHeight',
+  wfFlat: 'waferFlat',
+  centerX: 'centreDieX',
+  centerY: 'centreDieY',
+  posX: 'xIncreases',
+  posY: 'yIncreases',
 };
 
 /**
@@ -531,7 +544,17 @@ const WMAP_META_KEY: Record<string, keyof WaferMetadata> = {
 export function toWmapWaferMeta(source: WaferSource | undefined, waferId: string, waferFields?: MetaField[]): WaferMetadata | undefined {
   if (!source && !waferFields?.length) return undefined;
   const meta: WaferMetadata = { waferId };
+  const all = [...(source?.fields ?? []), ...(waferFields ?? [])];
+  // Same precedence as the loop below: the last occurrence (per-wafer) wins.
+  const get = (k: string): string | undefined => {
+    for (let i = all.length - 1; i >= 0; i--) if (all[i].key === k) return all[i].value;
+    return undefined;
+  };
   const applyField = ({ key, value }: MetaField) => {
+    // Raw codes never reach wmap's panels: "Wf Units: 3" is the bug this
+    // replaced. Hidden fields are carried inside others' display values.
+    if (isHiddenField(key)) return;
+    value = displayValue(key, value, get);
     if (key === 'testTemp') {
       const t = Number(value);
       if (Number.isFinite(t)) meta.temperature = t; else meta.testTemp = value;
@@ -540,8 +563,7 @@ export function toWmapWaferMeta(source: WaferSource | undefined, waferId: string
       meta[mapped ?? key] = value;
     }
   };
-  for (const f of source?.fields ?? []) applyField(f);
-  for (const f of waferFields ?? []) applyField(f);
+  for (const f of all) applyField(f);
   return meta;
 }
 
@@ -549,16 +571,6 @@ export interface WcrGeometry {
   waferConfig: Partial<Pick<WaferConfig, 'diameter' | 'center' | 'notch'>>;
   dieConfig: Partial<Pick<DieConfig, 'width' | 'height' | 'xAxisDirection' | 'yAxisDirection'>>;
 }
-
-// STDF/ATDF WF_UNITS enum → mm-per-unit. `0` ("Unknown") is deliberately
-// absent — acting on an unlabelled measurement is worse than not using it at
-// all (mirrors the diameter dialog's own "never silently misapply an
-// unconfirmed value" rule).
-const WCR_UNIT_TO_MM: Record<string, number> = { '1': 25.4, '2': 10, '3': 1, '4': 0.0254 };
-
-const WCR_FLAT_TO_NOTCH: Record<string, 'top' | 'bottom' | 'left' | 'right'> = {
-  U: 'top', D: 'bottom', L: 'left', R: 'right',
-};
 
 /**
  * Interprets a WCR (Wafer Configuration Record) already parsed into
@@ -586,9 +598,9 @@ export function wcrGeometryFrom(source: WaferSource | undefined): WcrGeometry | 
   // never finished rendering. 0 is legitimate: centre, notch and directions
   // need no units, only sizes do (and `toMm` drops those without them).
   const units = get('wfUnits');
-  if (units !== undefined && !['0', '1', '2', '3', '4'].includes(units)) return null;
+  if (units !== undefined && wcrCode(WCR_UNITS, units) === undefined) return null;
 
-  const mmPerUnit = WCR_UNIT_TO_MM[units ?? ''];
+  const mmPerUnit = wcrCode(WCR_UNITS, units)?.mmPerUnit;
   const toMm = (raw: string | undefined): number | undefined => {
     if (raw === undefined || mmPerUnit === undefined) return undefined;
     const n = Number(raw);
@@ -613,15 +625,13 @@ export function wcrGeometryFrom(source: WaferSource | undefined): WcrGeometry | 
     if (Number.isFinite(x) && Number.isFinite(y)) waferConfig.center = { x, y };
   }
 
-  const flat = get('wfFlat');
-  if (flat !== undefined && flat in WCR_FLAT_TO_NOTCH) {
-    waferConfig.notch = { type: WCR_FLAT_TO_NOTCH[flat] };
-  }
+  const side = wcrCode(WCR_FLAT_SIDE, get('wfFlat'));
+  if (side) waferConfig.notch = { type: side };
 
-  const posX = get('posX');
-  if (posX === 'L' || posX === 'R') dieConfig.xAxisDirection = posX === 'L' ? 'left' : 'right';
-  const posY = get('posY');
-  if (posY === 'U' || posY === 'D') dieConfig.yAxisDirection = posY === 'U' ? 'up' : 'down';
+  const xDir = wcrCode(WCR_POS_X, get('posX'));
+  if (xDir) dieConfig.xAxisDirection = xDir;
+  const yDir = wcrCode(WCR_POS_Y, get('posY'));
+  if (yDir) dieConfig.yAxisDirection = yDir;
 
   if (Object.keys(waferConfig).length === 0 && Object.keys(dieConfig).length === 0) return null;
   return { waferConfig, dieConfig };

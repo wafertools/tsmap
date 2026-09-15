@@ -475,6 +475,17 @@ describe('toWmapWaferMeta', () => {
     expect('lot' in m).toBe(false);
   });
 
+  it('sends WCR fields to wmap decoded, under keys that label correctly — never raw codes', () => {
+    const m = toWmapWaferMeta(source({
+      wafrSiz: '300', dieHt: '16.9', dieWid: '16.9', wfUnits: '3', wfFlat: 'D',
+      centerX: '0', centerY: '0', posX: 'R', posY: 'U',
+    }), 'W1')!;
+    expect(m).toEqual({
+      waferId: 'W1', waferDiameter: '300 mm', dieHeight: '16.9 mm', dieWidth: '16.9 mm',
+      waferFlat: 'Bottom', centreDieX: '0', centreDieY: '0', xIncreases: 'Right', yIncreases: 'Up',
+    });
+  });
+
   it('maps a wafer split (splitLabel) to wmap\'s first-class `split` field', () => {
     const m = toWmapWaferMeta(source({ lotId: 'LOT1' }), 'W1', [{ key: 'splitLabel', value: 'TT' }])!;
     expect(m.lot).toBe('LOT1');

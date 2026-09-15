@@ -15,6 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # This is the ONLY thing that tests pushes to main — test.yml has no push
+  # trigger of its own, to avoid running the suite twice. Do not add a `paths:`
+  # filter or any condition that skips this workflow: a skipped deploy would
+  # mean an untested push, and nothing would say so.
   test:
     uses: ./.github/workflows/test.yml
 

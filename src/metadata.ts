@@ -9,6 +9,7 @@
 // or hiding a field is a change here only — never a parser republish.
 
 import type { WaferData } from './types';
+import { WCR_FLAT_SIDE, WCR_POS_X, WCR_POS_Y, WCR_UNITS, wcrCode } from './wcr';
 
 /**
  * Bucket label for wafers that have no value for the active facet field. Loading
@@ -49,12 +50,40 @@ interface FieldMeta {
   facet: boolean;
   /** Value is an ISO datetime; facet by its date portion only. */
   date?: boolean;
+  /**
+   * The value as shown to the user, when the raw one is a code or a bare
+   * number. `get` reads another field of the same record — a WCR size needs
+   * WF_UNITS to say what it is measured in.
+   */
+  display?: (raw: string, get: FieldGetter) => string;
+  /** Never shown as a field of its own — its meaning is carried in other fields' display values. */
+  hidden?: boolean;
 }
 
+/** Reads another metadata field of the same wafer/file by key. */
+export type FieldGetter = (key: string) => string | undefined;
+
+const capitalise = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** A WCR size, with the units WF_UNITS gives it — "300 mm", never a bare "300". */
+function wcrSize(raw: string, get: FieldGetter): string {
+  const code = get('wfUnits');
+  const units = wcrCode(WCR_UNITS, code);
+  if (units) return `${raw} ${units.symbol}`;
+  if (units === null || code === undefined) return `${raw} (units not recorded)`;
+  return `${raw} (invalid units code ${code})`;
+}
+
+/** A WCR letter code (flat side, axis direction) as a word; an undefined letter is named as such. */
+const wcrLetter = (table: Readonly<Record<string, string>>) => (raw: string): string => {
+  const word = wcrCode(table, raw);
+  return word ? capitalise(word) : `unrecognised code ${raw}`;
+};
+
 // Curated known fields: friendly label + whether surfaced as a facet by default
-// + date handling. Order here is the display order in the facet dropdown; keys
-// not listed still appear (labelled by their raw key) unless HIDDEN_KEYS lists
-// them. Edit this table freely — no parser change needed.
+// + date/display handling. Order here is the display order in the facet
+// dropdown; keys not listed still appear (labelled by their raw key) unless
+// marked `hidden`. Edit this table freely — no parser change needed.
 const FIELD_META: Record<string, FieldMeta> = {
   // High-value faceting axes, shown first.
   splitLabel: { label: 'Split',       facet: true },
@@ -90,13 +119,26 @@ const FIELD_META: Record<string, FieldMeta> = {
   // STDF V4-2007 Version Update Record — present only in files that declare
   // that revision (e.g. "V4-2007"); a plain V4 file has no such field.
   updNam:     { label: 'STDF revision', facet: false },
+  // Wafer Configuration Record (WCR) — geometry the tester declared, not a
+  // grouping axis. Codes and bare sizes are decoded through wcr.ts, the same
+  // tables `wcrGeometryFrom` builds the map from.
+  wafrSiz:    { label: 'Wafer diameter', facet: false, display: wcrSize },
+  dieWid:     { label: 'Die width',      facet: false, display: wcrSize },
+  dieHt:      { label: 'Die height',     facet: false, display: wcrSize },
+  wfUnits:    { label: 'Wafer units',    facet: false, hidden: true }, // shown inside the sizes
+  wfFlat:     { label: 'Wafer flat',     facet: false, display: wcrLetter(WCR_FLAT_SIDE) },
+  centerX:    { label: 'Centre die X',   facet: false },
+  centerY:    { label: 'Centre die Y',   facet: false },
+  posX:       { label: 'X increases',    facet: false, display: wcrLetter(WCR_POS_X) },
+  posY:       { label: 'Y increases',    facet: false, display: wcrLetter(WCR_POS_Y) },
 };
 
-const DISPLAY_ORDER = Object.keys(FIELD_META);
+const DISPLAY_ORDER = Object.keys(FIELD_META).filter(k => !FIELD_META[k].hidden);
 
 /** Metadata keys in display order: curated fields in FIELD_META's order (most
  *  useful first), then unknown ones in the order given — for a CSV that is its
- *  header order. One rule for the facet table and the file-filter columns. */
+ *  header order. Hidden fields are left out. One rule for the facet table and
+ *  the file-filter columns. */
 export function orderFieldKeys(keys: Iterable<string>): string[] {
   const present = new Set(keys);
   return [
@@ -108,6 +150,22 @@ export function orderFieldKeys(keys: Iterable<string>): string[] {
 /** A metadata key's display label — curated where known, the raw key otherwise. */
 export function labelFor(key: string): string {
   return FIELD_META[key]?.label ?? key;
+}
+
+/** True for a field never shown on its own (see `FieldMeta.hidden`). */
+export function isHiddenField(key: string): boolean {
+  return FIELD_META[key]?.hidden === true;
+}
+
+/**
+ * A field's value as shown to the user — decoded where the raw value is a code
+ * (WCR "D" → "Bottom", a size with its units), verbatim otherwise. The one
+ * decoder for every surface: wmap's panels (via `toWmapWaferMeta`), the facet
+ * table, and the file filter.
+ */
+export function displayValue(key: string, raw: string, get: FieldGetter): string {
+  const decode = FIELD_META[key]?.display;
+  return decode ? decode(raw, get) : raw;
 }
 
 /** Truncate an ISO datetime (or any string) to its date portion `YYYY-MM-DD`. */
@@ -135,7 +193,7 @@ function rawValueOf(wafer: WaferData, key: string): string | undefined {
 export function facetValueOf(wafer: WaferData, key: string): string | undefined {
   const raw = rawValueOf(wafer, key);
   if (raw === undefined || raw === '') return undefined;
-  return FIELD_META[key]?.date ? dateOnly(raw) : raw;
+  return FIELD_META[key]?.date ? dateOnly(raw) : displayValue(key, raw, k => rawValueOf(wafer, k));
 }
 
 /**

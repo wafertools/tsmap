@@ -4,7 +4,7 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
-## [Unreleased]
+## [0.1.36] — 2026-09-15
 
 ### Added
 
@@ -37,8 +37,61 @@ technical record, including internal changes.
     A service worker inside the Tauri WebView would serve a stale frontend after an upgrade,
     with none of the browser's devtools available to clear it.
 
+### Changed
+
+- **A bin is now the same colour in every lot.** Since wmap 0.28.0 bin colours were handed out
+  by die count, so the largest fail bin took the first fail colour: bin 7 could be red in one
+  lot and brown in the next, and filtering a gallery could recolour bins. Colour now follows the
+  bin number, as industry wafer-map tools do, so a program's colours can be learned and
+  screenshots compared. It is still pass/fail-aware: a passing bin never takes a fail colour,
+  and colours from a bin definitions file still win. Hard bin *n* and soft bin *n* get different
+  colours. From wmap 0.30.0 (`WMAP_ISSUES.md` #56).
+- **Bin legends list pass bins first, then failing bins by die count.** That is the order the
+  Summary panel and the Insights pareto already used. The map legend and the gallery's legend
+  strip sorted by bin number, so one lot was listed two ways on one screen. From wmap 0.30.0.
+- **`@wafertools/wafermap` pinned to `^0.30.0`** (was `^0.29.0`).
+
 ### Fixed
 
+- **Files whose pass bins are not just bin 1 showed passing dies as failures almost
+  everywhere.** tsmap reads each wafer's pass bins from the file's HBR records, but wmap used
+  them only for the headline yield figure. Findings, yield statistics, bin colours, the Summary
+  panel and report, region yield, the Insights yield charts and the gallery strip all judged
+  pass/fail by bin 1. So a program where bins 1 and 2 both pass drew bin 2 as a failure next to
+  a yield that counted it as a pass. Every surface now uses the file's pass bins. In a lot that
+  mixes test programs, each wafer is judged by its own pass bins, and a warning names any hard
+  bin that passes on one wafer and fails on another. From wmap 0.30.0 (#57).
+- **Soft-bin tables were ordered, and the gallery's soft-bin yield totalled, as if hard pass bin
+  numbers applied to soft bins.** The gallery strip's Yield could read about 0% in soft-bin mode.
+  Soft bins are now judged by their own verdict. From wmap 0.30.0.
+- **Insights was hidden behind the "No die position data" panel** for a file with no X/Y
+  coordinates (reported with `sample_data/NO-WAFER-ALL-COORDLESS-01.csv`). Only a strip of the
+  charts beside it was visible. The same happened with the "dies without position data" footer
+  on a file where only some dies have coordinates. From wmap 0.30.0 (#58).
+- **A map's bin legend drew its title over the first row** when there were enough bins to fill
+  the height. From wmap 0.30.0.
+
+- **The wafer configuration record now shows in plain language, not as raw STDF codes.** The
+  bundled sample's info row read "Wafr Siz: 300 · Wf Units: 3 · Wf Flat: D · Pos X: R" — field
+  names abbreviated as the spec spells them and values only the spec could decode. It now
+  reads "Wafer Diameter: 300 mm · Die Width: 16.9 mm · Wafer Flat: Bottom · X Increases: Right".
+  - Sizes carry their units, so the separate units field is no longer shown. A units code of
+    0 or none at all shows as "(units not recorded)"; a code outside the spec is named as
+    invalid rather than guessed at.
+  - The same decoding applies in the file filter's columns and the facet table. These fields
+    are geometry rather than something to group by, so they are no longer offered as facets.
+  - The code tables now live once in `src/wcr.ts`, read by both the display and
+    `wcrGeometryFrom`, so the panel and the map it describes cannot disagree about a code.
+
+- **Opening a single-wafer file stopped at the Wafer labels overlay for no reason.** Any file
+  holding one wafer with a generic ID (`W06`) prompted for a label, even though the file's
+  lot ID already gave it one (`PARAM-LOT-02 · W06`) — so every per-wafer file such as
+  `PARAM-LOT-02_W06.stdf` asked the user to confirm a label they had no reason to change,
+  while the six-wafer `PARAM-LOT-02.stdf` with the same IDs went straight through. A single
+  file now prompts only when nothing in the data identifies its wafer and the label would
+  come from the file name; loading several files at once still always shows the overlay.
+  The rule lives in `needsWaferLabelPrompt` (`multiFileUI.ts`), which shares its
+  file-name-fallback test with `resolveWaferId`.
 - **The browser said "Upload" while tsmap was telling users nothing is uploaded.** Scanning a
   folder on the web used an `<input webkitdirectory>`, which the browser labels itself: an
   *Open file* dialog with an **Upload** button, followed by *"Upload N files to this site?"*.
@@ -56,6 +109,11 @@ technical record, including internal changes.
 
 ### Internal
 
+- **CI runs once per push to `main`, not twice.** `test.yml` had its own `push` trigger while
+  `deploy.yml`, which also runs on every push, calls it as its gating job, so the same suite
+  ran twice in parallel on each commit. `test.yml` now triggers only on pull requests (and as
+  a reusable workflow for `build.yml` and `deploy.yml`). `deploy.yml` is therefore the only
+  thing testing pushes to `main`, and says so. The README badge now points at `deploy.yml`.
 - **`npm run check:pwa`** (`scripts/check-pwa-build.mjs`) asserts the built service worker
   precaches the parser WASM and does *not* precache the guide screenshots. Both failures are
   silent — workbox skips an oversized file without failing the build — so this runs in CI
@@ -64,6 +122,9 @@ technical record, including internal changes.
 - **`scripts/generate_pwa_icons.py`** derives the install icons from `src-tauri/icons/icon.png`,
   the same master the desktop bundle icons come from, so the installed web app and the
   installed desktop app cannot drift apart. Output is committed; the build needs no Python.
+- **The wmap integration test no longer calls `buildView`.** wmap deprecates its low-level drawing
+  pipeline for removal in 0.31.0; the test's functional-test assertions on the view are wmap's own
+  responsibility and are covered there. Its `functionalYield` and per-test-stats checks stay.
 
 ## [0.1.35] — 2026-09-12
 

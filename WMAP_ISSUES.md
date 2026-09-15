@@ -8,9 +8,10 @@ At some point these will be converted into an implementation plan for wmap.
 | Field | Value |
 |-------|-------|
 | wmap package | **Renamed** from `@paulrobins/wafermap` to `@wafertools/wafermap` (2026-08-01), scope move only — no functional change. |
-| wmap version in use | **0.29.0** — published to npm and adopted (2026-09-12): `npm run wmap:unlink` restored the published package, `package.json`/`package-lock.json` now pin `^0.29.0`. `npm run check` and the full Vitest suite (532 tests) clean against the published build, `check-wmap-published.js` clean. |
-| Latest wmap release | **0.29.0** published to npm and tagged (`v0.29.0`) in wafermap's own repo, 2026-09-12, minor bump, **breaking**. The default value gradient is now **Viridis in its standard direction** (low = dark, high = light); the blue–cyan–yellow–red "thermal" ramp is removed (`'jet'` keeps the rainbow family available). `viridis`, `cividis`, `plasma` and `inferno` had been registered reversed (`t => ramp(1 - t)`) while `default` was not, so switching gradient inverted the map — all now match their matplotlib/seaborn definitions, and greyscale with them. **Breaking:** the standalone `'viridis'` name is gone (Viridis *is* `'default'`, labelled "Default (Viridis)"), and `View.reverseValueScheme` is a new required field on `View`. New: `reverseValueScheme` (offered in the Colour scheme menu as **Reverse gradient**), `resolveValueColorFn(name, reversed)` — the single read-path every value surface must resolve through, since die fills, the colorbar and the mapless summary each looked the gradient up independently — and a `'mako'` gradient. tsmap consumed it while linked: `mapColorPrefs.ts` now persists `reverseValueScheme` alongside the two scheme names (the natural extension of #52). **No open issue in this file was resolved by 0.29.0** — it came from direct user feedback that a rainbow ramp's non-monotonic lightness makes two different readings look equally intense, not from a logged tsmap-side gap. Full list in wafermap's own `CHANGELOG.md` [0.29.0]. |
-| Previous wmap release | **0.28.0** published to npm and tagged (`v0.28.0`) in wafermap's own repo, 2026-09-11, minor bump, **breaking**. Bin and value colours are separate preferences (`binColorScheme`/`valueColorScheme`; `colorScheme`, the colour-scheme registry functions and `hardBinColor`/`softBinColor` removed), and bin colour has one pass/fail-aware rule, `resolveBinColors` (issue #52). Also: a boxplot leaf click opens the test in a single-wafer render (#51), `WMAP_VERSION`/`WMAP_BUILD_TIME` exported, and implausible geometry can no longer hang a render (#53). tsmap consumed all of it while linked (`mapColorPrefs.ts`, the About dialog's Engine row). Full list in wafermap's own `CHANGELOG.md` [0.28.0]. |
+| wmap version in use | **0.30.0** — published to npm and adopted (2026-09-15). `npm run wmap:unlink` put back **0.29.0**, not 0.30.0: its plain `npm install` stays inside the existing `^0.29.0` range, and a caret range on a 0.x version never crosses a minor. `npm install @wafertools/wafermap@^0.30.0` moved the pin, so `package.json`/`package-lock.json` now pin `^0.30.0`. Every minor wmap bump needs that explicit install after unlinking. `npm run verify` (545 JS tests, 294 Rust tests), `check-wmap-published.js` and `check-testdata-parser-published.js` clean against the published build. |
+| Latest wmap release | **0.30.0** published to npm and tagged (`v0.30.0`) in wafermap's own repo, 2026-09-15, minor bump, **breaking**. Bin colour is keyed by **bin number** again, within the pass or fail list, so a bin is the same colour in every lot (#56); 0.28.0's die-count ranking made bin 7 red in one lot and brown in the next. Pass bins are set once, on `buildWaferMap`, and carried as `WaferMapResult.passBins` to every surface, per wafer in a gallery (#57). Before this, the HBR pass bins tsmap passes reached only `result.yield`. Soft bins are judged by their own verdict, not hard pass-bin numbers. Bin legends list pass bins first. A coordinate-less wafer's "No die position data" panel no longer covers Insights (#58). **Breaking:** the `passBins` options on `analyzeWaferMap`/`analyzeWaferLot`/`renderWaferMap`/`renderWaferGallery` are removed, and so are a set of unused, duplicated or dead render options and controller methods. tsmap passed none of them. **Deprecated for removal in 0.31.0:** 78 exports, including the low-level drawing pipeline (`buildView`, `toCanvas`, …), the chart-data builders and helpers exported by accident. Each logs one console notice on first use, and `tests/deprecations.test.mjs` blocks 0.31.0 while any remain. **tsmap imports none of them**, checked against every `@wafertools/wafermap` import in `src/` and `scripts/`; its integration test had already dropped `buildView`. Full list in wafermap's own `CHANGELOG.md` [0.30.0]. |
+| Previous wmap release | **0.29.0** published to npm and tagged (`v0.29.0`) in wafermap's own repo, 2026-09-12, minor bump, **breaking**. The default value gradient is now **Viridis in its standard direction** (low = dark, high = light); the blue–cyan–yellow–red "thermal" ramp is removed (`'jet'` keeps the rainbow family available). `viridis`, `cividis`, `plasma` and `inferno` had been registered reversed (`t => ramp(1 - t)`) while `default` was not, so switching gradient inverted the map — all now match their matplotlib/seaborn definitions, and greyscale with them. **Breaking:** the standalone `'viridis'` name is gone (Viridis *is* `'default'`, labelled "Default (Viridis)"), and `View.reverseValueScheme` is a new required field on `View`. New: `reverseValueScheme` (offered in the Colour scheme menu as **Reverse gradient**), `resolveValueColorFn(name, reversed)` — the single read-path every value surface must resolve through, since die fills, the colorbar and the mapless summary each looked the gradient up independently — and a `'mako'` gradient. tsmap consumed it while linked: `mapColorPrefs.ts` now persists `reverseValueScheme` alongside the two scheme names (the natural extension of #52). **No open issue in this file was resolved by 0.29.0** — it came from direct user feedback that a rainbow ramp's non-monotonic lightness makes two different readings look equally intense, not from a logged tsmap-side gap. Full list in wafermap's own `CHANGELOG.md` [0.29.0]. |
+| Earlier wmap release | **0.28.0** published to npm and tagged (`v0.28.0`) in wafermap's own repo, 2026-09-11, minor bump, **breaking**. Bin and value colours are separate preferences (`binColorScheme`/`valueColorScheme`; `colorScheme`, the colour-scheme registry functions and `hardBinColor`/`softBinColor` removed), and bin colour has one pass/fail-aware rule, `resolveBinColors` (issue #52). Also: a boxplot leaf click opens the test in a single-wafer render (#51), `WMAP_VERSION`/`WMAP_BUILD_TIME` exported, and implausible geometry can no longer hang a render (#53). tsmap consumed all of it while linked (`mapColorPrefs.ts`, the About dialog's Engine row). Full list in wafermap's own `CHANGELOG.md` [0.28.0]. |
 | Earlier wmap release | **0.27.0** published to npm and tagged (`v0.27.0`) in wafermap's own repo, 2026-09-09, minor bump, **breaking**. The change that matters here: test definitions are reconciled **per wafer** (`mergeTestDefs`, new export) instead of one wafer's defs being applied to the whole population — the wmap half of issue #50 below, without which a multi-file load plots wafers against another file's spec limits. Also: geometry advisories reworked (`inferred-pitch` removed, `non-standard-diameter` and `diameter-exceeds-die-extent` added, `standardDiameters`/`STANDARD_WAFER_DIAMETERS_MM` overridable), `FindingsNotice` (issue #48), themed Insights pickers replacing native `<select>` (#43, #45), `inferred-pitch` severity (#44), the cached-viewport highlight offset (#46), truncated colorbar tick labels (#47), a per-test pass-rate chart and a wafer-to-wafer trend chart, and three new sizing tokens (`--wmap-font-size`, `--wmap-density`, `--wmap-font-family`). **Breaking:** `AnalyzeWaferMapOptions.significanceLevel`/`.minimumEffectSize`/`.minimumRelativeEffect` removed (internal constants now), `RenderOptions` no longer extends `ToCanvasOptions` (five accepted-but-ignored options removed), `showMetadataBadge` → `showIdentity`, `setMetadataBadgeVisible` → `setIdentityVisible`, `HoverTextOptions.waferMeta` removed, `--wmap-bar-fill-muted` removed. tsmap used none of the removed surface. Full list in wafermap's own `CHANGELOG.md` [0.27.0]. |
 | Earlier wmap release | **0.26.1** published to npm and tagged (`v0.26.1`) in wafermap's own repo, 2026-08-28, patch, no breaking changes. Fixes the guide window rendering with pale, near-illegible text on a plain white background in a dark host theme (`.wmap-guide` set `color` from the synced `--wmap-*` tokens but never a matching `background`) — the tsmap-side half of this same bug (the guide's own theming was hardcoded light regardless of host theme) is fixed in tsmap directly, see this repo's own `CHANGELOG.md` [0.1.32]. Also fixes `edgeExcluded` dies rendering almost invisibly against the default light data colour scheme (fill was lighter than "no data" and barely darker than the canvas background) — now a visibly darker, distinct grey. Full list in wafermap's own `CHANGELOG.md` [0.26.1]. |
 | Earlier wmap release | **0.26.0** published to npm (2026-08-28), minor bump, breaking: the die-list's single `Position` column is now separate `X`/`Y` columns (tsmap doesn't render the die list's own columns directly — reached only via wmap's Summary panel/Lot ▾ UI — so no tsmap code change was needed for this). New: `openReportModal` (Summary/Lot report buttons now open in-page instead of `window.open`, no `setReportOpener` wiring needed — tsmap never registered one, so this is a pure UX upgrade with zero code change), `openWaferMapGuide`/`ICONS` newly exported from `/render`, a combined guide "Contents" nav (flat, unnumbered, column-flow so a host's own guide sections and wmap's don't collide as two separately-numbered "1., 2., 3." runs) plus a find-in-page search box for the in-page guide fallback (real popup windows get native Ctrl+F instead), new `Ring`/`Quadrant`/`Edge excluded` die-list columns (`getWafer`/`ringCount`, not currently passed by tsmap), `LotStatsSummary.mixedIdentityFields` (closes issue #30 below), a CSV export formula-injection guard, and a fix for edge exclusion silently misbehaving when it exceeds the resolved wafer radius (closes issue #42 below). Full list in wafermap's own `CHANGELOG.md` [0.26.0]. |
@@ -19,7 +20,8 @@ At some point these will be converted into an implementation plan for wmap.
 | Earlier wmap releases | **0.23.1** published to npm (2026-08-18), together with 0.23.0: support for dies/wafers with no reported X/Y position (issue #39), `renderWaferMap` accepting a `RenderableWaferMap`, a fix for the degenerate-axis pitch bug (issue #40), and stable `data-wmap-*` DOM hooks on the Insights tab (issue #36). **Breaking (0.23.0):** `Die.x`/`y`/`physX`/`physY` are now optional, not `number`. **0.22.0**: the library surfaces its own data warnings — a ⚠ toolbar indicator plus a Summary-panel banner. **Breaking:** `StatsSummary.stats.warnings` is now `WaferWarning[]`, not `string[]` — tsmap never read that field, so it was unaffected. **0.21.1**: `maxSize` render option, gallery card-size fixes. **0.21.0** (breaking): removed long-deprecated aliases (`DieResult.values`/`Die.values`, `TestDef.index`, `colorBySpec`, etc.) — tsmap used none. **0.20.9**: fixed phantom "partial" dies at wafer edges (the edge-die yield fix). Full history in the update log below. Check [github.com/wafertools/wafermap/releases](https://github.com/wafertools/wafermap/releases) |
 | testdata-parser package | **Renamed** from `@paulrobins/testdata-parser` to `@wafertools/testdata-parser` (2026-08-01), scope move only — no functional change. |
 | testdata-parser version | **0.10.0** — published to npm and adopted (2026-09-11, bumped from **0.9.0**): STDF WCR read by the spec (it was 2 bytes out of place), ATDF read in its own field order, the V4-2007 VUR record read, several lot records per stream labelling each wafer with its own lot, CSV/JSON/Parquet rows grouped by lot + wafer (`flat_wafers.rs`), and `parquet_distinct_count` for the file filter's Parquet wafer count. `npm run parser:unlink` restored the published package, `package.json`/`package-lock.json` pin `^0.10.0`. |
-| Last updated | 2026-09-11 (wmap bumped **0.27.0 → 0.28.0** and testdata-parser **0.9.0 → 0.10.0** in tsmap, alongside this repo's own batch — see tsmap's own `CHANGELOG.md` [0.1.34]. Published, unlinked, pinned `^0.28.0`/`^0.10.0`. Issues #51, #52 and #53 closed by this bump. #53 was found while preparing the release itself: the bundled `sample-lot.stdf.gz` still had the old WCR layout and hung **Load sample data** — fixed on both sides before publishing.) |
+| Last updated | 2026-09-15 (wmap bumped **0.29.0 → 0.30.0** in tsmap, alongside this repo's own batch — see tsmap's own `CHANGELOG.md` [0.1.36]. Published, unlinked, pinned `^0.30.0`. Issues #56, #57 and #58 closed by this bump. #58 was found while preparing the release itself, from a user report with `sample_data/NO-WAFER-ALL-COORDLESS-01.csv`, and fixed in wmap before publishing. The previous bump (0.28.0 → 0.29.0, tsmap 0.1.35, 2026-09-12) was recorded only in the "wmap version in use" row, not here.) |
+| Previous update | 2026-09-11 (wmap bumped **0.27.0 → 0.28.0** and testdata-parser **0.9.0 → 0.10.0** in tsmap, alongside this repo's own batch — see tsmap's own `CHANGELOG.md` [0.1.34]. Published, unlinked, pinned `^0.28.0`/`^0.10.0`. Issues #51, #52 and #53 closed by this bump. #53 was found while preparing the release itself: the bundled `sample-lot.stdf.gz` still had the old WCR layout and hung **Load sample data** — fixed on both sides before publishing.) |
 | Previous update | 2026-09-09 (wmap bumped **0.26.1 → 0.27.0** in tsmap, alongside this repo's own batch — the per-wafer test-definition reconciliation this release exists for. tsmap already consumed the new API (`FindingsNotice`, `mergeTestDefs`) while linked, so unlinking before the publish briefly broke the build with three `TS2305`/`TS2353` errors — a reminder that the publish must land before the unlink, not after. Published, unlinked, pinned `^0.27.0`. Issues #43, #44, #45, #46, #47, #48, #49 and #50 closed by this bump — the largest single batch this table has recorded. See tsmap's own `CHANGELOG.md` [0.1.33] for the tsmap-side half.) |
 | Previous update | 2026-08-28 (wmap bumped **0.26.0 → 0.26.1** in tsmap, fixing a dark-theme guide bug found immediately after the 0.26.0/testdata-parser 0.9.0 batch shipped — see WMAP_ISSUES.md's "Latest wmap release" row and tsmap's own `CHANGELOG.md [0.1.32]` for the full story: the guide read as broken in Nord/Dark/Solarized Dark, root-caused to a hardcoded light-theme block in tsmap's own `build-user-guide.mjs` (removed) plus a missing `background` on wmap's own guide chrome (added). Also fixes `edgeExcluded` die fill visibility. Published, unlinked, `package.json`/`package-lock.json` pin `^0.26.1`. `npm run verify` (tsc, lint, check:docs, 391 JS tests, cargo check, 251 Rust tests), `check-wmap-published.js`, `check-testdata-parser-published.js`, and `check-drift.mjs` all clean.) |
 | Previous update | 2026-08-28 (wmap bumped **0.25.0 → 0.26.0** and testdata-parser **0.8.0 → 0.9.0** in tsmap, alongside this repo's own batch — bin definitions, wafer diameter/edge-exclusion override, WCR/HBR/SBR parsing, the guide-consolidation reversal of issue #37 below (see tsmap's own `CHANGELOG.md [0.1.31]` for the tsmap-side detail). Both published to npm, unlinked, `package.json`/`package-lock.json` pin `^0.26.0`/`^0.9.0`. `npm run verify` (tsc, lint, check:docs, 391 JS tests, cargo check, 251 Rust tests), `check-wmap-published.js`, `check-testdata-parser-published.js`, and `check-drift.mjs` all clean. Issues #30 and #42 closed by the wmap bump. See "Latest wmap release" above for the full wmap summary.) |
@@ -1910,3 +1912,100 @@ to disappear rather than to be seen.
 
 **tsmap side:** nothing to do — tsmap passes no stroke widths and has no workaround for this.
 Logged here because the report arrived through tsmap and the cause is entirely wmap's.
+
+### 56. ~~Bin colour follows die count, not bin number — the same bin is a different colour in every lot~~ (fixed in wmap 0.30.0)
+
+**Where:** `packages/renderer/binColors.ts` `resolveBinColors` → `assign()` (the rule behind
+`View.binColors`, introduced by the #52 fix in 0.28.0).
+
+**Problem:** #52 replaced hashing the bin number with ranking bins by die count: within pass
+and within fail, the most populous bin took the first palette colour. That makes a colour mean
+"the biggest fail bin in this view" rather than any particular bin. Measured against the built
+library with two lots of the same 30 hard bins, only the counts changed: hard bin 7 was red
+(`#d62728`) in lot A and brown (`#654522`) in lot B, while bin 3 went orange → red and bin 12
+indigo → orange. Two screenshots of one test program therefore disagree about what every colour
+means, and so can a gallery before and after filtering. Wafer-map tools in this industry key
+colour on the bin number (usually from a per-program bin colour table), so engineers learn
+"orange is contact fail" and compare lots by eye; ranking breaks exactly that. The gallery's
+resolve-once rule hid the problem within a single view, which is why it was not caught.
+
+**Fix (wmap 0.30.0, breaking):** colour is keyed by bin number within
+the pass/fail list: pass bin → `pass[(bin − 1) mod n]`, fail bin → `fail[(bin − 2) mod n]`, so
+bin 1 is the first green and bin 2 red in the default palette. Pass/fail still comes from
+`passBins` (a failing bin 1 is never green), `BinDef.color` still wins, and the slot comes from
+the number alone so changing `passBins` recolours only bins whose verdict changed. Soft bins
+read the palette shifted by half its length, so hard bin *n* ≠ soft bin *n*. Collisions are now
+fixed pairs a palette-length apart (fail bins 2/21 in Default, 2/16 in Colour-blind safe),
+still reported through `shared` and the `bin-colors-shared` warning. Guarded by
+`tests/binColors.test.mjs` (same colour whatever the count, whatever other bins are present,
+and across a `passBins` change).
+
+**tsmap side:** no code change — tsmap reads `View.binColors` through wmap and pins no colours.
+Every screenshot showing a bin map will change colour on adoption and should be recaptured. A
+site bin colour sheet (the `color` column in bin definitions files, from #52) remains the way to
+match an existing standard exactly.
+
+### 57. ~~Pass bins given to `buildWaferMap` reach only `result.yield` — every other surface judges pass/fail by `[1]`~~ (fixed in wmap 0.30.0)
+
+**Where:** `WaferMapResult` (`packages/renderer/buildWaferMap.ts`) had no `passBins` field, so
+`renderWaferMap` (`passBins = [1]`), `renderWaferGallery` (`options.passBins ?? [1]`),
+`analyzeWaferMap` (`DEFAULT_OPTIONS.passBins`), `buildView` (including `buildWaferMap`'s own
+internal call), the Summary panel, the summary/lot report, `buildRegionYieldData` and the Insights
+yield charts each defaulted to `[1]` unless the caller repeated the value.
+
+**Problem (found while checking the bin-rich example's soft-bin legend):** tsmap derives each
+wafer's pass hard bins from the file's HBR records (`passBinsForWafer`, `main.ts`) and gives them to
+`buildWaferMap` — and to nothing else: `analyzeOpts()` sets only `enableTestValueAnalysis`, and the
+`renderWaferMap` (`main.ts:950`) and `renderWaferGallery` (`main.ts:983`) calls pass no `passBins`.
+So for any file whose pass bins are not exactly `[1]`, `result.yield` was right and everything else
+was not: findings and stats yield, bin colours (a passing bin 2 drawn in a fail colour), legend and
+panel order, the failing-die hatch, Summary panel and report yield/bin tables, region yield, the
+Insights yield charts and the gallery strip's Yield. wmap's own docs (`guide.md`, `api.md`) already
+said `analyzeWaferMap` inferred `passBins` from the result; it could not. A lot mixing files with
+different pass bins had no correct single value to pass even if tsmap had tried.
+
+The earlier bin-1 audit did not catch it because it searched for bin 1 being *treated* as pass
+(`hbin === 1`, colour keyed on the number). This failure contains no literal bin-1 check — only
+`[1]` defaults at every boundary downstream of the build.
+
+**Fix (wmap 0.30.0, breaking):** `WaferMapResult.passBins` carries the value;
+`[1]` is a default only at `buildWaferMap`'s input. `renderWaferMap` and `analyzeWaferMap` default to
+the result's pass bins; `renderWaferGallery` judges **each wafer by its own** (cards, strip yield, lot
+panel, report, region yield, Insights). The `passBins` options on `analyzeWaferMap`, `analyzeWaferLot`, `renderWaferMap` and
+`renderWaferGallery` are removed, so `buildWaferMap` is the only place pass bins are set; wafers whose pass bins disagree about a present hard bin raise
+`pass-bins-mixed`. Yield labels name per-wafer pass bins when they differ. Guarded by
+`tests/passBins.test.mjs`.
+
+**tsmap side:** no code change needed — once adopted, the pass bins tsmap already gives
+`buildWaferMap` reach every surface. Worth re-checking on adoption with a file whose HBR marks a
+bin other than 1 as pass (bin colours, gallery strip Yield, Summary panel, report), and with a
+multi-file load mixing such files (expect `pass-bins-mixed` only when they disagree about a bin
+that is present). `mappingUI.ts`'s `passBins.length ? passBins : [1]` for a CSV with no pass bins
+entered is an input-boundary default and correct as is.
+
+### 58. ~~A coordinate-less wafer's "No die position data" panel covers the Insights view~~ (fixed in wmap 0.30.0)
+
+**Problem (user report, reproduced with `sample_data/NO-WAFER-ALL-COORDLESS-01.csv`, which has no
+wafer id and no x/y):** tsmap renders this single wafer with `renderWaferMap`. The map area shows
+wmap's mapless summary ("No die position data for this wafer." plus a hard bin breakdown). Opening
+Insights left that panel on top of the chart suite, so only the strip beside it was visible. The
+panel wasn't a gallery card; it was the mapless overlay.
+
+**Where it originates (wmap, `canvas-adapter/renderWaferMap.ts`):** the overlay is mounted inside
+`canvasWrap` with `zIndex: 1`. `canvasWrap` is `position: relative` with no z-index, so it forms
+no stacking context. Its children's z-indices compete directly with the Insights element, which
+is `z-index: auto`, and win. The same applied to a mixed wafer's unpositioned-dies footer
+(`zIndex` 3) and its expanded panel (2). The identity `metaPanel` had already hit this and was
+patched on its own with a `collapse()` call.
+
+**Fix (wmap 0.30.0):** `setInsightsOpen` sets `canvasWrap.style.visibility`
+to `hidden` while Insights is open. That one rule covers every overlay inside `canvasWrap`, with no
+per-overlay z-index. Using `visibility` rather than `display` keeps the canvas at its size, so
+closing Insights doesn't resize or redraw it, and it takes the hidden controls out of the tab
+order. The one exception is the identity details panel (`metaPanel`), which is set explicitly to
+`visible`: the identity row that opens it stays up in both views, so its details have to open in
+both. Guarded by `tests/insightsCoversMapOverlays.test.mjs` (coordinate-less wafer, mixed wafer,
+identity panel). Each case fails without its half of the fix.
+
+**tsmap side:** no code change. Picked up while linked. Recheck on adoption with the sample file
+above: Insights → back to wafer view → Insights.
