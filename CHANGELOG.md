@@ -8,11 +8,9 @@ technical record, including internal changes.
 
 ### Security
 
-- **A test, bin or wafer name in a data file could run script when you hovered over it.** The
-  die tooltip, the Insights chart tooltips and the legend and toolbar tooltips put names, units
-  and metadata values into HTML without escaping them. A file with a test named
-  `<img src=x onerror=…>` ran that script inside tsmap's own window. Every such value is now
-  escaped. From wmap 0.30.1.
+- **Fixes a security issue in how names from a data file are displayed.** Earlier versions are
+  affected; update, particularly if you open files from sources you don't control. From wmap
+  0.30.1.
 
 ### Changed
 
