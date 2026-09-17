@@ -177,8 +177,6 @@ src/
   tooltip.ts          — shared themed hover tooltip for tsmap's own chrome
   theme.ts            — theme selection, persistence, and re-render notification
   pwa.ts              — web build only: offline service worker + the update prompt
-  icons.ts            — shared Lucide icon set, aligned with wmap's own iconography
-  charts/             — yield heatmap, bin pareto, box plot, histogram charts
 
 packages/parsers/     — shared Rust crate (native + WASM targets), published as
                         @wafertools/testdata-parser

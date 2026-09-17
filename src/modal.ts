@@ -15,7 +15,7 @@
 // CSS maximize behaves identically on every target (see CLAUDE.md issue #17).
 
 import { cssVar } from './theme';
-import { ICONS } from './icons';
+import { ICONS } from '@wafertools/wafermap/render';
 import { attachTooltip } from './tooltip';
 
 export interface ModalHandle {
@@ -272,7 +272,7 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   }
 
   const applyMaximize = () => {
-    maxBtn.innerHTML = maximized ? ICONS.shrink : ICONS.maximize;
+    maxBtn.innerHTML = maximized ? ICONS.minimize : ICONS.maximize;
     if (maximized) {
       box.style.borderRadius = '0'; box.style.resize = 'none';
       box.style.width = '100vw'; box.style.height = '100vh';

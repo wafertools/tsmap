@@ -328,6 +328,12 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       const scanDir = await mkdtemp(join(tmpdir(), 'tsmap-scan-'));
       tempDirs.push(scanDir);
       await Promise.all(files.map(f => copyFile(f, join(scanDir, basename(f)))));
+      // Chromium has `showDirectoryPicker`, which the web build prefers
+      // (platform.ts `pickFolderViaHandle`) and which Playwright cannot drive —
+      // it raises no `filechooser` event, so this step timed out from b859cbf
+      // on. Hiding it sends the scan down the `webkitdirectory` fallback, the
+      // same scan pipeline and the same table.
+      await page.evaluate(() => { window.showDirectoryPicker = undefined; });
       const [chooser] = await Promise.all([
         page.waitForEvent('filechooser'),
         page.click('#scan-folder-btn'),

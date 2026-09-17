@@ -313,7 +313,7 @@ change — noted per item.
 
 ## Data ingestion (needs validated demand before scoping)
 
-- [ ] **Allow STDF + ATDF in the same load batch.** They're the same record model (ATDF is
+- [x] **Allow STDF + ATDF in the same load batch.** They're the same record model (ATDF is
       STDF's own text-readable rendering) — a mixed tester fleet emitting one format or the
       other for the same lot is a plausible real case. `checkSameExtension` (`lib.ts`) currently
       blocks mixing them, same as it blocks e.g. stdf+csv.
@@ -326,6 +326,8 @@ change — noted per item.
       parser on raw STDF bytes (or vice versa) and fail or misparse. Would need to become
       per-file, mirroring the second-pass loop, before `checkSameExtension` could actually be
       loosened for this pair. Discussed with the user 2026-08-16; not started.
+      Done in v0.1.34 (2026-09-11): `checkSameExtension` now compares format families, so STDF and
+      ATDF load together while either still refuses CSV/JSON/Parquet. See CHANGELOG 0.1.34.
 
 - [x] **"Open from URL" — programmatic REST-pull ingestion.** ~~Today tsmap only ingests local
       files~~ Implemented 2026-08-15 as `--url <url> --url-format <stdf|atdf|csv|json|parquet>`

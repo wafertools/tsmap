@@ -4,6 +4,62 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.37] — 2026-09-17
+
+### Security
+
+- **A test, bin or wafer name in a data file could run script when you hovered over it.** The
+  die tooltip, the Insights chart tooltips and the legend and toolbar tooltips put names, units
+  and metadata values into HTML without escaping them. A file with a test named
+  `<img src=x onerror=…>` ran that script inside tsmap's own window. Every such value is now
+  escaped. From wmap 0.30.1.
+
+### Changed
+
+- **Saved images and CSVs are named for the data they came from**, for example
+  `LOT123_W05_hard-bin.png` or `LOT123_25-wafers_yield-by-wafer.png`. Before, a map or gallery
+  PNG took the source file's name, and every other export had a fixed name such as `dies.csv`, so
+  the same export from two wafers saved as `dies.csv` and `dies (1).csv`. A part the data doesn't
+  have, such as a wafer with no ID, is left out rather than invented. From wmap 0.30.1.
+- **A detached gallery card's window no longer shows a second minimize button under the title
+  bar.** In the desktop app a detached card opens in a window drawn inside tsmap. Maximized, its
+  header sits right under tsmap's own title bar, and its `_` button looked like the OS minimize
+  but only shrank the card to a title strip. That button is now **Collapse** (a chevron icon) and
+  is hidden while the window is maximized, leaving restore and close. The user guide window
+  changes the same way. From wmap 0.30.1.
+- **`@wafertools/wafermap` pinned to `^0.30.1`** (was `^0.30.0`).
+
+### Fixed
+
+- **A test could not be chosen from the plot-mode menu on a phone or tablet.** With more than
+  six tests, "Test Value ▶" opens a list of tests, and it opened on mouse hover only: a tap
+  opened the list and closed it again at once. It now opens on a tap, and from the keyboard with
+  Enter or Space, and tapping its filter box no longer closes the menu. From wmap 0.30.1
+  (`WMAP_ISSUES.md` #59).
+- **Ring, quadrant and reticle lines were faint on high-DPI screens.** Map lines and markers were
+  sized in device pixels, so on a 2× display they drew at half their intended width and on a 3×
+  display at a third. They now look the same at every scale. A 1× display is unchanged. From
+  wmap 0.30.1 (#55).
+- **The Filter files dialog title showed a count that never changed.** It read "90 selected"
+  for a scanned folder of 90 files, whatever was ticked. The title is now "Filter files". The
+  live selection count is the line above the table.
+- **Outlined buttons in the Summary panel had no visible border in dark themes.** From wmap
+  0.30.1.
+
+### Internal
+
+- **tsmap's icon buttons use wmap's exported `ICONS`.** `src/icons.ts` held copies of wmap's
+  SVGs because wmap did not export them. It has since 0.26.0 (#16), so the copy is deleted and
+  the modal and test selector import the icons, which can no longer drift from wmap's.
+- **The file-filter screenshots refresh again.** Since the web build started using Chromium's
+  `showDirectoryPicker` (0.1.36), the capture step timed out waiting for a file chooser that
+  never opens, so `file-filter.png` and `file-filter-kinds.png` had not updated. The step now
+  drives the `webkitdirectory` fallback, which is the same scan and table. Doc screenshots are
+  recaptured.
+- **`downloadFilename` is no longer passed to `renderWaferMap`/`renderWaferGallery`.** wmap
+  deprecates it to become a filename prefix in 0.31.0, and the generated names already include
+  the lot.
+
 ## [0.1.36] — 2026-09-15
 
 ### Added

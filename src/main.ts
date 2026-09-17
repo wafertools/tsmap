@@ -858,7 +858,7 @@ function renderWafers(
   // main thread (single setTimeout(0) is not reliable in WebKitGTK).
   setBusy(`Rendering ${loadedMsg}…`);
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    renderWaferView(wafers, label);
+    renderWaferView(wafers);
     setIdle(loadedMsg);
     // Splits carried over from a previous session on this exact wafer set —
     // never apply that silently. Open the dialog so it's obvious what
@@ -932,10 +932,9 @@ function resolveValueFindings(wafers: WaferData[]): FindingsNotice | undefined {
   };
 }
 
-function renderWaferView(wafers: WaferData[], label: string) {
+function renderWaferView(wafers: WaferData[]) {
   destroyMainView();
   container.innerHTML = '';
-  const stem = label.replace(/\.[^.]+$/, '');
 
   const findingsNotice = resolveValueFindings(wafers);
   const plotMode = autoPlotMode(wafers);
@@ -957,7 +956,6 @@ function renderWaferView(wafers: WaferData[], label: string) {
       // window via userGuideExtension below. See WMAP_ISSUES.md #37.
       showHelpButton: false,
       userGuideExtension: guideExtension,
-      downloadFilename: stem,
       onSaveImage,
       onSaveText,
       // The colour choices persist across loads and restarts (mapColorPrefs.ts);
@@ -990,7 +988,6 @@ function renderWaferView(wafers: WaferData[], label: string) {
       // window via userGuideExtension below. See WMAP_ISSUES.md #37.
       showHelpButton: false,
       userGuideExtension: guideExtension,
-      downloadFilename: stem,
       onSaveImage,
       onSaveText,
       // Same persisted colour choices as the single-wafer call above.
@@ -2108,7 +2105,7 @@ function toggleValueFindings() {
   const label = currentFileName;
   setBusy(`${valueFindings ? 'Analysing' : 'Rendering'} ${label}…`);
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    renderWaferView(currentWafers, label);
+    renderWaferView(currentWafers);
     setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
   }));
 }
@@ -2373,7 +2370,7 @@ function openSplitsDialog() {
       const label = currentFileName;
       setBusy(`Rendering ${label}…`);
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        renderWaferView(currentWafers, label);
+        renderWaferView(currentWafers);
         setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
       }));
     },
@@ -2421,7 +2418,7 @@ function openWaferGeometryDialog() {
     const label = currentFileName;
     setBusy(`Rendering ${label}…`);
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      renderWaferView(currentWafers, label);
+      renderWaferView(currentWafers);
       setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
     }));
   });
@@ -2486,7 +2483,7 @@ function openSaveLoadDefinitionsDialog(opts: {
         const label = currentFileName;
         setBusy(`Rendering ${label}…`);
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          renderWaferView(currentWafers, label);
+          renderWaferView(currentWafers);
           setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
         }));
         modalHandle.close();
@@ -2969,7 +2966,7 @@ if (!isTauri) {
 
 function refreshCurrentView(): void {
   if (currentWafers.length === 0) return; // empty state: CSS-only, nothing to redraw
-  renderWaferView(currentWafers, currentFileName);
+  renderWaferView(currentWafers);
 }
 
 // Grouped theme picker. Uses the custom menuSelect (not a native <select>):

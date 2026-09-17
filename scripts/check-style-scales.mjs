@@ -33,7 +33,7 @@ const PATTERNS = {
   'letter-spacing': [/letterSpacing:\s*(?:'([^']+)'|`([^`]+)`)/g, /letter-spacing:\s*([^;'"}]+)/g],
   'font-family':    [/fontFamily:\s*(?:'([^']+)'|`([^`]+)`)/g, /font-family:\s*([^;'"}]+)/g],
 };
-const SKIP = ['guideExtension.ts', 'icons.ts', 'version.ts', 'userGuideHtml.ts'];
+const SKIP = ['guideExtension.ts', 'version.ts', 'userGuideHtml.ts'];
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {

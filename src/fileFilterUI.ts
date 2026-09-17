@@ -452,7 +452,11 @@ export async function openFileFilterDialog(
   let scannedFiles: ScannedFile[] = [];
 
   const handle = openModal({
-    title: `Filter files — ${picked.length} selected`,
+    // No count in the title. It used to read `${picked.length} selected`, from
+    // when files were chosen one by one in the OS picker; a folder scan made that
+    // the number of files FOUND, and it never followed the ticks in the table.
+    // The table's own count line is the one live selection count.
+    title: 'Filter files',
     sizing: 'resizable',
     bodyOverflow: 'hidden',
     mount(body) {

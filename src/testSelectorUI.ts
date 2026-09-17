@@ -1,6 +1,6 @@
 import type { TestDef, TestOverride } from './types';
 import { createRangeSelection } from './listSelection';
-import { ICONS } from './icons';
+import { ICONS } from '@wafertools/wafermap/render';
 import { attachTooltip } from './tooltip';
 import { buildToggleGroup } from './toggleGroup';
 import { makeLoadDefinitionsButton, type RecentLoadRow } from './recentDefinitionsUI';
