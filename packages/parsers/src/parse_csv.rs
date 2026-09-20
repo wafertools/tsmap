@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use crate::types::*;
 use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
+use crate::error::{ParseError, ParseResult};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,19 +65,19 @@ pub struct CsvMapping {
     pub pass_bins: Vec<u32>,
 }
 
-pub fn csv_headers_from_bytes(bytes: &[u8]) -> Result<CsvHeadersResult, String> {
+pub fn csv_headers_from_bytes(bytes: &[u8]) -> ParseResult<CsvHeadersResult> {
     let bytes = crate::read_file::decompress_if_gzip(bytes.to_vec())?;
     let mut rdr = build_reader_from_bytes(&bytes);
     let headers: Vec<String> = rdr
         .headers()
-        .map_err(|e| e.to_string())?
+        .map_err(ParseError::csv_read)?
         .iter()
         .map(|s| s.trim().to_string())
         .collect();
 
     let mut sample: Vec<HashMap<String, String>> = Vec::new();
     for result in rdr.records() {
-        let rec = result.map_err(|e| e.to_string())?;
+        let rec = result.map_err(ParseError::csv_read)?;
         let row: HashMap<String, String> = headers
             .iter()
             .enumerate()
@@ -90,24 +91,24 @@ pub fn csv_headers_from_bytes(bytes: &[u8]) -> Result<CsvHeadersResult, String> 
     Ok(CsvHeadersResult { headers, sample, row_count })
 }
 
-pub fn parse_csv_from_bytes(bytes: &[u8], mapping: CsvMapping) -> Result<ParsedStdf, String> {
+pub fn parse_csv_from_bytes(bytes: &[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     let bytes = crate::read_file::decompress_if_gzip(bytes.to_vec())?;
     parse_csv_from_reader(build_reader_from_bytes(&bytes), mapping)
 }
 
 #[cfg(feature = "native")]
-pub fn csv_headers_inner(path: String) -> Result<CsvHeadersResult, String> {
+pub fn csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult> {
     let mut rdr = build_reader(&path)?;
     let headers: Vec<String> = rdr
         .headers()
-        .map_err(|e| e.to_string())?
+        .map_err(ParseError::csv_read)?
         .iter()
         .map(|s| s.trim().to_string())
         .collect();
 
     let mut sample: Vec<HashMap<String, String>> = Vec::new();
     for result in rdr.records() {
-        let rec = result.map_err(|e| e.to_string())?;
+        let rec = result.map_err(ParseError::csv_read)?;
         let row: HashMap<String, String> = headers
             .iter()
             .enumerate()
@@ -131,15 +132,15 @@ pub fn csv_headers_inner(path: String) -> Result<CsvHeadersResult, String> {
 }
 
 #[cfg(feature = "native")]
-pub fn parse_csv_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String> {
+pub fn parse_csv_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     let rdr = build_reader(&path)?;
     parse_csv_from_reader(rdr, mapping)
 }
 
-fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMapping) -> Result<ParsedStdf, String> {
+fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     let headers: Vec<String> = rdr
         .headers()
-        .map_err(|e| e.to_string())?
+        .map_err(ParseError::csv_read)?
         .iter()
         .map(|s| s.trim().to_string())
         .collect();
@@ -189,7 +190,7 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
     let all_rows: Vec<csv::StringRecord> = rdr
         .records()
         .collect::<Result<_, _>>()
-        .map_err(|e| e.to_string())?;
+        .map_err(ParseError::csv_read)?;
 
     // ── Wide-format fast path ──────────────────────────────────────────────────
     // The common case (one column per test): values are read by resolved column
@@ -367,12 +368,12 @@ fn build_reader_from_bytes(bytes: &[u8]) -> csv::Reader<Box<dyn Read>> {
 }
 
 #[cfg(feature = "native")]
-fn build_reader(path: &str) -> Result<csv::Reader<Box<dyn Read>>, String> {
+fn build_reader(path: &str) -> ParseResult<csv::Reader<Box<dyn Read>>> {
     let is_gz = std::path::Path::new(path)
         .extension().and_then(|e| e.to_str())
         .map(|e| e.eq_ignore_ascii_case("gz")).unwrap_or(false);
 
-    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let file = std::fs::File::open(path).map_err(ParseError::file_read)?;
     let reader: Box<dyn Read> = if is_gz {
         Box::new(flate2::read::GzDecoder::new(file))
     } else {
@@ -941,5 +942,58 @@ mod tests {
             result.wafers.len(), result.test_defs.len(),
             file_mb / (ms as f64 / 1000.0).max(0.001),
         );
+    }
+}
+
+#[cfg(test)]
+mod mapping_shape_tests {
+    use super::*;
+
+    /// Which `CsvMapping` keys a JS caller may leave out entirely.
+    ///
+    /// serde's derive treats a missing field as `None` for any `Option<T>`, so
+    /// every optional-in-Rust field is genuinely optional in the JSON too and the
+    /// `#[serde(default)]` attributes on `x`/`y`/`site`/`testnumberCol` are
+    /// belt-and-braces rather than load-bearing. The `Vec` fields are the real
+    /// requirement: omitting one is an error, because serde has no default for
+    /// them. That asymmetry is invisible from the Rust and is exactly what a JS
+    /// caller assembling the object by hand gets wrong, so the TypeScript
+    /// definitions emitted for this type (see `lib.rs`) encode this split and
+    /// this test is what keeps the claim honest.
+    fn base() -> serde_json::Value {
+        serde_json::json!({ "tests": [], "meta": [], "splitBy": [], "passBins": [1] })
+    }
+
+    #[test]
+    fn only_the_vec_fields_are_required() {
+        // Nothing but the four collections: every Option field may be absent.
+        let m: CsvMapping = serde_json::from_value(base()).expect("the four Vec fields are enough");
+        assert!(m.x.is_none() && m.y.is_none() && m.hbin.is_none() && m.sbin.is_none());
+        assert!(m.wafer.is_none() && m.lot.is_none() && m.site.is_none());
+        assert!(m.testname_col.is_none() && m.testnumber_col.is_none() && m.testvalue_col.is_none());
+        assert!(m.lo_limit_col.is_none() && m.hi_limit_col.is_none() && m.units_col.is_none());
+
+        for key in ["tests", "meta", "splitBy", "passBins"] {
+            let mut v = base();
+            v.as_object_mut().unwrap().remove(key);
+            let r: Result<CsvMapping, _> = serde_json::from_value(v);
+            assert!(r.is_err(), "omitting '{key}' must be an error — if it now succeeds the field \
+                                 gained a default, and the TypeScript definition in lib.rs must \
+                                 mark it optional");
+        }
+    }
+
+    #[test]
+    fn an_explicit_null_is_accepted_for_every_option_field() {
+        // A caller that writes `hbin: null` rather than omitting it is also fine —
+        // which is what makes `string | null` the honest TS type rather than plain
+        // `string`, for a field a mapping UI clears by setting it to null.
+        let mut v = base();
+        for key in ["x", "y", "hbin", "sbin", "wafer", "lot", "site", "testnameCol",
+                    "testnumberCol", "testvalueCol", "loLimitCol", "hiLimitCol", "unitsCol"] {
+            v.as_object_mut().unwrap().insert(key.to_string(), serde_json::Value::Null);
+        }
+        let m: CsvMapping = serde_json::from_value(v).expect("explicit nulls must deserialize");
+        assert!(m.x.is_none() && m.hbin.is_none() && m.units_col.is_none());
     }
 }

@@ -1,4 +1,5 @@
 import type { DieResult, BinDef } from '@wafertools/wafermap';
+import type { ParserWarning } from '@wafertools/testdata-parser';
 
 export interface TestDef {
   name: string;
@@ -101,6 +102,19 @@ export interface FileDefs {
   passHbins?: number[];
 }
 
+/**
+ * A non-fatal advisory from `@wafertools/testdata-parser`, re-exported so the
+ * rest of tsmap keeps importing its types from one place. `code` is stable and
+ * is what to branch on; `message` is prose and may be reworded.
+ *
+ * This was a local structural copy until 0.11.x, because the pinned parser
+ * typed every result as `any` and there was nothing to import. The package's
+ * own declaration is narrower — `code` is the `ParserWarningCode` union, not
+ * `string` — so branching on a code the parser cannot raise is now a type
+ * error rather than a branch that silently never runs.
+ */
+export type { ParserWarning, ParserWarningCode } from '@wafertools/testdata-parser';
+
 export interface ParsedFile {
   fileName: string;
   meta: LotMeta;
@@ -118,5 +132,5 @@ export interface ParsedFile {
    *  found," in which case wmap's own default is left in place. */
   passHbins?: number[];
   /** Non-fatal parser advisories to surface in the log panel. */
-  warnings?: string[];
+  warnings?: ParserWarning[];
 }

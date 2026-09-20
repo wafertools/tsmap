@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use crate::types::*;
+use crate::error::{ParseError, ParseResult};
 
 fn nonempty(s: String) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
@@ -175,18 +177,6 @@ fn decode_sdr(b: &[u8]) -> (u32, Vec<u32>) {
 
 // ── Warnings ───────────────────────────────────────────────────────────────────
 
-/// Build the soft-bin advisory shown to the host when a PRR's soft bin was the
-/// sentinel 65535 ("no soft bin") and we mirrored the hard bin instead. Returns
-/// an empty vec when no fabrication happened (field omitted from serialisation).
-fn soft_bin_warning(fabricated: usize) -> Vec<String> {
-    if fabricated == 0 {
-        vec![]
-    } else {
-        vec![format!(
-            "{fabricated} die(s) had no soft bin (sentinel 65535) — mirrored the hard bin"
-        )]
-    }
-}
 
 // ── Byte order ────────────────────────────────────────────────────────────────
 
@@ -278,19 +268,20 @@ impl<'a> RecordIter<'a> {
 /// CPU_TYPE and the header type/sub are single bytes (byte-order-independent), so
 /// we can read CPU_TYPE before knowing the order. CPU_TYPE: 1 = big-endian (legacy
 /// Sun/SPARC), 2 = little-endian (x86). Other values are rejected.
-fn detect_byte_order(bytes: &[u8]) -> Result<ByteOrder, String> {
+fn detect_byte_order(bytes: &[u8]) -> ParseResult<ByteOrder> {
     // FAR header is 4 bytes, body is CPU_TYPE(1) + STDF_VER(1).
     if bytes.len() < 6 {
-        return Err("file too short to contain a FAR record".to_string());
+        return Err(ParseError::not_stdf("file too short to contain a FAR record"));
     }
     if bytes[2] != 0 || bytes[3] != 10 {
-        return Err("first record is not a FAR — not a valid STDF file".to_string());
+        return Err(ParseError::not_stdf("first record is not a FAR — not a valid STDF file"));
     }
     let cpu_type = bytes[4];
     match cpu_type {
         1 => Ok(ByteOrder::Big),
         2 => Ok(ByteOrder::Little),
-        other => Err(format!("unsupported STDF CPU_TYPE {other} (expected 1=big-endian or 2=little-endian)")),
+        other => Err(ParseError::stdf_unsupported(
+            format!("unsupported STDF CPU_TYPE {other} (expected 1=big-endian or 2=little-endian)"))),
     }
 }
 
@@ -544,7 +535,7 @@ impl SiteAccum {
         self.values.iter_mut().for_each(|v| *v = f32::NAN);
         self.pass.iter_mut().for_each(|p| *p = PASS_ABSENT);
     }
-    fn to_test_values(&self, index: &TestIndex, test_defs_keys: &[String]) -> HashMap<String, f64> {
+    fn to_test_values(&self, index: &TestIndex, test_defs_keys: &[Arc<str>]) -> HashMap<Arc<str>, f64> {
         // Count non-NaN entries first so we can pre-size the HashMap and avoid rehashing.
         let cap = self.values.iter().take(index.order.len()).filter(|v| !v.is_nan()).count();
         let mut out = HashMap::with_capacity(cap);
@@ -558,7 +549,7 @@ impl SiteAccum {
         }
         out
     }
-    fn to_test_pass(&self, index: &TestIndex, test_defs_keys: &[String]) -> HashMap<String, bool> {
+    fn to_test_pass(&self, index: &TestIndex, test_defs_keys: &[Arc<str>]) -> HashMap<Arc<str>, bool> {
         let cap = self.pass.iter().take(index.order.len()).filter(|p| **p != PASS_ABSENT).count();
         let mut out = HashMap::with_capacity(cap);
         for (i, _) in index.order.iter().enumerate() {
@@ -575,7 +566,7 @@ impl SiteAccum {
 
 // ── Main parser ───────────────────────────────────────────────────────────────
 
-pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
+pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
@@ -606,7 +597,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
     // test_num → ordered key string (parallel to test_index.order)
-    let mut index_keys: Vec<String> = Vec::new();
+    let mut index_keys: Vec<Arc<str>> = Vec::new();
 
     while let Some(raw) = iter.next_record() {
         let (typ, sub) = (raw.typ, raw.sub);
@@ -635,9 +626,9 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
                     });
                     let idx = test_index.get_or_insert(ptr.test_num);
                     while index_keys.len() <= idx {
-                        index_keys.push(String::new());
+                        index_keys.push(Arc::from(""));
                     }
-                    index_keys[idx] = key_str.clone();
+                    index_keys[idx] = Arc::from(key_str.as_str());
                     test_num_to_key.insert(ptr.test_num, key_str);
                 } else if !limits_resolved.contains(&ptr.test_num) {
                     // Limits not yet found — check this record
@@ -684,9 +675,9 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
                     });
                     let idx = test_index.get_or_insert(test_num);
                     while index_keys.len() <= idx {
-                        index_keys.push(String::new());
+                        index_keys.push(Arc::from(""));
                     }
-                    index_keys[idx] = key_str.clone();
+                    index_keys[idx] = Arc::from(key_str.as_str());
                     test_num_to_key.insert(test_num, key_str);
                 }
 
@@ -836,7 +827,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
         }
     }
 
-    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
@@ -847,7 +838,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
 }
 
 #[cfg(feature = "native")]
-pub fn parse_stdf_sync(path: String) -> Result<ParsedStdf, String> {
+pub fn parse_stdf_sync(path: String) -> ParseResult<ParsedStdf> {
     let bytes = crate::read_file::read_bytes(&path)?;
     parse_stdf_from_bytes(&bytes)
 }
@@ -857,7 +848,7 @@ pub fn parse_stdf_sync(path: String) -> Result<ParsedStdf, String> {
 /// Scans the file for PTR/FTR records only, collecting test names and limits.
 /// Does not accumulate die results. Used to populate the test selector overlay
 /// before the full parse. Returns a flat map of test_num string → TestDef.
-pub fn parse_stdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, String> {
+pub fn parse_stdf_test_names(bytes: &[u8]) -> ParseResult<crate::types::ScanResult> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
@@ -935,7 +926,7 @@ pub fn parse_stdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, S
 /// skip every record type already gets when a scan doesn't match on it, so
 /// walking as far as the last WRR costs "skip N more record headers," not
 /// new per-record work.
-pub fn parse_stdf_file_meta(bytes: &[u8]) -> Result<crate::types::FileMeta, String> {
+pub fn parse_stdf_file_meta(bytes: &[u8]) -> ParseResult<crate::types::FileMeta> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
@@ -1000,7 +991,7 @@ pub fn parse_stdf_file_meta(bytes: &[u8]) -> Result<crate::types::FileMeta, Stri
 pub fn parse_stdf_from_bytes_filtered(
     bytes: &[u8],
     selected: &std::collections::HashSet<u32>,
-) -> Result<ParsedStdf, String> {
+) -> ParseResult<ParsedStdf> {
     let order = detect_byte_order(bytes)?;
     let mut iter = RecordIter { bytes, pos: 0, order };
 
@@ -1018,7 +1009,7 @@ pub fn parse_stdf_from_bytes_filtered(
     let mut prr_index_in_wafer: u32 = 0;
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
-    let mut index_keys: Vec<String> = Vec::new();
+    let mut index_keys: Vec<Arc<str>> = Vec::new();
 
     while let Some(raw) = iter.next_record() {
         let (typ, sub) = (raw.typ, raw.sub);
@@ -1047,8 +1038,8 @@ pub fn parse_stdf_from_bytes_filtered(
                     // Only add to the accumulation index if this test is selected
                     if selected.contains(&ptr.test_num) {
                         let idx = test_index.get_or_insert(ptr.test_num);
-                        while index_keys.len() <= idx { index_keys.push(String::new()); }
-                        index_keys[idx] = key_str;
+                        while index_keys.len() <= idx { index_keys.push(Arc::from("")); }
+                        index_keys[idx] = Arc::from(key_str.as_str());
                     }
                 } else if !limits_resolved.contains(&ptr.test_num) {
                     let (_, lo, hi, units) = ptr_defs_from_raw(b, order);
@@ -1094,8 +1085,8 @@ pub fn parse_stdf_from_bytes_filtered(
                     // Only add to the accumulation index if this test is selected
                     if selected.contains(&test_num) {
                         let idx = test_index.get_or_insert(test_num);
-                        while index_keys.len() <= idx { index_keys.push(String::new()); }
-                        index_keys[idx] = key_str;
+                        while index_keys.len() <= idx { index_keys.push(Arc::from("")); }
+                        index_keys[idx] = Arc::from(key_str.as_str());
                     }
                 }
 
@@ -1234,7 +1225,7 @@ pub fn parse_stdf_from_bytes_filtered(
         if !wafer.results.is_empty() { lots.push_wafer(&mut wafers, wafer); }
     }
 
-    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
@@ -1260,7 +1251,7 @@ pub struct ParseTiming {
 /// and P2 (per-die HashMap construction) separately.
 /// Only available with `--features bench`; the normal hot path is untouched.
 #[cfg(feature = "bench")]
-pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTiming), String> {
+pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, ParseTiming)> {
     use std::time::Instant;
 
     let order = detect_byte_order(bytes)?;
@@ -1277,7 +1268,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
     let mut prr_index_in_wafer: u32 = 0;
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
-    let mut index_keys: Vec<String> = Vec::new();
+    let mut index_keys: Vec<Arc<str>> = Vec::new();
 
     let mut p2_hashmap_ns: u128 = 0;
     let mut die_count: usize = 0;
@@ -1303,8 +1294,8 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                         ..Default::default()
                     });
                     let idx = test_index.get_or_insert(ptr.test_num);
-                    while index_keys.len() <= idx { index_keys.push(String::new()); }
-                    index_keys[idx] = key_str.clone();
+                    while index_keys.len() <= idx { index_keys.push(Arc::from("")); }
+                    index_keys[idx] = Arc::from(key_str.as_str());
                     test_num_to_key.insert(ptr.test_num, key_str);
                 } else if !limits_resolved.contains(&ptr.test_num) {
                     let (_, lo, hi, units) = ptr_defs_from_raw(b, order);
@@ -1338,8 +1329,8 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
                         ..Default::default()
                     });
                     let idx = test_index.get_or_insert(test_num);
-                    while index_keys.len() <= idx { index_keys.push(String::new()); }
-                    index_keys[idx] = key_str.clone();
+                    while index_keys.len() <= idx { index_keys.push(Arc::from("")); }
+                    index_keys[idx] = Arc::from(key_str.as_str());
                     test_num_to_key.insert(test_num, key_str);
                 }
                 // Functional outcomes are verdicts, not values — pass channel only.
@@ -1450,7 +1441,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> Result<(ParsedStdf, ParseTim
         test_count: test_index.len(),
     };
 
-    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     // Bench-only path deliberately skips HBR/SBR (and WIR/WRR field
@@ -1547,8 +1538,10 @@ mod tests {
     #[test]
     fn coordless_lot_surfaces_a_position_warning_per_affected_wafer() {
         let result = parse_stdf_sync(COORDLESS_LOT.to_string()).unwrap();
-        let w02_warning = result.warnings.iter().any(|w| w.contains("W02") && w.contains("position"));
-        let w03_warning = result.warnings.iter().any(|w| w.contains("W03") && w.contains("position"));
+        let w02_warning = result.warnings.iter()
+            .any(|w| w.code == "unpositioned-dies" && w.message.contains("W02"));
+        let w03_warning = result.warnings.iter()
+            .any(|w| w.code == "unpositioned-dies" && w.message.contains("W03"));
         assert!(w02_warning, "expected a position warning for W02: {:?}", result.warnings);
         assert!(w03_warning, "expected a position warning for W03: {:?}", result.warnings);
     }
@@ -1810,9 +1803,9 @@ mod tests {
         for w in &result.wafers {
             for d in &w.results {
                 for k in &f_keys {
-                    assert!(!d.test_values.contains_key(*k),
+                    assert!(!d.test_values.contains_key(k.as_str()),
                         "functional test {} must never appear as a value", k);
-                    if d.test_pass.contains_key(*k) { verdicts += 1; }
+                    if d.test_pass.contains_key(k.as_str()) { verdicts += 1; }
                 }
             }
         }
@@ -1832,8 +1825,8 @@ mod tests {
         for w in &result.wafers {
             for d in &w.results {
                 for (k, pass) in &d.test_pass {
-                    if p_keys.iter().any(|pk| *pk == k) && *pass {
-                        assert!(d.test_values.contains_key(k),
+                    if p_keys.iter().any(|pk| pk.as_str() == &**k) && *pass {
+                        assert!(d.test_values.contains_key(&**k),
                             "passing parametric test {} should carry its value", k);
                     }
                 }
@@ -2210,7 +2203,8 @@ mod tests {
                 // Shared fields stay file-level; the differing one does not.
                 assert_eq!(r.meta.get("partType"), Some("WIDGET"));
                 assert_eq!(r.meta.get("lotId"), None);
-                assert!(r.warnings.iter().any(|w| w.contains("2 lot records")));
+                assert!(r.warnings.iter().any(|w| w.code == "multiple-lot-records"
+                    && w.message.contains("2 lot records")));
             }
         }
 
@@ -2245,7 +2239,7 @@ mod tests {
             let r = parse_stdf_from_bytes(&build(ByteOrder::Little)).unwrap();
             assert_eq!(r.meta.get("lotId"), Some("LOT-BE"));
             assert!(r.wafers[0].fields.iter().all(|f| f.key != "lotId"));
-            assert!(!r.warnings.iter().any(|w| w.contains("lot records")));
+            assert!(!r.warnings.iter().any(|w| w.code == "multiple-lot-records"));
         }
 
         // ── WCR (wafer geometry) ────────────────────────────────────────────────

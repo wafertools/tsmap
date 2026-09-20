@@ -1,5 +1,8 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
 use crate::types::*;
+use crate::error::{ParseError, ParseResult};
 
 // ── ATDF field orders ─────────────────────────────────────────────────────────
 // Taken from the ATDF specification (Teradyne, V5.00.00_flx), each checked
@@ -118,13 +121,20 @@ fn nonempty(s: &str) -> Option<String> {
 /// (full parse, first-pass test-name scan, file-meta scan) — this used to be
 /// duplicated verbatim in two of those three; a fourth copy for file-meta
 /// would have made three.
-fn split_atdf_records(raw: &str) -> (Vec<String>, char) {
+///
+/// Records are `Cow`: borrowed from `raw` in the normal case, and owned only for
+/// the rare record that actually has a continuation line to join. This used to
+/// return `Vec<String>`, which copied the entire file — one allocation per
+/// record, ~2.6M of them for a 50k-die x 50-test file — to produce text that was
+/// already sitting in `raw` unchanged.
+fn split_atdf_records(raw: &str) -> (Vec<Cow<'_, str>>, char) {
     let mut delim: Option<char> = None;
-    let mut records: Vec<String> = Vec::new();
+    let mut records: Vec<Cow<'_, str>> = Vec::new();
     for line in raw.lines() {
         if line.starts_with(' ') {
             if let Some(last) = records.last_mut() {
-                last.push_str(line.trim_start());
+                // A continuation: this is the only case that has to own its text.
+                last.to_mut().push_str(line.trim_start());
                 continue;
             }
         }
@@ -133,7 +143,7 @@ fn split_atdf_records(raw: &str) -> (Vec<String>, char) {
             if delim.is_none() && trimmed.starts_with("FAR:") {
                 delim = trimmed.chars().nth(5);
             }
-            records.push(trimmed.to_string());
+            records.push(Cow::Borrowed(trimmed));
         }
     }
     (records, delim.unwrap_or('|'))
@@ -247,26 +257,14 @@ fn decode_bin_record_atdf(f: &HashMap<&str, &str>, num_key: &str, pf_key: &str, 
     }
 }
 
-/// Build the soft-bin advisory shown to the host when SOFT_BIN was the sentinel
-/// 65535 ("no soft bin") and we mirrored the hard bin instead. Returns an empty
-/// vec when no fabrication happened, so the field is omitted from serialisation.
-fn soft_bin_warning(fabricated: usize) -> Vec<String> {
-    if fabricated == 0 {
-        vec![]
-    } else {
-        vec![format!(
-            "{fabricated} die(s) had no soft bin (sentinel 65535) — mirrored the hard bin"
-        )]
-    }
-}
 
-pub fn parse_atdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
+pub fn parse_atdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
-        .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
+        .map_err(ParseError::encoding_invalid)?;
     parse_atdf_str(raw, None)
 }
 
@@ -275,7 +273,7 @@ pub fn parse_atdf_from_bytes(bytes: &[u8]) -> Result<ParsedStdf, String> {
 /// ~99% of lines) read fields positionally and key the pending PIR→PRR maps by a
 /// packed (head,site) u32 — no per-record `HashMap<&str,&str>` and no per-record
 /// `format!` string key. Cold records (MIR/WIR/WRR) keep `field_map`.
-fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) -> Result<ParsedStdf, String> {
+fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) -> ParseResult<ParsedStdf> {
     // Accumulate a test value iff there's no filter, or the filter contains it.
     let want = |test_num: &str| -> bool {
         match selected {
@@ -295,8 +293,10 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     let mut pass_hbins: std::collections::HashSet<u32> = std::collections::HashSet::new();
     // Keyed by packed (head,site) u32 (see `site_key`) — avoids a `format!` string
     // key per PIR/PTR/FTR/PRR. Inner map keyed by test-number string (tsmap identity).
-    let mut pending_values: HashMap<u32, HashMap<String, f64>> = HashMap::new();
-    let mut pending_pass: HashMap<u32, HashMap<String, bool>> = HashMap::new();
+    let mut pending_values: HashMap<u32, HashMap<Arc<str>, f64>> = HashMap::new();
+    let mut pending_pass: HashMap<u32, HashMap<Arc<str>, bool>> = HashMap::new();
+    // Interned once per test, cloned per die — see TestKeys.
+    let mut test_keys = TestKeys::default();
     let mut pending_site: HashMap<u32, u32> = HashMap::new();
     let mut soft_bin_fabricated: usize = 0;
     // Per-wafer PRR-encounter ordinal, reset on each WIR — used as die_index
@@ -304,13 +304,18 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     // parse_stdf.rs's identical scheme.
     let mut prr_index_in_wafer: u32 = 0;
 
+    let mut raw_fields: Vec<&str> = Vec::new();
     for rec in &records {
         let colon = match rec.find(':') {
             Some(i) => i,
             None => continue,
         };
         let name = &rec[..colon];
-        let raw_fields: Vec<&str> = rec[colon + 1..].split(delim).collect();
+        // One buffer for the whole file: a fresh Vec per record was ~2.6M
+        // allocations on a large file, for a split that is read and discarded
+        // immediately. Items borrow `records`, which outlives it.
+        raw_fields.clear();
+        raw_fields.extend(rec[colon + 1..].split(delim));
 
         match name {
             // ── Cold records (a handful per file): keep `field_map` so metadata
@@ -413,14 +418,14 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                 if want(test_num) {
                     if let Ok(result) = at(&raw_fields, PTR_RESULT).parse::<f64>() {
                         if let Some(vals) = pending_values.get_mut(&key) {
-                            vals.insert(test_num.to_string(), result);
+                            vals.insert(test_keys.text(test_num), result);
                         }
                     }
                     // ATDF PTR field 5 is Pass/Fail Flag: "P"/"F"; blank = no indication.
                     let pf = at(&raw_fields, PTR_PASS_FAIL);
                     if pf.eq_ignore_ascii_case("P") || pf.eq_ignore_ascii_case("F") {
                         if let Some(passes) = pending_pass.get_mut(&key) {
-                            passes.insert(test_num.to_string(), pf.eq_ignore_ascii_case("P"));
+                            passes.insert(test_keys.text(test_num), pf.eq_ignore_ascii_case("P"));
                         }
                     }
                 }
@@ -444,7 +449,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     let pf = at(&raw_fields, FTR_PASS_FAIL);
                     if pf.eq_ignore_ascii_case("P") || pf.eq_ignore_ascii_case("F") {
                         if let Some(passes) = pending_pass.get_mut(&key) {
-                            passes.insert(test_num.to_string(), pf.eq_ignore_ascii_case("P"));
+                            passes.insert(test_keys.text(test_num), pf.eq_ignore_ascii_case("P"));
                         }
                     }
                 }
@@ -506,7 +511,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
         }
     }
 
-    let mut warnings = soft_bin_warning(soft_bin_fabricated);
+    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
@@ -517,9 +522,8 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
 }
 
 #[cfg(feature = "native")]
-pub fn parse_atdf_sync(path: String) -> Result<ParsedStdf, String> {
-    let text = crate::read_file::read_text(&path)
-        .map_err(|e| format!("Failed to read {path}: {e}"))?;
+pub fn parse_atdf_sync(path: String) -> ParseResult<ParsedStdf> {
+    let text = crate::read_file::read_text(&path)?;
     parse_atdf_str(&text, None)
 }
 
@@ -527,29 +531,34 @@ pub fn parse_atdf_sync(path: String) -> Result<ParsedStdf, String> {
 
 /// Scans the file for PTR/FTR records only, collecting test names and limits.
 /// Does not accumulate die results. Returns a flat map of test_num string → TestDef.
-pub fn parse_atdf_test_names(bytes: &[u8]) -> Result<crate::types::ScanResult, String> {
+pub fn parse_atdf_test_names(bytes: &[u8]) -> ParseResult<crate::types::ScanResult> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
-        .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
+        .map_err(ParseError::encoding_invalid)?;
     parse_atdf_test_names_str(raw)
 }
 
-fn parse_atdf_test_names_str(raw: &str) -> Result<crate::types::ScanResult, String> {
+fn parse_atdf_test_names_str(raw: &str) -> ParseResult<crate::types::ScanResult> {
     let (records, delim) = split_atdf_records(raw);
 
     let mut test_defs: HashMap<String, TestDef> = HashMap::new();
     let mut pir_count: u32 = 0;
 
+    let mut raw_fields: Vec<&str> = Vec::new();
     for rec in &records {
         let colon = match rec.find(':') {
             Some(i) => i,
             None => continue,
         };
         let name = &rec[..colon];
-        let raw_fields: Vec<&str> = rec[colon + 1..].split(delim).collect();
+        // One buffer for the whole file: a fresh Vec per record was ~2.6M
+        // allocations on a large file, for a split that is read and discarded
+        // immediately. Items borrow `records`, which outlives it.
+        raw_fields.clear();
+        raw_fields.extend(rec[colon + 1..].split(delim));
 
         match name {
             "PIR" => { pir_count += 1; }
@@ -597,17 +606,17 @@ fn parse_atdf_test_names_str(raw: &str) -> Result<crate::types::ScanResult, Stri
 /// MIR/SDR/WIR/WRR line names, ignore everything else" rather than any kind
 /// of seek/skip — reuses the same field tables and helpers the full parse
 /// uses for these same four record types.
-pub fn parse_atdf_file_meta(bytes: &[u8]) -> Result<crate::types::FileMeta, String> {
+pub fn parse_atdf_file_meta(bytes: &[u8]) -> ParseResult<crate::types::FileMeta> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
-        .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
+        .map_err(ParseError::encoding_invalid)?;
     parse_atdf_file_meta_str(raw)
 }
 
-fn parse_atdf_file_meta_str(raw: &str) -> Result<crate::types::FileMeta, String> {
+fn parse_atdf_file_meta_str(raw: &str) -> ParseResult<crate::types::FileMeta> {
     let (records, delim) = split_atdf_records(raw);
 
     let mut lot_meta = LotMeta::default();
@@ -616,13 +625,18 @@ fn parse_atdf_file_meta_str(raw: &str) -> Result<crate::types::FileMeta, String>
     let mut latest_finish: Option<String> = None;
     let mut site_nums: std::collections::HashSet<u32> = std::collections::HashSet::new();
 
+    let mut raw_fields: Vec<&str> = Vec::new();
     for rec in &records {
         let colon = match rec.find(':') {
             Some(i) => i,
             None => continue,
         };
         let name = &rec[..colon];
-        let raw_fields: Vec<&str> = rec[colon + 1..].split(delim).collect();
+        // One buffer for the whole file: a fresh Vec per record was ~2.6M
+        // allocations on a large file, for a split that is read and discarded
+        // immediately. Items borrow `records`, which outlives it.
+        raw_fields.clear();
+        raw_fields.extend(rec[colon + 1..].split(delim));
 
         match name {
             "MIR" => {
@@ -679,9 +693,9 @@ fn parse_atdf_file_meta_str(raw: &str) -> Result<crate::types::FileMeta, String>
 pub fn parse_atdf_from_bytes_filtered(
     bytes: &[u8],
     selected: &std::collections::HashSet<u32>,
-) -> Result<ParsedStdf, String> {
+) -> ParseResult<ParsedStdf> {
     let raw = std::str::from_utf8(bytes)
-        .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
+        .map_err(ParseError::encoding_invalid)?;
     parse_atdf_str(raw, Some(selected))
 }
 
@@ -813,7 +827,8 @@ mod tests {
             assert_eq!(lot(1).as_deref(), Some("LOT-02"));
             assert_eq!(r.meta.get("partType"), Some("WIDGET"));
             assert_eq!(r.meta.get("lotId"), None);
-            assert!(r.warnings.iter().any(|w| w.contains("2 lot records")));
+            assert!(r.warnings.iter().any(|w| w.code == "multiple-lot-records"
+                && w.message.contains("2 lot records")));
         }
     }
 
@@ -1200,7 +1215,8 @@ mod tests {
         // Real data survives — the whole point of keeping the die.
         assert!(dies.iter().all(|d| d.hbin.is_some()));
         assert!(dies.iter().all(|d| !d.test_values.is_empty()));
-        let position_warning = result.warnings.iter().any(|w| w.contains("W01") && w.contains("position"));
+        let position_warning = result.warnings.iter()
+            .any(|w| w.code == "unpositioned-dies" && w.message.contains("W01"));
         assert!(position_warning, "expected a position warning for W01: {:?}", result.warnings);
     }
 

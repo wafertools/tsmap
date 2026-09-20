@@ -21,16 +21,55 @@ import init, { parse_stdf } from '@wafertools/testdata-parser';
 
 await init(); // fetches testdata_parser_bg.wasm relative to the module URL
 const bytes = new Uint8Array(await file.arrayBuffer());
-const parsed = parse_stdf(bytes); // ParsedStdf, or throws a string error
+const parsed = parse_stdf(bytes); // ParsedStdf, or throws a ParserError
 ```
+
+**Import `init` as the default export, not by name.** There is also a named `init`
+export — that one is only the panic hook, and awaiting it instantiates nothing. The
+default export is what loads the WASM binary.
+
+**Failures throw a `ParserError`**: a real `Error`, so `err.message` reads and
+`err instanceof Error` is true, carrying a stable `err.code` to branch on. Handle the
+code, display the message — messages are prose and may be reworded.
+
+```js
+try {
+  const parsed = parse_stdf(bytes);
+} catch (err) {
+  if (err.code === 'not-stdf') {  // the file is not the format its name claims
+    // ...offer to try another parser
+  }
+  showToast(err.message);
+}
+```
+
+The full set: `file-read`, `gzip-invalid`, `encoding-invalid`, `not-stdf`,
+`stdf-unsupported`, `csv-read`, `json-invalid`, `parquet-read`, `column-missing`,
+`mapping-invalid`, `internal`. `ParseErrorCode` in the type declarations is the same
+list, so a `switch` on it is exhaustively checked.
 
 `init()` also installs a panic hook that routes any Rust panic to `console.error` with a stack trace, instead of an opaque WASM trap.
 
 In a bundler/dev-server context, `new URL('...testdata_parser_bg.wasm', import.meta.url)` resolution can be finicky — see tsmap's `parserWorker.ts` for a worked example of loading this module off the main thread in a Vite app.
 
+## TypeScript
+
+The package ships real declarations for every result and input shape —
+`ParsedStdf`, `WaferData`, `DieResult`, `TestDef`, `ParserWarning`, `ScanResult`,
+`FileMeta`, `ParquetHeadersResult`, `CsvMapping`, and the `ParserWarningCode` /
+`ParseErrorCode` unions. Each export is typed with its real return type, so field
+names complete and a typo is a compile error.
+
+They are emitted from the Rust (`typescript_custom_section` in `lib.rs`) into
+`testdata_parser.d.ts`, so they ship with the package and match the version
+installed. Earlier versions typed every return value as `any`, which is why the type
+blocks below existed as the only contract — they are now a readable mirror of the
+declarations, and `scripts/check-parser-docs.mjs` holds the Rust, the declarations
+and this README to each other.
+
 ## API
 
-Every parse function takes raw file bytes (`Uint8Array`) and returns a plain JS object (via `serde-wasm-bindgen`), or throws a `string` on error. Gzip-compressed input (`.gz`) is transparently decompressed for every format.
+Every parse function takes raw file bytes (`Uint8Array`) and returns a plain JS object (via `serde-wasm-bindgen`), or throws a `ParserError` (see above). Gzip-compressed input (`.gz`) is transparently decompressed for every format.
 
 | Function | Signature | Returns |
 | --- | --- | --- |
@@ -42,6 +81,9 @@ Every parse function takes raw file bytes (`Uint8Array`) and returns a plain JS 
 | `parse_parquet` | `(bytes: Uint8Array, mapping: CsvMapping) => ParsedStdf` | Full parse of a Parquet file, using the same mapping shape as CSV/JSON |
 | `stdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Fast first-pass scan: test definitions + die count, no die accumulation |
 | `atdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Same first-pass scan for ATDF |
+| `stdf_file_meta` | `(bytes: Uint8Array) => FileMeta` | Lot metadata, wafer count, first/last timestamps and site count from an MIR/SDR/WIR/WRR-only scan — no PTR/FTR/PIR/PRR walk, so it stays cheap across a batch of files |
+| `atdf_file_meta` | `(bytes: Uint8Array) => FileMeta` | Same metadata-only scan for ATDF |
+| `parquet_distinct_count` | `(bytes: Uint8Array, columns: string[]) => number` | How many distinct combinations of those columns the file holds — a wafer count from `['lot','wafer']` without a full parse, read as a column projection. A column missing from the schema is an error, not a count of zero. Parquet only: CSV/JSON have no equivalent shortcut |
 | `parse_stdf_filtered` | `(bytes: Uint8Array, selected: number[]) => ParsedStdf` | Full parse, skipping per-site accumulation for test numbers not in `selected` |
 | `parse_atdf_filtered` | `(bytes: Uint8Array, selected: number[]) => ParsedStdf` | Same filtered parse for ATDF |
 
@@ -61,8 +103,8 @@ STDF and ATDF files can be large and contain far more tests than a caller wants 
 
 ```ts
 interface CsvMapping {
-  x: string;                 // die X coordinate column
-  y: string;                 // die Y coordinate column
+  x?: string | null;          // die X coordinate column — omit for data with no positions
+  y?: string | null;          // die Y coordinate column — see `x`
   hbin?: string;              // hardware bin column
   sbin?: string;              // software bin column
   wafer?: string;             // wafer ID column (groups rows into WaferData[])
@@ -87,6 +129,11 @@ interface CsvTestCol {
 }
 ```
 
+`tests`, `meta`, `splitBy` and `passBins` must be present — pass `[]` where you are not
+using one. Every other field may be omitted entirely or set to `null`; the two mean the
+same thing. (`parse_csv::mapping_shape_tests` pins that split, and the `CsvMapping`
+declaration shipped in the package encodes it.)
+
 Two ways to describe test columns are supported: a **fixed set** of `tests` (one column per test, "wide" format), or a **tall** layout (`testnameCol`/`testnumberCol`/`testvalueCol` — one row per die×test, with the test identity read from a column rather than the header).
 
 **Test identity — real number vs. synthesized one.** Neither format has a mandatory real STDF-style test number, so one gets synthesized by default (see "Design notes" below) — but a caller that *does* have real numbers in the source data shouldn't lose them:
@@ -102,7 +149,10 @@ interface ParsedStdf {
   wafers: WaferData[];
   testDefs: Record<string, TestDef>; // keyed by test number as a string
   sites: SiteInfo[];
-  warnings?: string[]; // non-fatal advisories, e.g. fabricated soft bins; omitted if empty
+  hbinDefs?: BinDef[];  // hard-bin names from HBR; omitted if empty
+  sbinDefs?: BinDef[];  // soft-bin names from SBR; omitted if empty
+  passHbins?: number[]; // hard bins HBR marks Pass (HBIN_PF == 'P'); omitted if empty
+  warnings?: ParserWarning[]; // non-fatal advisories; omitted if empty
 }
 
 interface WaferData {
@@ -115,13 +165,15 @@ interface WaferData {
 }
 
 interface DieResult {
-  x: number;
-  y: number;
+  x?: number;          // die grid X — absent on an unpositioned die, see below
+  y?: number;          // die grid Y — absent on an unpositioned die, see below
+  dieIndex?: number;   // per-wafer ordinal, present ONLY when x/y are absent
   hbin?: number;
   sbin?: number;
   siteNum?: number;
   partId?: number;
-  testValues?: Record<string, number>; // keyed by test number as a string
+  testValues?: Record<string, number>;  // keyed by test number as a string
+  testPass?: Record<string, boolean>;   // recorded verdicts, true = pass; see below
 }
 
 interface TestDef {
@@ -146,7 +198,62 @@ interface SiteInfo {
   headNum: number;
   siteNum: number;
 }
+
+interface BinDef {
+  bin: number;
+  name: string;
+}
+
+interface ParserWarning {
+  code: ParserWarningCode;
+  message: string;
+  severity: 'warning' | 'error';
+}
+
+type ParserWarningCode =
+  | 'unpositioned-dies'         // dies with no X/Y — real data, not placeable
+  | 'soft-bin-mirrored'         // sbin was the 65535 sentinel; hbin mirrored in
+  | 'values-not-numeric'        // a mapped column held values that would not coerce
+  | 'retests-assumed'           // repeated positions read as retests
+  | 'wafer-split-by-column'     // one wafer per value of a mapped column
+  | 'column-varies-within-wafer'// a metadata column describes dies, not wafers
+  | 'multiple-lot-records';     // the file holds more than one MIR
 ```
+
+**`x`/`y` are optional, and a die is either fully positioned or fully unpositioned — never
+half.** A die with no reported position has neither field and carries `dieIndex` instead (its
+PRR/row encounter order within the wafer), giving it a stable identity that survives
+filtering and sorting downstream. Such a die still holds real measured data and counts
+toward every non-spatial statistic, but cannot be placed on a wafer map. Do not default a
+missing coordinate to 0 — that invents a die at the origin. Each wafer holding any of them
+also produces a `warnings` entry naming how many.
+
+**`testPass` holds recorded pass/fail verdicts**, keyed exactly like `testValues`, `true`
+meaning pass. Functional (FTR) results live here and *only* here — they have no measured
+value, so they never appear in `testValues`. A parametric (PTR) test also gets an entry when
+the tester recorded a valid indication (STDF `TEST_FLG` bit 6 clear). A test number absent
+from the map has no recorded verdict, which is not the same as a fail.
+
+**`hbinDefs`/`sbinDefs` carry bin names from HBR/SBR records**, one entry per distinct bin
+number that had a non-empty name — a bin with no recorded name is omitted rather than
+emitted with an empty string, so a host can fall back to its own "Bin N" label. Hard and
+soft bins occupy independent number spaces (STDF V4), which is why they are two arrays and
+never merged. Entries are sorted by bin number.
+
+**`passHbins` is the file's own pass/fail truth** — the hard bins whose HBR marked
+`HBIN_PF == 'P'`. It matters because a consumer that does not carry it across generally
+assumes bin 1 is the pass bin, which decides both the yield number and how it is labelled
+whether or not it is true of this test program. It is absent when no HBR record carried a
+usable Pass flag; in that case leave the consumer's own default in place rather than passing
+an empty array, which asserts that nothing passes.
+
+**`warnings` carries a stable `code`, prose, and a severity** — branch on the code, display
+the message, and never match on the prose. `severity: 'error'` means a number or a plot
+built from this result can mislead, because data was dropped or a value was substituted
+(`unpositioned-dies`, `soft-bin-mirrored`, `values-not-numeric`); `'warning'` means the
+parse made a documented interpretation you may want to change, and nothing was altered or
+lost. Nothing here is fatal — the parse succeeded. Surface them: a silently discarded
+warning is how a partly-wrong load looks fine.
 
 `testDefs` and `testValues` are both keyed by **test number**, not test name — test numbers are the unique identity in STDF/ATDF; names are not guaranteed unique.
 
@@ -160,6 +267,26 @@ interface ScanResult {
   dieCount: number;
 }
 ```
+
+### Return shape — `FileMeta`
+
+Returned by `stdf_file_meta`/`atdf_file_meta`: enough to list or filter a batch of files
+without parsing any of them fully. One `FileMeta` describes one *file*, so the timestamps
+and wafer count are aggregated across every WIR/WRR pair in it.
+
+```ts
+interface FileMeta {
+  lotMeta: LotMeta;
+  waferCount: number;
+  earliestStart?: string; // earliest WIR START_T; absent if the file has no WIR records
+  latestFinish?: string;  // latest WRR FINISH_T; absent if no wafer completed
+  siteCount?: number;     // distinct site numbers across every SDR seen
+}
+```
+
+Timestamps are normally fixed-width ISO 8601, which is what makes "earliest" a plain string
+compare — but an ATDF value written in some other convention passes through unrecognised
+rather than being dropped, so treat these as display text unless you have parsed them.
 
 ### Column headers: CSV/JSON vs Parquet
 
@@ -184,33 +311,41 @@ The crate also builds as a native Rust library (used directly by tsmap's Tauri c
 
 | Function | Module |
 | --- | --- |
-| `parse_stdf_sync(path: String) -> Result<ParsedStdf, String>` | `parse_stdf` |
-| `parse_atdf_sync(path: String) -> Result<ParsedStdf, String>` | `parse_atdf` |
-| `csv_headers_inner(path: String) -> Result<CsvHeadersResult, String>` | `parse_csv` |
-| `parse_csv_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_csv` |
-| `json_headers_sync(path: String) -> Result<JsonHeadersResult, String>` | `parse_json` |
-| `parse_json_sync(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_json` |
-| `parquet_headers_inner(path: String) -> Result<ParquetHeadersResult, String>` | `parse_parquet` |
-| `parse_parquet_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_parquet` |
-| `read_bytes(path: &str) -> Result<Vec<u8>, String>` | `read_file` |
-| `read_text(path: &str) -> Result<String, String>` | `read_file` |
+| `parse_stdf_sync(path: String) -> ParseResult<ParsedStdf>` | `parse_stdf` |
+| `parse_atdf_sync(path: String) -> ParseResult<ParsedStdf>` | `parse_atdf` |
+| `csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult>` | `parse_csv` |
+| `parse_csv_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_csv` |
+| `json_headers_sync(path: String) -> ParseResult<JsonHeadersResult>` | `parse_json` |
+| `parse_json_sync(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_json` |
+| `parquet_headers_inner(path: String) -> ParseResult<ParquetHeadersResult>` | `parse_parquet` |
+| `parse_parquet_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_parquet` |
+| `parquet_distinct_count_inner(path: String, columns: Vec<String>) -> ParseResult<usize>` | `parse_parquet` |
+| `read_bytes(path: &str) -> ParseResult<Vec<u8>>` | `read_file` |
+| `read_text(path: &str) -> ParseResult<String>` | `read_file` |
+
+Every fallible function returns `ParseResult<T>` — that is `Result<T, ParseError>`, where
+`ParseError` is `{ code: &'static str, message: String }` and `Display` renders the message
+alone. Same codes as the WASM layer above; it is the same error, serialised there.
 
 **Byte-based** — available on every target, and what the WASM exports wrap. Use these from Rust when you already hold the bytes:
 
 | Function | Module |
 | --- | --- |
-| `parse_stdf_from_bytes(&[u8]) -> Result<ParsedStdf, String>` | `parse_stdf` |
-| `parse_atdf_from_bytes(&[u8]) -> Result<ParsedStdf, String>` | `parse_atdf` |
-| `parse_stdf_test_names(&[u8]) -> Result<ScanResult, String>` | `parse_stdf` |
-| `parse_atdf_test_names(&[u8]) -> Result<ScanResult, String>` | `parse_atdf` |
-| `parse_stdf_from_bytes_filtered(&[u8], &HashSet<u32>) -> Result<ParsedStdf, String>` | `parse_stdf` |
-| `parse_atdf_from_bytes_filtered(&[u8], &HashSet<u32>) -> Result<ParsedStdf, String>` | `parse_atdf` |
-| `csv_headers_from_bytes(&[u8]) -> Result<CsvHeadersResult, String>` | `parse_csv` |
-| `parse_csv_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_csv` |
-| `parse_json_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_json` |
-| `parquet_headers_from_bytes(&[u8]) -> Result<ParquetHeadersResult, String>` | `parse_parquet` |
-| `parse_parquet_from_bytes(&[u8], mapping: CsvMapping) -> Result<ParsedStdf, String>` | `parse_parquet` |
-| `decompress_if_gzip(Vec<u8>) -> Result<Vec<u8>, String>` | `read_file` |
+| `parse_stdf_from_bytes(&[u8]) -> ParseResult<ParsedStdf>` | `parse_stdf` |
+| `parse_atdf_from_bytes(&[u8]) -> ParseResult<ParsedStdf>` | `parse_atdf` |
+| `parse_stdf_test_names(&[u8]) -> ParseResult<ScanResult>` | `parse_stdf` |
+| `parse_atdf_test_names(&[u8]) -> ParseResult<ScanResult>` | `parse_atdf` |
+| `parse_stdf_from_bytes_filtered(&[u8], &HashSet<u32>) -> ParseResult<ParsedStdf>` | `parse_stdf` |
+| `parse_atdf_from_bytes_filtered(&[u8], &HashSet<u32>) -> ParseResult<ParsedStdf>` | `parse_atdf` |
+| `parse_stdf_file_meta(&[u8]) -> Result<FileMeta, String>` | `parse_stdf` |
+| `parse_atdf_file_meta(&[u8]) -> Result<FileMeta, String>` | `parse_atdf` |
+| `csv_headers_from_bytes(&[u8]) -> ParseResult<CsvHeadersResult>` | `parse_csv` |
+| `parse_csv_from_bytes(&[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_csv` |
+| `parse_json_from_bytes(&[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_json` |
+| `parquet_headers_from_bytes(&[u8]) -> ParseResult<ParquetHeadersResult>` | `parse_parquet` |
+| `parse_parquet_from_bytes(&[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_parquet` |
+| `parquet_distinct_count_from_bytes(&[u8], &[String]) -> ParseResult<usize>` | `parse_parquet` |
+| `decompress_if_gzip(Vec<u8>) -> ParseResult<Vec<u8>>` | `read_file` |
 
 `CsvHeadersResult` and `JsonHeadersResult` are the same shape — the header row plus enough of the file to preview a mapping:
 
@@ -230,6 +365,16 @@ pub struct CsvHeadersResult {
 - **CSV/JSON/Parquet test numbers are a deterministic hash, not a real STDF test number.** STDF/ATDF have a real test number in the file; the other three don't, so one is synthesized — from the source column for wide format, from the test name for long format (`test_identity::stable_test_number`, FNV-1a with a fixed seed and a reserved floor, collision-probed so two tests in one file can never collide). Deliberately not sequential/encounter-order: a hash means the number for a given test doesn't change if the file is reordered or a column is added — the number is otherwise meaningless and callers should never rely on its value, only on it being stable and unique within one parse. `order` (see `TestDef` above) carries the file's own display order instead.
 - **Parquet reads through a row-oriented API, not Arrow.** `parquet::record::Row`/`Field` rather than the `arrow` feature — a closer fit for this crate's row-based `DieResult` model, and a smaller WASM bundle (no Arrow array machinery pulled in). A typed Parquet cell is coerced to `f64` for numeric roles and to a plain string otherwise; a value that fails to coerce (e.g. a numeric role mapped to a genuinely string-typed column) is skipped and surfaced as one summarised entry in `warnings`, not a panic or a silent zero.
 - **Parquet's `zstd` codec is native-only.** `snappy`, `gzip`, `lz4`, and `brotli` build for `wasm32-unknown-unknown` with no extra toolchain; `zstd`'s C library needs a real C cross-compiler targeting wasm32, which a plain `wasm-pack build` doesn't assume is available. A `zstd`-compressed Parquet file parses natively but fails clearly on the WASM build.
+
+## Using this package with an AI coding agent
+
+`llms.txt` ships with the package (`node_modules/@wafertools/testdata-parser/llms.txt`) and
+is written to be handed to a coding agent: a map of the entry points, the traps that produce
+a silently wrong parse, and how the result hands off to
+[`@wafertools/wafermap`](https://wafertools.github.io/wafermap/). It is worth pointing an
+agent at, because `testdata_parser.d.ts` is wasm-bindgen output and types every return value
+as `any` — the result shapes above are the only contract, and an agent that has not read them
+will invent field names.
 
 ## Versioning
 

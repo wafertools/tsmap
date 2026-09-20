@@ -52,6 +52,8 @@ const GROUPS = [
       ['npm run parser:link', 'Build the wasm bundle and link it (web build only)'],
       ['npm run parser:build', 'Rebuild it in place after editing packages/parsers/src'],
       ['npm run parser:unlink', 'Back to the published package — required before a release'],
+      ['npm run parser:build:release', 'Optimised build + publishable pkg/'],
+      ['npm run parser:publish', 'Build, check pkg/ is complete, and publish — never publish by hand'],
     ],
   },
   {
@@ -80,7 +82,7 @@ const GROUPS = [
 const INTERNAL = [
   'build', 'build:guide', 'build:site', 'build:site:dev', 'build:web',
   'check', 'check:buttons', 'check:docs', 'check:rust', 'check:styles', 'check:themes', 'demo:build', 'demo:data', 'dev',
-  'install-bin', 'lint', 'preview', 'screenshots', 'screenshots:data',
+  'install-bin', 'lint', 'parser:sync', 'preview', 'screenshots', 'screenshots:data',
   'test', 'test:rust',
 ];
 

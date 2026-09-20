@@ -118,22 +118,23 @@ The parsers compile to a shared crate (`packages/parsers`) that targets both nat
 
 Prerequisites: `wasm-pack` (`cargo install wasm-pack`) and the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
 
+Bump the version in `packages/parsers/Cargo.toml`, then, from the repo root:
+
 ```bash
-cd packages/parsers
-
-# Build
-wasm-pack build --target web -s wafertools --no-default-features --features wasm
-
-# Publish
-cd pkg
-npm publish --access public
+npm run parser:publish -- --otp=YOUR_6_DIGIT_CODE
 ```
+
+**Do not build it with a bare `wasm-pack build`, and do not publish by hand from `pkg/`.**
+`pkg/` is generated output whose `package.json` lists the files npm will ship; a bare build
+regenerates that list and drops `llms.txt`, and the publish then succeeds without it.
+`parser:publish` runs the optimised build, the sync, and a guard that refuses to publish an
+incomplete `pkg/`. See [docs/development.md](docs/development.md) for the full reasoning.
 
 After publishing a new version, update tsmap to use it:
 
 ```bash
 # from repo root
-npm install @wafertools/testdata-parser@latest
+npm install @wafertools/testdata-parser@^NEW_VERSION   # pin what you published
 npx tsc --noEmit   # verify types still resolve
 ```
 
@@ -180,7 +181,8 @@ src/
 
 packages/parsers/     — shared Rust crate (native + WASM targets), published as
                         @wafertools/testdata-parser
-  src/types.rs        — DieResult, WaferData, ParsedStdf, LotMeta, TestDef
+  src/error.rs        — ParseError: the one failure type, with a stable `code`
+  src/types.rs        — DieResult, WaferData, ParsedStdf, LotMeta, TestDef, ParserWarning
   src/parse_stdf.rs   — STDF V4 binary parser; first-pass scan, filtered parse, file meta
   src/parse_atdf.rs   — ATDF ASCII parser; first-pass scan, filtered parse, file meta
   src/parse_csv.rs    — CSV/TSV parser with column mapping

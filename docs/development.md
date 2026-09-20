@@ -37,7 +37,19 @@ python3 scripts/generate_stdf.py        # synthetic STDF — 3 wafers, 4 tests
 python3 scripts/generate_stdf_large.py  # large STDF — 25 wafers, 50 tests, ~10k dies/wafer
 python3 scripts/generate_atdf.py        # synthetic ATDF — same structure
 python3 scripts/generate_parquet.py     # synthetic Parquet (requires pyarrow) — 3 wafers, 10 tests; --large, --correlated, --codec also available
+python3 scripts/generate_sweep_csv.py   # die-count sweep CSVs — the fixtures the web-path ceiling is measured against
 ```
+
+Measuring per-die memory:
+
+```bash
+node scripts/heap-probe.mjs large.stdf   # exact backing-store bytes + V8 elements kind per die container
+```
+
+Use it rather than `performance.memory` for any "why is this object expensive" question — a
+whole-heap delta supports confident wrong answers, and did three times on 2026-09-20.
+
+**Test numbers come from `scripts/fixture_testnums.py`, not from each generator.** A die's readings are a JS object keyed by test number, and V8 stores integer-like keys as array indices rather than hash keys, so the *values* of the test numbers change per-die heap cost by up to 3x — small sequential numbers around 1,000 are the worst case. No production path reaches it (CSV/JSON numbers are hashed above 1,000,000 by `test_identity.rs`; STDF/ATDF carry the program's own numbers, which are large), but benchmark harnesses that hand-write a mapping did, which made them unrepresentative. Read that module's docstring before changing the numbering.
 
 Files land in `~/.cache/wafertools/fixtures/` — override with `WAFERTOOLS_FIXTURES`, or pass a path as the first argument. Not `/tmp`: that is a RAM-backed tmpfs on systemd distros, and these files are large (the STDF one is 341 MB).
 
@@ -92,25 +104,32 @@ npm run dev:web        # picks up the linked build immediately
 npm run parser:unlink  # restore the published package — required before any release
 ```
 
-To actually publish:
+To actually publish, bump `packages/parsers/Cargo.toml` and then, from the repo root:
 
 ```bash
-cd packages/parsers
-
-# Build
-wasm-pack build --target web -s wafertools --no-default-features --features wasm
-
-# Publish
-cd pkg
-npm publish --access public
+npm run parser:publish -- --otp=YOUR_6_DIGIT_CODE
 ```
+
+**Never publish by hand from `pkg/`, and never build it with a bare `wasm-pack build`.**
+`pkg/` is wasm-pack output: every build regenerates its `package.json`, which carries an
+explicit `files` list, and npm publishes exactly that list. `scripts/sync-parser-pkg.mjs`
+puts `llms.txt` into `pkg/` *and* into `files` — a bare build drops both, and the publish
+succeeds anyway, shipping a package with no `llms.txt`. npm force-includes `README.md`
+whatever `files` says, so the tarball still looks plausible. **This is not hypothetical:
+it is how 0.11.0 shipped**, and npm versions are immutable, so the repair was 0.11.1.
+
+`parser:publish` runs the optimised build, the sync, and `scripts/publish-parser.mjs`,
+which refuses to publish unless every extra is both in `pkg/` and in `files`, and unless
+`pkg/package.json`'s version matches the crate's.
 
 After publishing a new version:
 
 ```bash
 # from repo root
-npm install @wafertools/testdata-parser@latest
+npm install @wafertools/testdata-parser@^NEW_VERSION   # pin the version you published
+npm run parser:unlink                                  # if you were linked
 npx tsc --noEmit
+npm run tag:parser                                     # after committing the pin — it tags HEAD
 ```
 
 ## Building for deployment

@@ -71,9 +71,10 @@ on stop-on-fail dies aren't lost from the metadata.
 
 ## Performance
 
-On a 341 MB STDF (266k dies × 51 tests) the native parser reads roughly 95–150 MB/s
-depending on the machine, parsing the whole file in 2.3–3.6 s. The WASM build is slower but
-runs off the main thread, so a large file never freezes the page.
+On a 341 MB STDF (266k dies × 51 tests) the native parser reads about 250 MB/s on a Lenovo
+ThinkPad T14s laptop, parsing the whole file in ~1.4 s. Throughput varies by roughly 1.5× between
+machines, so treat that as one measured point rather than a specification. The WASM build is
+slower but runs off the main thread, so a large file never freezes the page.
 
 ## Building it yourself
 

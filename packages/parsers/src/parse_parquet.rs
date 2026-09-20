@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use crate::types::*;
 use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
 use crate::parse_csv::CsvMapping;
+use crate::error::{ParseError, ParseResult};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,12 +84,12 @@ fn field_to_string(f: &Field) -> String {
     }
 }
 
-pub fn parquet_headers_from_bytes(bytes: &[u8]) -> Result<ParquetHeadersResult, String> {
+pub fn parquet_headers_from_bytes(bytes: &[u8]) -> ParseResult<ParquetHeadersResult> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let bytes: &[u8] = &bytes;
-    let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(|e| e.to_string())?;
+    let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(ParseError::parquet_read)?;
     headers_from_reader(&reader)
 }
 
@@ -122,31 +123,31 @@ macro_rules! with_path_reader {
         let path: &str = $path;
         if is_gz_path(path) {
             let bytes = crate::read_file::read_bytes(path)?;
-            let $r = SerializedFileReader::new(Bytes::from(bytes)).map_err(|e| e.to_string())?;
+            let $r = SerializedFileReader::new(Bytes::from(bytes)).map_err(ParseError::parquet_read)?;
             $body
         } else {
-            let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-            let $r = SerializedFileReader::new(file).map_err(|e| e.to_string())?;
+            let file = std::fs::File::open(path).map_err(ParseError::file_read)?;
+            let $r = SerializedFileReader::new(file).map_err(ParseError::parquet_read)?;
             $body
         }
     }};
 }
 
 #[cfg(feature = "native")]
-pub fn parquet_headers_inner(path: String) -> Result<ParquetHeadersResult, String> {
+pub fn parquet_headers_inner(path: String) -> ParseResult<ParquetHeadersResult> {
     with_path_reader!(&path, |reader| headers_from_reader(&reader))
 }
 
-fn headers_from_reader<R: FileReader>(reader: &R) -> Result<ParquetHeadersResult, String> {
+fn headers_from_reader<R: FileReader>(reader: &R) -> ParseResult<ParquetHeadersResult> {
     let row_count = reader.metadata().file_metadata().num_rows().max(0) as usize;
-    let row_iter = reader.get_row_iter(None).map_err(|e| e.to_string())?;
+    let row_iter = reader.get_row_iter(None).map_err(ParseError::parquet_read)?;
 
     let mut headers: Vec<String> = Vec::new();
     let mut column_types: HashMap<String, String> = HashMap::new();
     let mut sample: Vec<HashMap<String, String>> = Vec::new();
 
     for row_result in row_iter.take(5) {
-        let row: Row = row_result.map_err(|e| e.to_string())?;
+        let row: Row = row_result.map_err(ParseError::parquet_read)?;
         let mut record: HashMap<String, String> = HashMap::new();
         for (name, field) in row.get_column_iter() {
             if !headers.iter().any(|h| h == name) {
@@ -182,22 +183,22 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> Result<ParquetHeadersResult
 /// CSV/JSON have no such shortcut and so get no wafer count. Values are
 /// trimmed, and a row blank in every column is not a wafer. A column name
 /// missing from the schema is an error rather than a count of nothing.
-pub fn parquet_distinct_count_from_bytes(bytes: &[u8], columns: &[String]) -> Result<usize, String> {
+pub fn parquet_distinct_count_from_bytes(bytes: &[u8], columns: &[String]) -> ParseResult<usize> {
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let bytes: &[u8] = &bytes;
-    let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(|e| e.to_string())?;
+    let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(ParseError::parquet_read)?;
     distinct_count_from_reader(&reader, columns)
 }
 
 #[cfg(feature = "native")]
-pub fn parquet_distinct_count_inner(path: String, columns: Vec<String>) -> Result<usize, String> {
+pub fn parquet_distinct_count_inner(path: String, columns: Vec<String>) -> ParseResult<usize> {
     with_path_reader!(&path, |reader| distinct_count_from_reader(&reader, &columns))
 }
 
-fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String]) -> Result<usize, String> {
+fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String]) -> ParseResult<usize> {
     let schema = reader.metadata().file_metadata().schema();
     if let Some(missing) = columns.iter().find(|c| !schema.get_fields().iter().any(|f| f.name() == c.as_str())) {
-        return Err(format!("column '{missing}' not found"));
+        return Err(ParseError::column_missing(missing));
     }
     // Schema order, not `columns` order: a projection must be a subset of the
     // schema as laid out. The count does not depend on the order.
@@ -208,11 +209,11 @@ fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String]) -> 
     let projection = Type::group_type_builder(schema.name())
         .with_fields(fields)
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(ParseError::parquet_read)?;
 
     let mut seen: HashSet<Vec<String>> = HashSet::new();
-    for row in reader.get_row_iter(Some(projection)).map_err(|e| e.to_string())? {
-        let row = row.map_err(|e| e.to_string())?;
+    for row in reader.get_row_iter(Some(projection)).map_err(ParseError::parquet_read)? {
+        let row = row.map_err(ParseError::parquet_read)?;
         let key: Vec<String> = row.get_column_iter()
             .map(|(_, f)| field_to_string(f).trim().to_string())
             .collect();
@@ -222,21 +223,21 @@ fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String]) -> 
     Ok(seen.len())
 }
 
-pub fn parse_parquet_from_bytes(bytes: &[u8], mapping: CsvMapping) -> Result<ParsedStdf, String> {
+pub fn parse_parquet_from_bytes(bytes: &[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let bytes: &[u8] = &bytes;
-    let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(|e| e.to_string())?;
+    let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(ParseError::parquet_read)?;
     parse_from_reader(&reader, mapping)
 }
 
 #[cfg(feature = "native")]
-pub fn parse_parquet_inner(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String> {
+pub fn parse_parquet_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     with_path_reader!(&path, |reader| parse_from_reader(&reader, mapping))
 }
 
-fn parse_from_reader<R: FileReader>(reader: &R, mapping: CsvMapping) -> Result<ParsedStdf, String> {
+fn parse_from_reader<R: FileReader>(reader: &R, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     let column_names: Vec<String> = reader
         .metadata()
         .file_metadata()
@@ -274,7 +275,7 @@ fn parse_from_reader<R: FileReader>(reader: &R, mapping: CsvMapping) -> Result<P
         })
         .collect();
 
-    let row_iter = reader.get_row_iter(None).map_err(|e| e.to_string())?;
+    let row_iter = reader.get_row_iter(None).map_err(ParseError::parquet_read)?;
     let is_long_format = (mapping.testname_col.is_some() || mapping.testnumber_col.is_some())
         && mapping.testvalue_col.is_some();
 
@@ -310,15 +311,17 @@ fn coerce_role_f64(field: Option<&Field>, role_key: &str, mismatches: &mut HashM
     None
 }
 
-fn mismatch_warnings(mismatches: &HashMap<String, u32>, test_defs: &HashMap<String, TestDef>) -> Vec<String> {
-    let mut warnings: Vec<String> = mismatches
+fn mismatch_warnings(mismatches: &HashMap<String, u32>, test_defs: &HashMap<String, TestDef>) -> Vec<ParserWarning> {
+    let mut warnings: Vec<ParserWarning> = mismatches
         .iter()
         .map(|(role, count)| {
             let label = test_defs.get(role).map(|d| d.name.as_str()).unwrap_or(role.as_str());
-            format!("Column mapped to '{label}' contained {count} non-numeric value(s) that were skipped")
+            value_not_numeric_warning(label, *count)
         })
         .collect();
-    warnings.sort();
+    // Sorted by message so the order is deterministic regardless of HashMap
+    // iteration order — the codes are all the same here, the labels are not.
+    warnings.sort_by(|a, b| a.message.cmp(&b.message));
     warnings
 }
 
@@ -331,7 +334,7 @@ fn parse_wide_format(
     col_idx: &HashMap<String, usize>,
     mapping: &CsvMapping,
     test_defs: HashMap<String, TestDef>,
-) -> Result<ParsedStdf, String> {
+) -> ParseResult<ParsedStdf> {
     let idx = |name: &str| col_idx.get(name).copied();
     let opt_idx = |c: &Option<String>| c.as_deref().and_then(idx);
 
@@ -351,7 +354,7 @@ fn parse_wide_format(
     let mut rows: Vec<FlatRow> = Vec::new();
 
     for row_result in row_iter {
-        let row = row_result.map_err(|e| e.to_string())?;
+        let row = row_result.map_err(ParseError::parquet_read)?;
         let fields = row_fields(&row);
         let cell = |i: usize| fields.get(i).copied();
         let text = |i: Option<usize>| i.and_then(cell).map(field_to_string).unwrap_or_default();
@@ -392,7 +395,7 @@ fn parse_long_format(
     row_iter: impl Iterator<Item = parquet::errors::Result<Row>>,
     mapping: &CsvMapping,
     mut test_defs: HashMap<String, TestDef>,
-) -> Result<ParsedStdf, String> {
+) -> ParseResult<ParsedStdf> {
     let name_col = mapping.testname_col.as_deref();
     let num_col = mapping.testnumber_col.as_deref();
     let val_col = mapping.testvalue_col.as_deref().unwrap();
@@ -403,7 +406,7 @@ fn parse_long_format(
     let mut rows: Vec<FlatRow> = Vec::new();
 
     for row_result in row_iter {
-        let row = row_result.map_err(|e| e.to_string())?;
+        let row = row_result.map_err(ParseError::parquet_read)?;
         let mut cells: HashMap<String, String> = HashMap::new();
         for (name, field) in row.get_column_iter() {
             cells.insert(name.clone(), field_to_string(field));
@@ -644,7 +647,8 @@ mod tests {
             assert!(!die.test_values.contains_key("99"));
         }
         assert!(!result.warnings.is_empty(), "expected a type-mismatch warning");
-        assert!(result.warnings[0].contains("Bogus"));
+        assert_eq!(result.warnings[0].code, "values-not-numeric");
+        assert!(result.warnings[0].message.contains("Bogus"));
     }
 
     #[test]
@@ -852,5 +856,49 @@ mod tests {
         assert!(w03.results.iter().all(|d| d.x.is_none() && d.y.is_none()));
         assert!(w03.results.iter().all(|d| d.hbin.is_some() && !d.test_values.is_empty()));
     }
+    /// Parquet's counterpart to `bench_parse_csv`/`bench_parse_json`, on the same
+    /// logical data (10 wafers x 5000 dies x 50 tests) so the flat formats are
+    /// comparable per die rather than per MB — Parquet is columnar and compressed,
+    /// so its file is a fraction of the CSV's for identical content and MB/s
+    /// flatters it.
+    ///
+    /// Fixture: `python3 scripts/generate_parquet_bench.py`.
+    ///
+    /// Run with: cargo test --manifest-path packages/parsers/Cargo.toml --features bench --release -- --nocapture bench_parse_parquet
+    #[cfg(feature = "bench")]
+    #[test]
+    fn bench_parse_parquet() {
+        let path = crate::bench_fixtures::fixture("bench.parquet");
+        let bytes = match std::fs::read(&path) {
+            Ok(b) => b,
+            Err(_) => { eprintln!("SKIP: {} not found — run scripts/generate_parquet_bench.py", path.display()); return; }
+        };
+        let file_mb = bytes.len() as f64 / 1_048_576.0;
+        let mapping = CsvMapping {
+            x: Some("x".into()), y: Some("y".into()),
+            hbin: Some("hbin".into()), sbin: Some("sbin".into()),
+            wafer: Some("wafer".into()), lot: Some("lot".into()), site: None,
+            tests: (1..=50).map(|i| crate::parse_csv::CsvTestCol {
+                col: format!("T{i}"), test_number: 1000 + i, name: format!("T{i}"),
+            }).collect(),
+            meta: vec![], split_by: vec![],
+            testname_col: None, testnumber_col: None, testvalue_col: None,
+            lo_limit_col: None, hi_limit_col: None, units_col: None,
+            pass_bins: vec![1],
+        };
+
+        let _ = parse_parquet_from_bytes(&bytes, mapping.clone()).unwrap(); // warm
+        let t = std::time::Instant::now();
+        let result = parse_parquet_from_bytes(&bytes, mapping).unwrap();
+        let ms = t.elapsed().as_millis();
+        let dies: usize = result.wafers.iter().map(|w| w.results.len()).sum();
+        println!(
+            "\n=== bench_parse_parquet ({file_mb:.1} MB) ===\n\
+             wafers: {}\ndies:   {dies}\ntests:  {}\ntotal:  {ms} ms\nthroughput: {:.0} MB/s",
+            result.wafers.len(), result.test_defs.len(),
+            file_mb / (ms as f64 / 1000.0).max(0.001),
+        );
+    }
+
 }
 

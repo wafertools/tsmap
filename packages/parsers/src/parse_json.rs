@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::types::*;
 use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
 use crate::parse_csv::CsvMapping;
+use crate::error::{ParseError, ParseResult};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,38 +15,42 @@ pub struct JsonHeadersResult {
 }
 
 #[cfg(feature = "native")]
-pub fn json_headers_sync(path: String) -> Result<JsonHeadersResult, String> {
-    let text = crate::read_file::read_text(&path).map_err(|e| e.to_string())?;
+pub fn json_headers_sync(path: String) -> ParseResult<JsonHeadersResult> {
+    let text = crate::read_file::read_text(&path)?;
     let raw: Value = serde_json::from_str(text.trim_start_matches('\u{feff}'))
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
+        .map_err(|e| ParseError::json_invalid(format!("Invalid JSON: {e}")))?;
 
-    let rows = flatten_to_rows(&raw).ok_or("Could not find an array of objects in this JSON file")?;
+    let rows = flatten_to_rows(&raw).ok_or_else(|| ParseError::json_invalid("Could not find an array of objects in this JSON file"))?;
 
     if rows.is_empty() {
-        return Err("JSON array is empty".to_string());
+        return Err(ParseError::json_invalid("JSON array is empty"));
     }
 
     let mut header_set: indexmap::IndexSet<String> = indexmap::IndexSet::new();
     for row in rows.iter().take(20) {
-        for k in row.keys() {
-            header_set.insert(k.clone());
+        for (k, _) in row.entries() {
+            header_set.insert(k);
         }
     }
     let headers: Vec<String> = header_set.into_iter().collect();
-    let sample = rows.into_iter().take(5).collect();
+    // The preview is five rows for a mapping UI, so stringify only those — the
+    // rows themselves now hold borrowed `Value`s (see `Row`).
+    let sample: Vec<HashMap<String, String>> = rows.iter().take(5)
+        .map(|r| r.entries().into_iter().map(|(k, v)| (k, value_to_string(v))).collect())
+        .collect();
 
     Ok(JsonHeadersResult { headers, sample, row_count: rows_len(&raw) })
 }
 
 #[cfg(feature = "native")]
-pub fn parse_json_sync(path: String, mapping: CsvMapping) -> Result<ParsedStdf, String> {
-    let text = crate::read_file::read_text(&path).map_err(|e| e.to_string())?;
+pub fn parse_json_sync(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
+    let text = crate::read_file::read_text(&path)?;
     let raw: Value = serde_json::from_str(text.trim_start_matches('\u{feff}'))
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
+        .map_err(|e| ParseError::json_invalid(format!("Invalid JSON: {e}")))?;
     parse_json_from_value(raw, mapping)
 }
 
-pub fn parse_json_from_bytes(bytes: &[u8], mapping: CsvMapping) -> Result<ParsedStdf, String> {
+pub fn parse_json_from_bytes(bytes: &[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
     // Borrows (no copy) when the input isn't gzipped.
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
@@ -55,12 +60,12 @@ pub fn parse_json_from_bytes(bytes: &[u8], mapping: CsvMapping) -> Result<Parsed
     // is pure waste. Strip a leading UTF-8 BOM by byte so we still skip it.
     let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
     let raw: Value = serde_json::from_slice(bytes)
-        .map_err(|e| format!("Invalid JSON: {}", e))?;
+        .map_err(|e| ParseError::json_invalid(format!("Invalid JSON: {e}")))?;
     parse_json_from_value(raw, mapping)
 }
 
-fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, String> {
-    let flat_rows = flatten_to_rows(&raw).ok_or("Could not find an array of objects in this JSON file")?;
+fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
+    let flat_rows = flatten_to_rows(&raw).ok_or_else(|| ParseError::json_invalid("Could not find an array of objects in this JSON file"))?;
 
     let is_long_format = (mapping.testname_col.is_some() || mapping.testnumber_col.is_some())
         && mapping.testvalue_col.is_some();
@@ -110,31 +115,35 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
     let mut rows: Vec<FlatRow> = Vec::with_capacity(flat_rows.len());
 
     for row in &flat_rows {
-        let get = |c: &str| row.get(c).cloned().unwrap_or_default();
-        let opt = |c: &Option<String>| c.as_deref().map(get).unwrap_or_default();
+        let text = |c: &str| cell_text(row, c);
+        let opt_text = |c: &Option<String>| c.as_deref().map(text).unwrap_or_default();
+        let int = |c: &Option<String>| c.as_deref().and_then(|c| cell_i64(row, c));
         let mut out = FlatRow {
-            lot: opt(&mapping.lot),
-            wafer: opt(&mapping.wafer),
-            split_parts: split_parts(&mapping.split_by, get),
-            meta: mapping.meta.iter().map(|c| get(c)).collect(),
-            x: opt(&mapping.x).parse().ok(),
-            y: opt(&mapping.y).parse().ok(),
-            hbin: opt(&mapping.hbin).parse().ok(),
-            sbin: opt(&mapping.sbin).parse().ok(),
-            site_num: opt(&mapping.site).trim().parse().ok(),
+            lot: opt_text(&mapping.lot),
+            wafer: opt_text(&mapping.wafer),
+            split_parts: split_parts(&mapping.split_by, text),
+            meta: mapping.meta.iter().map(|c| text(c)).collect(),
+            x: int(&mapping.x).and_then(|v| i32::try_from(v).ok()),
+            y: int(&mapping.y).and_then(|v| i32::try_from(v).ok()),
+            hbin: int(&mapping.hbin).and_then(|v| u32::try_from(v).ok()),
+            sbin: int(&mapping.sbin).and_then(|v| u32::try_from(v).ok()),
+            site_num: int(&mapping.site).and_then(|v| u32::try_from(v).ok()),
             tests: Vec::new(),
         };
 
-        let test_name = name_col.map(get).unwrap_or_default();
-        let test_val = get(val_col);
+        let test_name = name_col.map(text).unwrap_or_default();
+        // The one value cell of a long-format row, read as a number where the
+        // document holds one. `has_value` keeps the old "empty cell is no test"
+        // behaviour without needing the string form.
+        let test_value = cell_f64(row, val_col);
+        let has_value = test_value.is_some();
         // A row's own number, when the column is mapped and this row's value
         // parses — takes priority over the name as the test's real identity.
         let real_number: Option<u32> = num_col
-            .map(get)
-            .filter(|s| !s.is_empty())
-            .and_then(|s| s.trim().parse::<u32>().ok());
+            .and_then(|c| cell_i64(row, c))
+            .and_then(|n| u32::try_from(n).ok());
 
-        if !test_val.is_empty() && !(test_name.is_empty() && real_number.is_none()) {
+        if has_value && !(test_name.is_empty() && real_number.is_none()) {
             let identity_key = match real_number {
                 Some(n) => format!("#{n}"),
                 None => test_name.clone(),
@@ -151,12 +160,10 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
                 };
                 let order = next_order;
                 next_order += 1;
-                let lo_limit = mapping.lo_limit_col.as_deref()
-                    .and_then(|c| row.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-                let hi_limit = mapping.hi_limit_col.as_deref()
-                    .and_then(|c| row.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let lo_limit = mapping.lo_limit_col.as_deref().and_then(|c| cell_f64(row, c));
+                let hi_limit = mapping.hi_limit_col.as_deref().and_then(|c| cell_f64(row, c));
                 let units = mapping.units_col.as_deref()
-                    .and_then(|c| row.get(c)).filter(|s| !s.is_empty()).cloned();
+                    .map(|c| cell_text(row, c)).filter(|s| !s.is_empty());
                 // No name column (or this row's name cell was empty): the
                 // number is all we have, so it doubles as the display name.
                 let display_name = if test_name.is_empty() { n.to_string() } else { test_name.clone() };
@@ -168,7 +175,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
                 });
                 n
             });
-            if let Ok(v) = test_val.parse::<f64>() { out.tests.push((tnum, v)); }
+            if let Some(v) = test_value { out.tests.push((tnum, v)); }
         }
         rows.push(out);
     }
@@ -182,7 +189,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> Result<ParsedStdf, 
 /// the per-die re-lookup/re-parse of the original path. Result shape matches the
 /// long-format path exactly.
 fn parse_json_wide(
-    flat_rows: &[HashMap<String, String>],
+    flat_rows: &[Row],
     mapping: &CsvMapping,
     test_defs: HashMap<String, TestDef>,
 ) -> ParsedStdf {
@@ -191,20 +198,21 @@ fn parse_json_wide(
         .map(|t| (t.test_number, t.col.as_str())).collect();
 
     let rows: Vec<FlatRow> = flat_rows.iter().map(|row| {
-        let get = |c: &str| row.get(c).cloned().unwrap_or_default();
-        let opt = |c: &Option<String>| c.as_deref().map(get).unwrap_or_default();
+        let text = |c: &str| cell_text(row, c);
+        let opt_text = |c: &Option<String>| c.as_deref().map(text).unwrap_or_default();
+        let int = |c: &Option<String>| c.as_deref().and_then(|c| cell_i64(row, c));
         FlatRow {
-            lot: opt(&mapping.lot),
-            wafer: opt(&mapping.wafer),
-            split_parts: split_parts(&mapping.split_by, get),
-            meta: mapping.meta.iter().map(|c| get(c)).collect(),
-            x: opt(&mapping.x).parse().ok(),
-            y: opt(&mapping.y).parse().ok(),
-            hbin: opt(&mapping.hbin).parse().ok(),
-            sbin: opt(&mapping.sbin).parse().ok(),
-            site_num: opt(&mapping.site).trim().parse().ok(),
+            lot: opt_text(&mapping.lot),
+            wafer: opt_text(&mapping.wafer),
+            split_parts: split_parts(&mapping.split_by, text),
+            meta: mapping.meta.iter().map(|c| text(c)).collect(),
+            x: int(&mapping.x).and_then(|v| i32::try_from(v).ok()),
+            y: int(&mapping.y).and_then(|v| i32::try_from(v).ok()),
+            hbin: int(&mapping.hbin).and_then(|v| u32::try_from(v).ok()),
+            sbin: int(&mapping.sbin).and_then(|v| u32::try_from(v).ok()),
+            site_num: int(&mapping.site).and_then(|v| u32::try_from(v).ok()),
             tests: test_cols.iter()
-                .filter_map(|(t, c)| row.get(*c).and_then(|s| s.parse::<f64>().ok()).map(|v| (*t, v)))
+                .filter_map(|(t, c)| cell_f64(row, c).map(|v| (*t, v)))
                 .collect(),
         }
     }).collect();
@@ -212,7 +220,89 @@ fn parse_json_wide(
     into_parsed(rows, mapping, false, test_defs, Vec::new())
 }
 
-fn flatten_to_rows(val: &Value) -> Option<Vec<HashMap<String, String>>> {
+/// One row's cells, **borrowed** from the parsed document.
+///
+/// This used to be `HashMap<String, String>`: every cell was rendered to a
+/// `String` here and then parsed straight back to a number by the consumer.
+/// On a 50k-die x 50-test file that round trip was 626 ms of a 1166 ms parse —
+/// 2.8M allocations to turn numbers serde_json had already decoded into text,
+/// and 2.8M `str::parse` calls to undo it. Holding `&Value` skips both; the
+/// document outlives the rows, which only exist inside `parse_json_from_value`.
+///
+/// A flat object needs no row map at all — it *is* the row, so it is borrowed
+/// whole. Only shapes that have to synthesise keys (nested objects flattened to
+/// `"outer.inner"`, or wafer-level scalars merged into each die) allocate one.
+/// On a flat 50k-row file that is 50k maps and 2.8M key clones not made.
+enum Row<'a> {
+    /// The document's own object, used as-is.
+    Obj(&'a serde_json::Map<String, Value>),
+    /// Keys that exist nowhere in the document to borrow from.
+    Flat(HashMap<String, &'a Value>),
+}
+
+impl<'a> Row<'a> {
+    fn get(&self, col: &str) -> Option<&'a Value> {
+        match self {
+            Row::Obj(m) => m.get(col),
+            Row::Flat(m) => m.get(col).copied(),
+        }
+    }
+
+    /// Only for the header/preview paths (20 and 5 rows), never per die. Returns
+    /// owned keys because a `Flat` row's keys belong to the row while an `Obj`
+    /// row's belong to the document — no single borrowed lifetime covers both,
+    /// and it is not worth bending the hot path to unify them.
+    /// Native-only: the wasm build exposes no JSON header/preview entry point
+    /// (the mapping UI sniffs those in TS), so without this gate it is dead code
+    /// there and warns.
+    #[cfg(feature = "native")]
+    fn entries(&self) -> Vec<(String, &'a Value)> {
+        match self {
+            Row::Obj(m) => m.iter().map(|(k, v)| (k.clone(), v)).collect(),
+            Row::Flat(m) => m.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+        }
+    }
+}
+
+/// Does this object have to be flattened, or can it be read where it lies?
+/// A nested object becomes `"outer.inner"` keys, which do not exist in the
+/// document; anything else (including arrays, which stringify the same either
+/// way) is readable in place.
+fn needs_flattening(obj: &serde_json::Map<String, Value>) -> bool {
+    obj.values().any(|v| v.is_object())
+}
+
+/// A cell as an integer, matching what the old stringify-then-parse did exactly:
+/// a JSON integer, or a string holding one. A non-integral number (`5.5`, or
+/// `5.0`, which serde_json holds as f64) yields `None`, just as `"5.5".parse::<i32>()`
+/// did — so a fractional coordinate is still no coordinate rather than a silent
+/// truncation to a die that was never tested.
+fn cell_i64(row: &Row, col: &str) -> Option<i64> {
+    match row.get(col)? {
+        Value::Number(n) => n.as_i64(),
+        Value::String(s) => s.trim().parse::<i64>().ok(),
+        _ => None,
+    }
+}
+
+/// A cell as a measured value: a JSON number read directly, or a numeric string.
+/// Deliberately not booleans or `null` — `"true".parse::<f64>()` failed before and
+/// a verdict is not a measurement.
+fn cell_f64(row: &Row, col: &str) -> Option<f64> {
+    match row.get(col)? {
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
+/// A cell as display/metadata text. Still allocates, but only for the handful of
+/// genuinely textual columns (lot, wafer, metadata, units) rather than all of them.
+fn cell_text(row: &Row, col: &str) -> String {
+    row.get(col).map(|v| value_to_string(v)).unwrap_or_default()
+}
+
+fn flatten_to_rows(val: &Value) -> Option<Vec<Row<'_>>> {
     match val {
         Value::Array(arr) => {
             if arr.is_empty() { return None; }
@@ -221,13 +311,13 @@ fn flatten_to_rows(val: &Value) -> Option<Vec<HashMap<String, String>>> {
                 let inner_key = die_keys.iter()
                     .find(|&&k| obj.get(k).map_or(false, |v| v.is_array()));
                 if let Some(&inner_key) = inner_key {
-                    let mut out: Vec<HashMap<String, String>> = Vec::new();
+                    let mut out: Vec<Row> = Vec::new();
                     for wafer in arr.iter() {
                         let wafer_obj = match wafer.as_object() { Some(o) => o, None => continue };
-                        let mut wafer_scalars: HashMap<String, String> = HashMap::new();
+                        let mut wafer_scalars: HashMap<String, &Value> = HashMap::new();
                         for (k, v) in wafer_obj.iter() {
                             if k.as_str() != inner_key && !v.is_array() && !v.is_object() {
-                                wafer_scalars.insert(k.clone(), value_to_string(v));
+                                wafer_scalars.insert(k.clone(), v);
                             }
                         }
                         if let Some(dies) = wafer.get(inner_key).and_then(|v| v.as_array()) {
@@ -235,17 +325,20 @@ fn flatten_to_rows(val: &Value) -> Option<Vec<HashMap<String, String>>> {
                             for die in dies {
                                 let mut row = wafer_scalars.clone();
                                 flatten_value_into(die, "", &mut row);
-                                out.push(row);
+                                out.push(Row::Flat(row));
                             }
                         }
                     }
                     return Some(out);
                 }
             }
-            Some(arr.iter().map(|v| {
-                let mut row = HashMap::new();
-                flatten_value_into(v, "", &mut row);
-                row
+            Some(arr.iter().map(|v| match v.as_object() {
+                Some(obj) if !needs_flattening(obj) => Row::Obj(obj),
+                _ => {
+                    let mut row = HashMap::new();
+                    flatten_value_into(v, "", &mut row);
+                    Row::Flat(row)
+                }
             }).collect())
         }
         Value::Object(obj) => {
@@ -264,16 +357,16 @@ fn flatten_to_rows(val: &Value) -> Option<Vec<HashMap<String, String>>> {
     }
 }
 
-fn flatten_value_into(val: &Value, prefix: &str, out: &mut HashMap<String, String>) {
+fn flatten_value_into<'a>(val: &'a Value, prefix: &str, out: &mut HashMap<String, &'a Value>) {
     if let Some(obj) = val.as_object() {
         for (k, v) in obj {
             let key = if prefix.is_empty() { k.clone() } else { format!("{}.{}", prefix, k) };
             if let Some(inner) = v.as_object() {
                 for (k2, v2) in inner {
-                    out.insert(format!("{}.{}", key, k2), value_to_string(v2));
+                    out.insert(format!("{}.{}", key, k2), v2);
                 }
             } else {
-                out.insert(key, value_to_string(v));
+                out.insert(key, v);
             }
         }
     }

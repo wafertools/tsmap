@@ -59,7 +59,7 @@ pub fn into_parsed(
     mapping: &CsvMapping,
     long_format: bool,
     test_defs: HashMap<String, TestDef>,
-    extra_warnings: Vec<String>,
+    extra_warnings: Vec<ParserWarning>,
 ) -> ParsedStdf {
     let a = assemble(rows, mapping, long_format);
     let mut warnings = extra_warnings;
@@ -75,7 +75,7 @@ pub fn into_parsed(
 struct Assembled {
     wafers: Vec<WaferData>,
     meta: LotMeta,
-    warnings: Vec<String>,
+    warnings: Vec<ParserWarning>,
 }
 
 fn position(r: &FlatRow) -> Option<(i32, i32)> {
@@ -132,7 +132,7 @@ fn detect_passes(rows: &[FlatRow], meta_cols: usize, long_format: bool) -> Passe
 fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Assembled {
     let meta_cols = &mapping.meta;
     let pass_bins: HashSet<u32> = mapping.pass_bins.iter().copied().collect();
-    let mut warnings: Vec<String> = Vec::new();
+    let mut warnings: Vec<ParserWarning> = Vec::new();
 
     // 1. Identity — lot + wafer (+ subdivide parts), in first-seen order.
     let mut groups: IndexMap<(String, String), Vec<FlatRow>> = IndexMap::new();
@@ -143,17 +143,16 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
     }
 
     // 2. Test passes within each wafer.
+    // One interner for every wafer in the file, so a test number has exactly one
+    // key allocation per parse rather than one per wafer.
+    let mut test_keys = TestKeys::default();
     let mut units: Vec<(String, String, Vec<FlatRow>)> = Vec::new();
     for ((lot, wafer_id), rows) in groups {
         let named = describe(&wafer_id, &lot);
         match detect_passes(&rows, meta_cols.len(), long_format) {
             Passes::Single => units.push((lot, wafer_id, rows)),
             Passes::Retests { dies } => {
-                warnings.push(format!(
-                    "{named}: {dies} die position(s) were tested more than once and no mapped column \
-                     separates the passes, so they are treated as retests. If they are separate test \
-                     passes (e.g. two temperatures), map the column that tells them apart as metadata."
-                ));
+                warnings.push(retests_assumed_warning(&named, dies));
                 units.push((lot, wafer_id, rows));
             }
             Passes::By { col } => {
@@ -162,11 +161,7 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
                 let values: Vec<String> = parts.keys()
                     .map(|v| if v.is_empty() { "(blank)".to_string() } else { v.clone() })
                     .collect();
-                warnings.push(format!(
-                    "{named} was tested in {} passes, told apart by column '{}' ({}) — each pass is \
-                     shown as its own wafer.",
-                    values.len(), meta_cols[col], values.join(", ")
-                ));
+                warnings.push(wafer_split_warning(&named, &meta_cols[col], &values));
                 for (_, rs) in parts { units.push((lot.clone(), wafer_id.clone(), rs)); }
             }
         }
@@ -199,7 +194,7 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
             }
         }
         fields.push(f);
-        wafers.push(build_wafer(wafer_id.clone(), rows, long_format, &pass_bins));
+        wafers.push(build_wafer(wafer_id.clone(), rows, long_format, &pass_bins, &mut test_keys));
     }
 
     // A column that varies within any wafer is not a property of wafers at all.
@@ -207,10 +202,7 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
         let Some(example) = example else { continue };
         let col = &meta_cols[ci];
         for f in fields.iter_mut() { f.retain(|m| &m.key != col); }
-        warnings.push(format!(
-            "Column '{col}' has more than one value within a wafer (e.g. {example}), so it is not \
-             shown as a wafer or lot property."
-        ));
+        warnings.push(column_varies_warning(col, example));
     }
 
     let (common, residual) = split_common_fields(fields);
@@ -218,7 +210,8 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
     Assembled { wafers, meta: LotMeta { fields: common }, warnings }
 }
 
-fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins: &HashSet<u32>) -> WaferData {
+fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins: &HashSet<u32>,
+               test_keys: &mut TestKeys) -> WaferData {
     let blank = |pos: Option<(i32, i32)>| DieResult {
         x: pos.map(|p| p.0), y: pos.map(|p| p.1), die_index: None,
         hbin: None, sbin: None, site_num: None, part_id: None,
@@ -244,7 +237,7 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
             d.hbin = d.hbin.or(r.hbin);
             d.sbin = d.sbin.or(r.sbin);
             d.site_num = d.site_num.or(r.site_num);
-            for (t, v) in &r.tests { d.test_values.insert(t.to_string(), *v); }
+            for (t, v) in &r.tests { d.test_values.insert(test_keys.num(*t), *v); }
         }
     } else {
         for r in rows {
@@ -252,7 +245,7 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
             d.hbin = r.hbin;
             d.sbin = r.sbin;
             d.site_num = r.site_num;
-            d.test_values = r.tests.iter().map(|(t, v)| (t.to_string(), *v)).collect();
+            d.test_values = r.tests.iter().map(|(t, v)| (test_keys.num(*t), *v)).collect();
             dies.push(d);
         }
     }
@@ -336,7 +329,8 @@ mod tests {
         let a = assemble(rows, &mapping(&["stamp"], true), false);
         assert_eq!(a.meta.get("stamp"), None);
         assert!(a.wafers[0].fields.iter().all(|f| f.key != "stamp"));
-        assert!(a.warnings.iter().any(|w| w.contains("'stamp'")), "{:?}", a.warnings);
+        assert!(a.warnings.iter().any(|w| w.code == "column-varies-within-wafer"
+            && w.message.contains("'stamp'")), "{:?}", a.warnings);
     }
 
     #[test]
@@ -350,7 +344,8 @@ mod tests {
         assert_eq!(field(&a.wafers[0], "temp"), Some("25"));
         assert_eq!(field(&a.wafers[1], "temp"), Some("85"));
         assert_eq!(a.wafers[1].results[0].test_values["1"], 2.0);
-        assert!(a.warnings.iter().any(|w| w.contains("2 passes") && w.contains("'temp'")), "{:?}", a.warnings);
+        assert!(a.warnings.iter().any(|w| w.code == "wafer-split-by-column"
+            && w.message.contains("2 passes") && w.message.contains("'temp'")), "{:?}", a.warnings);
     }
 
     #[test]
@@ -376,7 +371,7 @@ mod tests {
         let a = assemble(rows, &mapping(&["temp", "stamp"], true), false);
         assert_eq!(a.wafers.len(), 1);
         assert_eq!(a.wafers[0].results.len(), 4, "retests stay as dies for the host's retest policy");
-        assert!(a.warnings.iter().any(|w| w.contains("treated as retests")), "{:?}", a.warnings);
+        assert!(a.warnings.iter().any(|w| w.code == "retests-assumed"), "{:?}", a.warnings);
     }
 
     // ── End to end, through the real format entry points ─────────────────────
@@ -405,8 +400,8 @@ mod tests {
         let r = crate::parse_csv::parse_csv_from_bytes(csv.as_bytes(), m).unwrap();
         assert_eq!(r.wafers.len(), 2);
         let vth = r.test_defs.iter().find(|(_, d)| d.name == "vth").map(|(k, _)| k.clone()).unwrap();
-        assert_eq!(r.wafers[0].results[0].test_values[&vth], 0.40);
-        assert_eq!(r.wafers[1].results[0].test_values[&vth], 0.35, "85 °C no longer overwrites 25 °C");
+        assert_eq!(r.wafers[0].results[0].test_values[vth.as_str()], 0.40);
+        assert_eq!(r.wafers[1].results[0].test_values[vth.as_str()], 0.35, "85 °C no longer overwrites 25 °C");
     }
 
     #[test]

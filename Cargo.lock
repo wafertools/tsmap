@@ -4345,7 +4345,7 @@ dependencies = [
 
 [[package]]
 name = "testdata-parser"
-version = "0.10.1"
+version = "0.11.1"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
