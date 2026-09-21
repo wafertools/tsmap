@@ -13,9 +13,8 @@ transparently.
 
 STDF and ATDF are parsed natively in Rust on both platforms (compiled to WebAssembly for the
 browser), which is where tsmap's speed comes from: a 341 MB / 266,000-die STDF lot parses in
-about 3.5 seconds (~96 MB/s) on a 2021 ThinkPad laptop, and about 2.3 seconds (~148 MB/s) on
-a small desktop. CSV and ATDF parsing saw similar jumps in a 2026 rewrite — CSV about 3.4×
-faster, ATDF about 2.8× faster.
+about 1.4 seconds (~250 MB/s) on a Lenovo ThinkPad T14s laptop. CSV and ATDF parsing saw similar
+jumps in a 2026 rewrite — CSV about 3.4× faster, ATDF about 2.8× faster.
 
 See [Supported file formats](user-guide.md#1-supported-file-formats) and
 [Opening files](user-guide.md#2-opening-files) in the user guide.

@@ -10,6 +10,12 @@ src-tauri/gen/schemas/
 .vscode/
 scratch/
 .venv/
+# Host-specific working notes/plans belong in ../notes (separate, unpublished
+# local repo), never here — backstop against an accidental `git add -A`.
+/COLUMNAR_DATA.md
+# Moved to ../notes/tsmap/ — the IDEAS.md link to this path is intentionally
+# local-only now (see check-doc-links.mjs's isLocalOnly), same reasoning.
+/plans/open-from-url-ingestion.md
 .claude/
 .mcp.json
 CLAUDE.md

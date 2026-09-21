@@ -23,6 +23,7 @@
 // it is acted on, and returns on the next load if it was dismissed.
 
 import { registerSW } from 'virtual:pwa-register';
+import { errMsg } from './lib';
 
 export interface PwaOptions {
   onLog: (level: 'info' | 'warn' | 'error', message: string) => void;
@@ -59,7 +60,7 @@ export function initPwa(opts: PwaOptions): void {
       opts.onLog('info', 'tsmap is now cached for offline use — it will open without a network connection.');
     },
     onRegisterError(error: unknown) {
-      opts.onLog('warn', `Offline caching unavailable: ${error instanceof Error ? error.message : String(error)}`);
+      opts.onLog('warn', `Offline caching unavailable: ${errMsg(error)}`);
     },
   });
 }

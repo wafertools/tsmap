@@ -42,6 +42,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 from fixture_paths import fixture_path
+from fixture_testnums import test_numbers
 
 random.seed(42)
 
@@ -61,8 +62,8 @@ def wafer_dies(radius: int) -> list[tuple[int, int]]:
 
 def build_table(n_wafers: int, radius: int, n_tests: int) -> pa.Table:
     tests = [
-        (1000 + i, f'test_{1000 + i}', 'V', 0.0, 5.0)
-        for i in range(n_tests)
+        (tn, f'test_{tn}', 'V', 0.0, 5.0)
+        for tn in test_numbers(n_tests)
     ]
     dies = wafer_dies(radius)
 

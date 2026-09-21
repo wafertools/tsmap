@@ -133,11 +133,49 @@ export function escapeHtml(s: string): string {
  * `(e as Error).message` on it silently reads as `undefined` and swallows the
  * real diagnostic (this hid the root cause of a real bug once already). Use
  * this everywhere a caught value is turned into a log/toast message instead.
+ *
+ * The parser-backed commands now reject with `{ code, message }`
+ * (`testdata_parser::error::ParseError`) rather than a bare string, and the WASM
+ * path throws a real `Error` carrying the same `code`. Both land here: without
+ * the object case a parse failure would reach the user as the JSON of its own
+ * error object. Use `errCode` where the failure needs handling rather than
+ * displaying.
  */
 export function errMsg(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === 'string') return e;
-  try { return JSON.stringify(e); } catch { return String(e); }
+  if (isCodedError(e)) return e.message;
+  // JSON.stringify returns undefined — not a string — for undefined, a function
+  // or a symbol, so the cast this function's signature implies was a lie for a
+  // caught `undefined` (a `throw undefined`, or a promise rejected with no
+  // reason). Anything that does not stringify falls through to String().
+  try {
+    const json = JSON.stringify(e);
+    if (typeof json === 'string') return json;
+  } catch { /* circular or a throwing toJSON — fall through */ }
+  return String(e);
+}
+
+/** The shape both parser paths fail with: a stable code beside the prose. */
+interface CodedError { code: string; message: string }
+
+function isCodedError(e: unknown): e is CodedError {
+  return typeof e === 'object' && e !== null
+    && typeof (e as CodedError).code === 'string'
+    && typeof (e as CodedError).message === 'string';
+}
+
+/**
+ * The stable `code` of a caught parser failure, or undefined for anything else.
+ *
+ * Branch on this, never on the message: `'not-stdf'` (the file is not what its
+ * extension claims), `'column-missing'` (the mapping names a column the file
+ * lacks — recoverable by re-reading headers), `'gzip-invalid'`, `'file-read'`,
+ * and so on. Messages are prose and may be reworded without notice.
+ */
+export function errCode(e: unknown): string | undefined {
+  if (isCodedError(e)) return e.code;
+  return undefined;
 }
 
 export function rustToLocal(r: RustParsedFile, fileName: string): ParsedFile {
@@ -762,4 +800,120 @@ export function applyTestSelection(
   applyTestOverrides(parsed.testDefs, testOverrides);
 
   return parsed;
+}
+
+/**
+ * Dies the browser build can be relied on to open.
+ *
+ * Measured in Chrome on 2026-09-19 (see `COLUMNAR_DATA.md` §3): the web build
+ * parses in a Worker and the result is structured-cloned to the main thread, so
+ * two copies are live and the ceiling is total heap. A lot is roughly 5 KB of JS
+ * heap per die — about 12 KB where the data carries per-test pass/fail verdicts —
+ * and the tab dies somewhere above 2 GB per copy.
+ *
+ * Measured outcomes, which this one number classifies correctly:
+ *
+ * | lot | result |
+ * | --- | --- |
+ * | 200,000 dies × 50 tests | loads, 6.3 s |
+ * | 200,000 × 100 tests | loads, 13.6 s |
+ * | 266,325 × 51 (341 MB STDF) | **tab crashes** |
+ * | 400,000 × 50 | **tab crashes** |
+ *
+ * Thresholded on die count alone, not `dies × tests`: the per-die cost is
+ * dominated by the test-value CONTAINER rather than by the values in it, so
+ * 200k × 100 tests loads while 400k × 50 — the same cell count — does not. A
+ * `dies × tests` budget would get that pair exactly backwards.
+ *
+ * The "~2.8 KB fixed + ~0.044 KB per test" split this used to quote is not a
+ * property of a die; it was one point on a range. `testValues` is a plain
+ * object keyed by test number, V8 stores integer-like keys as array indices,
+ * and the same 50 readings occupy 6,108 B, 1,560 B or 336 B depending on the
+ * representation the object lands in — two files with identical test numbers
+ * measured 3.9x apart (2026-09-20, heap snapshot; `WMAP_ISSUES.md` #64 and
+ * `COLUMNAR_DATA.md` §11). The threshold above is unaffected, and better
+ * explained: die count is the right axis precisely because the container
+ * dominates and one more test costs little.
+ *
+ * **The number 200,000 has NOT been re-derived** against data with realistic
+ * test numbers — every fixture behind the table above is synthetic with test
+ * numbers near 1,000–2,000. Do not move it without doing that first.
+ *
+ * Deliberately not a hard block. The edge moves with whatever else the machine is
+ * doing: a 143 MB lot that crashed on one run of this machine loaded on another.
+ * Refusing a lot that would have worked is worse than warning about one that
+ * might not, so the user is told the number and left to decide.
+ */
+export const WEB_DIE_BUDGET = 200_000;
+
+/**
+ * Total dies in a lot above which the gallery is mounted **progressively** —
+ * `renderWaferGallery` is handed item factories rather than pre-built items, so
+ * it builds one card per task instead of all of them in one blocking call.
+ *
+ * Thresholded on total dies across the lot, one number, because that is what
+ * the mount's cost actually tracks: per-card work scales with that card's dies
+ * and the lot panel's single render scales with the pooled total. Wafer count
+ * alone gets it wrong in both directions — 4 wafers of 4,000 dies blocks longer
+ * (460 ms) than 25 wafers of 500 (340 ms).
+ *
+ * Measured in Chrome on the T14s, tsmap's own gallery options, synchronous
+ * mount vs progressive:
+ *
+ * | lot | total dies | sync BLOCKS | progressive: 1st card / all cards |
+ * | --- | --- | --- | --- |
+ * | 3w x 500d | 1,500 | 115 ms | 69 ms / 115 ms |
+ * | 8w x 500d | 4,000 | 124 ms | 39 ms / 163 ms |
+ * | 25w x 500d | 12,500 | 340 ms | 47 ms / 527 ms |
+ * | 4w x 4,000d | 16,000 | 460 ms | 113 ms / 427 ms |
+ * | 13w x 4,000d | 52,000 | 1,393 ms | 172 ms / 845 ms |
+ * | 50w x 8,000d | 400,000 | 22,600 ms | ~150 ms / 7,740 ms |
+ *
+ * **The progressive path is never the slower choice in any way that matters** —
+ * above ~16k dies it wins on total time as well, because the synchronous path
+ * redraws every card once more than it needs to. So this threshold is not
+ * protecting against a cost; it is avoiding a needless *behaviour* change.
+ * Below it the synchronous mount is under ~200 ms, which reads as instant, and
+ * the gallery appears in one paint. Progressive mounting there would trade that
+ * single clean paint for a flash of "…" placeholders, and would settle the lot
+ * summary panel a beat after the cards, to fix a freeze nobody perceived.
+ *
+ * Above it the block grows without bound (22.6 s at 400k dies, which is where
+ * the browser offers to kill the page), and staged cards with a progress bar
+ * beat a frozen tab.
+ *
+ * Nothing about this number is specific to tsmap; it describes wmap's per-card
+ * build cost. The gallery should arguably apply it itself rather than every host
+ * repeating the judgement — logged as `WMAP_ISSUES.md` #62.
+ */
+export const GALLERY_PROGRESSIVE_DIE_THRESHOLD = 10_000;
+
+/**
+ * Should this lot be mounted progressively? See
+ * {@link GALLERY_PROGRESSIVE_DIE_THRESHOLD}.
+ *
+ * A single card is never progressive: there is nothing to stage, so it would
+ * only defer the same work by a task and show a placeholder on the way.
+ */
+export function shouldMountProgressively(dieCounts: readonly number[]): boolean {
+  if (dieCounts.length < 2) return false;
+  let total = 0;
+  for (const n of dieCounts) total += n;
+  return total >= GALLERY_PROGRESSIVE_DIE_THRESHOLD;
+}
+
+/**
+ * Warning to show before loading `dieCount` dies in the browser build, or null
+ * when the lot is within budget (or the count is unknown, which is no basis to
+ * judge).
+ *
+ * Desktop callers should not call this: the native path has no worker, no clone
+ * and no ceiling — it opens the 266k-die lot in 1.4 s.
+ */
+export function webDieBudgetWarning(dieCount: number): string | null {
+  if (!Number.isFinite(dieCount) || dieCount <= WEB_DIE_BUDGET) return null;
+  return `This lot has ${dieCount.toLocaleString()} dies. The browser version reliably opens `
+    + `about ${WEB_DIE_BUDGET.toLocaleString()}; above that the tab can run out of memory and `
+    + `reload, losing the load. The desktop app has no such limit — it opens a lot this size in `
+    + `a couple of seconds. Loading fewer wafers, or fewer files at once, also keeps you under it.`;
 }

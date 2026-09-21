@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
+import { webDieBudgetWarning, WEB_DIE_BUDGET, shouldMountProgressively, GALLERY_PROGRESSIVE_DIE_THRESHOLD, errMsg, errCode, basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -951,5 +951,111 @@ describe('unionBinInfo', () => {
       file('b.stdf', [1, 2], [1]),
     ]);
     expect(collisions).toEqual([]);
+  });
+});
+
+// ── errMsg / errCode ──────────────────────────────────────────────────────────
+
+describe('errMsg and errCode', () => {
+  // The parser fails in two shapes depending on which build is running: the WASM
+  // path throws a real Error carrying a `code`, the Tauri path rejects with the
+  // serialised `{ code, message }`. Both have to read the same way, or a
+  // diagnostic differs between the desktop and web builds of the same version.
+  it('reads the message from a thrown Error carrying a code (WASM path)', () => {
+    const e = Object.assign(new Error('first record is not a FAR'), { code: 'not-stdf' });
+    expect(errMsg(e)).toBe('first record is not a FAR');
+    expect(errCode(e)).toBe('not-stdf');
+  });
+
+  it('reads the message from a serialised ParseError object (Tauri path)', () => {
+    const e = { code: 'column-missing', message: "column 'wafer' not found" };
+    expect(errMsg(e)).toBe("column 'wafer' not found");
+    expect(errCode(e)).toBe('column-missing');
+  });
+
+  it('never leaks an error object as JSON into user-facing text', () => {
+    // The regression this guards: before the object case, a rejected Tauri
+    // command surfaced as the JSON of its own error payload.
+    expect(errMsg({ code: 'file-read', message: 'No such file' })).not.toContain('{');
+  });
+
+  it('still handles a plain string and a bare Error', () => {
+    expect(errMsg('plain failure')).toBe('plain failure');
+    expect(errMsg(new Error('boom'))).toBe('boom');
+    expect(errCode('plain failure')).toBeUndefined();
+    expect(errCode(new Error('boom'))).toBeUndefined();
+  });
+
+  it('falls back for values that are neither', () => {
+    expect(errMsg(undefined)).toBeDefined();
+    expect(errCode({ code: 42, message: 'not a string code' })).toBeUndefined();
+  });
+});
+
+// ── webDieBudgetWarning ───────────────────────────────────────────────────────
+
+describe('webDieBudgetWarning', () => {
+  it('says nothing for a lot within budget', () => {
+    expect(webDieBudgetWarning(1)).toBeNull();
+    expect(webDieBudgetWarning(50_000)).toBeNull();
+    expect(webDieBudgetWarning(WEB_DIE_BUDGET)).toBeNull();
+  });
+
+  it('warns above budget, naming the count and the limit', () => {
+    const w = webDieBudgetWarning(266_325);
+    expect(w).not.toBeNull();
+    expect(w).toContain('266,325');
+    expect(w).toContain(WEB_DIE_BUDGET.toLocaleString());
+  });
+
+  it('points at the desktop app, which has no such limit', () => {
+    // The whole value of the message is offering a way forward rather than just
+    // announcing a wall.
+    expect(webDieBudgetWarning(400_000)).toMatch(/desktop/i);
+  });
+
+  it('treats an unknown count as no basis to judge', () => {
+    // 0 is what the scan reports when nothing gave a die count; NaN guards a
+    // divide or a failed parse upstream.
+    expect(webDieBudgetWarning(0)).toBeNull();
+    expect(webDieBudgetWarning(NaN)).toBeNull();
+  });
+
+  it('classifies every measured case correctly', () => {
+    // From COLUMNAR_DATA.md section 3b — the point of thresholding on die count
+    // rather than dies x tests is that 200k x 100 loads while 400k x 50 does not.
+    expect(webDieBudgetWarning(200_000)).toBeNull();   // 50 tests: loaded
+    expect(webDieBudgetWarning(200_000)).toBeNull();   // 100 tests: loaded
+    expect(webDieBudgetWarning(266_325)).not.toBeNull(); // crashed
+    expect(webDieBudgetWarning(400_000)).not.toBeNull(); // crashed
+  });
+});
+
+// ── shouldMountProgressively ──────────────────────────────────────────────────
+
+describe('shouldMountProgressively', () => {
+  const T = GALLERY_PROGRESSIVE_DIE_THRESHOLD;
+
+  it('is a total-die rule, not a wafer-count rule', () => {
+    // The measured inversion this exists for: fewer, bigger wafers block longer
+    // than many small ones, so counting cards gets it backwards.
+    expect(shouldMountProgressively([4000, 4000, 4000, 4000])).toBe(true);   // 4 wafers, 16k dies
+    expect(shouldMountProgressively(Array(8).fill(500))).toBe(false);        // 8 wafers, 4k dies
+  });
+
+  it('never stages a single card — there is nothing to stage', () => {
+    expect(shouldMountProgressively([1_000_000])).toBe(false);
+    expect(shouldMountProgressively([])).toBe(false);
+  });
+
+  it('switches at the threshold', () => {
+    expect(shouldMountProgressively([T - 1, 0])).toBe(false);
+    expect(shouldMountProgressively([T, 0])).toBe(true);
+  });
+
+  it('covers the lot that motivated it', () => {
+    expect(shouldMountProgressively(Array(50).fill(8000))).toBe(true);   // 400k dies, 22.6 s blocking
+    expect(shouldMountProgressively(Array(50).fill(4000))).toBe(true);   // the 143 MB sweep fixture
+    expect(shouldMountProgressively([300, 300, 300])).toBe(false);       // an ordinary small lot
   });
 });

@@ -170,7 +170,10 @@ function walk(dir, out = []) {
 
 const files = [
   ...walk(resolve(root, 'docs')),
-  ...['README.md', 'WMAP_ISSUES.md']
+  // Root Markdown that links into the docs, or into each other. IDEAS.md and
+  // COLUMNAR_DATA.md were added once they started cross-linking: an unchecked
+  // link rots exactly as quietly as an unchecked one in docs/.
+  ...['README.md', 'WMAP_ISSUES.md', 'IDEAS.md', 'COLUMNAR_DATA.md']
     .map((f) => resolve(root, f))
     .filter(existsSync),
 ];

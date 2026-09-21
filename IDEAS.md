@@ -579,6 +579,321 @@ and a visible-cursor replay) is tracked outside this repo — see this repo's `C
       are one flow with a choice or two buttons; and follow UI_STANDARDS.md for the navigator
       (keyboard navigation of the folder list, focus handling when moving into a folder).
 
+## Settings layering — one precedence model, and a site-defaults file
+
+- [ ] **Decide which layer wins before adding another settings channel.**
+      Discussed 2026-09-18, not started. Prompted by the custom colour scheme request
+      (`WMAP_ISSUES.md` #60), which cannot be specified without this.
+
+      **The problem, stated once.** tsmap has three settings surfaces that already overlap
+      and nothing relates them:
+
+      | Surface | Where | Size |
+      | --- | --- | --- |
+      | Saved preferences | `storageKeys.ts` `STORED_ITEMS` | 9 items, registry exists |
+      | Definitions files (CSV) | tests, splits, bin defs — `Load definitions ▾` | 3 types |
+      | CLI flags | `src-tauri/src/cli_files.rs` `VALUE_FLAGS` | 7, growing, no registry |
+
+      `--edge-exclusion` and `tsmap:edge-exclusion-mm` set the same value; `--tests` loads the
+      file the dialog loads. The CLI list is accumulating one flag at a time with nothing
+      enumerating it — the drift `storageKeys.ts`'s own header comment was written to stop,
+      recurring one layer up.
+
+      **There is already a layering bug from this.** `main.ts` (the `cli-open-files` handler)
+      calls `setWaferGeometry(normalized)` on CLI args, and those setters write straight to
+      localStorage (`waferGeometry.ts`). So `tsmap --wafer-diameter 300 lot.stdf`
+      **permanently rewrites the user's saved diameter**, not just this session's. A one-shot
+      invocation flag mutating persistent state is invisible until someone's pinned geometry
+      changes because they pasted a command line a colleague sent them.
+
+      **The model.** Layers, lowest wins to highest:
+
+      ```text
+      built-in defaults → site file → user's saved prefs → CLI flags → in-session UI change
+      ```
+
+      One rule fixes the bug above and most of its future siblings: **a layer writes only to
+      its own level.** CLI flags apply for the session and never touch storage. A UI change
+      writes user prefs. "Reset my settings" clears user prefs and falls back to the *site
+      file*, not to built-ins — which is what makes site defaults worth having at all.
+
+      **The site-defaults file.** The point is a fab standardising across users: one file
+      giving the house palette, geometry, and data endpoints, read at startup with no user
+      action. That is a distribution problem, not a preference one — a file each user loads
+      through a dialog is just a preference with extra steps. Desktop: a path convention
+      (plus a `--settings` flag for testing). Web/PWA: no filesystem, so a fetched URL or a
+      build-time bake — which is why the format must be **JSON**, not CSV.
+
+      **Keep the CSV line clean.** The three definitions files are CSV on purpose: tabular,
+      edited in Excel, and about *this lot's data*. Settings are nested, rarely hand-edited,
+      and about *how tsmap behaves* whatever is loaded. Don't stretch CSV over the second
+      kind. Colour schemes belong on the settings side despite arriving via a "file you load",
+      because a palette is a named object with two lists, not a table of rows.
+
+      **What earns a place in the file.** Unbounded "sections for current and future
+      overrides" becomes a dumping ground. Gate it: **a setting belongs only if a site would
+      plausibly standardise it across users.** Colour schemes, wafer geometry, URL endpoints —
+      yes. Last file filter, recent files, window state — no, personal, localStorage only.
+      `STORED_ITEMS` already carries `scope` (`both`/`desktop`); this is a second axis of the
+      same idea and is probably one more field on those entries rather than a parallel list.
+
+      **Order to build:**
+
+      1. Write the model down (header comment in a new `settings.ts`, or a short doc). No code.
+      2. Fix the CLI-writes-to-storage bug — small, real, and it validates the model.
+      3. Build #60's colour scheme loading as the first citizen, single-section.
+      4. Add the site-defaults layer once two or three settings are worth shipping to a site.
+
+      **Before scoping:** settle precedence against the *per-lot* definitions files too — a
+      site palette, a user's saved selection and a bin defs file's `BinDef.color` all colour
+      the same die, and an unstated order there is the control-disagrees-with-display class of
+      bug `WMAP_ISSUES.md` #52 was about. Decide also whether a site can mark a setting
+      non-overridable, since that changes the file's shape and is hard to add later.
+
+## The web build crashes above ~200k dies — the `postMessage` clone (measured 2026-09-19)
+
+- [ ] **A 341 MB / 266k-die STDF crashes the browser tab.** The desktop app is **not**
+      affected — Tauri calls the parser natively, with no worker and no clone. Full evidence,
+      design options and open questions: **[`COLUMNAR_DATA.md`](COLUMNAR_DATA.md)**, with the
+      wmap-side history in [`WMAP_ISSUES.md`](WMAP_ISSUES.md) #10.
+
+      **Cause: two full copies live at once.** The web build parses in a Worker and posts the
+      result to the main thread, which structured-clones the whole graph. The limit is total
+      heap across both copies — one copy must stay under roughly 2 GB. Measured in real Chrome
+      (default heap):
+
+      | case | worker path (the app) | main thread (for contrast) |
+      | --- | --- | --- |
+      | 50k dies × 50 tests | OK, 1657 ms (clone 303 ms) | OK, 267 MB |
+      | 200k × 50 | OK, 6313 ms (clone 934 ms) | OK, 1005 MB |
+      | 200k × 100 | OK, 13619 ms (clone 1390 ms) | OK, 1447 MB |
+      | 400k × 50 | **TAB CRASHED** | OK, 2012 MB |
+      | 266k × 51 (341 MB STDF) | **TAB CRASHED** (reproduced) | OK, 3213 MB, 12.9 s |
+
+      Per-die heap is ~5 KB (CSV, 50 tests), ~7 KB (100 tests), **~12 KB for STDF** — the only
+      case carrying functional-test verdicts, so a second map per die. So a 25-wafer × 10k-die
+      STDF sweep does not open in the browser, while a 200k-die lot does in 6–14 s.
+
+      **Building die objects is not the problem, and nor is wmap** — on one thread, 400k dies
+      and the 266k STDF both complete, and `buildWaferMap` adds only ~60 MB for 266k dies.
+
+      **The cheap mitigations were tried and measured; none work** (`COLUMNAR_DATA.md` §3d).
+      Per-wafer streaming with backpressure still crashes both lots. The transfer is not the
+      constraint — streaming 400k dies and *discarding* on the main thread peaks at 105 MB, and
+      the worker parses either lot alone. Nor does building maps per wafer and dropping the raw
+      dies help: `Die` retains the caller's `testValues` **by reference**, so the bulk of the
+      memory cannot be freed while the maps live. The binding term is the representation —
+      ~5 KB/die as objects vs ~0.3 KB/die as typed arrays — which makes **columnar the fix**,
+      as one cross-repo project (columnar output is worthless while `buildWaferMap`
+      materialises `Die` objects).
+
+      **What helps users today, and needs no architecture:** find the usable threshold and show
+      a clear message above it instead of a dead tab.
+
+      **Die/wafer subsetting is not an acceptable fix** (decided 2026-09-19): a user asking for
+      a lot expects the lot.
+
+      **Also worth doing regardless:** find where the STDF threshold sits below 266k, so there
+      is an honest answer for users about how large a lot the web app can open.
+
+## ~~One busy/progress system — the load chrome is currently three surfaces with no owner~~ (2026-09-19; **done 2026-09-20**)
+
+**User's verdict, verbatim:** *"having a tiny busy circle in the top bar with equally tiny text is
+unnoticeable, and it seems strange that in some parts of the load it mirrors what the progress bar
+says, though not in sync. In brief the whole busy chrome is a mess."* And: *"tsmap should have one
+busy system and chrome. That needs fixing either now or later but it shouldn't be forgotten."*
+
+**Not a cosmetic complaint — the surfaces genuinely disagree.** Loading a lot currently drives
+three independent indicators, and no single thing owns "is the app busy, and with what":
+
+| surface | driven by | what's wrong with it |
+| --- | --- | --- |
+| topbar spinner + `#file-label` | `setBusy` / `setIdle` | tiny, easy to miss, and `#file-label` is `display:none` below 900px — so on a narrow window it conveys nothing at all |
+| covering overlay in `#map-container` | `showRenderProgress(msg, done, total)` | only used for the analysis phase |
+| docked strip in `#map-container` | `showRenderProgress(…, 'staging')` | added 2026-09-19 for the progressive gallery mount — a THIRD message, and with no bar |
+
+They fall out of sync structurally, not by accident: `renderWafers` calls `setBusy(…)`, then the
+analysis block inside `renderWaferView` calls `setIdle(priorLabel)` **before the gallery mounts**,
+so the app declares itself idle while 50 cards are still rendering — measured: the spinner reads
+`idle` for the whole mount while the docked strip says "Rendering 50 wafers…". Two surfaces, two
+different claims, at the same moment.
+
+The staging strip also has **no progress bar**, only static text, because the gallery reports
+completion (`onItemsResolved`) and not per-card advance. That is the wrong way round: a static
+"Rendering 50 wafers…" for 10+ seconds is exactly the kind of indicator that reads as a hang.
+
+**Shape of the fix — one owner, one surface, phases:**
+
+```
+beginLoad()                          → one indicator appears, in the map container
+  phase('Parsing sweep-…')           → covering: nothing behind it yet
+  phase('Analysing wafers', 32, 50)  → covering, with the real count
+  phase('Rendering wafers', 12, 50)  → docks to a strip once cards exist, with a REAL bar
+endLoad()                            → indicator goes; topbar carries the file identity only
+```
+
+- **One function decides the visual form** (covering vs docked) from the phase, so no call site can
+  pick wrong — the covering/docked distinction matters because a covering overlay hid the staging
+  cards completely when it was reused for the mount phase (see `CLAUDE_HANDOFF.md` §7).
+- **The topbar stops carrying progress** and keeps only the file identity. This also closes the
+  sub-900px invisibility noted in `CLAUDE_HANDOFF.md` §8: progress no longer lives in a hidden
+  element. `setBusy`/`setIdle` keep only their button-disabling job.
+- **One "am I busy" flag**, set at `beginLoad` and cleared at `endLoad`, rather than `setIdle`
+  firing mid-load from inside a sub-phase.
+
+**Needs one small additive wmap change to be done properly:** a per-item progress callback on
+`renderWaferGallery` so the Rendering phase can show a real bar — the gallery knows exactly how
+many factories have resolved. Logged as `WMAP_ISSUES.md` #63.
+
+**Do not "fix" this by adding another indicator.** That is how it got to three.
+
+---
+
+**[DONE 2026-09-20]** Built as designed above. `src/main.ts` now has one flag, one surface and
+named phases (`LoadPhase`: waiting / reading / parsing / analysing / rendering / finishing).
+
+- **`loadPhase(phase, msg, done, total)` begins a load if none is running; only `endLoad()` ends
+  one.** That is the structural fix, not a tidier version of the old one: the analysis block used
+  to call `setIdle` before the gallery mounted, and now no sub-phase has the vocabulary to end a
+  load at all.
+- **`indicatorForm(phase)` is the single decision point** for covering vs docked. The phase
+  proposes and an already-mounted view vetoes — covering a gallery the user is still looking at
+  (an "add more files" load, a native picker that may be cancelled) would blank the app for work
+  that has not replaced anything yet.
+- **The topbar spinner is gone** and `#file-label` carries the file identity only. That deleted
+  the `prevLabel` save-and-restore that was threaded through six functions purely because the
+  busy message used to overwrite the label; `setBusy`/`setIdle` are replaced by
+  `setControlsBusy`, which only disables buttons.
+- **The docked strip shows a real bar**, fed by wmap's new `onItemResolved` (`WMAP_ISSUES.md`
+  #63). The span between the last card and the settled panel became a named `finishing` phase of
+  the same indicator — **not** a fourth surface.
+
+Verified end to end in real Chrome against the running web build by
+`scripts/verify-load-chrome.mjs`, which asserts the bounding **rect** of every frame (the failure
+mode here is an indicator that exists and is off screen, not one that is missing) and that
+exactly one indicator exists at any moment. Observed sequence on 50 wafers x 500 dies:
+
+```
+cover   Reading → Parsing → Analysing 0..49 of 50      bar 0 → 98%
+docked  Rendering 0..47 of 50                          bar 0 → 94%, pinned to viewport bottom
+docked  Finishing lot summary
+[gone]  topbar: "sweep-25000.csv — 50 wafers, 25000 dies"
+```
+
+**[CORRECTED same day, after user testing]** The first version of this shipped with four
+defects, all of which the user found in minutes and none of which the first harness could see,
+because it drove one path (a progressive CSV load via `setInputFiles`) and both of the visible
+bugs lived in the other:
+
+1. **A late gallery callback began a phantom load.** A lot below
+   `GALLERY_PROGRESSIVE_DIE_THRESHOLD` mounts pre-built, so wmap's `onItemResolved` fires a task
+   *after* `endLoad`. `loadPhase` starts a load when none is running — correct for the
+   sequential flow, wrong for a callback — so "Finishing lot summary" opened a load nothing
+   would ever close: the indicator stuck on that message forever and every toolbar button
+   stayed disabled. **This is what "Load sample data" does**, i.e. the first thing a new user
+   clicks. Fixed with `loadPhaseIfActive`, which callbacks use instead.
+2. **`showLoadingState` was a FOURTH surface** — not in the table above, which is why unifying
+   the three that *were* listed left it behind. It wrote its own "Loading x.stdf…" and, via
+   `innerHTML = ''`, destroyed the real indicator on the way past. Now `clearViewForLoad`,
+   which clears the view and re-asserts the live phase.
+3. **Two owners for the Add buttons** — the loaded-state path set `addBtn.disabled` from wafer
+   count alone, mid-load, re-enabling it while the gallery was still rendering.
+4. **`busy = false` written by hand in both picker paths**, to get past `handleFiles`' own
+   re-entrancy guard. That desynchronised the flag `setControlsBusy` owns: for the rest of
+   every picker-initiated load the toolbar disagreed with the load AND every `if (busy)` guard
+   in the app was open, so a second load could start on top of the first. `handleFiles` now
+   takes an explicit `continuesCurrentLoad` instead of faking its own precondition. `busy` has
+   one writer again.
+
+Also corrected: `renderWafers` announced "Rendering …" and then went *back* to "Analysing
+wafers — 9 of 13", so the one indicator contradicted itself a beat later. It says "Loading …"
+now and lets the phases that follow narrate.
+
+**The harness is the durable fix.** `scripts/verify-load-chrome.mjs` now runs BOTH paths
+(pre-built sample, progressive CSV), drives the CSV one through the real button and filechooser
+so the `waiting` phase is exercised, and counts busy surfaces by scanning every visible leaf in
+the DOM rather than counting `#render-progress` by id — counting the element you already know
+about is precisely how a fourth surface survives a review. It asserts the end state directly:
+no indicator, all four buttons enabled, cards mounted, identity in the topbar.
+
+**[CORRECTED again, after the user exercised both the Tauri and web builds]** The busy system
+held — no failures across many loads and adds — but it still *looked* like several systems,
+which was the original complaint. Reported as "different busy message formats and locations…
+a central progress bar and its dynamic label, a static central label, and a static label in the
+bottom bar which is hardly noticeable".
+
+It was one element throughout (the harness reports `surfaces=1` on every frame). It presented as
+three, and moved between them mid-load:
+
+- **The form was keyed on the PHASE NAME**, with `rendering`/`finishing`/`waiting` docked
+  unconditionally — and `renderWafers` enters the rendering phase *before* any card exists. So a
+  single load went centre (Parsing) → bottom (Loading) → centre (Analysing) → bottom (cards).
+  Now keyed on the one question that matters — is there content behind it? — so it changes at
+  most once per load, at the moment cards actually appear.
+- **The bar was hidden for indeterminate phases**, so the same indicator appeared as a message
+  with a bar and then as a bare label. It is always present now and sweeps when the end is not
+  countable (`prefers-reduced-motion` gets a static dimmed bar instead).
+- **The docked form was styled as a lesser thing** — 13px, no bar. Same message weight and same
+  bar as the centred form now; it is the same component, just out of the way of live content.
+  The sub-line remains its only difference, having nowhere to go in a one-line strip.
+
+Both properties are now asserted by the harness: **at most one centre↔docked transition per
+load**, and the bar visible on every frame. Verified traces: the sample load stays centred
+throughout (zero transitions); the CSV load transitions exactly once, with `cards=1` still
+centred and `cards=3` docked.
+
+**[CORRECTED again — the re-render path]** User report: *"after disabling 'show test value
+findings' the 'Finishing lot summary' busy message and bar never stop"*. The phantom load from
+the opposite direction, and the one the earlier fix did not cover.
+
+`toggleValueFindings` did `loadPhase(…)` → rAF → **`void renderWaferView(...)`** (not awaited)
+→ `endLoad(...)` immediately. The load ended while the render was still starting; the render's
+own analysis progress then called plain `loadPhase('analysing', …)`, which **begins** a load —
+and that second load had no owner left to end it.
+
+Two fixes, and the second is the one that matters:
+
+- **`renderWaferView`'s phases can no longer begin a load** (`loadPhaseIfActive`). It is never
+  an entry point — it always runs inside a load its caller opened. This closes the class,
+  including `refreshCurrentView` (theme change), which called it with no load open at all.
+- **Four copies became one.** The identical `loadPhase → void renderWaferView → endLoad` block
+  appeared at four call sites — findings toggle, wafer geometry, bin definitions, splits — so
+  all four carried this bug. They now share `rerenderCurrentLot(verb)`, which awaits the render
+  before ending the load. Fixing only the reported one would have left three.
+
+Guarded by a third harness scenario, `toggle`, which loads the sample lot, waits for it to
+settle, then drives the real menu row.
+
+**[ENTRY-POINT SWEEP]** The load system was verified against one path when it shipped, and the
+user found two bugs in the other within minutes. The sweep closed that: `verify-load-chrome.mjs`
+now covers **seven** scenarios — pre-built sample, progressive CSV, re-render (settings toggle),
+append, drag-and-drop, cancel-at-mapping and cancel-at-selector. It found two more real defects:
+
+- **Two user gates announced nothing.** `showRenameOverlay` and `showAppendConfirm` left the
+  indicator claiming "Parsing x.csv…" while the app was actually blocked on a dialog. Every
+  other gate in the file announces `waiting`; these did not. You would never report this as a
+  bug — the modal sits over the indicator — which is exactly why a harness had to find it.
+- **The indicator covered live content for a frame**, at "Rendering N wafers — 0 of N". Two
+  layers to this, and the first fix was wrong. `indicatorForm()` read `mainViewController`,
+  which is assigned only after `renderWaferGallery(...)` RETURNS while cards mount inside that
+  call — so it lagged the screen. Asking the DOM instead fixed the *decision* but not the
+  *staleness*: the form was still computed only on a phase update, while content appears
+  continuously. `trackIndicatorForm()` re-asks each frame while a load is open.
+  **Being right at one instant is not the same as being right throughout.**
+
+Two of the sweep's failures were the harness, not the app, and both were the same mistake —
+asserting a proxy instead of the property. "Add files is enabled at the end" is false for a
+cancel that loaded nothing; "at most one centre↔docked transition" forbade an append's three
+honest states (docked over the old gallery → covering while it is torn down → docked as new
+cards arrive). The assertion is now the invariant itself: **the form must match whether there is
+content behind the indicator**, which passes append and still catches the original bug.
+
+`mainViewController` for "is something on screen", and a transition count for "does the form
+match the view" — the same proxy-for-reality error twice in one hour, once in the app and once
+in its test.
+
+559 tests pass, `npx tsc --noEmit` clean, style scales clean, **all seven scenarios pass**.
+
 ## Prioritization (if picking three to start)
 
 1. Cpk/Ppk — closes the biggest functional gap for the target audience. **Done** 2026-07-10

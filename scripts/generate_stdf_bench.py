@@ -20,6 +20,7 @@ import struct
 import sys
 from pathlib import Path
 from fixture_paths import fixture_path
+from fixture_testnums import test_numbers
 
 random.seed(42)
 
@@ -133,8 +134,8 @@ def wafer_dies(radius: int) -> list[tuple[int, int]]:
 
 def generate(output_path: Path, n_tests: int, radius: int, n_wafers: int) -> None:
     tests = [
-        (1000 + i, f'test_{i:04d}', 'mV', 100.0 * i, 100.0 * i + 50.0)
-        for i in range(1, n_tests + 1)
+        (tn, f'test_{i:04d}', 'mV', 100.0 * i, 100.0 * i + 50.0)
+        for i, tn in enumerate(test_numbers(n_tests), start=1)
     ]
     ft_num, ft_name = 9001, 'scan_chain'
     sites = [1, 2, 3, 4]

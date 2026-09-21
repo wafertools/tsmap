@@ -13,6 +13,7 @@
 // that belongs in main.ts, not in a button.
 
 import { openAnchoredMenu, makeMenuRow } from './anchoredMenu';
+import { errMsg } from './lib';
 
 export interface RecentLoadRow {
   label: string;
@@ -53,7 +54,7 @@ export function makeLoadDefinitionsButton(opts: LoadDefinitionsButtonOptions): H
       if (text === null) return;
       opts.onText(text);
     } catch (e) {
-      opts.onError(e instanceof Error ? e.message : String(e));
+      opts.onError(errMsg(e));
     }
   };
 

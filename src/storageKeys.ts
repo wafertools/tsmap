@@ -91,6 +91,12 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     description: 'The filter criteria reapplied when you next scan a folder.',
     scope: 'both',
   },
+  {
+    key: 'tsmap:log-timings',
+    label: 'Phase-timing log',
+    description: 'Whether load/parse/analyse/render phase timestamps are written to the log panel.',
+    scope: 'both',
+  },
 ];
 
 /**

@@ -21,8 +21,7 @@ on [wafermap](https://wafertools.github.io/wafermap/), our own purpose-built waf
 ## Why tsmap
 
 - **Fast.** The parser is native Rust on both platforms — a 341 MB / 266,000-die STDF lot
-  parses in about 3.5 seconds (~96 MB/s) on a 2021 ThinkPad laptop, or about 2.3 seconds
-  (~148 MB/s) on a small desktop.
+  parses in about 1.4 seconds (~250 MB/s) on a Lenovo ThinkPad T14s laptop.
 - **One engine, two platforms.** The desktop app and the browser build share the same Rust
   parsing core (compiled to WebAssembly for the browser) and the same rendering — what you
   see in one, you see in the other.

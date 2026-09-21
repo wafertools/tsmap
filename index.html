@@ -1256,17 +1256,84 @@
         min-width: 9ch; flex-shrink: 1;
       }
       @media (max-width: 900px) { #file-label { display: none; } }
-      #busy-spinner {
-        display: none; width: 13px; height: 13px; border-radius: var(--radius-pill);
-        border: 2px solid var(--border-dim); border-top-color: var(--accent);
-      }
-      #busy-spinner.active {
-        display: inline-block;
-        animation: tsmap-spin 0.7s linear infinite;
-      }
-      @keyframes tsmap-spin { to { transform: rotate(360deg); } }
 
       #map-container { flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden; }
+
+      /* THE load indicator — one surface for every phase of a load, in the space
+         the result will fill. The topbar is not a second one: it carries the
+         file identity and nothing else. #file-label is 12px and display:none
+         below 900px, so a 20-second wait there had no visible explanation at
+         all, and a spinner beside it disagreed with this bar for most of a load.
+         See the LoadPhase block in src/main.ts before adding anything here. */
+      #render-progress {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 10px;
+        background: var(--bg-app); z-index: 2; text-align: center; padding: 0 24px;
+      }
+      #render-progress .rp-msg { font-size: 15px; color: var(--text-primary); }
+      #render-progress .rp-sub { font-size: 12px; color: var(--text-muted); }
+      #render-progress .rp-bar {
+        width: min(320px, 60%); height: 4px; border-radius: var(--radius-pill);
+        background: var(--border-dim); overflow: hidden;
+      }
+      #render-progress .rp-bar > span {
+        display: block; height: 100%; width: 0; background: var(--accent);
+        transition: width 120ms linear;
+      }
+      /* Indeterminate: the phase is running but its end is not countable
+         (parsing one file, waiting on a picker). The bar STAYS — hiding it made
+         the same indicator look like two different components within one load —
+         and sweeps instead, so the shape is constant and only the motion says
+         whether the end is known. */
+      #render-progress .rp-bar.rp-indeterminate > span {
+        width: 35%; transition: none;
+        animation: rp-sweep 1.15s ease-in-out infinite;
+      }
+      @keyframes rp-sweep {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(285%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #render-progress .rp-bar.rp-indeterminate > span {
+          animation: none; width: 100%; opacity: 0.45;
+        }
+      }
+      /* Staging variant — the gallery is filling in BEHIND this, one card at a
+         time, so unlike the analysis phase above it must not cover anything.
+         The full-bleed opaque version hid the staging completely: the bar sat at
+         100%, the cards appeared invisibly behind it, and removing it revealed a
+         finished gallery all at once — indistinguishable from the blocking mount
+         it replaced. A docked strip instead, and pointer-events:none because the
+         cards already on screen are live and clickable while the rest arrive.
+         No bar and no sub-line here: the gallery reports completion, not
+         per-card advance, so a bar could only sit full and mean nothing — the
+         cards appearing ARE the progress. */
+      #render-progress.rp-staging {
+        /* `fixed`, not `absolute`. #map-container.gallery scrolls, and an
+           absolutely-positioned child pins to the bottom of the SCROLLABLE
+           CONTENT — with 50 cards that is far below the viewport, so the
+           indicator was simply never on screen and the staging looked like an
+           unexplained freeze ending in "page unresponsive". Fixed pins it to the
+           viewport, where an indicator has to be.
+           --z-modal because this is a page-level overlay above a rendered map,
+           and the z-scale comment above says that is the only safe value for
+           one; pointer-events:none so it cannot swallow a click meant for the
+           dialog that shares that layer, or for the cards underneath. */
+        position: fixed; inset: auto 0 0 0; z-index: var(--z-modal);
+        background: var(--bg-toolbar);
+        border-top: 1px solid var(--border-subtle); padding: 8px 24px;
+        pointer-events: none;
+      }
+      /* The docked form is the same component as the covering one, just out of
+         the way of live content — same message, same bar, same wording. It was
+         13px with no bar and read as "a static label in the bottom bar, hardly
+         noticeable", i.e. as a different and lesser thing than the centred one.
+         The sub-line is the only real difference: a docked strip has one line
+         of room, and its advice ("large lots take a few seconds") belongs to
+         the phase before any content exists anyway. */
+      #render-progress.rp-staging .rp-msg { font-size: 14px; font-weight: 500; }
+      #render-progress.rp-staging .rp-bar { width: min(320px, 45%); margin-top: 6px; }
+      #render-progress.rp-staging .rp-sub { display: none; }
       #map-container.gallery { overflow-y: auto; }
 
       /* ── Mapping overlay ───────────────────────────────────────── */
@@ -1636,7 +1703,6 @@
         <span class="tb-sep" style="display:none"></span>
         <button id="reset-btn" class="tb-btn tb-btn--danger" style="display:none" title="Unload all files and return to the start screen">Clear files</button>
         <span id="drop-hint">or drop a file anywhere</span>
-        <span id="busy-spinner"></span>
         <span id="file-label"></span>
         <button id="help-btn" class="btn-icon" aria-label="Help" title="Help"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
       </div>

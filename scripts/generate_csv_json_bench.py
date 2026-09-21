@@ -18,6 +18,7 @@ import json
 import random
 import sys
 from fixture_paths import fixture_path
+from fixture_testnums import test_numbers
 
 random.seed(42)
 
@@ -25,7 +26,7 @@ WAFERS = int(sys.argv[1]) if len(sys.argv) > 1 else 10
 DIES_PER_WAFER = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
 N_TESTS = int(sys.argv[3]) if len(sys.argv) > 3 else 50
 
-TEST_NUMS = [1000 + i for i in range(N_TESTS)]
+TEST_NUMS = test_numbers(N_TESTS)
 TEST_COLS = [f"t{n}" for n in TEST_NUMS]
 GRID = 1  # dies laid out on a square-ish grid per wafer
 side = max(1, int(DIES_PER_WAFER ** 0.5))

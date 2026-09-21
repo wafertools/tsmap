@@ -1,15 +1,23 @@
 import type { TestDef, TestOverride } from './types';
 import { createRangeSelection } from './listSelection';
+import { webDieBudgetWarning } from './lib';
 import { ICONS } from '@wafertools/wafermap/render';
 import { attachTooltip } from './tooltip';
 import { buildToggleGroup } from './toggleGroup';
 import { makeLoadDefinitionsButton, type RecentLoadRow } from './recentDefinitionsUI';
+import { errMsg } from './lib';
 
 export interface CapacityInfo {
   /** Total dies across all files being loaded. */
   dieCount: number;
   /** Total tests found in the scan. */
   totalTests: number;
+  /**
+   * True in the browser build. The die ceiling below is a browser-only limit —
+   * the desktop build parses natively with no worker and no structured clone,
+   * and opens a 266k-die lot in about 1.4 s.
+   */
+  isWebBuild?: boolean;
 }
 
 export interface TestSelectorOptions {
@@ -874,7 +882,7 @@ export function showTestSelectorOverlay(
         await options.onSave!(saveEntries);
         options.onLog?.('info', `Test definitions saved: ${saveEntries.length} test${saveEntries.length !== 1 ? 's' : ''}`);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errMsg(e);
         options.onLog?.('error', `Failed to save test definitions: ${msg}`);
       }
     });
@@ -954,10 +962,32 @@ export function showTestSelectorOverlay(
   confirmBtn.className = 'btn-primary';   // the dialog's primary action, not a peer of Cancel
 
   // ── Memory advisory ────────────────────────────────────────────────────────
-  // Thresholds in die×test pairs. Calibrated against known-good behaviour:
-  // ~300k dies × 30 tests = 9M pairs is fine; warn starts above ~50M pairs.
-  const WARN_PAIRS   = 50_000_000;   // ~50M die×test pairs — show amber
-  const DANGER_PAIRS = 200_000_000;  // ~200M die×test pairs — show red + confirm
+  //
+  // Two different risks, on two different axes, and they must not be conflated:
+  //
+  //  - **Time** scales with die×test pairs, and is what the amber notice is for.
+  //  - **The browser's memory ceiling scales with DIES**, near enough regardless
+  //    of test count, because the cost per die is dominated by the test-value
+  //    CONTAINER rather than by the values in it. Measured in Chrome
+  //    2026-09-19: 200k dies × 100 tests loads, while 400k × 50 — the same 20M
+  //    pairs — crashes the tab. A pair-count threshold gets that pair of cases
+  //    exactly backwards.
+  //
+  //    The "~2.8 KB fixed + ~0.044 KB per test" split this comment used to give
+  //    is not a property of a die: it was one point on a range. A die's
+  //    `testValues` is a plain object keyed by test number, V8 stores
+  //    integer-like keys as array indices, and the same 50 readings occupy
+  //    6,108 B, 1,560 B or 336 B depending on which representation the object
+  //    lands in — two files with identical test numbers have been measured 3.9x
+  //    apart (2026-09-20, heap snapshot; `WMAP_ISSUES.md` #64,
+  //    `COLUMNAR_DATA.md` §11). The conclusion above is unaffected and if
+  //    anything stronger: per-die cost is the container, the marginal cost of
+  //    one more test is small, so die count is the right axis.
+  //
+  // It did: both crashing cases sit at 20M pairs, under the 50M amber threshold,
+  // so the advisory said nothing at all before either of them killed the tab.
+  const WARN_PAIRS   = 50_000_000;   // ~50M die×test pairs — slow, show amber
+  const DANGER_PAIRS = 200_000_000;  // ~200M die×test pairs — very slow, confirm
 
   const memAdvisory = document.createElement('div');
   memAdvisory.style.cssText = 'font-size:12px;display:none';
@@ -967,9 +997,25 @@ export function showTestSelectorOverlay(
     return options.capacity.dieCount * selected.size;
   }
 
+  /** The browser's die ceiling, when this build has one and the lot exceeds it. */
+  function dieBudgetWarning(): string | null {
+    if (!options.capacity?.isWebBuild) return null;
+    return webDieBudgetWarning(options.capacity.dieCount);
+  }
+
   function updateMemAdvisory(): void {
     if (!options.capacity || selected.size === 0) {
       memAdvisory.style.display = 'none';
+      return;
+    }
+    // The die ceiling outranks the pair-count notice: one is "this may be slow",
+    // the other is "this may lose the whole load". Selecting fewer tests barely
+    // moves the die ceiling, so the message must not imply that it would.
+    const overBudget = dieBudgetWarning();
+    if (overBudget) {
+      memAdvisory.style.display = '';
+      memAdvisory.style.color = 'var(--error-text)';
+      memAdvisory.textContent = overBudget;
       return;
     }
     const pairs = dieTestPairs();
@@ -999,7 +1045,10 @@ export function showTestSelectorOverlay(
     if (sel.length === 0) {
       if (!await ask('No tests selected — only bin data will be loaded. Continue?')) return;
     }
-    if (dieTestPairs() >= DANGER_PAIRS) {
+    const overBudget = dieBudgetWarning();
+    if (overBudget) {
+      if (!await ask(`${overBudget}\n\nLoad it anyway?`)) return;
+    } else if (dieTestPairs() >= DANGER_PAIRS) {
       if (!await ask('This is a very large selection and may run out of memory. Consider selecting fewer tests. Continue anyway?')) return;
     }
     cleanup();

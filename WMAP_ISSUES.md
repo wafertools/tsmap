@@ -242,6 +242,23 @@ Die-level metadata (arbitrary string/number fields attached to each die, e.g. si
 - **Remaining bottleneck in `buildView`** is `pushDieRectangles` loop itself — irreducible O(D), ~2–3 ms at 20k dies. Memoising the ViewRect array (Tier 2) would help for pan/zoom-only redraws.
 - **IPC/columnar redesign** (Tier 3): still requires profiling with a real large STDF file to confirm the IPC boundary is actually the bottleneck. Columnar input to `buildWaferMap` is a breaking API change; Rust/WASM is viable but large effort. Do not start without profiling data.
 - **Recommended next step:** Load a real production STDF (50k+ dies, 100+ tests) in tsmap with DevTools performance timeline open. Measure Rust parse, IPC transfer, JS JSON.parse, `buildWaferMap`, `analyzeWaferMap` separately before designing Tier 2/3 changes.
+**Profiling completed (2026-09-19) — the gate this entry set is now cleared, and one assumption above is wrong.** Full evidence, design options and open questions: **[`COLUMNAR_DATA.md`](COLUMNAR_DATA.md)**. Summary:
+
+- **The web build has a real ceiling at roughly 200k dies, and the cause is the `postMessage` clone — not the cost of building die objects.** tsmap's web build parses in a Worker and posts the result to the main thread, which structured-clones the whole graph, so **two full copies are live at once**. Measured in real Chrome: 200k dies × 50 tests loads in 6.3 s; **a 341 MB / 266k-die STDF crashes the tab** (renderer OOM, reproduced), as does 400k dies × 50 tests. The limit is total heap across both copies — one copy must stay under roughly 2 GB.
+- **Building the objects is not itself the problem, and neither is wmap.** On the main thread — which the app never does — 400k dies (2.0 GB) and the 266k STDF (3.2 GB, 12.9 s) both complete. `buildWaferMap` adds only **~60 MB** for 266k `Die` objects and 1.8 s for 25 maps, so **direction 1's premise about per-die allocation in wmap is wrong** (see the next bullet).
+- **Desktop is unaffected**: Tauri calls the parser natively, there is no worker and no clone. Serde is 789 ms of a 2259 ms pipeline — worth optimising, not a wall — so **the IPC half of this entry is still unevidenced**.
+- **Two earlier measurements of mine were wrong and are retracted:** a Node-based run that OOM'd (Node is not a browser — Chrome does the same parse in 12.9 s), and a browser run on the main thread (which is not the path the product uses). Both are documented in `COLUMNAR_DATA.md` §3c so the mistake is not repeated.
+- **Cleanest isolation:** on the same 341 MB file a scan that returns almost nothing to JS takes 678 ms, while a filtered parse of **one test of 51** takes 8.3 s / 7.2 GB. Nearly the same parsing; the difference is materialising 266k die objects.
+- **The prize is real:** the same payload as typed arrays is **51 ms and 115 MB**, against ~8–10 s and ~7 GB as objects. Plus `ArrayBuffer`s transfer zero-copy over `postMessage`, which `callWorker` currently copies.
+- **Correction to direction 1 above:** wmap does **not** duplicate the expensive part. `attachData` assigns `base.testValues = pt.testValues` **by reference**, so the multi-GB test-value maps are the caller's own objects. What wmap adds per die is the `Die` shell (21 possible fields vs `DieResult`'s 9) and a string `id` — tens of MB, not GB. **So a `DieResult[]` caller's ceiling is building their own input array, and columnar input alone would not raise it.** The headline win exists only for a caller that never builds row objects: tsmap's parser emitting columns, or an Arrow/Parquet host. What row callers *do* gain is that their input stops being pinned by `result.dies[i].testValues` and becomes collectable after the build — steady-state, not peak.
+- **Columnar output from the parser alone buys nothing**, because `buildWaferMap` would immediately materialise 266k `Die` objects. The win requires columnar *internals*, which makes `result.dies: Die[]` (public API, and 196 signatures across 32 files take `Die`/`Die[]`) the real decision — most likely a lazy accessor so existing callers keep working.
+- **Ruled out:** die/wafer subsetting as a fix — a user asking for a lot expects the lot.
+- **The cheaper fixes were built and measured, and none of them work** (full record in `COLUMNAR_DATA.md` §3d). Per-wafer streaming from the worker, with host acks bounding the queue: still crashes both lots. Reclaiming the worker after the stream: too late, it crashes mid-accumulation. **The transfer is not the constraint** — streaming 400k dies and *discarding* them on the main thread peaks at 105 MB and works fine, and the worker parses either lot on its own. What fails is the main thread holding a lot as JS objects at ~5 KB/die.
+- **Building each wafer's map as it arrives and dropping the raw dies does not help either, and this is the load-bearing detail:** `attachData` assigns `base.testValues = pt.testValues` **by reference**, so every `Die` retains the caller's test-value map — the bulk of the memory. **You cannot free the parse output while keeping the maps.** Any fix has to make the representation itself smaller.
+- **So the ceiling does need columnar**, and this is the first evidence that says so rather than merely suggesting it: ~5 KB/die as objects against ~0.3 KB/die as typed arrays, with no workaround in between. It also means the parser half and the wmap-internals half must land together — columnar output is worthless while `buildWaferMap` materialises `Die` objects.
+- **Columnar's case changes shape, and gets stronger where it counts:** `ArrayBuffer`s **transfer** rather than clone, so there is never a second copy — it removes the cause of the crash outright, not just the size of the payload. Same payload as typed arrays: 51 ms and 115 MB against 3.2 GB per copy.
+- **Still unmeasured:** the per-wafer mitigation; where the STDF threshold sits below 266k (needed to answer "how big a lot can the web app open?"); and other browsers — everything here is Chrome.
+
 - **Parser throughput benchmark (2026-06-08):** Synthetic STDF files — `packages/parsers/examples/bench_stdf.rs` measures native `parse_stdf_from_bytes` in isolation. Results: 663 dies × 4 tests → 68ms; 5,585 dies × 11 tests → 720ms; 266,325 dies × 51 tests → 34.7s. Throughput is ~7,700 dies/sec regardless of scale, confirming the bottleneck is per-record iteration cost in `rust-stdf`'s `StdfRecord` enum (HashMap allocation per PTR). WASM would be ~50–70% of this. For typical production files (1–3 wafers, 10–20 tests, <5k dies) native parse is under 1s and WASM under 2s — acceptable. For very large sweeps (25 wafers × 50 tests × 10k dies) Rust parse alone takes 35s, making a re-implementation that avoids per-record allocation worthwhile.
 
 ---
@@ -2038,3 +2055,436 @@ above: Insights → back to wafer view → Insights.
 
 **tsmap side:** no code change.
 
+### 65. Every gallery card holds a live canvas for as long as the gallery shows it — on the Linux WebView the per-card cost then RISES with card count, so 250 stacked tests take 15–25 s
+
+**Where:** wmap `packages/canvas-adapter/renderWaferGallery.ts` — `buildCard()` (a full
+`renderWaferMapCard` instance, canvas, tooltip, hit-testing and `ResizeObserver` per card, held in
+`cardControllers` for the life of the gallery) and `buildStackedItems()`, which returns one
+**pre-built** item per test, so `stackedValues` over a 250-test program mounts 250 of them in one
+synchronous pass.
+
+**Found:** 2026-09-20, user-reported: `testdata/many_tests.stdf` (5 wafers x 497 dies x 250 tests),
+stacking all 250 tests. ~12 s in the Tauri app, in **both** the dev and release builds; the web
+build in Chrome felt fine. Value and bin maps in the same app render instantly.
+
+**The measurement.** Same wmap `dist/`, same data, same machine. Chrome via Playwright
+(`/opt/google/chrome/chrome`); WebKitGTK via `MiniBrowser` from `libwebkit2gtk-4.1 2.52.6` — the
+engine and version Tauri's WebView uses on Linux. (It needs
+`env -u LD_LIBRARY_PATH -u GTK_PATH ...` or snap's leaked library path stops it loading at all.)
+
+| | Chrome | WebKitGTK | ratio |
+| --- | --- | --- | --- |
+| `aggregateValues` x 250 | 127 ms | 185 ms | 1.5x |
+| `analyzeWaferMap` x 250 | 681 ms | 975 ms | 1.4x |
+| **switch to `stackedValues` (250 cards)** | **2.9 s** | **15.7 s** | **5.4x** |
+| change aggregation method | 3.1 s | 17.7 s | 5.7x |
+
+**The maths is not the problem.** JavaScriptCore is ~1.4x slower than V8 here, which is ordinary.
+In WebKitGTK the whole compute is **7%** of the 15.7 s; the other 93% is building and mounting
+cards. A position-indexed rewrite of `aggregateValues` — the obvious-looking fix — would save
+185 ms of 15,700, or 1.2%.
+
+**What it actually is: per-card cost rises with card count, but only on WebKit.** Sweeping the
+card count, fresh gallery each time:
+
+| cards | Chrome | ms/card | WebKitGTK | ms/card |
+| --- | --- | --- | --- | --- |
+| 10 | 259 ms | 25.9 | 367 ms | 36.7 |
+| 25 | 397 ms | 15.9 | 581 ms | 23.2 |
+| 50 | 745 ms | 14.9 | 1,328 ms | 26.6 |
+| 100 | 1,483 ms | 14.8 | 3,414 ms | 34.1 |
+| 250 | 3,548 ms | **14.2** | 15,670 ms | **62.7** |
+
+Chrome is flat — ~14 ms per card from 25 to 250, i.e. linear. WebKitGTK climbs from 23 to 63 ms
+per card, roughly O(n^1.4): each additional card makes every card more expensive. Project
+WebKit's own 25-card rate to 250 and you get 5.8 s, so **~10 s of the 15.7 s is the super-linear
+term alone**. At 25 cards the two engines are within 1.5x — the JS gap — so there is no general
+"WebKit is slow" penalty here, only one that appears once many live cards accumulate. Consistent
+with per-canvas backing stores exceeding what WebKit keeps accelerated, plus repeated
+style/layout over a growing grid; the *shape* is measured, the internal cause is not.
+
+**It is card count, not stacking.** Same engine, same session, one `setOptions` per row:
+
+| mode | cards | WebKitGTK |
+| --- | --- | --- |
+| Hard bin | 5 | 122 ms |
+| Soft bin | 5 | 86 ms |
+| Value (one test) | 5 | 67–150 ms |
+| **Stacked bins** | **3** | **216 ms** |
+| **Stacked soft bins** | **3** | **138 ms** |
+| **Stacked values** | **250** | **25,145 ms** |
+| back to Hard bin | 5 | 2,246 ms *(destroying 250 cards)* |
+
+Stacked bins runs the identical path — aggregate across wafers, analyse, build a card — and costs
+216 ms, because this file has 3 hard bins. Value and bin modes show one card per **wafer** (5) and
+a mode switch there only *re-renders* cards that already exist: no aggregation, no analysis, no new
+canvas. Stacked values shows one card per **test**, each newly built. Per-card build cost is
+comparable in both stacked modes (72 vs 100 ms); stacked values is 83x slower because it builds
+83x as many cards. Note also that leaving the mode cost 2.2 s in teardown alone, and that the same
+switch measured 15.7 s in a fresh page and 25.1 s after seven other modes had run — don't treat a
+single stacked-values timing as stable.
+
+**Suggested fix (wmap), in priority order:**
+
+1. **Virtualize the card grid.** Mount a real card only for slots near the viewport; everything
+   else is a sized placeholder holding the grid geometry open. Evict the furthest cards to a live
+   budget (~25–40, i.e. the flat part of WebKit's curve). The machinery is half-present: cards are
+   already fixed squares (`aspectRatio: 1` + `cardMaxSize()`), the progressive path already inserts
+   sized placeholders, grid walks already skip them, and `cardControllers[i]` already models a null
+   slot. This is the only option that attacks the super-linear term rather than rescheduling it,
+   and it fixes Chrome's 3.5 s too.
+2. **Return factories from `buildStackedItems` instead of pre-built items.** A test's aggregate and
+   analysis then happen when its card is first shown (and cache after), instead of 1.2 s of compute
+   before the first card appears. Pairs with (1): without it, virtualization still pays the whole
+   compute up front. On its own it spreads the 15.7 s across tasks and lets `onItemResolved` narrate
+   it, but does not reduce it.
+3. **A position-indexed `aggregateValues`** — one shared position index per lot, reused across every
+   test and every aggregation method, instead of a fresh `getDieKey` string pass per test
+   (`collapseLotStack` calls it once per test key; the gallery once per card). Worth doing for
+   large-die lots, where its W x D x T cost overtakes the per-card cost, which scales with test
+   count alone. **Not** the fix for this report: 1.2%.
+
+**What (1) must be designed for**, all currently assuming a live controller per index:
+`downloadGalleryPng` composites every live `<canvas>` in the grid, so virtualized it would silently
+export only what is on screen — it needs to build unmounted cards off-screen, in slices; detached
+windows are keyed by `cardIndex`; the shared-option push loops over `cardControllers` in about a
+dozen places, so options must be applied at mount time instead; selection, highlight and
+findings-to-card must scroll-and-mount before highlighting; and **`onItemResolved`/`onItemsResolved`
+must come to mean "every item's data is ready", not "every card is mounted"**, or a host's progress
+bar never completes — worth settling in the same pass, while both callbacks are still unreleased.
+
+**Not yet known:** this is measured only on WebKitGTK (Linux). Tauri uses WKWebView on macOS and
+WebView2 (Chromium) on Windows; WebView2 will most likely show Chrome's flat curve, so this may be
+a Linux-only severity. Worth confirming before the desktop build's "preferred, fastest" positioning
+is revised anywhere.
+
+**tsmap side:** an interim cap is available and cheap — stacking 250 tests produces 250 maps nobody
+can read on one screen, so the cost and the usability problem have the same cause. Defaulting the
+stack to the user's selected tests, or capping it with a count warning, removes the symptom while
+(1) is built. Not started.
+
+### 64. `Die.testValues` as a plain object keyed by test number costs up to 6 KB per die for 400 bytes of readings — and which cost you get is not predictable from the data
+
+**Where:** wmap `packages/core/dies.ts` — `Die.testValues` / `Die.testPass` (`Record<number, number>`), and the same shape on `DieResult` in `packages/renderer/buildWaferMap.ts`. It is a **public contract**, which is why this is a wmap issue and not a parser one.
+
+**Found:** 2026-09-20, investigating the web-path die-count ceiling. Not a tsmap symptom — no user reported it — so treat it as a latent cost, not a live defect.
+
+**The mechanism.** A die's readings are stored as `{1001: 1.42, 1002: 0.487, ...}`. Integer-like keys are not hash keys to V8; they are **array indices**, so such an object asks for a contiguous elements backing store rather than a dictionary. Which of the two V8 picks depends on the key set and the growth path.
+
+**Measured** — Chrome (`/opt/google/chrome/chrome`), V8 heap snapshot read via CDP for exact backing-store bytes, cross-checked against `%HasDictionaryElements` / `%HasObjectElements` with `--allow-natives-syntax`. 50 readings, i.e. 400 bytes of actual payload:
+
+| form | backing store | note |
+| --- | --- | --- |
+| holey fast elements, keys 1001–1050 | **6,108 B** | ~1,051 slots for 50 values; values boxed, not inline doubles |
+| dictionary, same keys | **1,560 B** | |
+| packed, dense keys 0–49 | **336 B** | |
+
+**The part that matters: the form is not determined by the test numbers.** `large.stdf` and a small STDF generated with the *same* `testValues` keys (1001–1050) land in different forms — 6,108 B and 1,560 B, 3.9x apart. Whatever decides it is the insertion path, not the key set, so it cannot be predicted from the data and can change under an unrelated parser change.
+
+**Not the parser's doing.** A plain-JS rebuild assigning the identical keys produces 6,084 B against the parser's 6,108 B. Any JavaScript writing those keys gets the same representation. An earlier reading of this that blamed `serde_wasm_bindgen` was wrong and is retracted.
+
+**Suggested fix — intern the test-number key space.** Map test numbers to dense `0..T-1` once per result (the test set is already known: `WaferMapResult.testDefs`), store values against the dense index, and keep `testValues` as an accessor over that. Three properties, in order of importance:
+
+1. **It removes the variance.** Dense keys are packed doubles unconditionally — no boxing, no dependence on what V8 decides about a given object's growth. That is worth more than the average saving, because today the same code can be 4x apart on two files.
+2. 336 B against 1,560 B (4.6x) or 6,108 B (18x).
+3. Test-number magnitude stops mattering at all, which is the right invariant: STDF `TEST_NUM` is U*4 and a program may number anywhere in it.
+
+The cost is that `testValues` is public and widely read (`getDieTestValue`, every chart, `buildHoverText`, stats). An accessor keeps the contract; a raw-object change does not. See `COLUMNAR_DATA.md` §7 — this is the same lazy-accessor decision, reachable without the full columnar project.
+
+**Explicitly NOT established, and needed before anyone acts on this:**
+
+- **Whether real customer data hits the expensive form.** Every fixture in `~/.cache/wafertools/fixtures/` is synthetic with test numbers around 1,000–2,000. Real programs number far higher, and a synthetic probe at base 20,000 was in the cheap dictionary form — but given that identical keys produced different forms above, that is an observation, not a rule.
+- **The whole-file arithmetic.** `large.stdf` retains 12,351 B/die (266,325 dies, 3,137 MB after a forced GC, graph pinned). The confirmed per-object costs account for roughly 8.7 KB of that. The remaining ~3.7 KB is unexplained; do not build a story on it.
+- **`WEB_DIE_BUDGET = 200_000` has NOT been re-derived** and should not be changed on the strength of this. Its justification rests on the 266k STDF case, which is one of the fixtures above.
+
+**tsmap side:** no change. The CSV/JSON path is unaffected either way — `test_identity.rs` forces hashed test numbers above `RESERVED_BELOW` (1,000,000) for row-order stability, and that lands in the cheap form as a side effect.
+
+### 63. ~~A progressive gallery load can only be reported as "done", not "12 of 50" — so a host's progress bar has nothing to fill~~ (fixed in wmap, unreleased)
+
+**Where:** wmap `packages/canvas-adapter/renderWaferGallery.ts` — `GalleryOptions.onItemsResolved` (added for #62) and `resolveNext`.
+
+**Found:** 2026-09-19, adopting the progressive mount in tsmap (#62). `onItemsResolved` tells a host when the whole lot has settled, which is what it needs to tear its indicator down. It does not say how far along the load is, so the indicator covering a 10–25 second staging can only show **static text**. A static message sitting unchanged for ten seconds reads as a hang — which is the exact failure the progressive path exists to avoid, reintroduced one layer up.
+
+The gallery already knows the number: `resolveNext` increments through `factories` and holds `pendingFactoryCount`. Nothing exposes it.
+
+**Why the host cannot derive it.** Counting `.wmap-gallery-card canvas` in the DOM works today and is precisely the coupling `onItemsResolved` was added to avoid — a class name is not a contract, and a host polling wmap's internals is a bug waiting for a refactor. `setItems` does not help either: it rebuilds.
+
+**Suggested fix — one additive option, mirroring `onItemsResolved`:**
+
+```ts
+/** Called as each factory resolves, with how many of the expected items are now built. */
+onItemResolved?: (resolved: number, total: number) => void;
+```
+
+Fired from `resolveNext` after `placeholder.replaceWith(card)`, under the same generation guard, with `total` = the item count `buildCards` was given. Cheap (one call per card, no computation), and it makes `onItemsResolved` the terminal case of the same signal rather than the only signal.
+
+Two details worth getting right:
+
+- **Fire it for pre-built items too**, or a host has to branch on which form it passed — the same reasoning that made `onItemsResolved` fire on both paths. For a synchronous mount that is one call with `resolved === total`.
+- **`total` is the expected count, not the resolved count**, so a bar can be sized before anything has arrived.
+
+**Host-side consequence while this is open:** tsmap's staging indicator shows `Rendering N wafers…` with no bar. Tracked as part of the one-busy-system work in [`IDEAS.md`](IDEAS.md) — the load chrome cannot be made coherent without this number.
+
+**[2026-09-20] A second, separate defect in the same signal — fixed in wmap, unreleased.**
+`onItemsResolved` fired when the lot Summary panel's render *started*, not when it finished.
+The panel has been staged across tasks since the chunking work, so on a large lot it keeps
+building for seconds after the last card: measured in Chrome on 50 wafers x 8,000 dies x 50
+tests, the cards were in at 3.6 s and the panel finished at 16.8 s — the host was told
+"settled" **13.1 s early**, and tsmap's `onItemsResolved` handler tears down
+`clearRenderProgress()` there. The symptom the user reported is exactly that: *"it's not
+obvious exactly when the panel update is finished."* The option's own JSDoc had promised the
+summary panel was settled, so this was a regression against its stated contract, not a missing
+feature. Fixed in `resolveNext` by holding the emit until the panel's `runChunked` run calls
+`onDone`; it now lands within ~26 ms of the panel completing. Guarded by
+`tests/gallerySharedOptionPush.test.mjs`, which forces staging with a fake clock rather than a
+large fixture. **No tsmap change is needed** — the existing handler becomes correct once the
+signal is — but note the staging strip will now say `Rendering N wafers…` for the extra panel
+seconds, which is a phase-naming problem for the one-busy-system work, not a regression.
+
+**[2026-09-20 s6] Fixed in wmap, unreleased — `GalleryOptions.onItemResolved(resolved, total)`.**
+Emitted from `resolveNext` after `placeholder.replaceWith(card)`, deferred a task and
+generation-guarded like every other callback there. `resolved` is passed **by value**, not read
+from a counter when the deferred callback runs — otherwise a burst of resolutions all report the
+latest count and a host bar jumps instead of advancing. Pre-built items are reported in **one**
+call rather than one-by-one: they already have cards when resolution starts, so per-item calls
+would invent progress that never happened, while omitting them would start a mixed set's bar at
+0 of 5 with two cards already on screen. A fully synchronous mount is therefore exactly one
+`onItemResolved(total, total)`, which is what lets a host skip the branch. Not called for an
+empty list.
+
+No third callback was added for the panel phase, per §4 #18 of the handoff: a host knows that
+phase has begun when `resolved === total` and ended when `onItemsResolved` fires.
+
+Documented in `docs/api.md` §6.2 (`check-api-claims.mjs` demanded the field count, 17 -> 18, as
+predicted). Four tests in `tests/gallerySharedOptionPush.test.mjs`; three were verified to FAIL
+against a build with the emits removed. The fourth is a negative assertion ("stays quiet after
+destroy / for an empty gallery") and passes vacuously on the unfixed build — that is inherent to
+a negative test, noted so nobody reads it as a regression guard for the feature itself.
+1,109 tests pass, `npm run check` clean.
+
+**tsmap side:** adopted as part of the one-busy-system work — see `IDEAS.md`.
+
+### 62. `renderWaferGallery`'s progressive (factory) path was slower than the blocking one it exists to replace — two O(n²) costs per resolved wafer
+
+**Where:** wmap `packages/canvas-adapter/renderWaferGallery.ts` (`resolveNext`, `syncSharedBinColors`, `renderGallerySummaryPanel`) and `packages/canvas-adapter/renderWaferMap.ts` (`syncOpts`).
+
+**Found:** 2026-09-19, measured in real Chrome via Playwright on 50 wafers × 8,000 dies × 50 tests — the shape behind the "gallery mount takes 23 s" problem. Passing factories instead of pre-built items fixes the *initial* block beautifully (23,200 ms → ~30 ms) but total time to show 50 cards went from 23 s to **over 60 s with 6.5 s stalls**, and with the lot summary panel open it never finished: **41 of 50 cards after 3 minutes**, with an 11.3 s task.
+
+**Why — two independent quadratics, neither of them the one first suspected.** The leading hypothesis was that `applyGridColumns([item])` → `refreshCardSizeCap` → `applyCardSizeCap()` rewrote `maxWidth`/`maxHeight` on every existing card per resolution, tripping each card's `ResizeObserver` into a redraw. **Measured: false.** `applyCardSizeCap` ran **once** over a 50-wafer load (its cap is grow-only, so a uniform lot trips it on the first wafer and never again) and the per-card `ResizeObserver` fired exactly once per card. `currentItemCount` is also already set to the full expected count before any factory resolves, so there was nothing to hoist there either.
+
+What the counters actually showed, at 20 cards:
+
+| counter | shipped | cause |
+| --- | --- | --- |
+| card `setOptions` calls | **210 = n(n+1)/2** | all of them the patch `{binColors}` |
+| `drawMapCanvas` | 250 | 210 of them from those pushes |
+| `buildView` | 230 | same |
+| `applyCardSizeCap` | 1 | *not* the cause |
+| `ResizeObserver` fires | 20 | *not* the cause |
+
+1. **The shared bin-colour push.** After each resolution, `syncSharedBinColors` re-derives the lot-wide `BinColors` and pushes it to **every live card**. Each derivation allocates fresh `Map`s and `Set`s, so `prev !== next` is always true even when the lot's bins have not changed — and `renderWaferMap`'s `syncOpts` is unconditional: any patch it is handed rebuilds the view and synchronously redraws the canvas. So the load did n(n+1)/2 full redraws of unchanged content. The same shape applies to `valueRange` (in `value` mode) and `metadataValueOrder` (in `metadata` mode) — three copies of one missing rule.
+
+2. **The lot summary panel.** `renderLotSummaryContent` pools every die of every resolved item (plus two `WeakMap` writes per die) and recomputes the bin-breakdown, region-yield and per-test sections from that pool. Following each resolution costs k × dies-per-wafer on the kth card. **This was the larger of the two: 175 s of the 182 s load.**
+
+**It had been investigated and wrongly cleared.** An earlier elimination pass ruled the panel out by "running with the panel closed" and getting an identical time. The harness passed `summaryPanel: { placement: 'right', defaultOpen: false }` — but when `placement` is set, `renderWaferGallery` forces `display = 'flex'` and **ignores `defaultOpen`** (it applies only to the auto-mounted panel). Both runs had the panel open, which is exactly why they matched. Worth remembering as a harness lesson, not a wmap bug: an elimination is only as good as proof that the thing was actually switched off.
+
+`rebuildLegend` was also suspected and coalesced on the strength of an estimate; measured, it is **201 ms over a 50-wafer load**, not the ~3 s per card attributed to it. The rAF coalescing it and the shared-option syncs use also collapses nothing on this path — each resolution owns a task longer than a frame, so every one of them gets its own rAF flush. That is why coalescing "changed nothing measurable".
+
+**Fixed in wmap (unreleased, 2026-09-19):**
+
+- **`pushSharedOption(key, next, eq)`** is now the single way a lot-wide option reaches the cards, and it pushes only when the value actually **changed**. One mechanism for all three options rather than three hand-rolled pushes. Equality is by value: `binColorsEqual` (`renderer/binColors.ts`, comparing the colour maps, the clash lists *and* the pass sets — the pass verdict drives bin order and soft-bin yield downstream and can change without a colour moving) over new `arrayEqual`/`mapEqual`/`setEqual` primitives in `core/utils.ts`. Deliberately shallow: these compare numbers, strings and colours, never nested objects.
+- **The lot summary panel settles once the lot is in** rather than following each resolution — rendered when the last factory resolves. Nothing is lost while loading: the panel still renders at mount and the toolbar's own toggle re-renders on open. A prefix panel was never a figure to act on anyway, since its header names the full lot the caller passed while its sections tally only the wafers resolved so far.
+- `tests/gallerySharedOptionPush.test.mjs` guards both, counting draw passes via the one `ctx.scale` call `drawMapCanvas` makes per pass. All three behavioural assertions were verified to fail against the unfixed build (first card drew 9 times not ≤3; 4 wafers 22 draws vs 12 wafers 166 — the quadratic signature).
+
+**Measured after, same 50 × 8,000 × 50 lot in Chrome on the same dev laptop:**
+
+| path | before | after |
+| --- | --- | --- |
+| factory, panel open | 182 s, 41/50 cards, 11.3 s stall | **7.8 s to all 50 cards**, longest stall 440 ms |
+| card `setOptions` pushes | 1,275 | **1** |
+| `drawMapCanvas` calls | quadratic | **101 = 2n+1** |
+| panel renders during load | 50 | **1**, after the last card |
+| synchronous path (for reference) | 22.6 s blocking | unchanged — 22.6 s blocking |
+
+So the progressive path is now both faster in total *and* non-blocking, which is what it was for.
+
+**Residual, NOT fixed — one 11.2 s synchronous task remains.** A single `renderLotSummaryContent` over the full 50 × 8,000 × 50 lot costs **11.2 s**, and it is now one task at the end of the load. It is not a regression — the same render sits inside the synchronous path's 22.6 s mount today — and it is no longer multiplied by 50, but it is still a freeze. Its cost is `buildLotTestSection` over 400k pooled dies × 50 tests, plus ring/quadrant classification of every die. This is the same family as item 1 of #61 (`analyzeWaferMap` needs a scale strategy) and needs the same discipline: pooled *distribution* work can be sampled, **yield, bin counts and die tallies cannot**. Until then, a host mounting a large lot with a placed summary panel should expect one long task after the cards appear.
+
+**Then adopted in tsmap (unreleased, 2026-09-19), which needed one more thing from wmap.** The gallery had no way to say it had finished: a host holding a progress indicator over a staged load would have had to poll `.wmap-gallery-card canvas`, coupling itself to wmap's internal DOM. Added **`GalleryOptions.onItemsResolved`** — fires once, asynchronously, when every factory has resolved and the lot-wide surfaces have settled, and **fires for pre-built items too**, so a host gets one signal and never has to know which path the gallery took. Generation-guarded, so a gallery rebuilt (`setItems`, a stacked-mode switch) or destroyed mid-load reports nothing for the build that no longer exists — tsmap depends on that, since it tears the view down on every new file. Documented in `docs/api.md` §6.2; four tests in `tests/gallerySharedOptionPush.test.mjs`.
+
+tsmap side: `shouldMountProgressively(dieCounts)` / `GALLERY_PROGRESSIVE_DIE_THRESHOLD` in `src/lib.ts`, and `main.ts` passes factories above it while holding `#render-progress` until `onItemsResolved`. **Thresholded on total dies across the lot, not wafer count** — the same single-dimension discipline as `WEB_DIE_BUDGET`, and for a measured reason: 4 wafers of 4,000 dies block longer (460 ms) than 25 wafers of 500 (340 ms), so counting cards gets it backwards.
+
+**The threshold is not protecting against a cost.** Measured, the progressive path is never the worse choice in any way a user feels — above ~16k dies it wins on total time as well, because the synchronous path redraws every card once more than it needs to. What the threshold avoids is a needless *behaviour* change: below ~10k dies the synchronous mount is under ~200 ms, reads as instant, and paints once, and staging there would trade that for a flash of placeholders and a lot panel that settles a beat late.
+
+| lot | total dies | sync mount BLOCKS | progressive: 1st card / all cards |
+| --- | --- | --- | --- |
+| 3w x 500d x 10t | 1,500 | 115 ms | 69 ms / 115 ms |
+| 8w x 500d x 10t | 4,000 | 124 ms | 39 ms / 163 ms |
+| 25w x 500d x 10t | 12,500 | 340 ms | 47 ms / 527 ms |
+| 4w x 4,000d x 20t | 16,000 | 460 ms | 113 ms / 427 ms |
+| 13w x 4,000d x 20t | 52,000 | 1,393 ms | 172 ms / 845 ms |
+| 50w x 4,000d x 100t | 200,000 | **31,254 ms** | 639 ms / 9,999 ms |
+| 50w x 8,000d x 50t | 400,000 | 22,600 ms | ~150 ms / 7,740 ms |
+
+On the 143 MB `sweep-200000x100.csv` shape (50w x 4,000d x 100t), end to end with tsmap's own gallery options: **31.3 s of one frozen task becomes a 10 ms mount, the first wafer on screen at 0.64 s, all 50 at 10.0 s, and everything settled at 24.7 s** with the progress overlay held throughout.
+
+**Still open, and now the dominant cost on that file:** the lot summary panel's single render is **15.3 s** at 100 tests (11.2 s at 50) — one synchronous task, larger than building all 50 cards put together. Progressive mounting moved it out of the way of first paint but did not shrink it, and it is what a user still waits on. See the residual note above; this is the case for attacking `buildLotTestSection` next.
+
+### 61. Insights is unusable on a large lot, and the correlation panel never renders at all
+
+**Where:** wmap `packages/stats/correlation.ts` (`buildCorrelationMatrix`), `packages/canvas-adapter/insightsTab.ts` and `charts/`.
+
+**Found:** 2026-09-19, in the browser build with a 143 MB / 400k-die × 50-test CSV (one of the sweep fixtures from the die-count ceiling work — see [`COLUMNAR_DATA.md`](COLUMNAR_DATA.md) §3). The wafer gallery handles that lot well. **Insights becomes very, very slow, and the correlation tab never renders anything at all.**
+
+**Why, by inspection:** `buildCorrelationMatrix` is `O(dies × tests²/2)` with a six-accumulator update per pair:
+
+- 400k dies × 50 tests = **1,225 pairs per die = 490 million pair updates**, each touching 6 `Float64Array` accumulators — on the order of 3 billion operations, single-threaded.
+- It also allocates **two typed arrays per die** inside the loop (`new Float64Array(n)` and `new Uint8Array(n)` at `correlation.ts:118-119`) — 800k allocations for this lot, with the GC pressure that implies. The same class of waste as the `Arc<str>` interning fixed in the parser: a per-item allocation for scratch that could be hoisted.
+
+So "never renders" is most likely *not hung but still working*, which from the outside is indistinguishable from broken — and wmap's own guidance says silence is not success.
+
+**There is no die-count guard.** `analyzeWaferMap` caps *test-value analysis* at 250 tests (`TEST_COUNT_WARN_THRESHOLD`), but nothing considers die count, and correlation is the one computation that is quadratic in tests *and* linear in dies.
+
+**Fixed in wmap (unreleased, 2026-09-19)** — directions 1 and 2 below, which were the two that mattered:
+
+- `buildCorrelationMatrix` now samples above `CORRELATION_DIE_BUDGET` (25,000 dies), **striding evenly across the whole population** rather than taking a prefix — dies arrive grouped by wafer, so a prefix would describe the first few wafers, not the lot. `tests/correlation.test.mjs` guards that specifically: a signal planted only in the last quarter of the population must still be visible in the sample.
+- The two per-die scratch arrays are **hoisted out of the die loop** (800k allocations removed on a 400k-die lot).
+- Measured on the same 400k-die × 50-test data: **3349 ms → 253 ms (13.2×), with r changing from 0.5410 to 0.5409** — the fourth decimal place. The standard error of r at n = 25,000 is under 0.007, so more dies cannot move a two-decimal reading.
+- **The panel says so.** `CorrelationMatrix.sample` carries `{ of, used }`, `correlationSampleNote()` is the wording, and the correlation card renders it in the hint row where the population is already stated: *"From a 25,000-die sample of 400,000, spread evenly across the lot — r is an estimate, not the whole population."* An unlabelled sampled statistic is the exact class of quietly-wrong number this library exists to prevent.
+
+**Then the rest of the suite was profiled (2026-09-19), and the chart builders are not the problem — `analyzeWaferMap` is.** At 400k dies × 50 tests, on the same dev laptop:
+
+| stage | time |
+| --- | --- |
+| `buildCorrelationMatrix` (now sampled) | 265 ms |
+| `buildTestBoxplotData` | 118 ms |
+| `buildCapabilityData` | 57 ms |
+| `buildYieldData` | 23 ms |
+| `buildTestHistogramData` | 15 ms |
+| `buildBinParetoData` | 15 ms |
+| `buildWaferMap` | **5,555 ms** |
+| **`analyzeWaferMap` (default)** | **9,026 ms** |
+| **`analyzeWaferMap` + `computePerTestStats`** | **21,823 ms** |
+| **`analyzeWaferMap` + `enableTestValueAnalysis`** | **41,474 ms** |
+
+So every panel's own data builder finishes in well under a third of a second, and the tab still feels dead because the analysis feeding it takes 9–41 seconds. **Optimising the panels would have achieved nothing** — this is why the profile came before the work.
+
+Where that leaves it:
+
+1. **`analyzeWaferMap` needs a scale strategy**, and it is not the same one correlation got. Sampling is sound for *distribution* statistics (capability, boxplot quantiles, Welch comparisons) but **must not touch yield, bin counts or die tallies**, which have to stay exact — a sampled yield is precisely the quietly-wrong number this library exists to prevent. That split needs designing before any code.
+2. **`buildWaferMap` at 5.5 s** for one 400k-die map is worth its own look; it is not analysis, it is the map every host builds first.
+3. **A `dies` budget with an explicit message** remains worth having for whatever stays expensive — a panel that says "too large to compute, here is why" beats one that appears to hang.
+
+**Also found and fixed while profiling: a whole bug class, not one bug.** `buildWaferMap` could not build a 400k-die map at all — `RangeError: Maximum call stack size exceeded`, from `Math.max(...physPoints.map(...))` spreading one argument per die. Measured limit on this V8: **125,000 arguments fine, 150,000 throws** (2¹⁷ ≈ 131k).
+
+A library-wide grep found **five per-die spreads**, each of which passes every fixture, every demo and every small wafer before failing outright on a production lot:
+
+| site | what overflowed |
+| --- | --- |
+| `buildWaferMap.ts` `requiredRadius` | one point per die — **could not build a 400k-die map at all** |
+| `charts/scatter.ts` axis extent | one point per die — would have taken the Insights rebuild with it |
+| `core/aggregates.ts` `min`/`max` | one value per die in a lot stack |
+| `canvas-adapter/toCanvas.ts` hit-grid bounds | per-die fallback when `view.dieBounds` is absent |
+| `stats/renderSummaryReport.ts` + `canvas-adapter/summaryPanel.ts` | `allDies.push(...wafersDies)` — breaks on a single wafer above ~131k dies |
+
+**It had already bitten once and been fixed only where it was found.** `charts/histogram.ts` carries a comment recording that this exact overflow hit a real 25 × ~10k-die lot and took the whole Insights rebuild with it — the fix went in there and the class was left everywhere else, which is how `buildWaferMap` and scatter were still carrying it.
+
+So the rule is now blanket and enforced rather than case-by-case: **never spread into `Math.min`/`Math.max`; use `minOf`/`maxOf` (`core/utils.ts`), which iterate.** Every call site in `packages/` was converted, including the ones whose arrays are provably bounded today, so "is this array bounded?" is no longer a question anyone has to get right or a property a later change can quietly invalidate. `scripts/check-spread-limits.mjs` enforces it in `npm run check` (verified to fail on a reintroduction). `push(...)` over a per-die array has the same limit and is not machine-checkable the same way — the two summary-report sites above were the instances, and it is worth a look in review.
+
+**Suggested directions, cheapest first:**
+
+1. **Hoist the per-die scratch arrays** out of the loop and reuse them. Pure win, no behaviour change, removes 800k allocations at this scale.
+2. **Subsample dies for correlation.** A Pearson coefficient over 400k points is statistically indistinguishable from one over ~20k sampled points, so a die budget (say 25k, sampled deterministically) is a ~20× win with no meaningful loss of precision. It must be *stated* in the panel — "correlation from a 25,000-die sample" — because an unlabelled sampled statistic is exactly the kind of quietly-wrong number this library exists to avoid.
+3. **Budget the whole Insights suite by `dies × tests`**, and where a panel exceeds it, say so rather than appearing to hang: a message and an explicit "compute anyway" is far better than a blank tab.
+4. **Profile the rest of Insights** at this scale before optimising blind — correlation is the obvious quadratic, but "very slow" covers the whole suite and the others may have their own per-die allocations.
+
+**Not yet measured:** where the usable limit sits, whether the correlation panel eventually completes (and how long it takes), and which other Insights panels are slow versus merely waiting behind correlation. All of that needs a profile run, not inspection.
+
+### 60. No way to load a custom colour scheme — `registerValueColorScheme` cannot take a gradient from a file, nothing can be unregistered, and a custom name can silently replace a built-in
+
+**Where:** wmap `packages/renderer/colorSchemes.ts` — `registerValueColorScheme` /
+`registerBinColorScheme` and their `list*` counterparts, all public via
+`packages/renderer/index.ts:22` (`export * from './colorSchemes.js'`). Menu rows are built in
+`packages/canvas-adapter/toolbar.ts` (~:2869, ~:2883).
+
+**Wanted (tsmap, raised 2026-09-18):** the user loads a **colour scheme config file** — a bin
+palette, a value gradient, or several — and the schemes in it appear in the map's Colour scheme
+menu alongside the built-ins, stay there across restarts until the user clears them, and the
+one they picked stays selected across restarts too. This is a site-standards feature: a fab
+with a house palette wants every map drawn in it, not in wmap's defaults.
+
+**What tsmap has today, and why it isn't this:**
+
+| Route | Covers | Doesn't cover |
+| --- | --- | --- |
+| Colour scheme menu | Picking one of 2 built-in bin palettes (`default`, `accessible`) and 8 value gradients; choice persisted by `src/mapColorPrefs.ts` | Adding anything to either list |
+| Bin defs file (`src/binDefs.ts`, `color` column → `BinDef.color`) | Per-bin colour overrides for the bins listed in the file | Unlisted bins (they fall through to the built-in palette); it is a data layer over a palette, not a palette. Bin colours only |
+| — | — | **Value gradients have no user-supplied route at all** |
+
+`registerBinColorScheme`/`registerValueColorScheme` are exported and `tsmap/src/` calls neither
+— the only import from that module is the two `list*` functions, used to validate saved names.
+The toolbar builds its rows inside the menu-open callback rather than at mount, so anything
+registered appears immediately with no re-render. So most of this is buildable tsmap-side
+today. Four things block the full feature:
+
+1. **A value gradient cannot be expressed in a file.** `BinColorScheme` is declarative
+   (`{ label, pass: string[], fail: string[] }`) and maps onto a config file directly.
+   `ValueColorScheme` is `{ label, forValue: (t: number) => string }` — a **function**, which no
+   file format can carry. wmap itself does the declarative-to-function step internally for five
+   of its eight gradients via `lerpKp(KEYPOINTS, t)`, but `lerpKp` is not exported and there is
+   no stops form on the public type. Every host that wants file-loaded gradients therefore
+   reimplements the same keypoint interpolation — the duplication the architecture rules exist
+   to prevent, and each host's will round differently from wmap's own.
+2. **Nothing can be unregistered.** Both registries are `Map.set` with no `unregister`, so
+   "loaded until the user clears them" cannot be honoured within a session — clearing would
+   leave the schemes in the menu until the app is restarted. A menu that still offers what the
+   user just deleted is the kind of control-disagrees-with-state bug #52 was about.
+3. **`list*` cannot distinguish a custom scheme from a built-in.** Both return `{ name, label }`
+   only. tsmap can track its own names separately, but the menu cannot group them under a
+   "Custom" section, and any host wanting to show provenance re-derives it.
+4. **A file-supplied name silently replaces a built-in, irreversibly.** `Map.set` means a scheme
+   named `default` in a user's file overwrites wmap's default palette for the life of the
+   process, with no unregister (2) to undo it and no signal that it happened. That is a
+   plausible thing for a user to type, and the result is that the built-in a colleague is
+   describing no longer exists on their machine.
+
+**Suggested fix (wmap), in priority order:**
+
+1. **Accept a declarative gradient:** `registerValueColorScheme(name, { label, stops })` as an
+   alternative to `forValue`, where `stops` is the `[t, r, g, b][]` keypoint form the built-ins
+   already use — or, smaller, export the existing `gradientFromStops(stops) => (t) => string`
+   helper (`lerpKp`). Either makes a file-loadable gradient possible and keeps one
+   interpolation. **This is the one item a host genuinely cannot work around.**
+2. **`unregisterBinColorScheme(name)` / `unregisterValueColorScheme(name)`**, refusing to remove
+   a built-in. Needed for "clear my custom schemes" to be honest.
+3. **Mark provenance on `list*`** — a `builtIn: boolean` on the returned entries — so a host can
+   section the menu without keeping a parallel list.
+4. **Refuse (or warn on) a registration that shadows a built-in name.** Given (2) makes removal
+   possible, a thrown error is the better shape here, matching the existing empty-`pass`/`fail`
+   throw: the failure belongs at registration, not as a palette that has quietly changed.
+
+Note (1)–(4) are independent; (1) alone unblocks the feature in a reduced form (load-only, no
+clear, no sectioning).
+
+**tsmap side (not started) — read `IDEAS.md` § "Settings layering" first.** This is the first
+feature to need a stated precedence between a site-supplied default, the user's saved choice and
+a per-lot definitions file, and that model is specified there rather than invented here: a site
+palette, a saved selection and a bin defs file's `BinDef.color` can all colour the same die. The
+scheme file is **JSON, not CSV** — a palette is a named object with two lists, not a table of
+rows, and the site-defaults layer must be fetchable on the web build. It is therefore a section
+of the settings file described in that entry, not a fourth entry in the `Load definitions ▾`
+family alongside `binDefs.ts` / `testSelectorUI.ts` / `splits.ts` (those are tabular, per-lot,
+Excel-edited data; this is app configuration). Parsing stays TypeScript, not the Rust
+testdata-parser, which is for large arbitrary-column die data.
+
+Mechanically: the parsed schemes persist under a new `storageKeys.ts` entry and are re-registered
+at startup before first render; the existing `mapColorPrefs.ts` then keeps the *selection* across
+sessions with no change, since it already validates a saved name against `list*` and drops it when
+unregistered — exactly right when a user clears the file that defined it. Colour strings must be
+validated at parse time: `registerValueColorScheme` documents that an invalid CSS colour renders
+as a silent blank or black die, and neither register function validates colours.
+
+**Related:** #52 (persisting the *choice* among built-ins — fixed in 0.28.0; this is the
+complementary gap of supplying new ones). The `BinDef.color` layer and its
+`useDefinedBinColors` toggle stay as they are — a per-bin override and a palette are different
+features and a site may well use both.

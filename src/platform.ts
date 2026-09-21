@@ -3,7 +3,7 @@
 
 import type { CsvMapping } from './mappingUI';
 import { DATA_FILE_EXTENSIONS } from './lib';
-import type { LotMeta, WaferData, TestDef } from './types';
+import type { LotMeta, WaferData, TestDef, ParserWarning } from './types';
 import type { BinDef } from '@wafertools/wafermap';
 import { openModal } from './modal';
 
@@ -18,8 +18,9 @@ export interface RustParsedFile {
   hbinDefs?: BinDef[];
   sbinDefs?: BinDef[];
   passHbins?: number[];
-  /** Non-fatal advisories from the parser (e.g. fabricated soft bins). */
-  warnings?: string[];
+  /** Non-fatal advisories from the parser — `{ code, message, severity }`.
+   *  Branch on `code`; see `ParserWarning`. */
+  warnings?: ParserWarning[];
 }
 
 export interface HeadersResult {
@@ -645,14 +646,23 @@ function getWorker(): Worker {
   if (parserWorker) return parserWorker;
   const w = new Worker(new URL('./parserWorker.ts', import.meta.url), { type: 'module' });
   w.onmessage = (e: MessageEvent) => {
-    const { id, ok, result, error } = e.data as
-      { id: number; ok: boolean; result?: unknown; error?: string };
+    const { id, ok, result, error, code } = e.data as
+      { id: number; ok: boolean; result?: unknown; error?: string; code?: string };
     const call = pendingCalls.get(id);
     if (!call) return;
     pendingCalls.delete(id);
-    if (ok) call.resolve(result);
-    else call.reject(new Error(error ?? 'parser error'));
+    if (ok) { call.resolve(result); return; }
+    // Rebuild the Error the worker caught, and put the parser's stable `code`
+    // back on it: postMessage cannot clone an Error's own properties, so the
+    // worker sends it alongside. Without this the web path loses the code that
+    // the native path keeps, and `errCode()` would answer differently depending
+    // on which build the user is running — the one asymmetry this parser's
+    // "one source, two targets" design exists to avoid.
+    const err = new Error(error ?? 'parser error');
+    if (code) (err as Error & { code?: string }).code = code;
+    call.reject(err);
   };
+
   // A panic inside WASM becomes a trap that fires here (not onmessage), so a
   // hung request never silently waits forever — reject every pending call and
   // drop the worker so the next call spins up a fresh one.

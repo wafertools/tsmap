@@ -13,6 +13,7 @@ import { formatTestListCsv } from './testSelectorUI';
 import { formatSplitsCsv, setSplitLabel } from './splits';
 import { formatBinDefsCsv } from './binDefs';
 import type { WaferData } from './types';
+import { errMsg } from './lib';
 
 interface TemplateRow {
   label: string;
@@ -102,7 +103,7 @@ export function showDefinitionsTemplatesDialog(
             await onSave(row.content(), row.fileName, row.label);
             onLog('info', `${row.label} template saved`);
           } catch (e) {
-            onLog('error', `Failed to save ${row.label.toLowerCase()} template: ${e instanceof Error ? e.message : String(e)}`);
+            onLog('error', `Failed to save ${row.label.toLowerCase()} template: ${errMsg(e)}`);
           }
         });
 

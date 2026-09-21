@@ -21,7 +21,7 @@
 
 import { openModal } from './modal';
 import { buildFilterTable, formatFilterFile, parseFilterFile, type FilterTableColumn, type FilterTableRow, type FilterTableHandle, type FilterCriteria } from './filterTable';
-import { effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
+import { errMsg, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
 import type { Platform, FileHandle, FileMeta } from './platform';
 import { isTauri } from './platform';
 import { storageKey } from './storageKeys';
@@ -255,7 +255,7 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
     if (meta === null) return { id, picked, meta: null, error: `Unsupported for filtering: .${ext}` };
     return { id, picked, meta };
   } catch (e) {
-    return { id, picked, meta: null, error: e instanceof Error ? e.message : String(e) };
+    return { id, picked, meta: null, error: errMsg(e) };
   }
 }
 
@@ -399,7 +399,7 @@ async function expandPickedArchives(
       out.push(...inner.map(pickedFromHandle));
     } catch (e) {
       // One bad archive shouldn't cost the whole scan.
-      log('error', `Could not read ${p.handle.name}: ${e instanceof Error ? e.message : String(e)}`);
+      log('error', `Could not read ${p.handle.name}: ${errMsg(e)}`);
     }
   }
   return out;

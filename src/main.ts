@@ -11,7 +11,7 @@ import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/w
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt } from './lib';
+import { basename, rustToLocal, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt, shouldMountProgressively } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm, needsWaferLabelPrompt } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
@@ -73,7 +73,6 @@ const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
 const fileLabel       = document.getElementById('file-label')!;
-const busySpinner     = document.getElementById('busy-spinner')!;
 const logList         = document.getElementById('log-list')!;
 const logToggle       = document.getElementById('log-toggle')!;
 const logPanel        = document.getElementById('log-panel')!;
@@ -269,13 +268,34 @@ let showSplitSuffix = true;
 let waferDiameterMm: number | undefined = getWaferDiameterMm();
 let edgeExclusionMm: number | undefined = getEdgeExclusionMm();
 
-let cachedLotStats: ReturnType<typeof buildLotStatsSummary> | null = null;
+let cachedLotStats: NonNullable<Awaited<ReturnType<typeof buildLotStatsSummary>>> | null = null;
 // The wmap controller for the map currently rendered into the main `container`
 // (full-window map/gallery view). Destroyed before the container is cleared so
 // wmap's observers/listeners are disconnected deterministically (see
 // WMAP_ISSUES.md #21). The modal drilldown owns its own controller separately.
 let mainViewController: { destroy(): void; openUserGuide(): void } | null = null;
+/**
+ * Resolver for the in-flight "gallery has settled" wait, or null when nothing is
+ * waiting — see the progressive mount in `renderWaferView`.
+ *
+ * A progressive gallery mounts in ~10 ms and fills in over the following
+ * seconds, so `renderWaferView` must not resolve at mount: its caller does
+ * `loadPhase('rendering', …)` → `await renderWaferView(…)` → `endLoad(…)`, and
+ * resolving early ended the load while 50 cards were still appearing.
+ *
+ * Released by `onItemsResolved`, and by `destroyMainView` so a superseded render
+ * never leaves its caller awaiting a gallery that no longer exists.
+ */
+let releaseGallerySettle: (() => void) | null = null;
+
+function settleGallery(): void {
+  const release = releaseGallerySettle;
+  releaseGallerySettle = null;
+  release?.();
+}
+
 function destroyMainView() {
+  settleGallery(); // whoever is awaiting this view will never hear from it now
   mainViewController?.destroy();
   mainViewController = null;
 }
@@ -300,9 +320,51 @@ function log(level: LogLevel, msg: string) {
   logToggle.textContent = errors > 0 ? `Log (${errors} error${errors > 1 ? 's' : ''})` : 'Log';
 }
 
-/** Surface any non-fatal parser advisories (e.g. fabricated soft bins) in the log. */
+/**
+ * Off by default. When on, `loadPhase`/`endLoad` write one line per phase
+ * transition to the log panel with elapsed ms since the load started — enough
+ * to see where a load's time actually goes (scan/parse/analyse/render) without
+ * a bespoke harness, and cheap enough to leave running: a boolean check per
+ * phase transition, which happens at most a few dozen times per load.
+ */
+let logTimings = localStorage.getItem(storageKey('tsmap:log-timings')) === 'true';
+
+function toggleLogTimings(): void {
+  logTimings = !logTimings;
+  try { localStorage.setItem(storageKey('tsmap:log-timings'), String(logTimings)); } catch { /* unavailable — session-only */ }
+  log('info', `Phase-timing log ${logTimings ? 'on' : 'off'}`);
+}
+
+/**
+ * Runs `fn` and, when `logTimings` is on, logs its wall time under `label`. For
+ * splitting a `loadPhase`'s single elapsed figure into its actual sub-steps —
+ * e.g. the native-parse `invoke()` (Rust parse + serde + the Tauri IPC
+ * transfer, opaque as one call from here) versus `rustToLocal`'s pure-JS
+ * reconstruction into wmap's `Die[]` shape — without a bespoke harness.
+ */
+async function logTimed<T>(label: string, fn: () => Promise<T> | T): Promise<T> {
+  if (!logTimings) return await fn();
+  const start = performance.now();
+  const result = await fn();
+  log('info', `⏱   ${label} — ${(performance.now() - start).toFixed(0)} ms`);
+  return result;
+}
+
+/**
+ * Surface any non-fatal parser advisories in the log.
+ *
+ * Severity picks the log level, the same way wmap's advisories do
+ * (`WMAP_WARNING_LOG_LEVEL`) — a parser `'error'` means a number or plot built
+ * from this file can mislead, which belongs at error level where it opens the
+ * panel, not buried at warn with the informational ones. The code is shown
+ * because it is the stable thing: it is what to search for, and what to quote in
+ * a bug report.
+ */
 function logWarnings(parsed: ParsedFile) {
-  for (const w of parsed.warnings ?? []) log('warn', `${parsed.fileName}: ${w}`);
+  for (const w of parsed.warnings ?? []) {
+    log(w.severity === 'error' ? 'error' : 'warn',
+        `${parsed.fileName} [${w.code}]: ${w.message}`);
+  }
 }
 
 /** Reflect the log panel's open state on the toggle (aria). Tooltip text is a
@@ -460,17 +522,17 @@ if (isTauri) {
       // same `fetch()`, issued any time after the page finished loading,
       // always resolved immediately and normally.
       const runFetch = () => {
-        setBusy(`Fetching ${dataUrl}…`);
+        loadPhase('reading', `Fetching ${dataUrl}`);
         fetch(dataUrl)
           .then(async res => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const bytes = new Uint8Array(await res.arrayBuffer());
             // handleFiles() has its own re-entrancy guard (`if (busy) return`,
-            // main.ts) — setBusy() above set that flag for the fetch itself,
+            // main.ts) — the `loadPhase` above set that flag for the fetch itself,
             // so it must be cleared before calling in, or handleFiles silently
             // no-ops (the fetch appears to succeed — bytes obtained — but
             // nothing after it ever happens: no parse, no error, no render).
-            setIdle();
+            endLoad();
             handleFiles([{ name: deriveFileName(dataUrl, dataFormat), bytes }], false);
           })
           .catch(e => {
@@ -478,7 +540,7 @@ if (isTauri) {
             // called out explicitly since it would otherwise look inscrutable
             // to whoever configured the caller's endpoint.
             log('error', `Failed to fetch "${dataUrl}": ${errMsg(e)} — if this is a cross-origin URL, the server must send CORS headers allowing this origin`);
-            setIdle();
+            endLoad();
           });
       };
       if (document.readyState === 'complete') {
@@ -654,7 +716,79 @@ function buildWmapConfig(
   };
 }
 
-function buildLotStatsSummary(wafers: WaferData[]) {
+/**
+ * Yields until the browser has actually painted.
+ *
+ * **Two frames, not one.** A single `requestAnimationFrame` resolves its promise
+ * inside the frame callback, and the continuation runs as a microtask in that same
+ * task — so blocking work resumes *before* the paint, and whatever message was
+ * just written is never shown. The second frame is what guarantees the first one
+ * reached the screen. (The file-reading path above double-yields for the same
+ * reason; single `setTimeout(0)` is additionally unreliable on WebKitGTK.)
+ */
+/**
+ * Render the one load indicator. Only `loadPhase` and `endLoad` call this —
+ * see the LoadPhase block for why the app has exactly one of these.
+ *
+ * It lives **in the map container**, where the result is going to appear and
+ * where the user is already looking. The topbar was the wrong place: 12px, easy
+ * to miss, and `display:none` below 900px of window width, so a 5-20 second
+ * wait could pass with no visible explanation whatsoever.
+ */
+function showLoadIndicator(phase: LoadPhase, msg: string, done: number, total: number): void {
+  let el = document.getElementById('render-progress');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'render-progress';
+    el.innerHTML = '<div class="rp-msg"></div><div class="rp-bar"><span></span></div><div class="rp-sub"></div>';
+    container.appendChild(el);
+  }
+  refreshIndicatorForm(el);
+  el.querySelector<HTMLElement>('.rp-msg')!.textContent =
+    total > 1 ? `${msg} — ${done} of ${total}…` : `${msg}…`;
+  el.querySelector<HTMLElement>('.rp-sub')!.textContent =
+    phase === 'analysing' && total > 1 && !isTauri
+      ? 'Large lots take a few seconds — the desktop app is faster'
+      : '';
+  // The bar is ALWAYS present. Hiding it for indeterminate phases meant the
+  // same indicator appeared as two different components within one load — a
+  // message with a bar, then a bare label — which is half of why the chrome
+  // read as several systems. An indeterminate phase animates instead, so the
+  // shape is constant and only the motion says whether the end is known.
+  const bar = el.querySelector<HTMLElement>('.rp-bar')!;
+  const known = total > 0;
+  bar.classList.toggle('rp-indeterminate', !known);
+  el.querySelector<HTMLElement>('.rp-bar > span')!.style.width = known
+    ? `${Math.round((done / total) * 100)}%`
+    : '';
+}
+
+function clearLoadIndicator(): void {
+  document.getElementById('render-progress')?.remove();
+}
+
+function yieldToPaint(): Promise<void> {
+  return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+}
+
+/**
+ * Builds every wafer's map and analysis, **yielding between wafers**.
+ *
+ * This is the 9-second stretch of a large gallery load — 22 s with per-test
+ * stats, 41 s with test-value analysis, measured at 400k dies. It used to be one
+ * synchronous `wafers.map(...)`, which meant the spinner could not paint (no
+ * frame was available to paint it in) and the browser put up its own "page
+ * unresponsive" dialog. Yielding a frame per wafer costs ~16 ms each and buys
+ * three things: the busy message appears, it can count wafers as it goes, and no
+ * single chunk is long enough for the browser to judge the page hung.
+ *
+ * `isCurrent` lets a superseded load stop early — see `renderWaferView`'s token.
+ */
+async function buildLotStatsSummary(
+  wafers: WaferData[],
+  onProgress?: (done: number, total: number) => void,
+  isCurrent: () => boolean = () => true,
+) {
   // WCR geometry is lot-level (one WCR record per file), and every wafer
   // produced by the same file shares its WaferSource by reference (types.ts's
   // own documented invariant), so wcrGeometryFrom's result is identical for
@@ -669,13 +803,37 @@ function buildLotStatsSummary(wafers: WaferData[]) {
   // Unique across the whole set — two lots' W01 (or a retest of one wafer in
   // the same file) must not produce two cards with the same heading.
   const labels = waferLabels(wafers, showSplitSuffix);
-  const items = wafers.map((w, i) => {
+  const items: Array<ReturnType<typeof buildWaferMap> & { label: string; statsSummary: ReturnType<typeof analyzeWaferMap> }> = [];
+
+  // Show something before the first wafer, so the wait is explained from the off.
+  onProgress?.(0, wafers.length);
+  await yieldToPaint();
+  if (!isCurrent()) return null;
+
+  // Time-sliced rather than once per wafer: a paint costs ~32 ms, and at ~110 ms
+  // of work per wafer yielding every time would add a third to the total. Yielding
+  // whenever 100 ms has passed keeps every chunk short enough that the browser
+  // never judges the page hung, and keeps the overhead proportional to the work.
+  let lastYield = performance.now();
+  for (let i = 0; i < wafers.length; i++) {
+    const w = wafers[i];
     const wcr = wcrFor(w.source);
     const waferMap = buildWaferMap(buildWmapConfig(w, wmapTestDefsForWafer(w), wcr));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     logWmapWarnings(labels[i], waferMap, statsSummary);
-    return { ...waferMap, label: labels[i], statsSummary };
-  });
+    items.push({ ...waferMap, label: labels[i], statsSummary });
+
+    if (i + 1 < wafers.length && performance.now() - lastYield > 100) {
+      onProgress?.(i + 1, wafers.length);
+      await yieldToPaint();
+      lastYield = performance.now();
+      if (!isCurrent()) return null;
+    }
+  }
+  // The lot-level pass is its own chunk, and on a big lot not a short one.
+  onProgress?.(wafers.length, wafers.length);
+  await yieldToPaint();
+  if (!isCurrent()) return null;
   const perWaferSummaries = items.map(i => i.statsSummary);
   const lotStatsSummary = analyzeWaferLot(items, { perWaferSummaries, ...analyzeOpts() });
   return { items, lotStatsSummary };
@@ -839,7 +997,13 @@ function renderWafers(
   loggedWmapWarnings.clear();
   const restoredSplits = loadSavedSplits(wafers);
   clearLotStatsCache();
-  addBtn.disabled = wafers.length === 0;
+  // `|| busy`: this runs mid-load (renderWafers calls it before the view is up),
+  // and without the guard it re-enabled Add while the gallery was still
+  // rendering — a second owner for a button `setControlsBusy` is supposed to
+  // own, which is the same split-authority problem the one-load-indicator work
+  // exists to remove. `endLoad` re-enables from the other side once the load
+  // really is finished.
+  addBtn.disabled = wafers.length === 0 || busy;
   addMoreBtn.disabled = addBtn.disabled;
   // One trigger for every lot-scoped dialog (see openLotMenu). Its rows
   // handle their own availability — "Tests…" greys out for a file with
@@ -856,10 +1020,17 @@ function renderWafers(
   // large lots — show the spinner then defer via double-rAF so the first
   // frame actually paints the spinner before the heavy render blocks the
   // main thread (single setTimeout(0) is not reliable in WebKitGTK).
-  setBusy(`Rendering ${loadedMsg}…`);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    renderWaferView(wafers);
-    setIdle(loadedMsg);
+  // "Loading", not "Rendering": this opens the span that renderWaferView then
+  // narrates as Analysing → Rendering → Finishing, so claiming the last of
+  // those first made the indicator contradict itself a beat later — the exact
+  // complaint the one-indicator work exists to answer.
+  loadPhase('rendering', `Loading ${loadedMsg}`);
+  requestAnimationFrame(() => requestAnimationFrame(async () => {
+    // Awaited: the gallery path analyses wafer by wafer (see buildLotStatsSummary)
+    // and then stages the cards, and `endLoad` before that finishes is exactly
+    // the desync this load system exists to prevent. One load, ended once, here.
+    await renderWaferView(wafers);
+    endLoad(loadedMsg);
     // Splits carried over from a previous session on this exact wafer set —
     // never apply that silently. Open the dialog so it's obvious what
     // happened and the user can review, edit, or "Clear all" it.
@@ -932,8 +1103,24 @@ function resolveValueFindings(wafers: WaferData[]): FindingsNotice | undefined {
   };
 }
 
-function renderWaferView(wafers: WaferData[]) {
+/**
+ * Monotonic token for `renderWaferView`.
+ *
+ * The gallery path now awaits the per-wafer analysis, so two renders can overlap
+ * where previously the function ran to completion synchronously — a second call
+ * (a preference toggle, a reload) would otherwise tear down the container while
+ * the first was mid-analysis, and the first would then mount a view built from
+ * superseded state. Each render claims a token and abandons itself if a newer one
+ * has started.
+ */
+let renderSeq = 0;
+
+async function renderWaferView(wafers: WaferData[]) {
+  const seq = ++renderSeq;
+  const isCurrent = () => seq === renderSeq;
   destroyMainView();
+  // Clears any previous progress overlay with it — a superseded render's overlay
+  // must not outlive the container it was mounted in.
   container.innerHTML = '';
 
   const findingsNotice = resolveValueFindings(wafers);
@@ -976,10 +1163,79 @@ function renderWaferView(wafers: WaferData[]) {
     });
   } else {
     container.classList.add('gallery');
-    cachedLotStats ??= buildLotStatsSummary(wafers);
+    if (!cachedLotStats) {
+      const total = wafers.length;
+      const built = await buildLotStatsSummary(
+        wafers,
+        (done) => {
+          // `IfActive`: renderWaferView always runs inside a load its caller
+          // opened, so these report progress and must never BEGIN one. When a
+          // caller ended its load early (or never opened one — `refreshCurrentView`
+          // on a theme change), a phase starting here created a load with no
+          // owner to end it: the indicator stuck on "Finishing lot summary"
+          // forever and the toolbar never came back.
+          if (done < total) loadPhaseIfActive('analysing', 'Analysing wafers', done, total);
+          else loadPhaseIfActive('analysing', `Analysing the lot (${total} wafers)`);
+        },
+        isCurrent,
+      );
+      // null = a newer render superseded this one mid-analysis; it owns the view
+      // and the busy state now, so leave both alone.
+      if (built === null) return;   // superseded — the newer render owns the UI
+      cachedLotStats = built;
+      // Deliberately NOT ending the load here. This block used to call
+      // `setIdle` at this point, which is where the three surfaces came apart:
+      // the gallery had not mounted yet, so the app declared itself idle and
+      // sat showing an idle topbar over 50 cards that were still rendering.
+      // The load ends once, in renderWafers, after the view is actually up.
+    }
     const { items, lotStatsSummary } = cachedLotStats;
-    mainViewController = renderWaferGallery(container, items, {
+    // A big lot is mounted progressively — see shouldMountProgressively. The
+    // gallery builds one card per task from these factories instead of all of
+    // them in one call, so the tab stays responsive and the cards appear as they
+    // come. The factory bodies do no work: every item is already built, so this
+    // is purely a request to stage the DOM.
+    const progressive = shouldMountProgressively(items.map(it => it.dies?.length ?? 0));
+    // Awaited at the end of this function when progressive, so the caller's
+    // `endLoad` lands when the gallery is actually done — see
+    // releaseGallerySettle. The load is already open (the caller's
+    // `loadPhase('rendering', …)`); this only names its later phases.
+    const settled = progressive
+      ? new Promise<void>(resolve => { releaseGallerySettle = resolve; })
+      : Promise.resolve();
+    if (progressive) {
+      // `loadPhase` docks this one — the cards appear behind it as they resolve,
+      // and that is what tells the user the wait is progressing. No call site
+      // picks the form; see `indicatorForm`.
+      loadPhase('rendering', `Rendering ${items.length} wafers`, 0, items.length);
+    }
+    mainViewController = renderWaferGallery(container, progressive ? items.map(it => () => it) : items, {
       lotStatsSummary,
+      // Fires once every card is built and the lot-wide surfaces have settled,
+      // for both forms of `items`, so the indicator is torn down at the right
+      // moment without polling wmap's DOM. `isCurrent` because this arrives a
+      // task later: a newer render may already own the container and its own
+      // overlay, and clearing that one would leave its wait unexplained.
+      // Real per-card advance, so the Rendering phase shows a bar that moves
+      // instead of static text — static text sitting still for ten seconds is
+      // the "is it hung?" failure the progressive mount exists to prevent.
+      onItemResolved: (resolved, total) => {
+        if (!isCurrent()) return;
+        if (resolved < total) {
+          loadPhaseIfActive('rendering', `Rendering ${total} wafers`, resolved, total);
+        } else {
+          // Cards are all in, but the lot Summary panel is still filling in
+          // section by section with no card activity to show. Naming that phase
+          // is why wmap has two signals and not one: this is the span between
+          // `resolved === total` and `onItemsResolved`. It is a phase of the
+          // same indicator, NOT a fourth surface.
+          loadPhaseIfActive('finishing', 'Finishing lot summary');
+        }
+      },
+      onItemsResolved: () => {
+        if (!isCurrent()) return;
+        settleGallery();
+      },
       summaryPanel: { placement: 'right', defaultOpen: true },
       findingsNotice,
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
@@ -1001,6 +1257,10 @@ function renderWaferView(wafers: WaferData[]) {
       // access now that tsmap's own Charts page has been removed.
       insights: { enabled: true },
     });
+    // Hold the caller's spinner and busy label until the cards have actually
+    // finished appearing. Resolves immediately on the synchronous path, where
+    // the mount call itself was the whole job.
+    await settled;
   }
 }
 
@@ -1010,18 +1270,24 @@ function renderWaferView(wafers: WaferData[]) {
  * NOT reset load state (`currentBinaryFiles`, `currentTestNames`, button
  * visibility) — those are mid-load and still needed; it only blanks the visible
  * container so the user doesn't see stale data while the new file parses.
- * `renderWafers` replaces this placeholder once the parse completes.
+ * `renderWafers` replaces this once the parse completes.
+ *
+ * **It used to write its own centred "Loading x.stdf…" message, which made it a
+ * fourth busy surface** — the one `IDEAS.md`'s table of three did not list, so
+ * unifying the three it did list left this one behind. Worse, `innerHTML = ''`
+ * destroys the load indicator, so the message it replaced it with then had no
+ * bar and did not advance. It now clears the view and re-asserts the one
+ * indicator, which is already saying what is happening.
  */
-function showLoadingState(msg: string) {
+function clearViewForLoad(): void {
   destroyMainView();
   container.classList.remove('gallery');
   container.innerHTML = '';
-  const placeholder = document.createElement('div');
-  placeholder.style.cssText =
-    'display:flex;align-items:center;justify-content:center;position:absolute;inset:0;' +
-    'color:var(--text-faint);font-size:14px;user-select:none;';
-  placeholder.textContent = msg;  // textContent: file names are untrusted
-  container.appendChild(placeholder);
+  // innerHTML wiped the indicator out of the DOM along with the view; put the
+  // live phase back rather than leaving the container silent mid-load.
+  if (loadActive && lastPhase) {
+    showLoadIndicator(lastPhase.phase, lastPhase.msg, lastPhase.done, lastPhase.total);
+  }
 }
 
 
@@ -1247,27 +1513,195 @@ let closeLotMenu: (() => void) | null = null;
 
 let busy = false;
 
-function setBusy(msg: string) {
-  busy = true;
-  fileLabel.textContent = msg;
-  busySpinner.classList.add('active');
-  openBtn.style.pointerEvents = 'none';
-  openBtn.style.opacity = '0.5';
-  addBtn.disabled = true;
-  addMoreBtn.disabled = true;
-  openMoreBtn.style.pointerEvents = 'none';
-  openMoreBtn.style.opacity = '0.5';
+/**
+ * ── The one load indicator ──────────────────────────────────────────────────
+ *
+ * A load used to drive THREE surfaces with no owner: the topbar spinner plus
+ * `#file-label`, the covering `#render-progress` overlay, and a docked staging
+ * strip. They disagreed structurally, not by accident — `renderWafers` set the
+ * topbar busy, then the analysis block inside `renderWaferView` set it idle
+ * **before the gallery mounted**, so the spinner read idle for the whole mount
+ * while the strip said "Rendering 50 wafers...". The user's verdict was "the
+ * whole busy chrome is a mess", and the standing requirement is one system.
+ *
+ * So: one flag, one surface, named phases.
+ *
+ *   loadPhase('parsing',   'Parsing x.stdf...')
+ *   loadPhase('analysing', 'Analysing wafers', 32, 50)
+ *   loadPhase('rendering', 'Rendering wafers', 12, 50)
+ *   endLoad('LOT123 - 50 wafers, 400,000 dies')
+ *
+ * **`loadPhase` begins the load if one is not already running, and only
+ * `endLoad` ends it.** That is the structural fix: a sub-phase can no longer
+ * declare the app idle while an outer phase is still working, because no
+ * sub-phase has the vocabulary to.
+ *
+ * **The topbar carries file identity and nothing else.** It is 12px and
+ * `display:none` below 900px, so it was never a place progress could live; it
+ * also means the save-and-restore of `fileLabel.textContent` that used to
+ * surround every busy call is gone — the identity is simply never overwritten.
+ *
+ * DO NOT add a fourth surface. That is how it got to three.
+ */
+type LoadPhase =
+  | 'waiting'    // a native picker or a dialog is open — the app is blocked on the user
+  | 'reading'    // pulling bytes in
+  | 'parsing'    // decoding them
+  | 'analysing'  // per-wafer statistics
+  | 'rendering'  // cards staging into the gallery
+  | 'finishing'; // cards are all in; the lot Summary panel is still filling
+
+let loadActive = false;
+/** The phase currently on screen, so `clearViewForLoad` can put it back after
+ *  wiping the container, and nothing has to re-derive what was being said. */
+let lastPhase: { phase: LoadPhase; msg: string; done: number; total: number } | null = null;
+
+/**
+ * Covering or docked, decided here so no call site can pick wrong.
+ *
+ * **One question, asked of the view and not of the phase: is there anything
+ * behind this?** A covering overlay is `inset: 0` over an opaque background, so
+ * it is honest over an empty container and a lie over a live one — it hid the
+ * staging cards completely when it was used for the mount phase, and it would
+ * blank a gallery the user is still looking at during an "add more files" load.
+ *
+ * This used to key off the phase name, with `rendering`/`finishing`/`waiting`
+ * docked unconditionally. That made the indicator **jump between the middle of
+ * the screen and the bottom bar mid-load**, because `renderWafers` enters the
+ * rendering phase before any card exists: centre for Parsing, bottom for
+ * Loading, back to centre for Analysing, bottom again for the cards. One
+ * indicator that moves and changes shape four times reads as several — which is
+ * the complaint this whole system exists to answer, reintroduced by the system
+ * itself.
+ *
+ * Keyed on the view, it changes at most once per load, at the moment content
+ * actually appears behind it.
+ */
+function indicatorForm(): 'cover' | 'dock' {
+  // Asked of the DOM, not of `mainViewController`. The controller is assigned
+  // only after `renderWaferGallery(...)` RETURNS, but cards are mounted inside
+  // that call — so the variable lags the screen by a frame, and the covering
+  // overlay sat over live cards at "Rendering N wafers — 0 of N". One frame,
+  // but it is precisely the failure the docked form exists to prevent, and it
+  // reproduced in two independent scenarios. The question is "is anything on
+  // screen behind this", so look.
+  //
+  // `#render-progress` itself contains no canvas, so it cannot see itself.
+  return container.querySelector('canvas') ? 'dock' : 'cover';
 }
 
-function setIdle(msg = '') {
-  busy = false;
-  fileLabel.textContent = msg;
-  busySpinner.classList.remove('active');
-  openBtn.style.pointerEvents = '';
-  openBtn.style.opacity = '';
-  openMoreBtn.style.pointerEvents = '';
-  openMoreBtn.style.opacity = '';
-  if (currentWafers.length > 0) { addBtn.disabled = false; addMoreBtn.disabled = false; }
+/**
+ * Apply `indicatorForm()` to the indicator element now. The single write path
+ * for the `rp-staging` class — `showLoadIndicator` and `trackIndicatorForm`'s
+ * tick both go through this so there is one place that decides the form, not
+ * two copies of the same toggle.
+ */
+function refreshIndicatorForm(el: HTMLElement | null = document.getElementById('render-progress')): void {
+  if (el) el.classList.toggle('rp-staging', indicatorForm() === 'dock');
+}
+
+function setControlsBusy(isBusy: boolean): void {
+  busy = isBusy;
+  openBtn.style.pointerEvents = isBusy ? 'none' : '';
+  openBtn.style.opacity       = isBusy ? '0.5' : '';
+  openMoreBtn.style.pointerEvents = isBusy ? 'none' : '';
+  openMoreBtn.style.opacity       = isBusy ? '0.5' : '';
+  if (isBusy) {
+    addBtn.disabled = true;
+    addMoreBtn.disabled = true;
+  } else if (currentWafers.length > 0) {
+    addBtn.disabled = false;
+    addMoreBtn.disabled = false;
+  }
+}
+
+/** The topbar's only job. Survives every phase of a load. */
+function setFileIdentity(text: string): void {
+  fileLabel.textContent = text;
+}
+
+/**
+ * Enter (or update) a phase of the current load. Begins the load if one is not
+ * running. `done`/`total` drive a real bar; omit them for indeterminate work.
+ */
+let loadTimingStart = 0;
+
+function loadPhase(phase: LoadPhase, msg: string, done = 0, total = 0): void {
+  if (!loadActive) {
+    loadActive = true;
+    setControlsBusy(true);
+    trackIndicatorForm();
+    loadTimingStart = performance.now();
+  }
+  if (logTimings) {
+    log('info', `⏱ ${phase}: ${msg} — +${(performance.now() - loadTimingStart).toFixed(0)} ms`);
+  }
+  lastPhase = { phase, msg, done, total };
+  showLoadIndicator(phase, msg, done, total);
+}
+
+/**
+ * Keep the indicator's form matched to the view for as long as the load runs.
+ *
+ * `showLoadIndicator` picks the form when it is called, but whether there is
+ * content behind the indicator changes CONTINUOUSLY — a progressive gallery
+ * mounts one card per task. So a form chosen at "Rendering 0 of 50", when the
+ * container really was empty, stayed covering as the first cards appeared
+ * behind it. **Being right at one instant is not the same as being right
+ * throughout**; only re-asking each frame is.
+ *
+ * Cheap: one `querySelector` and a class compare per frame, and only while a
+ * load is open. `endLoad` stops it.
+ */
+let formTicker: number | null = null;
+function trackIndicatorForm(): void {
+  if (formTicker !== null) return;
+  const tick = () => {
+    if (!loadActive) { formTicker = null; return; }
+    refreshIndicatorForm();
+    formTicker = requestAnimationFrame(tick);
+  };
+  formTicker = requestAnimationFrame(tick);
+}
+
+/**
+ * Report a phase **only if a load is still running**. For anything driven by an
+ * async callback rather than by the load's own sequence.
+ *
+ * This exists because `loadPhase` starts a load when none is running, which is
+ * right for the sequential flow and wrong for a callback that can arrive after
+ * the load has ended. A lot below `GALLERY_PROGRESSIVE_DIE_THRESHOLD` mounts
+ * pre-built, so wmap's `onItemResolved` fires a task AFTER `renderWafers` has
+ * already called `endLoad` — and the "Finishing lot summary" phase then began a
+ * phantom load that nothing would ever end: the indicator stuck on that message
+ * forever and every toolbar button stayed disabled. Traced, not guessed:
+ *
+ *     endLoad(sample-lot.stdf — 13 wafers, 2873 dies)  loadActive=true
+ *     phase(finishing) "Finishing lot summary"         loadActive=false  ← here
+ *
+ * A stale callback from a superseded render is the same shape, and `isCurrent()`
+ * does not catch it because that render really was current when it started.
+ */
+function loadPhaseIfActive(phase: LoadPhase, msg: string, done = 0, total = 0): void {
+  if (!loadActive) return;
+  loadPhase(phase, msg, done, total);
+}
+
+/**
+ * End the load: the single place that clears the busy flag and the indicator.
+ * Pass the file identity the topbar should settle on, or omit it to leave
+ * whatever identity is already there.
+ */
+function endLoad(identity?: string): void {
+  if (logTimings) {
+    log('info', `⏱ done: ${identity ?? lastPhase?.msg ?? ''} — +${(performance.now() - loadTimingStart).toFixed(0)} ms`);
+  }
+  loadActive = false;
+  lastPhase = null;
+  if (formTicker !== null) { cancelAnimationFrame(formTicker); formTicker = null; }
+  setControlsBusy(false);
+  clearLoadIndicator();
+  if (identity !== undefined) setFileIdentity(identity);
 }
 
 /**
@@ -1295,7 +1729,7 @@ async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: S
   let dieCount = 0;
   let anyOk = false;
   for (const file of filesToScan) {
-    setBusy(`Scanning ${file.name} for tests…`);
+    loadPhase('reading', `Scanning ${file.name} for tests`);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       const result: ScanResult = isAtdfExt(effectiveFileExtension(file.name))
@@ -1318,15 +1752,30 @@ async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: S
   return { testDefs: merged, dieCount };
 }
 
-async function handleFiles(files: FileHandle[], isAppend: boolean) {
+/**
+ * `continuesCurrentLoad` — this call is the next step of a load that is ALREADY
+ * running (the file picker opened under `loadPhase('waiting', …)` and is now
+ * handing its files on), not a new one. Without it the `busy` guard below would
+ * silently no-op the very load that opened the picker.
+ *
+ * The picker paths used to write `busy = false` directly to get past that
+ * guard, which is worse than it looks: `busy` is the flag `setControlsBusy`
+ * owns, so clearing it by hand desynchronised the toolbar from the load. The
+ * Add buttons re-enabled while the gallery was still rendering (they are also
+ * set from the loaded-state path, which reads `busy`), and every `if (busy)`
+ * re-entrancy guard in the app went open for the rest of the load — a second
+ * load could be started on top of the first. One flag, one owner, and the
+ * hand-off says so explicitly instead of faking its precondition.
+ */
+async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurrentLoad = false) {
   if (files.length === 0) return;
-  if (busy) return;
+  if (busy && !continuesCurrentLoad) return;
 
   // Captured before archive expansion/reassignment below, so a reopened .zip
   // records (and re-expands) its own path rather than its extracted contents.
   const originalPaths = files.every(f => f.path) ? files.map(f => f.path as string) : null;
 
-  setBusy(`Reading ${files.length} file${files.length > 1 ? 's' : ''}…`);
+  loadPhase('reading', `Reading ${files.length} file${files.length > 1 ? 's' : ''}`);
   // Yield two animation frames so the spinner actually paints before the
   // first platform call (WebKitGTK may not repaint on setTimeout(0) alone).
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -1335,7 +1784,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   let needsCleanup = false;
   const anyZip = files.some(f => f.name.toLowerCase().endsWith('.zip'));
   if (anyZip) {
-    setBusy(`Extracting archive…`);
+    loadPhase('reading', 'Extracting archive');
     needsCleanup = isTauri && anyZip;
   }
   files = await platform.expandArchives(files).catch(e => {
@@ -1344,7 +1793,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   });
 
   if (files.length === 0) {
-    setIdle('Error: no files after extraction');
+    endLoad('Error: no files after extraction');
     return;
   }
 
@@ -1354,7 +1803,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   const mixedFormatsError = checkSameExtension(files.map(f => f.name), needsCleanup);
   if (mixedFormatsError) {
     log('error', mixedFormatsError);
-    setIdle('Error: mixed formats');
+    endLoad('Error: mixed formats');
     return;
   }
 
@@ -1366,7 +1815,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
 
   if (firstMappable) {
     const firstExt = effectiveFileExtension(firstMappable.name);
-    setBusy(`Reading ${firstMappable.name}…`);
+    loadPhase('reading', `Reading ${firstMappable.name}`);
     const headersResult = await (firstExt === 'json' ? platform.jsonHeaders(firstMappable)
       : firstExt === 'parquet' ? platform.parquetHeaders(firstMappable)
       : platform.csvHeaders(firstMappable)
@@ -1374,7 +1823,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
 
     if (!headersResult) {
       if (needsCleanup) platform.expandArchives([]).catch(() => {});
-      setIdle();
+      endLoad();
       return;
     }
 
@@ -1385,7 +1834,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
     mappingPromise = new Promise(resolve => {
       showMappingOverlay(headersResult,
         (mapping, binDefs) => resolve({ mapping, binDefs }),
-        () => { setIdle(); resolve(null); },
+        () => { endLoad(); resolve(null); },
         () => platform.pickTextFile('Select a bin definitions file to load').then(f => f?.content ?? null),
       );
     });
@@ -1436,7 +1885,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   const nonBinaryFiles = files.filter(f => !isTesterExt(effectiveFileExtension(f.name)));
   for (const file of nonBinaryFiles) {
     const fileExt = effectiveFileExtension(file.name);
-    setBusy(`Parsing ${file.name}…`);
+    loadPhase('parsing', `Parsing ${file.name}`);
     try {
       const parsed: ParsedFile = fileExt === 'json' ? rustToLocal(await platform.parseJson(file, mapping!), file.name)
         : fileExt === 'parquet' ? rustToLocal(await platform.parseParquet(file, mapping!), file.name)
@@ -1516,7 +1965,9 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
             initialSelection: carrySelection,
             testOverrides: carryOverrides,
             preloadListText: testListPreload ?? undefined,
-            capacity: totalDieCount > 0 ? { dieCount: totalDieCount, totalTests: allTestNums.size } : undefined,
+            capacity: totalDieCount > 0
+              ? { dieCount: totalDieCount, totalTests: allTestNums.size, isWebBuild: !isTauri }
+              : undefined,
             onSave: async (saveEntries: TestListEntry[]) => {
               const csv = formatTestListCsv(saveEntries);
               const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'Save these test definitions to a file');
@@ -1535,7 +1986,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
       });
       testListPreload = null; // only ever applied on the loop's first open
 
-      if (result.kind === 'cancel') { setIdle(); return; }
+      if (result.kind === 'cancel') { endLoad(); return; }
 
       if (result.kind === 'scanAll') {
         // Preserve the user's in-progress selection/overrides across the re-scan.
@@ -1571,12 +2022,12 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   // state on any post-clear bail-out so the user is never stranded on a blank view
   // showing nothing while the old data is silently still in `currentWafers`.
   const clearedForFreshLoad = !isAppend;
-  if (clearedForFreshLoad) showLoadingState(`Loading ${files.length === 1 ? files[0].name : `${files.length} files`}…`);
+  if (clearedForFreshLoad) clearViewForLoad();
   // Return to a clean empty state if a committed fresh load bails out (parse error
   // or rename cancel); for an append the old view is intact, so just go idle.
   const abortFreshLoad = (msg?: string) => {
     if (clearedForFreshLoad) showEmptyState();
-    setIdle(msg);
+    endLoad(msg);
   };
 
   // ── Full parse for STDF/ATDF, prune/backfill pre-parsed CSV/JSON ──────────
@@ -1598,17 +2049,17 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
         continue;
       }
 
-      setBusy(`Parsing ${file.name}…`);
+      loadPhase('parsing', `Parsing ${file.name}`);
       try {
         // If scan failed (firstPassTestDefs null), fall back to unfiltered parse.
-        const raw = firstPassTestDefs === null
+        const raw = await logTimed('native parse (invoke: Rust parse + serde + IPC)', () => firstPassTestDefs === null
           ? (isAtdfExt(fileExt)
-            ? await platform.parseAtdf(file)
-            : await platform.parseStdf(file))
+            ? platform.parseAtdf(file)
+            : platform.parseStdf(file))
           : (isAtdfExt(fileExt)
-            ? await platform.parseAtdfFiltered(file, testSelection ?? [])
-            : await platform.parseStdfFiltered(file, testSelection ?? []));
-        const parsed = rustToLocal(raw, file.name);
+            ? platform.parseAtdfFiltered(file, testSelection ?? [])
+            : platform.parseStdfFiltered(file, testSelection ?? [])));
+        const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
         applyTestSelection(parsed, testSelection ?? [], firstPassTestDefs, overlayTestOverrides);
         entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
         log('info', `Parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''}`);
@@ -1647,6 +2098,11 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
         source,
       })));
     }
+    // Say so. Without this the indicator kept claiming "Parsing x.csv…" while
+    // the app was actually sitting at a dialog waiting for the user — the same
+    // dishonesty as naming a phase before its work starts. Every other gate in
+    // this file announces `waiting`; these two did not.
+    loadPhase('waiting', 'Waiting for wafer names');
     return new Promise(resolve => {
       showRenameOverlay(entries,
         (renamed) => resolve(renamed),
@@ -1659,6 +2115,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
   if (!renamed) return;
 
   if (isAppend && currentWafers.length > 0) {
+    loadPhase('waiting', 'Waiting for confirmation');
     await new Promise<void>(resolve => {
       showAppendConfirm({
         incoming: renamed,
@@ -1692,7 +2149,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean) {
           log('info', `Added ${renamed.length} wafer${renamed.length !== 1 ? 's' : ''} — gallery now has ${merged.length}`);
           resolve();
         },
-        onCancel: () => { setIdle(`${currentWafers.length} wafers loaded`); resolve(); },
+        onCancel: () => { endLoad(`${currentWafers.length} wafers loaded`); resolve(); },
       });
     });
   } else {
@@ -1791,14 +2248,14 @@ const FILTER_OFFER_THRESHOLD = 5;
  *  Takes `PickedFile`s rather than `FileHandle`s so the offer can be made
  *  *before* any bytes are read on web — routing a 200-file batch into the
  *  filter table shouldn't first materialise all 200 (see `PickedFile`). */
-async function offerFilterFirst(picked: PickedFile[], isAppend: boolean, prevLabel: string): Promise<boolean> {
+async function offerFilterFirst(picked: PickedFile[], isAppend: boolean): Promise<boolean> {
   if (picked.length <= FILTER_OFFER_THRESHOLD) return false;
-  setBusy('Waiting for confirmation…');
+  loadPhase('waiting', 'Waiting for confirmation');
   const wantsFilter = await platform.confirm(
     `You selected ${picked.length} files. Filter them first before ${isAppend ? 'adding' : 'loading'}?`,
   );
   if (!wantsFilter) return false;
-  setIdle(prevLabel);
+  endLoad();
   void openFileFilterDialog(platform, {
     onConfirmedLoad: (chosen, chosenAppend) => handleFiles(chosen, chosenAppend),
     isAppend,
@@ -1831,8 +2288,7 @@ async function offerFilterFirst(picked: PickedFile[], isAppend: boolean, prevLab
  *  differs (a drop, versus a native picker). */
 async function scanDroppedFolders(dirs: string[]) {
   if (busy || !platform.rescanFolder) return;
-  const prevLabel = fileLabel.textContent ?? '';
-  setBusy(`Scanning ${dirs.length === 1 ? 'folder' : `${dirs.length} folders`}…`);
+  loadPhase('reading', `Scanning ${dirs.length === 1 ? 'folder' : `${dirs.length} folders`}`);
   const scans: FolderScan[] = [];
   for (const d of dirs) {
     try {
@@ -1842,11 +2298,11 @@ async function scanDroppedFolders(dirs: string[]) {
       log('error', `Could not scan "${d}": ${errMsg(e)}`);
     }
   }
-  if (scans.length === 0) { setIdle(prevLabel); return; }
+  if (scans.length === 0) { endLoad(); return; }
   // A dropped folder always replaces, matching a dropped file — drag-and-drop
   // has no way to express "append", and inventing one silently would be worse
   // than the Add files button already being there for that.
-  await openScanInFilter(mergeScans(scans), false, prevLabel);
+  await openScanInFilter(mergeScans(scans), false);
 }
 
 /** Combine several folder scans into one listing, de-duplicating by path — two
@@ -1873,12 +2329,12 @@ function mergeScans(scans: FolderScan[]): FolderScan {
 
 /** The shared tail: offer subfolders where relevant, report a capped or empty
  *  scan, then hand the result to the filter table. */
-async function openScanInFilter(scan: FolderScan, isAppend: boolean, prevLabel: string) {
+async function openScanInFilter(scan: FolderScan, isAppend: boolean) {
   if (scan.hasSubdirs && platform.rescanFolder && scan.dirPath) {
-    setBusy('Waiting for confirmation…');
+    loadPhase('waiting', 'Waiting for confirmation');
     const deep = await platform.confirm(`"${scan.dirName}" has subfolders. Include them in the scan?`);
     if (deep) {
-      setBusy('Scanning subfolders…');
+      loadPhase('reading', 'Scanning subfolders');
       try { scan = await platform.rescanFolder(scan.dirPath, true) ?? scan; }
       catch (e) { log('error', `Subfolder scan failed: ${errMsg(e)}`); }
     }
@@ -1888,11 +2344,11 @@ async function openScanInFilter(scan: FolderScan, isAppend: boolean, prevLabel: 
   }
   if (scan.files.length === 0) {
     log('error', `No wafer test data files found in "${scan.dirName}".`);
-    setIdle(prevLabel);
+    endLoad();
     return;
   }
   log('info', `Scanning ${scan.files.length} file${scan.files.length === 1 ? '' : 's'} from "${scan.dirName}"…`);
-  setIdle(prevLabel);
+  endLoad();
   void openFileFilterDialog(platform, {
     onConfirmedLoad: (chosen, chosenAppend) => handleFiles(chosen, chosenAppend),
     isAppend,
@@ -1986,11 +2442,10 @@ const NO_UPLOAD_NOTE = 'Folders are read in your browser — no files are upload
 
 async function scanFolderAndFilter(isAppend: boolean) {
   if (busy) return;
-  const prevLabel = fileLabel.textContent ?? '';
   // Kept short: #file-label is nowrap with an ellipsis and shrinks on a narrow
   // window, so the reassurance has to survive being clipped. The full sentence
   // is on the empty state and both menu hints.
-  setBusy(isTauri ? 'Waiting for folder selection…' : 'Waiting for folder selection — nothing is uploaded');
+  loadPhase('waiting', isTauri ? 'Waiting for folder selection' : 'Waiting for folder selection — nothing is uploaded');
   let scan;
   try {
     scan = await platform.pickFolder(
@@ -1998,17 +2453,16 @@ async function scanFolderAndFilter(isAppend: boolean) {
     );
   } catch (e) {
     log('error', `Folder picker failed: ${errMsg(e)}`);
-    setIdle(prevLabel);
+    endLoad();
     return;
   }
-  if (!scan) { setIdle(prevLabel); return; }
-  await openScanInFilter(scan, isAppend, prevLabel);
+  if (!scan) { endLoad(); return; }
+  await openScanInFilter(scan, isAppend);
 }
 
 async function pickAndHandle(isAppend: boolean) {
   if (busy) return;
-  const prevLabel = fileLabel.textContent ?? '';
-  setBusy('Waiting for file selection…');
+  loadPhase('waiting', 'Waiting for file selection');
   let files: FileHandle[];
   try {
     files = await platform.pickFiles(isAppend
@@ -2016,16 +2470,15 @@ async function pickAndHandle(isAppend: boolean) {
       : 'Select one or more wafer test data files to open');
   } catch (e) {
     log('error', `File picker failed: ${errMsg(e)}`);
-    setIdle(prevLabel);
+    endLoad();
     return;
   }
   if (files.length === 0) {
-    setIdle(prevLabel);
+    endLoad();
     return;
   }
-  if (await offerFilterFirst(files.map(pickedFromHandle), isAppend, prevLabel)) return;
-  busy = false;
-  handleFiles(files, isAppend);
+  if (await offerFilterFirst(files.map(pickedFromHandle), isAppend)) return;
+  handleFiles(files, isAppend, true);
 }
 
 /** Start the ordinary "pick individual files" flow for a verb. Assigned below
@@ -2044,22 +2497,20 @@ if (isTauri) {
   // so the browser treats it as a user gesture (async calls block the picker).
   const fileInput = document.getElementById('file-input') as HTMLInputElement;
   let appendOnPick = false;
-  // Captured in the click handler, BEFORE setBusy overwrites fileLabel — by
-  // the time `change`/`cancel` fire, fileLabel already reads the busy message,
-  // so reading it there would restore the wrong text.
-  let prevLabelOnPick = '';
+  // The topbar label used to be captured here and restored afterwards, because
+  // the busy message overwrote it. It carries the file identity only now, so
+  // there is nothing to save and nothing to put back.
 
   fileInput.addEventListener('change', async () => {
     const rawFiles = Array.from(fileInput.files ?? []);
     fileInput.value = '';  // reset so same file can be re-picked
-    if (rawFiles.length === 0) { setIdle(prevLabelOnPick); return; }
+    if (rawFiles.length === 0) { endLoad(); return; }
     // Offer the filter route before reading a single byte — a batch big enough
     // to be worth filtering is exactly the one not worth materialising first.
     const picked = rawFiles.map(pickedFromWebFile);
-    if (await offerFilterFirst(picked, appendOnPick, prevLabelOnPick)) return;
+    if (await offerFilterFirst(picked, appendOnPick)) return;
     const files = await Promise.all(picked.map(materializePicked));
-    busy = false;
-    handleFiles(files, appendOnPick);
+    handleFiles(files, appendOnPick, true);
   });
 
   // Unlike `change`, the native file input fires no event at all when the
@@ -2067,13 +2518,12 @@ if (isTauri) {
   // own close button) — without this listener, `busy` stays true forever and
   // the toolbar is stuck showing "Waiting for file selection…". `cancel`
   // (Chrome 113+, Firefox 121+, Safari 16.4+) fires in exactly that case.
-  fileInput.addEventListener('cancel', () => setIdle(prevLabelOnPick));
+  fileInput.addEventListener('cancel', () => endLoad());
 
   startFilePick = (isAppend) => {
     if (busy) return;
     appendOnPick = isAppend;
-    prevLabelOnPick = fileLabel.textContent ?? '';
-    setBusy('Waiting for file selection…');
+    loadPhase('waiting', 'Waiting for file selection');
     fileInput.click();
   };
 
@@ -2100,19 +2550,15 @@ function toggleValueFindings() {
   // Analysis results are cached; the toggle changes what they contain, so drop
   // them. Re-render the current map view (gallery/single) with the new setting —
   // the raw dies are already in memory, so this is a re-analyse, not a reload.
-  cachedLotStats = null;
   log('info', `Test-value findings ${valueFindings ? 'on — recomputing regional test-value findings' : 'off'}`);
-  const label = currentFileName;
-  setBusy(`${valueFindings ? 'Analysing' : 'Rendering'} ${label}…`);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    renderWaferView(currentWafers);
-    setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
-  }));
+  // Turning findings ON re-analyses; turning them OFF only re-renders what is
+  // already known. The verb differs, the lifecycle does not.
+  rerenderCurrentLot(valueFindings ? 'Analysing' : 'Rendering');
 }
 
 resetBtn.addEventListener('click', () => {
   if (currentWafers.length === 0) return;
-  setIdle();
+  endLoad();
   showEmptyState();
 });
 
@@ -2125,11 +2571,12 @@ resetBtn.addEventListener('click', () => {
  * Returns undefined when there are no dies, which suppresses the advisory
  * rather than showing a meaningless zero.
  */
-function filterCapacity(): { dieCount: number; totalTests: number } | undefined {
+function filterCapacity(): { dieCount: number; totalTests: number; isWebBuild: boolean } | undefined {
   const dieCount = currentWafers.reduce((n, w) => n + w.results.length, 0);
   if (dieCount === 0) return undefined;
   const totalTests = Object.keys(currentTestNames ?? currentTestDefs).length;
-  return { dieCount, totalTests };
+  // The die ceiling is a browser-only limit — see webDieBudgetWarning.
+  return { dieCount, totalTests, isWebBuild: !isTauri };
 }
 
 /** "Tests…" — re-run the test selector against the loaded lot and
@@ -2220,7 +2667,7 @@ async function openFilterTests() {
         binaryScanScope = 'all';
         log('info', `Scanned all ${currentBinaryFiles.length} files: ${Object.keys(scan.testDefs).length} tests total`);
       }
-      setIdle();
+      endLoad();
       continue filterLoop;
     }
 
@@ -2305,12 +2752,12 @@ async function openFilterTests() {
   const entries: FileWaferEntry[] = [];
   for (const file of currentBinaryFiles) {
     const fileExt = effectiveFileExtension(file.name);
-    setBusy(`Parsing ${file.name}…`);
+    loadPhase('parsing', `Parsing ${file.name}`);
     try {
-      const raw = isAtdfExt(fileExt)
-        ? await platform.parseAtdfFiltered(file, testSelection)
-        : await platform.parseStdfFiltered(file, testSelection);
-      const parsed = rustToLocal(raw, file.name);
+      const raw = await logTimed('native parse (invoke: Rust parse + serde + IPC)', () => isAtdfExt(fileExt)
+        ? platform.parseAtdfFiltered(file, testSelection)
+        : platform.parseStdfFiltered(file, testSelection));
+      const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
       applyTestSelection(parsed, testSelection, currentTestNames, filterTestOverrides);
       entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
       log('info', `Re-parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''} (${testSelection.length} tests)`);
@@ -2321,7 +2768,7 @@ async function openFilterTests() {
   }
 
   if (entries.length === 0) {
-    setIdle(`${currentWafers.length} wafers loaded`);
+    endLoad(`${currentWafers.length} wafers loaded`);
     return;
   }
 
@@ -2366,13 +2813,7 @@ function openSplitsDialog() {
     onToggleSuffix: (show) => { showSplitSuffix = show; },
     onChange: () => {
       saveSplits(currentWafers);
-      clearLotStatsCache();
-      const label = currentFileName;
-      setBusy(`Rendering ${label}…`);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        renderWaferView(currentWafers);
-        setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
-      }));
+      rerenderCurrentLot('Rendering');
     },
   });
 }
@@ -2414,13 +2855,7 @@ function openWaferGeometryDialog() {
     const normalized = setWaferGeometry(geometry);
     waferDiameterMm = normalized.diameterMm;
     edgeExclusionMm = normalized.edgeExclusionMm;
-    clearLotStatsCache();
-    const label = currentFileName;
-    setBusy(`Rendering ${label}…`);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      renderWaferView(currentWafers);
-      setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
-    }));
+    rerenderCurrentLot('Rendering');
   });
 }
 
@@ -2479,13 +2914,7 @@ function openSaveLoadDefinitionsDialog(opts: {
 
       const applyLoaded = (text: string) => {
         if (!onLoad(text)) return;
-        clearLotStatsCache();
-        const label = currentFileName;
-        setBusy(`Rendering ${label}…`);
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          renderWaferView(currentWafers);
-          setIdle(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${currentWafers.reduce((n, w) => n + w.results.length, 0)} dies`);
-        }));
+        rerenderCurrentLot('Rendering');
         modalHandle.close();
       };
       const loadBtn = makeLoadDefinitionsButton({
@@ -2722,6 +3151,13 @@ function openHelpMenu(anchor: HTMLElement) {
           },
         }));
       }
+
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Log phase timings',
+        hint: 'Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load',
+        checked: logTimings,
+        onClick: toggleLogTimings,
+      }));
 
       popup.appendChild(makeMenuRow(close, {
         label: 'Reset saved settings…',
@@ -2964,9 +3400,34 @@ if (!isTauri) {
   });
 }
 
+/**
+ * Re-analyse and re-render the lot already in memory under a changed setting
+ * (test-value findings, geometry, bin definitions, splits). The raw dies are
+ * already here, so this is a re-analyse, not a reload.
+ *
+ * **It awaits the render before ending the load.** Four call sites had this
+ * inline as `void renderWaferView(...)` followed immediately by `endLoad(...)`,
+ * which ends the load while the render is still starting — and the render's own
+ * analysis phase then opened a second load that nothing would ever close. The
+ * user-visible result was "Finishing lot summary…" and a sweeping bar that
+ * never stopped, with the toolbar disabled behind it. Four copies of one rule
+ * is the bug; this is the one copy.
+ */
+function rerenderCurrentLot(verb: string): void {
+  if (currentWafers.length === 0) return;
+  clearLotStatsCache();
+  const label = currentFileName;
+  loadPhase('rendering', `${verb} ${label}`);
+  requestAnimationFrame(() => requestAnimationFrame(async () => {
+    await renderWaferView(currentWafers);
+    const dies = currentWafers.reduce((n, w) => n + w.results.length, 0);
+    endLoad(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${dies} dies`);
+  }));
+}
+
 function refreshCurrentView(): void {
   if (currentWafers.length === 0) return; // empty state: CSS-only, nothing to redraw
-  renderWaferView(currentWafers);
+  void renderWaferView(currentWafers);
 }
 
 // Grouped theme picker. Uses the custom menuSelect (not a native <select>):

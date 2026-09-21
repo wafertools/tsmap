@@ -10,6 +10,7 @@ import { createRangeSelection } from './listSelection';
 import { attachTooltip } from './tooltip';
 import { openModal } from './modal';
 import { getSplitLabel, setSplitLabel, clearAllSplits, listSplitValues, parseSplitsCsv, formatSplitsCsv, applySplitRows, waferLabels } from './splits';
+import { errMsg } from './lib';
 
 export interface SplitsUIOptions {
   onSave: (csv: string) => Promise<void>;
@@ -329,7 +330,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
           await options.onSave(formatSplitsCsv(wafers));
           options.onLog('info', 'Splits saved');
         } catch (e) {
-          options.onLog('error', `Failed to save splits: ${e instanceof Error ? e.message : String(e)}`);
+          options.onLog('error', `Failed to save splits: ${errMsg(e)}`);
         }
       });
 
@@ -339,7 +340,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
         try {
           text = await options.onLoad();
         } catch (e) {
-          options.onLog('error', `Failed to load splits: ${e instanceof Error ? e.message : String(e)}`);
+          options.onLog('error', `Failed to load splits: ${errMsg(e)}`);
           return;
         }
         if (text === null) return;

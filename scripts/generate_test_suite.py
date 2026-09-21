@@ -20,6 +20,7 @@ import json
 import csv
 import sys
 from pathlib import Path
+from fixture_testnums import test_numbers
 
 random.seed(42)
 
@@ -184,8 +185,8 @@ def wafer_dies(radius: int) -> list[tuple[int, int]]:
 def make_tests(num_tests: int) -> list[tuple[int, str, str, float, float]]:
     """(test_number, name, units, lo_limit, hi_limit)"""
     return [
-        (1000 + i, f'test_{i:03d}', 'mV', 40.0 + (i % 10) * 5.0, 60.0 + (i % 10) * 5.0)
-        for i in range(num_tests)
+        (tn, f'test_{i:03d}', 'mV', 40.0 + (i % 10) * 5.0, 60.0 + (i % 10) * 5.0)
+        for i, tn in enumerate(test_numbers(num_tests))
     ]
 
 # ── Correlation helpers ───────────────────────────────────────────────────────
