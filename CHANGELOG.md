@@ -4,6 +4,46 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.38] — 2026-09-21
+
+### Added
+
+- **The web build now warns before a load that would crash the tab.** Above roughly
+  200,000 dies, the browser build's worker-to-main-thread structured clone can double
+  peak heap and crash the tab outright — a risk the existing die×test pair advisory
+  missed, since both known crashing lots sat at 20M pairs, under its 50M amber
+  threshold. A separate, higher-priority check on die count alone now outranks that
+  advisory on the web build; the desktop app is unaffected (native parse, no worker,
+  no clone).
+- **"Log phase timings"**, a new Help-menu toggle (off by default), writes a line to
+  the log panel at each load phase — scan, parse, analyse, render — with elapsed
+  time. Useful for reporting a slow load.
+
+### Changed
+
+- **One load indicator for every phase of a load**, replacing the old corner spinner
+  (invisible below 900px, and could disagree with other in-progress states for most
+  of a load). A full-cover form is used while nothing is on screen yet; a docked,
+  non-blocking strip is used while a gallery fills in behind it.
+- **Parser failures now carry a stable code alongside their message**, on both the
+  desktop and web paths. Internal only — no user-facing change.
+- **`@wafertools/wafermap` pinned to `^0.30.2`** (was `^0.30.1`). Parse-speed figures
+  in the docs refreshed to match (about 1.4s / ~250 MB/s for the 341 MB / 266,000-die
+  benchmark lot, down from 3.5s).
+
+### Internal
+
+- **Benchmark/fixture generators now share one test-number scheme** rather than each
+  picking sequential numbers from 1000, which sat on the worst point of V8's
+  object-storage curve and made every benchmark measure a memory cost no real data
+  path pays. New `generate_sweep_csv.py` and `heap-probe.mjs` fixture/profiling
+  scripts, and `generate_parquet_bench.py` joins the existing CSV/ATDF/STDF bench
+  generators.
+- **The load-indicator work is verified against real Chrome**, not just jsdom, via
+  new `scripts/verify-load-chrome.mjs`.
+- Removed `plans/open-from-url-ingestion.md` — the feature shipped in v0.1.26 under a
+  different design than that document specifies.
+
 ## [0.1.37] — 2026-09-17
 
 ### Security
