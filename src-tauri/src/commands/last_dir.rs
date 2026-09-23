@@ -1,6 +1,17 @@
 // Remembers the directory the last file/folder picker landed in, so the next
 // dialog opens where the user was rather than wherever the OS defaults to.
 //
+// One directory PER PURPOSE ("data", "images", "exports", "definitions",
+// "filters"), not one for the whole app — the same model as Windows' per-dialog
+// client GUID (`IFileDialog::SetClientGuid`) and the web's `id` on
+// `showOpenFilePicker`/`showDirectoryPicker`. A single shared slot would send
+// the next data-open to wherever the last PNG export went. Linux's GTK dialog
+// remembers nothing itself, so without this every picker opened at $HOME.
+//
+// The purpose is a closed set chosen by the front end. It becomes part of a
+// file name, so anything but lowercase ASCII letters is refused rather than
+// sanitised: a purpose is an identifier, never user input.
+//
 // This is the one preference NOT kept in localStorage: the pickers are native,
 // so the path never reaches JavaScript in the desktop build.
 //
@@ -25,15 +36,34 @@
 // under the old paths across on first launch, so a Linux user who had one does
 // not lose it.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Manager};
 
-static LAST_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+static LAST_DIRS: Mutex<Option<HashMap<String, PathBuf>>> = Mutex::new(None);
 
-fn state_file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_data_dir().ok().map(|d| d.join("last_dir"))
+/// The purpose the one pre-existing state file (`last_dir`) belongs to. It
+/// keeps that name so a folder remembered before purposes existed — and
+/// migrated by `migrate.rs` under that name — is still found.
+const DATA: &str = "data";
+
+/// `None` for anything that is not a known-shaped purpose; see the module note.
+fn purpose_key(purpose: Option<&str>) -> Option<&str> {
+    match purpose {
+        None => Some(DATA),
+        Some(p) if !p.is_empty() && p.len() <= 32 && p.bytes().all(|b| b.is_ascii_lowercase()) => Some(p),
+        Some(_) => None,
+    }
+}
+
+fn state_file_name(key: &str) -> String {
+    if key == DATA { "last_dir".to_string() } else { format!("last_dir.{key}") }
+}
+
+fn state_file(app: &AppHandle, key: &str) -> Option<PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join(state_file_name(key)))
 }
 
 /// Reads a state file, returning the path only if it still names a real
@@ -64,28 +94,39 @@ fn dir_of(path: &str) -> PathBuf {
     }
 }
 
+/// The remembered directory for `purpose` (default `"data"`), or `None` when
+/// nothing is remembered for it — the front end then falls back to the data
+/// folder, then to the OS default.
 #[tauri::command]
-pub fn get_last_dir(app: AppHandle) -> Option<String> {
+pub fn get_last_dir(app: AppHandle, purpose: Option<String>) -> Option<String> {
+    let key = purpose_key(purpose.as_deref())?;
     {
-        let guard = LAST_DIR.lock().ok()?;
-        if let Some(ref p) = *guard {
-            return Some(p.to_string_lossy().into_owned());
+        let guard = LAST_DIRS.lock().ok()?;
+        if let Some(p) = guard.as_ref().and_then(|m| m.get(key)) {
+            // Re-checked: the cache outlives an unmounted drive.
+            if p.is_dir() {
+                return Some(p.to_string_lossy().into_owned());
+            }
         }
     }
-    let dir = read_state(&state_file(&app)?)?;
-    if let Ok(mut guard) = LAST_DIR.lock() {
-        *guard = Some(dir.clone());
+    let dir = read_state(&state_file(&app, key)?)?;
+    if let Ok(mut guard) = LAST_DIRS.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(key.to_string(), dir.clone());
     }
     Some(dir.to_string_lossy().into_owned())
 }
 
+/// Remember the directory of `path` (the path itself if it is a directory) for
+/// `purpose` (default `"data"`). Call only when a dialog returned a choice —
+/// a cancel must not move anything.
 #[tauri::command]
-pub fn set_last_dir(app: AppHandle, path: String) {
+pub fn set_last_dir(app: AppHandle, path: String, purpose: Option<String>) {
+    let Some(key) = purpose_key(purpose.as_deref()) else { return };
     let dir = dir_of(&path);
-    if let Ok(mut guard) = LAST_DIR.lock() {
-        *guard = Some(dir.clone());
+    if let Ok(mut guard) = LAST_DIRS.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(key.to_string(), dir.clone());
     }
-    if let Some(f) = state_file(&app) {
+    if let Some(f) = state_file(&app, key) {
         write_state(&f, &dir);
     }
 }
@@ -137,6 +178,21 @@ mod tests {
         let file = tmp.path().join("last_dir");
         std::fs::write(&file, format!("{}\n", tmp.path().display())).unwrap();
         assert_eq!(read_state(&file).as_deref(), Some(tmp.path()));
+    }
+
+    #[test]
+    fn data_keeps_the_pre_purpose_file_name_and_others_get_their_own() {
+        assert_eq!(state_file_name(DATA), "last_dir");
+        assert_eq!(state_file_name("images"), "last_dir.images");
+        assert_eq!(purpose_key(None), Some(DATA));
+        assert_eq!(purpose_key(Some("exports")), Some("exports"));
+    }
+
+    #[test]
+    fn refuses_a_purpose_that_could_name_another_file() {
+        for bad in ["", "../x", "a/b", "Images", "data.json", "x y"] {
+            assert_eq!(purpose_key(Some(bad)), None, "{bad:?}");
+        }
     }
 
     #[test]

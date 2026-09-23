@@ -82,7 +82,7 @@ All five formats are supported in the browser:
 |---------|---------|---------|
 | File parsing | WASM in a Web Worker (same logic) | Native Rust (off-thread) |
 | File picker | Browser dialog | Native OS dialog |
-| Last used directory | — | Remembered between sessions (all three platforms as of 0.1.34; before that, desktop Windows silently did not) |
+| Last used folder | Chrome and Edge: each kind of dialog reopens at its own last folder (data, definitions, filters). Firefox and Safari: no — their file picker cannot be pointed at a folder. Saves are downloads. | Remembered between sessions for each kind of dialog — data, images, exported data, definitions, filters — on all three platforms. A kind with no folder yet starts in the data folder. |
 | Drag and drop | Yes | Yes |
 | PNG export | Browser download | Native save dialog |
 | HTML reports | Opens in new tab | Writes to temp file |

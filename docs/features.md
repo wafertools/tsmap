@@ -38,6 +38,12 @@ can be saved to a file and reloaded later, or supplied on the command line.
 
 See [Test selector](user-guide.md#4-test-selector-stdf-and-atdf) in the user guide.
 
+The same definitions file can also define **derived tests**: a row with an `expression`,
+such as `abs(t[1020] - t[1010])` or `log10(t[3115])`, is a test computed on every die from
+the tests it reads. It is then plotted, charted and reported like a measured test, and
+marked **†** wherever it appears so it is never mistaken for a measurement. See
+[Derived tests](user-guide.md#derived-tests).
+
 ## Interactive wafer maps
 
 Yield, soft-bin, and per-test parametric heat-map views, with zoom, pan, and hover. Spatial
@@ -81,7 +87,7 @@ See [Wafer splits](user-guide.md#6-wafer-splits) in the user guide.
 ## Charts & Insights
 
 The Insights tab (wafermap's own built-in chart suite) covers yield, bin pareto, process
-capability, boxplot, histogram, correlation matrix, and scatter — organized into Overview,
+capability, boxplot, histogram, correlation matrix, and scatter — organised into Overview,
 Distributions, and Correlation sub-tabs, with a shared **Group by** control (lot, program,
 tester, node, part type, or any wafer split) and click-through drilldown.
 
@@ -108,6 +114,20 @@ own per-wafer view.
 See [Grouping data in the Insights tab](user-guide.md#7-grouping-data-in-the-insights-tab) in
 the user guide.
 
+**Sweeps** read an ordered run of tests — set/reset voltages, bake times, cycle counts,
+resistance thresholds — as a response curve, and measure a pair of curves against each
+other: where they cross, and how far apart they are at a given level. They are defined in a
+small JSON file (Setup ▾ → Sweeps…); the swept value can be given directly or read from the
+test names, and plotted on a log axis when it grows by multiples. See
+[Sweeps](user-guide.md#71-sweeps).
+
+**Chart just the dies you care about.** Select dies on a map and right-click — or
+right-click a wafer card, or one wafer's bar in a chart — for a histogram, process
+capability or any sweep drawn from only that population, with the number of dies and the
+wafer stated on the chart. See
+[Charting dies and wafers](https://wafertools.github.io/wafermap/user-guide/#44-charting-dies-and-wafers)
+in the wafer map guide.
+
 ## Export & desktop/browser parity
 
 Every chart has a camera button for a clean PNG export at full resolution, and the wafer map
@@ -115,6 +135,10 @@ toolbar has its own PNG export too. The desktop app and browser build share the 
 parsing core and the same rendering — same maps, same charts, and both fully local. The
 browser build caches itself on first visit, so it works offline too, and Chrome, Chromium and
 Edge can install it as an app with its own window and launcher entry.
+
+Every file dialog reopens where you last used it, remembered separately for data, images,
+exported data, definitions and filters — on Linux too, where the system dialog would open
+at your home folder every time.
 
 ![Wafer map toolbar with the plot-mode dropdown open](images/wafer-map-toolbar.png)
 

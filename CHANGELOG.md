@@ -4,6 +4,86 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.39] — 2026-09-23
+
+Adopts wmap **0.30.3** (derived tests, sweeps with test ranges and x values from test names,
+drilldown charts, charts that grow into their modal, hover-tooltip fixes) — pinned `^0.30.3`.
+
+### Added
+
+- **`--sweeps <FILE>` on the command line.** Loads a sweeps file — the JSON Setup ▾ →
+  Sweeps… saves — at launch, through the same path the dialog uses, so its warnings read the
+  same. It replaces the session's sweeps rather than waiting for a load, so it works on its
+  own: `tsmap --sweeps s.json` sent to a running tsmap applies to the lot already open.
+  Forwarded to a new window when a replace prompt is declined, like `--tests`/`--splits`.
+  `--s` is now ambiguous between `--splits` and `--sweeps`; `--sp`/`--sw` are not.
+- **A launch with no data files no longer asks to "replace the loaded data with 0 files".**
+  One carrying only settings (`--sweeps`, `--wafer-diameter`, `--edge-exclusion`) and sent to
+  a running tsmap now applies to it straight away.
+
+- **A derived test can no longer silently remove a measured test from the next lot.**
+  Derived tests carry over between loads, but were never checked against the new lot's test
+  numbers: one reusing a number the new lot measures pre-selected that measured test and
+  then dropped it as derived, so its data was never imported. The selector now drops the
+  derived test instead — a measured test always wins its number — and logs the same warning
+  a definitions file gets.
+- **The RRAM sample's endurance sweep reads its cycle counts from the test names** (`1e3`)
+  and plots them on a log axis, replacing the hand-made `log10` x values; `docs/features.md`
+  now covers derived tests, sweeps, charting a selection and remembered dialog folders.
+
+- **Sweeps read their swept values from test names, and can use a log axis.** A sweeps file
+  can now give `"xFromName": "LRS_STATS_{x}"` on a series instead of an `xValues` list, for
+  programs that write the swept value only into the test text; `"xUnit": "Ω"` for SI-prefixed
+  axis values; and `"xScale": "log"` for steps that grow by multiples. The loader accepts the
+  three fields and warns on a pattern without `{x}` or an unknown scale. The behaviour is
+  wmap's — see the user guide's sweeps section.
+- **Every file dialog reopens where you last used it.** Only opening data remembered its
+  folder; saving images, exporting CSV, loading or saving test/bin/splits/sweeps
+  definitions and saving or loading filters all opened at the OS default — on Linux,
+  your home folder every time. Each kind of dialog now remembers its own folder between
+  sessions (`DialogPurpose`: data, images, exports, definitions, filters — the per-dialog
+  model of Windows' `SetClientGuid` and the web's picker `id`), and a kind with nothing
+  remembered yet starts in the folder your data came from. Saving and loading the same
+  kind of file share a folder. In Chrome and Edge the browser build does the same for
+  opening data, definitions and filters through the File System Access picker's `id`;
+  Firefox and Safari's file input cannot be pointed at a folder. The folder remembered
+  for data before this change is kept.
+- **Derived tests in the test definitions file.** A row with a value in the new
+  `expression` column (last, header required) defines a test computed per die from other
+  tests — `mean(t[3126..3130])`, `log10(t[900001] / t[3115])`,
+  `testPass[2001] and t[900001] > 50`. wmap computes it and marks it † in front of its
+  name everywhere it is shown. In the test selector derived tests are listed after the
+  measured ones with the same † in front (hover for the expression), and are selected,
+  renamed and searched like any other test; a new **† Derived** type filter shows only
+  them. They are split back out of the selection on import, so the parser is never asked
+  for a test that exists only as an expression — including across "scan all files".
+  Save definitions writes the selected ones back, and a derived row that reuses a
+  measured test's number is refused, naming it. The column also accepts wmap's CSV-export header, "Derived from".
+- **Sweeps — Setup ▾ → Sweeps….** Load or save a sweeps file: runs of tests read as
+  response curves in Insights' Sweeps tab, with where two curves cross and how far apart
+  they are at given levels. JSON, in wmap's own sweep shape inside a
+  `"format": "tsmap-sweeps"` wrapper; tests may be given as ranges (`"3000..3030"`), the
+  same syntax a derived test uses. A syntax error is reported by line and column —
+  computed by tsmap, since the desktop webview's JSON parser gives no position — and a
+  bad sweep is named while the good ones load.
+- **A sweeps + derived tests demo lot**, `sample_data/RRAM-LOT-06.stdf` with
+  `RRAM-LOT-06_testdefs.csv` and `RRAM-LOT-06_sweeps.json`
+  (`scripts/generate_stdf_rram_lot.py`): a synthetic ReRAM characterisation lot whose set
+  and reset read currents form a V, plus an endurance sweep and seven derived tests.
+- Help → Definitions file formats… gains a sweeps template, and the test definitions
+  template shows two derived rows.
+
+### Changed
+
+- **Test definitions files quote cells instead of mangling them.** A comma in a test name
+  or unit was replaced by a space on save; it is now quoted, as a spreadsheet would, and
+  quoted cells are read back exactly. Every saved file gains the `expression` column.
+
+### Fixed
+
+- **Loading a saved file filter in the browser** offered only `.csv`/`.txt` files, so the
+  `filter.json` that Save filter writes could not be picked.
+
 ## [0.1.38] — 2026-09-21
 
 ### Added

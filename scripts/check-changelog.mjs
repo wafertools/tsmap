@@ -68,11 +68,23 @@ const strict = (v) => cmp(v, STRICT_FROM) >= 0;
 
 // ── 1. Newest heading matches package.json ─────────────────────────────────
 
+// The usual cause at release: the notes are still under `## [Unreleased]`.
+// `npm version` does not rename that heading — this check only confirms it was
+// renamed — so say exactly what to do, and how to undo the bump npm has
+// already written to package.json. It has been hit more than once.
+const unreleasedLine = lines.findIndex(l => /^## \[Unreleased\]/i.test(l));
+const unreleasedHint = unreleasedLine >= 0 && unreleasedLine + 1 < entries[0].line
+  ? ` — the release notes are still under "## [Unreleased]" (line ${unreleasedLine + 1}): ` +
+    `rename it to "## [${process.env.npm_new_version ?? pkgVersion}] — ${new Date().toISOString().slice(0, 10)}" and ` +
+    `commit that, then run \`git checkout -- package.json package-lock.json\` if npm version ` +
+    `already bumped them, and run npm version again`
+  : '';
+
 if (entries[0].version !== pkgVersion) {
   fail(
     `package.json is at ${pkgVersion} but the newest CHANGELOG heading is ` +
       `[${entries[0].version}] (line ${entries[0].line}) — add the entry for ${pkgVersion} ` +
-      `above it, do not edit the existing heading`
+      `above it, do not edit the existing heading` + unreleasedHint
   );
 }
 

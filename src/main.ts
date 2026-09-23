@@ -9,13 +9,14 @@ import { estimateValueFindingsMs, lotHasTestValues, describeDuration,
          maxTestCount, VALUE_FINDINGS_AUTO_BUDGET_MS } from './valueFindings';
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
-import { createPlatform, isTauri } from './platform';
+import { createPlatform, isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt, shouldMountProgressively } from './lib';
+import { basename, rustToLocal, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm, needsWaferLabelPrompt } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
-import type { TestListEntry } from './testSelectorUI';
+import type { TestListEntry, DerivedSelection } from './testSelectorUI';
+import { parseSweepsFile, formatSweepsFile, type SweepSpec } from './sweeps';
 import type { CsvMapping } from './mappingUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
 import type { PassBinCollision, TestDefCollision } from './lib';
@@ -221,6 +222,25 @@ function wmapTestDefsForWafer(w: WaferData): ReturnType<typeof toWmapTestDefs> {
 // "nothing to pass," falling back to wmap's own default (bare bin numbers,
 // passBins [1]).
 let currentHbinDefs: BinDef[] | undefined;
+// Derived tests: the rows of the loaded test-definitions file that carry an
+// expression (see TestListEntry). Handed to every buildWaferMap call, which
+// computes them per die; they then behave as ordinary tests everywhere.
+let currentDerivedTests: TestListEntry[] = [];
+// Which of them the user has selected — the rest stay defined (reopening the
+// selector lists them) but are not computed.
+let currentDerivedSelected = new Set<number>();
+/** Selector input: every defined derived test, and the selection to restore. */
+const derivedForSelector = () => ({ tests: currentDerivedTests, selected: [...currentDerivedSelected] });
+/** Adopt what the selector confirmed. */
+function adoptDerived(d: DerivedSelection): void {
+  currentDerivedTests = d.tests;
+  currentDerivedSelected = new Set(d.selected);
+}
+// Parametric sweeps from Setup ▾ → Sweeps… (sweeps.ts) — one card each in the
+// Insights Sweeps tab, which wmap shows only when there is at least one.
+let currentSweeps: SweepSpec[] = [];
+/** Insights options for both mounts, so the map and the gallery offer the same tabs. */
+const insightsOpts = () => ({ enabled: true, sweeps: currentSweeps.length ? currentSweeps : undefined });
 let currentSbinDefs: BinDef[] | undefined;
 let currentPassHbins: number[] | undefined;
 
@@ -473,7 +493,10 @@ if (isTauri) {
     // own independent window instead of discarding it.
     listen<CliStartupArgs>('cli-open-files', async event => {
       const args = event.payload;
-      if (currentWafers.length === 0) {
+      // Nothing loaded, or nothing to replace it with: a launch carrying only
+      // settings (`--sweeps`, `--wafer-diameter`) applies to what is open. It
+      // used to ask to "replace the currently loaded data with 0 files".
+      if (currentWafers.length === 0 || args.files.length === 0) {
         applyCliArgs(args);
         return;
       }
@@ -713,6 +736,7 @@ function buildWmapConfig(
     // file counts as a fail count as a pass for every wafer in the lot, moving
     // every yield figure, finding and report — see `unionBinInfo` (lib.ts).
     passBins: passBinsForWafer(w),
+    derivedTests: toWmapDerivedTests(currentDerivedTests.filter(d => currentDerivedSelected.has(d.num))),
   };
 }
 
@@ -1051,7 +1075,7 @@ function renderWafers(
 const onSaveImage = isTauri
   ? (blob: Blob, suggestedName: string) => {
       const stem = suggestedName.replace(/\.png$/i, '');
-      platform.savePng(blob, stem, 'Save image')
+      platform.savePng(blob, stem, 'images', 'Save image')
         .then(() => log('info', `PNG saved: ${suggestedName}`))
         .catch((err: unknown) => log('error', `PNG save failed: ${err}`));
     }
@@ -1062,7 +1086,7 @@ const onSaveImage = isTauri
 // onSaveImage — see WMAP_ISSUES.md #33.
 const onSaveText = isTauri
   ? (text: string, suggestedName: string) => {
-      platform.saveTextFile(text, suggestedName, 'Save exported data')
+      platform.saveTextFile(text, suggestedName, 'exports', 'Save exported data')
         .then(() => log('info', `Saved: ${suggestedName}`))
         .catch((err: unknown) => log('error', `Save failed: ${err}`));
     }
@@ -1159,7 +1183,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // the gap that blocked removing tsmap's own Charts page (see
       // WMAP_ISSUES.md): single-wafer loads had no chart access at all
       // without this.
-      insights: { enabled: true },
+      insights: insightsOpts(),
     });
   } else {
     container.classList.add('gallery');
@@ -1255,7 +1279,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // advisory is stated once there; tsmap's log keeps the per-wafer detail.
       // wmap-owned Insights tab (see WMAP_ISSUES.md #31) — the only chart
       // access now that tsmap's own Charts page has been removed.
-      insights: { enabled: true },
+      insights: insightsOpts(),
     });
     // Hold the caller's spinner and busy label until the cards have actually
     // finished appearing. Resolves immediately on the synchronous path, where
@@ -1835,7 +1859,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
       showMappingOverlay(headersResult,
         (mapping, binDefs) => resolve({ mapping, binDefs }),
         () => { endLoad(); resolve(null); },
-        () => platform.pickTextFile('Select a bin definitions file to load').then(f => f?.content ?? null),
+        () => platform.pickTextFile('definitions', 'Select a bin definitions file to load').then(f => f?.content ?? null),
       );
     });
   }
@@ -1928,6 +1952,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
     let scopedDefs = firstPassTestDefs;
     let carrySelection: number[] = [];
     let carryOverrides = new Map<number, TestOverride>();
+    let carryDerived: DerivedSelection = derivedForSelector();
     // Only the very first open of this load gets the cheap-lot default below —
     // a "scan all files" re-open must carry the user's actual selection, even
     // when that selection is deliberately empty.
@@ -1951,26 +1976,27 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
       }
       firstOpen = false;
 
-      const result = await new Promise<{ kind: 'confirm'; selection: number[]; overrides: Map<number, TestOverride> }
+      const result = await new Promise<{ kind: 'confirm'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }
                                      | { kind: 'cancel' }
-                                     | { kind: 'scanAll'; selection: number[]; overrides: Map<number, TestOverride> }>(resolve => {
+                                     | { kind: 'scanAll'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }>(resolve => {
         showTestSelectorOverlay(
           scopedDefs,
-          (sel, overrides) => resolve({ kind: 'confirm', selection: sel, overrides }),
+          (sel, overrides, derived) => resolve({ kind: 'confirm', selection: sel, overrides, derived }),
           () => resolve({ kind: 'cancel' }),
           {
             scanScope: binaryFiles.length > 1 ? scanScope : undefined,
             scanFileCount: binaryFiles.length,
-            onScanAll: canScanAll ? (sel, overrides) => resolve({ kind: 'scanAll', selection: sel, overrides }) : undefined,
-            initialSelection: carrySelection,
+            onScanAll: canScanAll ? (sel, overrides, derived) => resolve({ kind: 'scanAll', selection: sel, overrides, derived }) : undefined,
+            initialSelection: [...carrySelection, ...carryDerived.selected],
             testOverrides: carryOverrides,
+            derivedTests: carryDerived.tests,
             preloadListText: testListPreload ?? undefined,
             capacity: totalDieCount > 0
               ? { dieCount: totalDieCount, totalTests: allTestNums.size, isWebBuild: !isTauri }
               : undefined,
             onSave: async (saveEntries: TestListEntry[]) => {
               const csv = formatTestListCsv(saveEntries);
-              const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'Save these test definitions to a file');
+              const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'definitions', 'Save these test definitions to a file');
               // Remember what was just written: the list you build here is the one
               // you reload for the next dataset, so saving it should put it a click
               // away rather than back behind the file picker.
@@ -1992,6 +2018,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
         // Preserve the user's in-progress selection/overrides across the re-scan.
         carrySelection = result.selection;
         carryOverrides = result.overrides;
+        carryDerived = result.derived;
         const scan = await scanBinaryTests(binaryFiles);
         if (scan) {
           scopedDefs = scan.testDefs;
@@ -2007,6 +2034,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
 
       // confirm
       overlayTestOverrides = result.overrides;
+      adoptDerived(result.derived);
       testSelection = result.selection;
       log('info', `Test filter: ${testSelection.length} of ${allTestNums.size} tests selected`);
       break;
@@ -2202,6 +2230,17 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
       log('error', `Failed to read tests file "${args.tests}": ${errMsg(e)}`);
     }
   }
+  // Not seeded for the next load like tests/splits: the session's sweeps are
+  // replaced now, the way Setup ▾ → Sweeps… does. A load below then builds with
+  // them; with no files, whatever is already open is re-rendered to show them.
+  let sweepsChanged = false;
+  if (args.sweeps) {
+    try {
+      sweepsChanged = adoptSweepsFile(await platform.readTextFile(args.sweeps));
+    } catch (e) {
+      log('error', `Failed to read sweeps file "${args.sweeps}": ${errMsg(e)}`);
+    }
+  }
   // Unlike splits/tests above, these are scalars applied directly rather than
   // seeded-then-consumed at render time — they're not tied to matching
   // per-wafer IDs, so there's nothing to wait for. Set before handleFiles
@@ -2223,6 +2262,10 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     waferDiameterMm = normalized.diameterMm;
     edgeExclusionMm = normalized.edgeExclusionMm;
     setWaferGeometry(normalized);
+  }
+  if (args.files.length === 0) {
+    if (sweepsChanged && currentWafers.length > 0) rerenderCurrentLot('Rendering');
+    return;
   }
   const files: FileHandle[] = args.files.map(p => ({
     name: basename(p),
@@ -2496,14 +2539,14 @@ if (isTauri) {
   // On web, trigger the native file input synchronously from the click event
   // so the browser treats it as a user gesture (async calls block the picker).
   const fileInput = document.getElementById('file-input') as HTMLInputElement;
+  // From the one list every picker uses, not restated in index.html.
+  fileInput.accept = DATA_PICKER_EXTENSIONS.map(e => `.${e}`).join(',');
   let appendOnPick = false;
   // The topbar label used to be captured here and restored afterwards, because
   // the busy message overwrote it. It carries the file identity only now, so
   // there is nothing to save and nothing to put back.
 
-  fileInput.addEventListener('change', async () => {
-    const rawFiles = Array.from(fileInput.files ?? []);
-    fileInput.value = '';  // reset so same file can be re-picked
+  const handlePicked = async (rawFiles: File[]): Promise<void> => {
     if (rawFiles.length === 0) { endLoad(); return; }
     // Offer the filter route before reading a single byte — a batch big enough
     // to be worth filtering is exactly the one not worth materialising first.
@@ -2511,6 +2554,12 @@ if (isTauri) {
     if (await offerFilterFirst(picked, appendOnPick)) return;
     const files = await Promise.all(picked.map(materializePicked));
     handleFiles(files, appendOnPick, true);
+  };
+
+  fileInput.addEventListener('change', () => {
+    const rawFiles = Array.from(fileInput.files ?? []);
+    fileInput.value = '';  // reset so same file can be re-picked
+    void handlePicked(rawFiles);
   });
 
   // Unlike `change`, the native file input fires no event at all when the
@@ -2524,6 +2573,13 @@ if (isTauri) {
     if (busy) return;
     appendOnPick = isAppend;
     loadPhase('waiting', 'Waiting for file selection');
+    // Chromium: a picker that reopens at the last data folder (see
+    // DialogPurpose). Decided synchronously — both pickers need the click's
+    // user gesture, so there is no trying one and falling back to the other.
+    if (canPickWebFilesByPurpose()) {
+      void pickWebFilesByPurpose('data', DATA_PICKER_EXTENSIONS, true).then(handlePicked);
+      return;
+    }
     fileInput.click();
   };
 
@@ -2602,6 +2658,7 @@ async function openFilterTests() {
   // (the original first-pass scan) — otherwise an override applied earlier
   // would appear to have silently reverted when the selector reopens here.
   let carryOverrides = new Map<number, TestOverride>();
+  let carryDerived: DerivedSelection = derivedForSelector();
   for (const [key, def] of Object.entries(currentTestDefs)) {
     const scanned = selectorTestDefs[key];
     if (scanned) {
@@ -2613,19 +2670,20 @@ async function openFilterTests() {
   filterLoop: for (;;) {
     // Offer "scan all" only if this is a multi-file binary load not already widened.
     const canScanAll = currentBinaryFiles.length > 1 && binaryScanScope === 'largest';
-    const result = await new Promise<{ kind: 'confirm'; selection: number[]; overrides: Map<number, TestOverride> }
+    const result = await new Promise<{ kind: 'confirm'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }
                                    | { kind: 'cancel' }
-                                   | { kind: 'scanAll'; selection: number[]; overrides: Map<number, TestOverride> }>(resolve => {
+                                   | { kind: 'scanAll'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }>(resolve => {
       showTestSelectorOverlay(
         scopedDefs,
-        (sel, overrides) => resolve({ kind: 'confirm', selection: sel, overrides }),
+        (sel, overrides, derived) => resolve({ kind: 'confirm', selection: sel, overrides, derived }),
         () => resolve({ kind: 'cancel' }),
         {
           scanScope: currentBinaryFiles.length > 1 ? binaryScanScope : undefined,
           scanFileCount: currentBinaryFiles.length,
-          onScanAll: canScanAll ? (sel, overrides) => resolve({ kind: 'scanAll', selection: sel, overrides }) : undefined,
-          initialSelection: carrySelection,
+          onScanAll: canScanAll ? (sel, overrides, derived) => resolve({ kind: 'scanAll', selection: sel, overrides, derived }) : undefined,
+          initialSelection: [...carrySelection, ...carryDerived.selected],
           testOverrides: carryOverrides,
+          derivedTests: carryDerived.tests,
           // `capacity` and `onAsk` were previously passed only on the initial
           // load, which had it exactly backwards: this path is the one that can
           // WIDEN a selection and force a full re-parse, so it's the only one
@@ -2640,7 +2698,7 @@ async function openFilterTests() {
           // appear on the one screen a returning user reaches most often.
           onSave: async (entries: TestListEntry[]) => {
             const csv = formatTestListCsv(entries);
-            const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'Save these test definitions to a file');
+            const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'definitions', 'Save these test definitions to a file');
             if (saved) addRecentDefinition({ kind: 'tests', name: saved.name, path: saved.path, content: csv });
           },
           onLoad: () => pickDefinitionsFile('tests', 'Select a test definitions file to load'),
@@ -2660,6 +2718,7 @@ async function openFilterTests() {
     if (result.kind === 'scanAll') {
       carrySelection = result.selection;
       carryOverrides = result.overrides;
+      carryDerived = result.derived;
       const scan = await scanBinaryTests(currentBinaryFiles);
       if (scan) {
         scopedDefs = scan.testDefs;
@@ -2695,6 +2754,7 @@ async function openFilterTests() {
         + 'describe it. Load those files separately to define it.');
     }
     testSelection = result.selection;
+    adoptDerived(result.derived);
     break;
   }
 
@@ -2802,7 +2862,7 @@ function openSplitsDialog() {
   if (currentWafers.length === 0) return;
   showSplitsModal(currentWafers, {
     onSave: async (csv) => {
-      const saved = await platform.saveTextFile(csv, 'wafer-splits.csv', 'Save wafer splits to a file');
+      const saved = await platform.saveTextFile(csv, 'wafer-splits.csv', 'definitions', 'Save wafer splits to a file');
       if (saved) addRecentDefinition({ kind: 'splits', name: saved.name, path: saved.path, content: csv });
     },
     onLoad: () => pickDefinitionsFile('splits', 'Select a wafer splits file to load'),
@@ -2904,7 +2964,7 @@ function openSaveLoadDefinitionsDialog(opts: {
       saveBtn.addEventListener('click', async () => {
         try {
           const csv = onSave();
-          const saved = await platform.saveTextFile(csv, saveFileName, `Save ${errorLabel} to a file`);
+          const saved = await platform.saveTextFile(csv, saveFileName, 'definitions', `Save ${errorLabel} to a file`);
           if (saved) addRecentDefinition({ kind, name: saved.name, path: saved.path, content: csv });
           log('info', savedMessage);
         } catch (e) {
@@ -2940,7 +3000,8 @@ function openSaveLoadDefinitionsDialog(opts: {
  * picked is exactly the file they are likely to want again next dataset.
  */
 async function pickDefinitionsFile(kind: DefinitionKind, title: string): Promise<string | null> {
-  const picked = await platform.pickTextFile(title);
+  // A sweeps file is JSON; every other definitions file is CSV.
+  const picked = await platform.pickTextFile('definitions', title, kind === 'sweeps' ? ['json'] : undefined);
   if (!picked) return null;
   addRecentDefinition({ kind, name: picked.name, path: picked.path, content: picked.content });
   return picked.content;
@@ -3035,6 +3096,48 @@ function recentDefinitionRows(kind: DefinitionKind) {
     };
   });
 }
+/**
+ * Setup ▾ → Sweeps…: load or save the sweeps file (sweeps.ts). Loading replaces
+ * every sweep; a sweeps file with an empty list clears them.
+ */
+function openSweepsDialog(): void {
+  if (currentWafers.length === 0) return;
+  const n = currentSweeps.length;
+  openSaveLoadDefinitionsDialog({
+    title: 'Sweeps',
+    kind: 'sweeps',
+    errorLabel: 'sweeps',
+    savedMessage: 'Sweeps saved',
+    description: n === 0
+      ? 'A sweep reads a run of tests — the same quantity measured at a series of voltages, temperatures or cycle counts — as a curve, and measures where two such curves cross. Load a sweeps file (JSON) to add them to Insights → Sweeps.'
+      : `${n} sweep${n !== 1 ? 's are' : ' is'} defined: ${currentSweeps.map(s => s.title).join(', ')}. Save them to a file, or load a sweeps file to replace them.`,
+    saveDisabled: n === 0,
+    saveFileName: 'sweeps.json',
+    onSave: () => formatSweepsFile(currentSweeps),
+    onLoad: adoptSweepsFile,
+  });
+}
+
+/**
+ * Parse a sweeps file and make it the session's sweeps, logging exactly what
+ * happened. ONE path for Setup ▾ → Sweeps… and `--sweeps`, so a file reads the
+ * same whichever way it arrives. Returns false (and changes nothing) when the
+ * file cannot be used at all; the caller re-renders on true.
+ */
+function adoptSweepsFile(text: string): boolean {
+  const parsed = parseSweepsFile(text);
+  if (parsed.error !== undefined) {
+    log('error', `Sweeps file not loaded: ${parsed.error}`);
+    return false;
+  }
+  for (const w of parsed.warnings) log('warn', `Sweeps file: ${w}`);
+  currentSweeps = parsed.sweeps;
+  log('info', parsed.sweeps.length
+    ? `Sweeps loaded: ${parsed.sweeps.map(s => s.title).join(', ')} — see Insights → Sweeps`
+    : 'Sweeps cleared — the file defines none');
+  return true;
+}
+
 function openBinDefinitionsDialog(): void {
   if (currentWafers.length === 0) return;
 
@@ -3124,7 +3227,7 @@ function openHelpMenu(anchor: HTMLElement) {
         hint: 'Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first',
         onClick: () => {
           showDefinitionsTemplatesDialog(
-            async (content, fileName, label) => { await platform.saveTextFile(content, fileName, `Save ${label.toLowerCase()} example file`); },
+            async (content, fileName, label) => { await platform.saveTextFile(content, fileName, 'definitions', `Save ${label.toLowerCase()} example file`); },
             (level, message) => log(level, message),
           );
         },
@@ -3357,6 +3460,14 @@ function openLotMenu(anchor: HTMLElement) {
         enabled: hasTestValues && !busy,
         checked: valueFindings,
         onClick: toggleValueFindings,
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Sweeps…',
+        hint: currentSweeps.length
+          ? `${currentSweeps.length} sweep${currentSweeps.length !== 1 ? 's' : ''} in Insights → Sweeps — save or load the sweeps file`
+          : 'Load a sweeps file: runs of tests read as response curves, in Insights → Sweeps',
+        enabled: !busy,
+        onClick: openSweepsDialog,
       }));
     },
   );

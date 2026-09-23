@@ -88,6 +88,10 @@ export interface CliStartupArgs {
   files: string[];
   tests?: string;
   splits?: string;
+  /** `--sweeps <FILE>` (cli_files.rs) — a sweeps JSON path, resolved but not
+   *  read on the Rust side. Replaces the session's sweeps (`adoptSweepsFile`
+   *  in main.ts) rather than seeding the next load, so it also works alone. */
+  sweeps?: string;
   /** `--edge-exclusion <MM>` (cli_files.rs) — a scalar mm value, already
    *  parsed and validated (non-negative, finite) on the Rust side, unlike
    *  `tests`/`splits` which are file paths resolved but not read there.
@@ -119,6 +123,29 @@ export interface FolderScan {
   hasSubdirs: boolean;
   truncated: boolean;
 }
+
+/**
+ * What a file dialog is for. Each purpose remembers its own folder between
+ * sessions, so the next dialog of that kind opens where the last one finished —
+ * the per-dialog memory Windows gives an app through `SetClientGuid` and the web
+ * through a picker `id`. A purpose with nothing remembered yet starts in the
+ * `data` folder: exports, images and definitions usually live beside the data
+ * they came from, which beats the OS default of the home folder.
+ *
+ * Group by the FOLDER a user keeps things in, not by the dialog: saving and
+ * loading the same kind of file share one purpose.
+ */
+export type DialogPurpose =
+  /** Wafer data — opening files or scanning a folder. */
+  | 'data'
+  /** Chart and map images. */
+  | 'images'
+  /** Exported CSV/text from the map and Insights. */
+  | 'exports'
+  /** Test, bin, splits and sweeps definitions, and their example files. */
+  | 'definitions'
+  /** Saved file-filter criteria. */
+  | 'filters';
 
 export interface Platform {
   /** `title` (desktop only — ignored on web, which has no native dialog to
@@ -166,7 +193,7 @@ export interface Platform {
   parquetDistinctCount(file: FileHandle, columns: string[]): Promise<number>;
   /** `title` — see `pickFiles`'s doc: desktop-only, replaces the OS's own
    *  generic default with copy naming what's being saved. */
-  savePng(blob: Blob, stem: string, title?: string): Promise<void>;
+  savePng(blob: Blob, stem: string, purpose: DialogPurpose, title?: string): Promise<void>;
   openReport(html: string): void;
   /** Opens an external URL in the system browser (Tauri) / a new tab (web). */
   openExternal(url: string): void;
@@ -184,11 +211,11 @@ export interface Platform {
   /** Returns what was written, or null if the user cancelled. `path` is desktop-only.
    *  Callers use it to remember a saved definitions file, so a list you just wrote is
    *  one click away next time (see recentDefinitions.ts). */
-  saveTextFile(content: string, defaultName: string, title?: string): Promise<{ name: string; path?: string } | null>;
+  saveTextFile(content: string, defaultName: string, purpose: DialogPurpose, title?: string): Promise<{ name: string; path?: string } | null>;
   /** `path` is desktop-only — the browser picker exposes none. It is what lets a
    *  remembered definitions file be re-read fresh instead of served from the
    *  copy cached at pick time (see recentDefinitions.ts). */
-  pickTextFile(title?: string): Promise<{ content: string; name: string; path?: string } | null>;
+  pickTextFile(purpose: DialogPurpose, title?: string, extensions?: string[]): Promise<{ content: string; name: string; path?: string } | null>;
   /** Returns a FileHandle for the bundled synthetic demo lot (13 wafers, 5
    *  process corners), for the empty state's "Load sample data" action. */
   getSampleFile(): Promise<FileHandle>;
@@ -248,6 +275,31 @@ function makeTauriPlatform(): Platform {
   const getFs = () => import('@tauri-apps/plugin-fs');
   const getOpener = () => import('@tauri-apps/plugin-opener');
 
+  /** Where a `purpose` dialog should open: its own remembered folder, else the
+   *  data folder, else nothing (the OS default). See `DialogPurpose`. */
+  async function startDir(purpose: DialogPurpose): Promise<string | undefined> {
+    const invoke = await getInvoke();
+    const own = await invoke<string | null>('get_last_dir', { purpose }).catch(() => null);
+    if (own || purpose === 'data') return own ?? undefined;
+    return (await invoke<string | null>('get_last_dir', { purpose: 'data' }).catch(() => null)) ?? undefined;
+  }
+
+  /** Record where a `purpose` dialog finished. Only on a real choice — a
+   *  cancelled dialog must not move the remembered folder. */
+  function remember(purpose: DialogPurpose, path: string): void {
+    getInvoke().then(invoke => invoke('set_last_dir', { path, purpose })).catch(() => {});
+  }
+
+  /** A save dialog's `defaultPath`: the suggested name inside the purpose's
+   *  folder. A bare name leaves the folder to the OS, which on Linux is $HOME
+   *  every time. */
+  async function savePath(purpose: DialogPurpose, name: string): Promise<string> {
+    const dir = await startDir(purpose);
+    if (!dir) return name;
+    const { join } = await import('@tauri-apps/api/path');
+    return join(dir, name);
+  }
+
   /** Shared by `pickFolder` and `rescanFolder`. A local function, not a
    *  Platform method: listing a known directory is an implementation detail of
    *  those two, not something a caller should reach for on its own. */
@@ -276,15 +328,13 @@ function makeTauriPlatform(): Platform {
 
   return {
     async pickFolder(title, recursive = false) {
-      const { invoke } = await import('@tauri-apps/api/core');
       const { open: dialogOpen } = await import('@tauri-apps/plugin-dialog');
-      const lastDir = await invoke<string | null>('get_last_dir').catch(() => null);
       const picked = await dialogOpen({
-        title, directory: true, multiple: false, defaultPath: lastDir ?? undefined,
+        title, directory: true, multiple: false, defaultPath: await startDir('data'),
       });
       const dirPath = Array.isArray(picked) ? picked[0] : picked;
       if (!dirPath) return null;
-      invoke('set_last_dir', { path: dirPath }).catch(() => {});
+      remember('data', dirPath);
       return listFolder(dirPath, recursive);
     },
 
@@ -300,13 +350,11 @@ function makeTauriPlatform(): Platform {
     },
 
     async pickFiles(title) {
-      const { invoke } = await import('@tauri-apps/api/core');
       const { open: dialogOpen } = await import('@tauri-apps/plugin-dialog');
-      const lastDir = await invoke<string | null>('get_last_dir').catch(() => null);
       const result = await dialogOpen({
         title,
         multiple: true,
-        defaultPath: lastDir ?? undefined,
+        defaultPath: await startDir('data'),
         // One entry per format so the dialog's own type dropdown can narrow
         // to exactly one — split out from a former combined "CSV / JSON /
         // Parquet" entry, which couldn't isolate just one of those three.
@@ -321,7 +369,7 @@ function makeTauriPlatform(): Platform {
         ],
       });
       const paths = Array.isArray(result) ? result : result ? [result] : [];
-      if (paths.length > 0) invoke('set_last_dir', { path: paths[0] }).catch(() => {});
+      if (paths.length > 0) remember('data', paths[0]);
       const { stat } = await getFs();
       return Promise.all(paths.map(async path => {
         const s = await stat(path).catch(() => null);
@@ -404,15 +452,16 @@ function makeTauriPlatform(): Platform {
       return invoke<number>('parquet_distinct_count', { path: file.path, columns });
     },
 
-    async savePng(blob, stem, title) {
+    async savePng(blob, stem, purpose, title) {
       const { save: dialogSave } = await getDialog();
       const { writeFile } = await getFs();
       const path = await dialogSave({
         title,
-        defaultPath: `${stem}.png`,
+        defaultPath: await savePath(purpose, `${stem}.png`),
         filters: [{ name: 'PNG image', extensions: ['png'] }],
       });
       if (path) {
+        remember(purpose, path);
         const buf = await blob.arrayBuffer();
         await writeFile(path, new Uint8Array(buf));
       }
@@ -461,7 +510,7 @@ function makeTauriPlatform(): Platform {
       return invoke<RustParsedFile>('parse_atdf_filtered', { path: file.path, selected });
     },
 
-    async saveTextFile(content, defaultName, title) {
+    async saveTextFile(content, defaultName, purpose, title) {
       const { save: dialogSave } = await getDialog();
       const { writeTextFile } = await getFs();
       // Derive the filter from what is actually being saved. This was hardcoded
@@ -473,23 +522,26 @@ function makeTauriPlatform(): Platform {
       const FILTER_NAMES: Record<string, string> = { csv: 'CSV', txt: 'Text', json: 'JSON' };
       const path = await dialogSave({
         title,
-        defaultPath: defaultName,
+        defaultPath: await savePath(purpose, defaultName),
         filters: [{ name: FILTER_NAMES[ext] ?? ext.toUpperCase(), extensions: [ext] }],
       });
       if (!path) return null;
+      remember(purpose, path);
       await writeTextFile(path, content);
       return { name: path.split(/[\\/]/).pop() ?? path, path };
     },
 
-    async pickTextFile(title) {
+    async pickTextFile(purpose, title, extensions = ['csv', 'txt']) {
       const { open: dialogOpen } = await getDialog();
       const { readTextFile } = await getFs();
       const path = await dialogOpen({
         title,
         multiple: false,
-        filters: [{ name: 'Test definitions', extensions: ['csv', 'txt', '*'] }],
+        defaultPath: await startDir(purpose),
+        filters: [{ name: 'Definitions', extensions: [...extensions, '*'] }],
       });
       if (!path || Array.isArray(path)) return null;
+      remember(purpose, path);
       const content = await readTextFile(path);
       const name = path.split(/[\\/]/).pop() ?? path;
       return { content, name, path };
@@ -835,6 +887,53 @@ interface FsDirectoryHandle {
   values(): AsyncIterableIterator<FsFileHandle | FsDirectoryHandle>;
 }
 type DirectoryPicker = (opts?: { mode?: 'read' | 'readwrite'; id?: string }) => Promise<FsDirectoryHandle>;
+type OpenFilePicker = (opts?: {
+  id?: string; multiple?: boolean; excludeAcceptAllOption?: boolean;
+  types?: { description: string; accept: Record<string, string[]> }[];
+}) => Promise<FsFileHandle[]>;
+
+/** The browser's per-purpose picker memory key — see `DialogPurpose`. The
+ *  File System Access API remembers a separate last folder for each `id`. */
+const pickerId = (purpose: DialogPurpose): string => `tsmap-${purpose}`;
+
+/** Whether this browser can open files at a remembered folder (Chromium).
+ *  Synchronous, so a click handler can choose its path without leaving the
+ *  user-gesture chain that both kinds of picker require. */
+export function canPickWebFilesByPurpose(): boolean {
+  return typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === 'function';
+}
+
+/**
+ * Web: open files through `showOpenFilePicker`, which reopens at the folder
+ * last used for `purpose` — the browser's counterpart of the desktop's
+ * remembered directory. Call only when `canPickWebFilesByPurpose()`; elsewhere
+ * (Firefox, Safari) an `<input type=file>` is all there is, and it cannot be
+ * pointed at a folder.
+ *
+ * Resolves `[]` when the user cancels, and on any other refusal (no user
+ * activation, policy) — the caller reports nothing chosen either way.
+ */
+/** The picker's file-type label per purpose (its "Files of type" entry). */
+const PICKER_TYPE_LABEL: Record<DialogPurpose, string> = {
+  data: 'Wafer data files', images: 'Images', exports: 'Exported data',
+  definitions: 'Definitions files', filters: 'Saved filters',
+};
+
+export async function pickWebFilesByPurpose(
+  purpose: DialogPurpose, extensions: readonly string[], multiple: boolean,
+): Promise<File[]> {
+  const picker = (window as unknown as { showOpenFilePicker: OpenFilePicker }).showOpenFilePicker;
+  try {
+    const handles = await picker({
+      id: pickerId(purpose), multiple,
+      types: [{ description: PICKER_TYPE_LABEL[purpose], accept: { 'application/octet-stream': extensions.map(e => `.${e.replace(/^\./, '')}`) } }],
+    });
+    return await Promise.all(handles.map(h => h.getFile()));
+  } catch (e) {
+    if (!(e instanceof DOMException && e.name === 'AbortError')) console.warn('[tsmap] file picker refused:', e);
+    return [];
+  }
+}
 
 /**
  * Folder scan via the File System Access API.
@@ -853,7 +952,9 @@ async function pickFolderViaHandle(): Promise<FolderScan | null | undefined> {
   try {
     // `id` makes the browser reopen at the last folder chosen for this purpose,
     // which is the closest the web has to the desktop's remembered directory.
-    dir = await picker({ mode: 'read', id: 'tsmap-folder-scan' });
+    // Shares the `data` purpose with opening files, as on desktop: scanning a
+    // folder and picking files from it are the same task.
+    dir = await picker({ mode: 'read', id: pickerId('data') });
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') return null;
     return undefined;
@@ -1084,11 +1185,16 @@ function makeWebPlatform(): Platform {
       return { name: defaultName };
     },
 
-    pickTextFile() {
+    // Firefox/Safari: an `<input type=file>` has no start folder to set.
+    async pickTextFile(purpose, _title, extensions = ['csv', 'txt']) {
+      if (canPickWebFilesByPurpose()) {
+        const [file] = await pickWebFilesByPurpose(purpose, extensions, false);
+        return file ? { content: await file.text(), name: file.name } : null;
+      }
       return new Promise<{ content: string; name: string } | null>(resolve => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.csv,.txt';
+        input.accept = extensions.map(e => `.${e}`).join(',');
         input.addEventListener('change', () => {
           const file = input.files?.[0];
           if (!file) { resolve(null); return; }

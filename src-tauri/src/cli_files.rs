@@ -1,6 +1,7 @@
 // Parses tsmap's command-line file arguments — positional data-file paths,
 // `--list <file>` (one path per line), `--tests <file>` (test-selection CSV),
-// `--splits <file>` (wafer-splits CSV) — into absolute paths. Used identically
+// `--splits <file>` (wafer-splits CSV), `--sweeps <file>` (sweeps JSON) — into
+// absolute paths. Used identically
 // for the initial launch's own `std::env::args()` and for argv forwarded by
 // `tauri_plugin_single_instance` on a relaunch, so there is exactly one place
 // that understands this syntax regardless of which process saw it.
@@ -28,6 +29,12 @@ pub struct CliArgs {
     pub files: Vec<String>,
     pub tests: Option<String>,
     pub splits: Option<String>,
+    /// Path to a sweeps file (`--sweeps <FILE>`) — the same JSON Setup ▾ →
+    /// Sweeps… saves and loads. Resolved against `cwd`, read by the frontend.
+    /// Unlike `tests`/`splits` it is not a modifier of a load: it replaces the
+    /// session's sweep definitions and applies to whatever is open, so a
+    /// `--sweeps`-only launch is a real payload (see `is_empty`).
+    pub sweeps: Option<String>,
     pub url: Option<String>,
     pub url_format: Option<String>,
     /// Path to a `Header-Name: value` per line file (blank lines/`#` comments
@@ -82,9 +89,13 @@ impl CliArgs {
     /// not modifiers of a load the way `tests`/`splits` are), so a
     /// `--wafer-diameter`-only launch is exactly as real a payload as a
     /// `--url`-only one and must not be misreported as empty.
+    ///
+    /// `sweeps` is checked for the same reason: it sets the session's sweep
+    /// definitions and re-renders whatever is open, with or without a file.
     pub fn is_empty(&self) -> bool {
         self.files.is_empty() && self.url.is_none() && self.url_error.is_none()
             && self.wafer_diameter.is_none() && self.edge_exclusion.is_none()
+            && self.sweeps.is_none()
     }
 }
 
@@ -106,6 +117,10 @@ Options:
                          selector; it is still always shown for confirmation.
   --splits <FILE>       A wafer-splits CSV (same format the Splits… dialog
                          saves/loads) — applied automatically once loaded.
+  --sweeps <FILE>       A sweeps file (the JSON Setup > Sweeps… saves and
+                         loads) — replaces the session's sweeps, shown in
+                         Insights > Sweeps. Works on its own, too: sent to a
+                         running tsmap, it applies to what is already open.
   --wafer-diameter <MM> Wafer diameter in mm, applied to every wafer in this
                          launch (same value the Diameter & edge exclusion…
                          dialog's diameter field sets).
@@ -230,6 +245,7 @@ struct RawArgs {
     list: Option<String>,
     tests: Option<String>,
     splits: Option<String>,
+    sweeps: Option<String>,
     edge_exclusion: Option<String>,
     wafer_diameter: Option<String>,
     url: Option<String>,
@@ -238,10 +254,11 @@ struct RawArgs {
 }
 
 /// Recognized flags that take a value — `--list`/`--tests`/`--splits`/
-/// `--edge-exclusion`/`--wafer-diameter`/`--url`/`--url-format`/`--url-headers`.
+/// `--edge-exclusion`/`--wafer-diameter`/`--url`/`--url-format`/`--url-headers`/
+/// `--sweeps`. `parse_args` matches on the position, so a new flag is appended.
 const VALUE_FLAGS: &[&str] = &[
     "--list", "--tests", "--splits", "--edge-exclusion", "--wafer-diameter",
-    "--url", "--url-format", "--url-headers",
+    "--url", "--url-format", "--url-headers", "--sweeps",
 ];
 /// Recognized flags that take no value — handled elsewhere (`--new-instance`
 /// before this point, `--help`/`-h` and `--version`/`-V` via `wants_help`/
@@ -334,6 +351,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
     let mut list = None;
     let mut tests = None;
     let mut splits = None;
+    let mut sweeps = None;
     let mut edge_exclusion = None;
     let mut wafer_diameter = None;
     let mut url = None;
@@ -358,7 +376,8 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
                     4 => wafer_diameter = Some(value.clone()),
                     5 => url = Some(value.clone()),
                     6 => url_format = Some(value.clone()),
-                    _ => url_headers = Some(value.clone()),
+                    7 => url_headers = Some(value.clone()),
+                    _ => sweeps = Some(value.clone()),
                 }
             }
             // else: resolved to a bare flag (--new-instance/--help/--version)
@@ -389,7 +408,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
             files.push(arg.clone());
         }
     }
-    Ok(RawArgs { files, list, tests, splits, edge_exclusion, wafer_diameter, url, url_format, url_headers })
+    Ok(RawArgs { files, list, tests, splits, sweeps, edge_exclusion, wafer_diameter, url, url_format, url_headers })
 }
 
 /// Parses and resolves `args` against `cwd`: `--list`'s lines are folded into
@@ -428,6 +447,7 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
         files,
         tests: raw.tests.map(|t| resolve_path(&t, cwd)),
         splits: raw.splits.map(|s| resolve_path(&s, cwd)),
+        sweeps: raw.sweeps.map(|s| resolve_path(&s, cwd)),
         edge_exclusion,
         wafer_diameter,
         // Not resolved against cwd like the file-path flags above — a URL
@@ -483,6 +503,24 @@ mod tests {
         let cwd = Path::new("/cwd");
         let resolved = resolve(&args(&["a.stdf", "/abs/b.stdf"]), cwd).unwrap();
         assert_eq!(resolved.files, vec!["/cwd/a.stdf".to_string(), "/abs/b.stdf".to_string()]);
+    }
+
+    #[test]
+    fn sweeps_flag_is_resolved_and_is_a_payload_on_its_own() {
+        let cwd = Path::new("/home/u/lots");
+        let resolved = resolve(&args(&["--sweeps", "defs/sweeps.json"]), cwd).unwrap();
+        assert_eq!(resolved.sweeps.as_deref(), Some("/home/u/lots/defs/sweeps.json"));
+        // Not a modifier like --tests/--splits: a --sweeps-only launch must
+        // reach the frontend, which applies it to whatever is already open.
+        assert!(!resolved.is_empty());
+    }
+
+    #[test]
+    fn a_bare_s_prefix_is_ambiguous_between_splits_and_sweeps() {
+        let err = resolve(&args(&["--s", "x"]), Path::new("/")).unwrap_err();
+        assert!(err.contains("--splits") && err.contains("--sweeps"), "{err}");
+        let r = resolve(&args(&["--sw", "s.json"]), Path::new("/w")).unwrap();
+        assert_eq!(r.sweeps.as_deref(), Some("/w/s.json"));
     }
 
     #[test]

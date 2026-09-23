@@ -1688,9 +1688,8 @@
             <button id="open-more-btn" class="tb-btn tb-btn--primary" aria-haspopup="menu" aria-expanded="false"
               aria-label="Choose how to pick files to open" title="Pick files, or scan a whole folder"><span class="tb-caret">▾</span></button>
           </span>
-          <input id="file-input" type="file" multiple
-            accept=".stdf,.std,.atdf,.atd,.csv,.json,.parquet,.gz,.zip,.txt,.dat"
-            style="display:none" />
+          <!-- accept is set by main.ts from DATA_PICKER_EXTENSIONS (lib.ts) — one list for every picker -->
+          <input id="file-input" type="file" multiple style="display:none" />
         </div>
         <span class="tb-split">
           <button id="add-btn" class="tb-btn" disabled title="Append more files to the current view">Add files</button>

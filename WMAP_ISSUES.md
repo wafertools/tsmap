@@ -8,9 +8,11 @@ At some point these will be converted into an implementation plan for wmap.
 | Field | Value |
 |-------|-------|
 | wmap package | **Renamed** from `@paulrobins/wafermap` to `@wafertools/wafermap` (2026-08-01), scope move only — no functional change. |
-| wmap version in use | **0.30.1** — published to npm and adopted (2026-09-17). `npm run wmap:unlink` restores what the lockfile holds, which was 0.30.0 even for a patch bump, so `npm install @wafertools/wafermap@^0.30.1` moved the pin; `package.json`/`package-lock.json` now pin `^0.30.1`. Every wmap bump needs that explicit install after unlinking, patch as well as minor. `npm run verify` (545 JS tests, 294 Rust tests), `check-wmap-published.js`, `check-testdata-parser-published.js` and `check-drift.mjs` clean against the published build. |
-| Latest wmap release | **0.30.1** published to npm and tagged (`v0.30.1`) in wafermap's own repo, 2026-09-17, patch, no breaking changes. Security fix for how names from data files are displayed. Saved PNGs and CSVs are named `[lot]_[wafer]_[content]`; `downloadFilename` is deprecated to become a prefix in 0.31.0, and tsmap no longer passes it. Map lines and markers are sized in CSS pixels, so they no longer thin on high-DPI screens (#55). The plot-mode test submenu works by tap and keyboard (#59). A floating window's minimize is now Collapse and is hidden while maximized. `ICONS` adopted by tsmap (#16). Also adds capability, region yield and spatial-pattern analysis output, `renderWaferReportHtml`/`renderLotReportHtml`, `binColorsForMaps` and `buildWaferMap({ layout: true })`, and withdraws five 0.30.0 deprecations. |
-| Previous wmap release | **0.30.0** published to npm and tagged (`v0.30.0`) in wafermap's own repo, 2026-09-15, minor bump, **breaking**. Bin colour is keyed by **bin number** again, within the pass or fail list, so a bin is the same colour in every lot (#56); 0.28.0's die-count ranking made bin 7 red in one lot and brown in the next. Pass bins are set once, on `buildWaferMap`, and carried as `WaferMapResult.passBins` to every surface, per wafer in a gallery (#57). Before this, the HBR pass bins tsmap passes reached only `result.yield`. Soft bins are judged by their own verdict, not hard pass-bin numbers. Bin legends list pass bins first. A coordinate-less wafer's "No die position data" panel no longer covers Insights (#58). **Breaking:** the `passBins` options on `analyzeWaferMap`/`analyzeWaferLot`/`renderWaferMap`/`renderWaferGallery` are removed, and so are a set of unused, duplicated or dead render options and controller methods. tsmap passed none of them. **Deprecated for removal in 0.31.0:** 78 exports, including the low-level drawing pipeline (`buildView`, `toCanvas`, …), the chart-data builders and helpers exported by accident. Each logs one console notice on first use, and `tests/deprecations.test.mjs` blocks 0.31.0 while any remain. **tsmap imports none of them**, checked against every `@wafertools/wafermap` import in `src/` and `scripts/`; its integration test had already dropped `buildView`. Full list in wafermap's own `CHANGELOG.md` [0.30.0]. |
+| wmap version in use | **0.30.3** — published to npm and adopted (2026-09-23): unlinked, then `npm install @wafertools/wafermap@^0.30.3`, so `package.json`/`package-lock.json` pin `^0.30.3`. `check-wmap-published.js` passes; `npx tsc --noEmit`, lint, `check:docs` and the full Vitest suite (586) are clean against the published package. Every wmap bump needs that explicit install after unlinking — unlinking restores only what the lockfile holds. |
+| Latest wmap release | **0.30.3** published to npm and tagged (`v0.30.3`) in wafermap's own repo, 2026-09-23, patch, no breaking changes. Derived tests and parametric sweeps (test ranges, x values read from test names, x units, log x axis), drilldown charts of a selection or a wafer, charts that grow into their expand modal, and the hover-tooltip fixes (#68, #69). `renderFindingsReportHtml` is deprecated for removal in 0.31.0, which is kept for the breaking removals alone. |
+| Previous wmap release | **0.30.2** published to npm and tagged (`v0.30.2`) in wafermap's own repo, 2026-09-20, patch, no breaking changes. A progressive gallery reports its progress and settles its Summary panel once (#62, #63), the per-test statistics cache is pooled across Insights panels, and correlation samples large lots so the panel renders (#61). |
+| Earlier wmap release | **0.30.1** published to npm and tagged (`v0.30.1`) in wafermap's own repo, 2026-09-17, patch, no breaking changes. Security fix for how names from data files are displayed. Saved PNGs and CSVs are named `[lot]_[wafer]_[content]`; `downloadFilename` is deprecated to become a prefix in 0.31.0, and tsmap no longer passes it. Map lines and markers are sized in CSS pixels, so they no longer thin on high-DPI screens (#55). The plot-mode test submenu works by tap and keyboard (#59). A floating window's minimize is now Collapse and is hidden while maximized. `ICONS` adopted by tsmap (#16). Also adds capability, region yield and spatial-pattern analysis output, `renderWaferReportHtml`/`renderLotReportHtml`, `binColorsForMaps` and `buildWaferMap({ layout: true })`, and withdraws five 0.30.0 deprecations. |
+| Earlier wmap release | **0.30.0** published to npm and tagged (`v0.30.0`) in wafermap's own repo, 2026-09-15, minor bump, **breaking**. Bin colour is keyed by **bin number** again, within the pass or fail list, so a bin is the same colour in every lot (#56); 0.28.0's die-count ranking made bin 7 red in one lot and brown in the next. Pass bins are set once, on `buildWaferMap`, and carried as `WaferMapResult.passBins` to every surface, per wafer in a gallery (#57). Before this, the HBR pass bins tsmap passes reached only `result.yield`. Soft bins are judged by their own verdict, not hard pass-bin numbers. Bin legends list pass bins first. A coordinate-less wafer's "No die position data" panel no longer covers Insights (#58). **Breaking:** the `passBins` options on `analyzeWaferMap`/`analyzeWaferLot`/`renderWaferMap`/`renderWaferGallery` are removed, and so are a set of unused, duplicated or dead render options and controller methods. tsmap passed none of them. **Deprecated for removal in 0.31.0:** 78 exports, including the low-level drawing pipeline (`buildView`, `toCanvas`, …), the chart-data builders and helpers exported by accident. Each logs one console notice on first use, and `tests/deprecations.test.mjs` blocks 0.31.0 while any remain. **tsmap imports none of them**, checked against every `@wafertools/wafermap` import in `src/` and `scripts/`; its integration test had already dropped `buildView`. Full list in wafermap's own `CHANGELOG.md` [0.30.0]. |
 | Earlier wmap release | **0.29.0** published to npm and tagged (`v0.29.0`) in wafermap's own repo, 2026-09-12, minor bump, **breaking**. The default value gradient is now **Viridis in its standard direction** (low = dark, high = light); the blue–cyan–yellow–red "thermal" ramp is removed (`'jet'` keeps the rainbow family available). `viridis`, `cividis`, `plasma` and `inferno` had been registered reversed (`t => ramp(1 - t)`) while `default` was not, so switching gradient inverted the map — all now match their matplotlib/seaborn definitions, and greyscale with them. **Breaking:** the standalone `'viridis'` name is gone (Viridis *is* `'default'`, labelled "Default (Viridis)"), and `View.reverseValueScheme` is a new required field on `View`. New: `reverseValueScheme` (offered in the Colour scheme menu as **Reverse gradient**), `resolveValueColorFn(name, reversed)` — the single read-path every value surface must resolve through, since die fills, the colorbar and the mapless summary each looked the gradient up independently — and a `'mako'` gradient. tsmap consumed it while linked: `mapColorPrefs.ts` now persists `reverseValueScheme` alongside the two scheme names (the natural extension of #52). **No open issue in this file was resolved by 0.29.0** — it came from direct user feedback that a rainbow ramp's non-monotonic lightness makes two different readings look equally intense, not from a logged tsmap-side gap. Full list in wafermap's own `CHANGELOG.md` [0.29.0]. |
 | Earlier wmap release | **0.28.0** published to npm and tagged (`v0.28.0`) in wafermap's own repo, 2026-09-11, minor bump, **breaking**. Bin and value colours are separate preferences (`binColorScheme`/`valueColorScheme`; `colorScheme`, the colour-scheme registry functions and `hardBinColor`/`softBinColor` removed), and bin colour has one pass/fail-aware rule, `resolveBinColors` (issue #52). Also: a boxplot leaf click opens the test in a single-wafer render (#51), `WMAP_VERSION`/`WMAP_BUILD_TIME` exported, and implausible geometry can no longer hang a render (#53). tsmap consumed all of it while linked (`mapColorPrefs.ts`, the About dialog's Engine row). Full list in wafermap's own `CHANGELOG.md` [0.28.0]. |
 | Earlier wmap release | **0.27.0** published to npm and tagged (`v0.27.0`) in wafermap's own repo, 2026-09-09, minor bump, **breaking**. The change that matters here: test definitions are reconciled **per wafer** (`mergeTestDefs`, new export) instead of one wafer's defs being applied to the whole population — the wmap half of issue #50 below, without which a multi-file load plots wafers against another file's spec limits. Also: geometry advisories reworked (`inferred-pitch` removed, `non-standard-diameter` and `diameter-exceeds-die-extent` added, `standardDiameters`/`STANDARD_WAFER_DIAMETERS_MM` overridable), `FindingsNotice` (issue #48), themed Insights pickers replacing native `<select>` (#43, #45), `inferred-pitch` severity (#44), the cached-viewport highlight offset (#46), truncated colorbar tick labels (#47), a per-test pass-rate chart and a wafer-to-wafer trend chart, and three new sizing tokens (`--wmap-font-size`, `--wmap-density`, `--wmap-font-family`). **Breaking:** `AnalyzeWaferMapOptions.significanceLevel`/`.minimumEffectSize`/`.minimumRelativeEffect` removed (internal constants now), `RenderOptions` no longer extends `ToCanvasOptions` (five accepted-but-ignored options removed), `showMetadataBadge` → `showIdentity`, `setMetadataBadgeVisible` → `setIdentityVisible`, `HoverTextOptions.waferMeta` removed, `--wmap-bar-fill-muted` removed. tsmap used none of the removed surface. Full list in wafermap's own `CHANGELOG.md` [0.27.0]. |
@@ -2055,6 +2057,48 @@ above: Insights → back to wafer view → Insights.
 
 **tsmap side:** no code change.
 
+### 69. ~~A menu row's hint is drawn under its own menu~~ (fixed in wmap 0.30.3)
+
+**Where:** wmap `packages/canvas-adapter/toolbar.ts` — `positionTooltip` and `menuLayerFor`.
+
+**Found:** 2026-09-23, in tsmap's drilldown menu: hovering a greyed-out row ("Process capability" on a one-die selection) showed its reason behind the menu. Menus live in a dedicated layer (`Z_MENU`) that outranks everything else in its overlay root, and the shared tooltip was appended beside that layer, at `Z_ABOVE` — so every menu with disabled-row hints (Overlays too) covered its own explanations.
+
+**Fixed:** the tooltip is positioned into the anchor's menu layer at `Z_ABOVE2`, above every menu in it (including the cascade submenu at `Z_ABOVE`), still resolved per root. `tests/tooltipPosition.test.mjs`.
+
+**tsmap side:** none.
+
+### 68. ~~The map's hover tooltip lands hundreds of pixels from the die~~ (fixed in wmap 0.30.3)
+
+**Where:** wmap `packages/canvas-adapter/toolbar.ts` — `positionTooltip`'s anchor avoidance; `renderWaferMap.ts`'s hover handlers.
+
+**Found:** 2026-09-23, in tsmap's gallery, then in wmap's own gallery and geometry examples. The shared tooltip steps clear of its anchor when the anchor is under 40% of the window tall — meant for toolbar buttons. The map passed its whole canvas as the anchor, so on any map that small (every gallery card, the geometry example's maps, any map in a tall window) the die tooltip jumped below or above the entire canvas: measured at 266 px from the pointer on a gallery card.
+
+**Fixed:** the map passes `followPointer` and the tip stays beside the pointer; control tips keep stepping around their buttons. `tests/tooltipPosition.test.mjs`.
+
+**tsmap side:** none.
+
+### 67. A sweep crossing near zero is printed to three significant figures of noise — "Voltage (V) = 0.000394"
+
+**Where:** wmap `packages/canvas-adapter/charts/sweep.ts` — `fmtX`, used for the crossing, widths and ticks.
+
+**Found:** 2026-09-23, the RRAM demo lot (`sample_data/RRAM-LOT-06.stdf` + `_sweeps.json`). Two mirror-image curves on a −1.5…+1.5 V axis in 0.1 V steps cross at the origin; the footer reads *Crossing: Voltage (V) = 0.000394*. `fmtX` keeps three significant figures of whatever the interpolation returns, so a value that is zero to within the data's resolution is printed as though its fourth decimal place were measured.
+
+**Suggested fix:** format x against the axis, not the value — decimals from the swept step (or from the range, as `renderer/axisTicks.ts` already does for tick labels), so this reads `0.00` and a crossing at 0.4731 on a 0.1 V grid reads `0.47`. One rule for ticks, crossing and widths.
+
+**tsmap side:** none — the number is wmap's.
+
+### 66. A host that prunes tests before the build cannot tell which tests a derived test or a sweep needs
+
+**Where:** wmap `packages/renderer/derivedTests/parser.ts` (`parseExpression` knows every test an expression `reads`, transitively for nested derived tests) and `parseTestReference` (range expansion) — both internal.
+
+**Found:** 2026-09-23, adding derived tests and sweeps to tsmap. tsmap imports only the selected tests: `applyTestSelection` (`lib.ts`) deletes the rest from every die and from `testDefs` before `buildWaferMap`. A derived test reading an unselected test is then dropped with a `derived-test-invalid` warning, and a sweep range comes up short of its `xValues` (the card says so and measures nothing). Both are loud, so nothing is silently wrong — but the obvious host behaviour, adding what the definitions need to the selection and saying so, needs the dependency list, and only wmap can produce it: reading `t[...]` out of an expression in tsmap would be a second copy of the grammar, and a range's meaning depends on the declared-tests rule.
+
+**Suggested fix:** one export, e.g. `testsReferencedBy(testDefs, { derivedTests, sweeps })` → the measured test numbers they read — derived dependencies followed transitively, derived numbers themselves excluded, ranges resolved against the `testDefs` given (the host passes its full scan list, not the selection). Named host use: pre-flight test selection. `analyzeWaferMap`/`renderWaferMap` cannot meet it because the pruning happens before the build.
+
+**Also:** `SweepSpec` is not exported by name — tsmap derives it as `NonNullable<InsightsOptions['sweeps']>[number]` (`src/sweeps.ts`). Export the type alongside `InsightsOptions`.
+
+**tsmap side:** no workaround yet. The RRAM sample's definitions file selects every test, so the demo is unaffected. Next step once the export exists: selector confirm adds the missing dependencies and logs "+N tests needed by derived tests and sweeps".
+
 ### 65. Every gallery card holds a live canvas for as long as the gallery shows it — on the Linux WebView the per-card cost then RISES with card count, so 250 stacked tests take 15–25 s
 
 **Where:** wmap `packages/canvas-adapter/renderWaferGallery.ts` — `buildCard()` (a full
@@ -2199,7 +2243,7 @@ The cost is that `testValues` is public and widely read (`getDieTestValue`, ever
 
 **tsmap side:** no change. The CSV/JSON path is unaffected either way — `test_identity.rs` forces hashed test numbers above `RESERVED_BELOW` (1,000,000) for row-order stability, and that lands in the cheap form as a side effect.
 
-### 63. ~~A progressive gallery load can only be reported as "done", not "12 of 50" — so a host's progress bar has nothing to fill~~ (fixed in wmap, unreleased)
+### 63. ~~A progressive gallery load can only be reported as "done", not "12 of 50" — so a host's progress bar has nothing to fill~~ (fixed in wmap 0.30.2)
 
 **Where:** wmap `packages/canvas-adapter/renderWaferGallery.ts` — `GalleryOptions.onItemsResolved` (added for #62) and `resolveNext`.
 
@@ -2264,7 +2308,7 @@ a negative test, noted so nobody reads it as a regression guard for the feature 
 
 **tsmap side:** adopted as part of the one-busy-system work — see `IDEAS.md`.
 
-### 62. `renderWaferGallery`'s progressive (factory) path was slower than the blocking one it exists to replace — two O(n²) costs per resolved wafer
+### 62. ~~`renderWaferGallery`'s progressive (factory) path was slower than the blocking one it exists to replace — two O(n²) costs per resolved wafer~~ (fixed in wmap 0.30.2)
 
 **Where:** wmap `packages/canvas-adapter/renderWaferGallery.ts` (`resolveNext`, `syncSharedBinColors`, `renderGallerySummaryPanel`) and `packages/canvas-adapter/renderWaferMap.ts` (`syncOpts`).
 
@@ -2290,7 +2334,7 @@ What the counters actually showed, at 20 cards:
 
 `rebuildLegend` was also suspected and coalesced on the strength of an estimate; measured, it is **201 ms over a 50-wafer load**, not the ~3 s per card attributed to it. The rAF coalescing it and the shared-option syncs use also collapses nothing on this path — each resolution owns a task longer than a frame, so every one of them gets its own rAF flush. That is why coalescing "changed nothing measurable".
 
-**Fixed in wmap (unreleased, 2026-09-19):**
+**Fixed in wmap 0.30.2 (2026-09-19, released 2026-09-20):**
 
 - **`pushSharedOption(key, next, eq)`** is now the single way a lot-wide option reaches the cards, and it pushes only when the value actually **changed**. One mechanism for all three options rather than three hand-rolled pushes. Equality is by value: `binColorsEqual` (`renderer/binColors.ts`, comparing the colour maps, the clash lists *and* the pass sets — the pass verdict drives bin order and soft-bin yield downstream and can change without a colour moving) over new `arrayEqual`/`mapEqual`/`setEqual` primitives in `core/utils.ts`. Deliberately shallow: these compare numbers, strings and colours, never nested objects.
 - **The lot summary panel settles once the lot is in** rather than following each resolution — rendered when the last factory resolves. Nothing is lost while loading: the panel still renders at mount and the toolbar's own toggle re-renders on open. A prefix panel was never a figure to act on anyway, since its header names the full lot the caller passed while its sections tally only the wafers resolved so far.
@@ -2330,7 +2374,7 @@ On the 143 MB `sweep-200000x100.csv` shape (50w x 4,000d x 100t), end to end wit
 
 **Still open, and now the dominant cost on that file:** the lot summary panel's single render is **15.3 s** at 100 tests (11.2 s at 50) — one synchronous task, larger than building all 50 cards put together. Progressive mounting moved it out of the way of first paint but did not shrink it, and it is what a user still waits on. See the residual note above; this is the case for attacking `buildLotTestSection` next.
 
-### 61. Insights is unusable on a large lot, and the correlation panel never renders at all
+### 61. ~~Insights is unusable on a large lot, and the correlation panel never renders at all~~ (fixed in wmap 0.30.2)
 
 **Where:** wmap `packages/stats/correlation.ts` (`buildCorrelationMatrix`), `packages/canvas-adapter/insightsTab.ts` and `charts/`.
 
@@ -2345,7 +2389,7 @@ So "never renders" is most likely *not hung but still working*, which from the o
 
 **There is no die-count guard.** `analyzeWaferMap` caps *test-value analysis* at 250 tests (`TEST_COUNT_WARN_THRESHOLD`), but nothing considers die count, and correlation is the one computation that is quadratic in tests *and* linear in dies.
 
-**Fixed in wmap (unreleased, 2026-09-19)** — directions 1 and 2 below, which were the two that mattered:
+**Fixed in wmap 0.30.2 (2026-09-19, released 2026-09-20)** — directions 1 and 2 below, which were the two that mattered:
 
 - `buildCorrelationMatrix` now samples above `CORRELATION_DIE_BUDGET` (25,000 dies), **striding evenly across the whole population** rather than taking a prefix — dies arrive grouped by wafer, so a prefix would describe the first few wafers, not the lot. `tests/correlation.test.mjs` guards that specifically: a signal planted only in the last quarter of the population must still be visible in the sample.
 - The two per-die scratch arrays are **hoisted out of the die loop** (800k allocations removed on a 400k-die lot).

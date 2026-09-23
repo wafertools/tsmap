@@ -6,6 +6,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildWaferMap } from '@wafertools/wafermap';
 import { analyzeWaferMap, analyzeWaferLot } from '@wafertools/wafermap/stats';
+import RRAM_TESTDEFS from '../sample_data/RRAM-LOT-06_testdefs.csv?raw';
+import { parseTestListFile } from './testSelectorUI';
+import { toWmapDerivedTests } from './lib';
 
 function makeDie(x: number, y: number, testValues: Record<number, number>) {
   return { x, y, hbin: 1, testValues };
@@ -168,5 +171,48 @@ describe('collectWarnings unions build-side and analysis-side advisories', () =>
     expect(capped).toBeDefined();
     // A feature produced nothing, but what is drawn is correct — not an error.
     expect(severityOf(capped!)).toBe('warning');
+  });
+});
+
+// ── Derived tests from a test-definitions file ───────────────────────────────
+// The bundled RRAM sample's definitions, parsed exactly as the selector does and
+// handed to real wmap: every derived test must compile, and compute.
+
+
+describe('derived tests from the RRAM sample definitions', () => {
+  const rows = parseTestListFile(RRAM_TESTDEFS);
+  const measured = rows.filter(r => r.expression === undefined);
+  const testDefs = measured.map(r => ({
+    testNumber: r.num, name: r.name ?? String(r.num), unit: r.units,
+    limitLow: r.loLimit, limitHigh: r.hiLimit, testType: r.testType,
+  }));
+  const die = (x: number) => {
+    const testValues: Record<number, number> = {};
+    for (const r of measured) if (r.testType !== 'F') testValues[r.num] = 1 + (r.num % 100) + x;
+    return { x, y: 0, hbin: 1, testValues, testPass: { 2001: true } };
+  };
+
+  it('reads the derived rows, one of them quoted', () => {
+    expect(rows.filter(r => r.expression).map(r => r.num)).toEqual([900001, 900002, 900003, 900004, 900005, 900006, 900007]);
+    expect(rows.find(r => r.num === 900004)?.expression).toBe('log10(t[900001] / max(t[3115], 0.01))');
+  });
+
+  it('every derived test compiles and computes in wmap', () => {
+    const map = buildWaferMap({
+      results: [die(0), die(1), die(2)],
+      testDefs,
+      derivedTests: toWmapDerivedTests(rows),
+    });
+    expect(map.warnings.filter(w => w.code === 'derived-test-invalid')).toEqual([]);
+    const derived = map.testDefs?.filter(d => d.derived).map(d => d.testNumber);
+    expect(derived).toEqual([900001, 900002, 900003, 900004, 900005, 900006, 900007]);
+    // Set plateau = mean of 3126..3130 = 1 + mean(26..30) + x
+    const d0 = map.dies.find(d => d.x === 0)!;
+    expect(d0.testValues?.[900001]).toBeCloseTo(29);
+    expect(d0.testPass?.[900007]).toBe(false);   // t[900001] = 29, not > 50
+  });
+
+  it('no derived rows means no derivedTests at all', () => {
+    expect(toWmapDerivedTests(measured)).toBeUndefined();
   });
 });

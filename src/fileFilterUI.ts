@@ -21,9 +21,9 @@
 
 import { openModal } from './modal';
 import { buildFilterTable, formatFilterFile, parseFilterFile, type FilterTableColumn, type FilterTableRow, type FilterTableHandle, type FilterCriteria } from './filterTable';
-import { errMsg, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
+import { errMsg, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt, DATA_PICKER_EXTENSIONS } from './lib';
 import type { Platform, FileHandle, FileMeta } from './platform';
-import { isTauri } from './platform';
+import { isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose } from './platform';
 import { storageKey } from './storageKeys';
 import { detectRole } from './mappingUI';
 import { displayValue, labelFor, orderFieldKeys } from './metadata';
@@ -178,7 +178,7 @@ function getFilterFileInput(): HTMLInputElement {
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
-  input.accept = '.stdf,.std,.atdf,.atd,.csv,.json,.parquet,.gz,.zip,.txt,.dat';
+  input.accept = DATA_PICKER_EXTENSIONS.map(e => `.${e}`).join(',');
   input.style.display = 'none';
   document.body.appendChild(input);
   filterFileInput = input;
@@ -191,6 +191,10 @@ function getFilterFileInput(): HTMLInputElement {
  *  file-meta commands read straight from `path`). */
 function pickFilesForFilter(platform: Platform): Promise<PickedFile[]> {
   if (isTauri) return platform.pickFiles('Select multiple files to scan and filter').then(hs => hs.map(pickedFromHandle));
+  // Chromium: reopens at the last data folder — see DialogPurpose.
+  if (canPickWebFilesByPurpose()) {
+    return pickWebFilesByPurpose('data', DATA_PICKER_EXTENSIONS, true).then(fs => fs.map(pickedFromWebFile));
+  }
   return new Promise((resolve) => {
     const input = getFilterFileInput();
     const onChange = () => {
@@ -664,14 +668,14 @@ export async function openFileFilterDialog(
       saveFilterBtn.type = 'button';
       saveFilterBtn.className = 'btn-secondary';
       saveFilterBtn.addEventListener('click', () => {
-        if (table) void platform.saveTextFile(formatFilterFile(table.getCriteria()), 'filter.json', 'Save this filter to a file');
+        if (table) void platform.saveTextFile(formatFilterFile(table.getCriteria()), 'filter.json', 'filters', 'Save this filter to a file');
       });
       const loadFilterBtn = el('button', {
       }, 'Load filter…');
       loadFilterBtn.type = 'button';
       loadFilterBtn.className = 'btn-secondary';
       loadFilterBtn.addEventListener('click', async () => {
-        const chosenFile = await platform.pickTextFile('Select a saved filter file to load');
+        const chosenFile = await platform.pickTextFile('filters', 'Select a saved filter file to load', ['json']);
         if (!chosenFile || !table) return;
         const parsed = parseFilterFile(chosenFile.content);
         if ('error' in parsed) {

@@ -162,6 +162,7 @@ src/
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
   mapColorPrefs.ts    — remembered bin / value colour schemes and "use defined bin colours"
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
+  sweeps.ts           — parametric sweep definitions (JSON): runs of tests read as curves in Insights → Sweeps
   definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
   wcr.ts              — STDF wafer configuration record code tables, shared by geometry and display
@@ -197,7 +198,7 @@ packages/parsers/     — shared Rust crate (native + WASM targets), published a
 src-tauri/src/
   lib.rs              — app setup: single-instance, tsmap:// scheme registration, and
                         --url resolution before the window opens
-  cli_files.rs        — CLI parsing: positional paths, --list/--tests/--splits,
+  cli_files.rs        — CLI parsing: positional paths, --list/--tests/--splits/--sweeps,
                         --url/--url-format/--url-headers, and the tsmap:// link form
   migrate.rs          — one-time move of app data from an older bundle identifier
                         or last_dir's old hardcoded path, run before the window opens
@@ -211,7 +212,7 @@ src-tauri/src/
     extract_archive.rs  — extract_archive(path), cleanup_extract()
     read_file.rs        — re-exports the shared crate's read_bytes / read_text
     read_text_file.rs   — plain text file read for the frontend
-    last_dir.rs         — remembers the last directory used in a file dialog
+    last_dir.rs         — remembers the last directory used, per dialog purpose
     list_dir_files.rs   — lists the data files in a folder, for "Scan a folder…"
     get_startup_files.rs — files passed on the command line at launch
     respawn_new_instance.rs — relaunch for the single-instance handler

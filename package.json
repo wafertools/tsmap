@@ -24,7 +24,7 @@
     "check:drift": "node scripts/check-drift.mjs",
     "check:pwa": "node scripts/check-pwa-build.mjs",
     "help": "node scripts/help.mjs",
-    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/check-parser-docs.mjs && node scripts/check-doc-links.mjs && node scripts/help.mjs --check && node scripts/check-theme-docs.mjs && node scripts/check-theme-contrast.mjs && node scripts/check-button-styles.mjs && node scripts/check-style-scales.mjs && node scripts/check-clones.mjs src",
+    "check:docs": "node scripts/check-architecture-docs.mjs && node scripts/check-parser-docs.mjs && node scripts/check-mapping-docs.mjs && node scripts/check-doc-links.mjs && node scripts/help.mjs --check && node scripts/check-theme-docs.mjs && node scripts/check-theme-contrast.mjs && node scripts/check-button-styles.mjs && node scripts/check-style-scales.mjs && node scripts/check-clones.mjs src",
     "verify": "npm run check && npm run lint && npm run check:docs && npm test && npm run check:rust && npm run test:rust",
     "preversion": "npm run verify && node scripts/check-wmap-published.js && node scripts/check-testdata-parser-published.js",
     "version": "node scripts/check-changelog.mjs && node scripts/sync-rust-version.mjs",
@@ -66,7 +66,7 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
     "@wafertools/testdata-parser": "^0.11.1",
-    "@wafertools/wafermap": "^0.30.2",
+    "@wafertools/wafermap": "^0.30.3",
     "fflate": "^0.8.3"
   },
   "devDependencies": {

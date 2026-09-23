@@ -20,7 +20,7 @@ import { storageKey } from './storageKeys';
 // Keyed by kind so tests/bins/splits each keep their own short list rather than
 // one mixed list where the entry you want is buried under another type's.
 
-export type DefinitionKind = 'tests' | 'bins' | 'splits';
+export type DefinitionKind = 'tests' | 'bins' | 'splits' | 'sweeps';
 
 const STORAGE_KEY = storageKey('tsmap:recent-definitions');
 const MAX_PER_KIND = 6;

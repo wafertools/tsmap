@@ -489,6 +489,10 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       // "Load splits…" button alongside the footer one — both trigger the
       // same load.
       const filePath = args[0];
+      // The web app prefers showOpenFilePicker() in Chromium, which does not
+      // emit Playwright's filechooser event. Use the hidden input fallback for
+      // scripted captures, just as addFile() does for data files.
+      await page.evaluate(() => { window.showOpenFilePicker = undefined; });
       const [chooser] = await Promise.all([
         page.waitForEvent('filechooser'),
         page.locator('div[role="dialog"] button', { hasText: 'Load splits…' }).first().click(),

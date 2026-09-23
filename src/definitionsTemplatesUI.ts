@@ -12,6 +12,7 @@ import { openModal } from './modal';
 import { formatTestListCsv } from './testSelectorUI';
 import { formatSplitsCsv, setSplitLabel } from './splits';
 import { formatBinDefsCsv } from './binDefs';
+import { formatSweepsFile, SWEEPS_TEMPLATE } from './sweeps';
 import type { WaferData } from './types';
 import { errMsg } from './lib';
 
@@ -34,13 +35,21 @@ function exampleWafers(): WaferData[] {
 const ROWS: TemplateRow[] = [
   {
     label: 'Test definitions',
-    description: 'Test names, spec limits, units, and parametric/functional type — read and written by Save/Load definitions in Setup ▾ → Tests….',
+    description: 'Test names, spec limits, units, and parametric/functional type, plus derived tests computed from other tests by an expression — read and written by Save/Load definitions in Setup ▾ → Tests….',
     fileName: 'test-definitions-template.csv',
     content: () => formatTestListCsv([
       { num: 1001, name: 'Vdd', loLimit: 1.6, hiLimit: 2.0, units: 'V', testType: 'P' },
       { num: 1002, name: 'Idsat', units: 'mA', testType: 'P' },
       { num: 2001, name: 'Scan Test', testType: 'F' },
+      { num: 900001, name: 'Idsat per Volt', units: 'mA/V', testType: 'P', expression: 't[1002] / t[1001]' },
+      { num: 900002, name: 'Vdd Margin', units: 'V', testType: 'P', loLimit: 0.05, expression: 'min(t[1001] - 1.6, 2.0 - t[1001])' },
     ]),
+  },
+  {
+    label: 'Sweeps',
+    description: 'Runs of tests read as response curves, with where two curves cross and how far apart they are — see Setup ▾ → Sweeps…. JSON, not CSV: a sweep has series inside it.',
+    fileName: 'sweeps-template.json',
+    content: () => formatSweepsFile(SWEEPS_TEMPLATE),
   },
   {
     label: 'Splits',

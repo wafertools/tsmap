@@ -17,6 +17,9 @@ pub fn respawn_new_instance(args: CliArgs) -> Result<(), String> {
     if let Some(splits) = &args.splits {
         cmd.arg("--splits").arg(splits);
     }
+    if let Some(sweeps) = &args.sweeps {
+        cmd.arg("--sweeps").arg(sweeps);
+    }
     // Scalars, not file paths — same `.to_string()` shape `cli_files.rs`
     // itself parses back. Forgetting these (as this function originally did)
     // silently drops a `--wafer-diameter`/`--edge-exclusion` the user just

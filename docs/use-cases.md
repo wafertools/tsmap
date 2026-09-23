@@ -149,12 +149,13 @@ cannot leave the machine.
    checkboxes, renames and any limit/type overrides — but the overlay still appears and still
    needs a confirm click, exactly as it does for any other load. It saves re-picking the
    tests, not the click.
-3. Seed wafer splits with `--splits`, so an experiment's grouping is applied on open.
+3. Seed wafer splits with `--splits`, so an experiment's grouping is applied on open, and
+   the program's sweep definitions with `--sweeps`, so Insights → Sweeps is ready too.
 4. To launch from another application, use a `tsmap://open?url=…&format=…` link (desktop) or
    `?dataUrl=…&dataFormat=…` (browser). Both parameters are required together.
 
-**What you should see:** the lot opens with its files, test selection and splits already
-applied — no file picker, and nothing to re-enter. The test selector still appears for you to
+**What you should see:** the lot opens with its files, test selection, splits and sweeps
+already applied — no file picker, and nothing to re-enter. The test selector still appears for you to
 confirm.
 
 **Reading it correctly:**

@@ -62,6 +62,11 @@ export async function injectFiles(page, filePaths, baseUrl) {
  * flag, which is what's needed to reach the append-confirm dialog.
  */
 export async function addFile(page, filePath) {
+  // The app prefers showOpenFilePicker() in Chromium, but Playwright's
+  // `filechooser` event only observes the hidden file input fallback. Force
+  // that fallback for captures so the append path remains the real button
+  // path while the harness can provide its fixture deterministically.
+  await page.evaluate(() => { window.showOpenFilePicker = undefined; });
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
     page.click('#add-btn'),

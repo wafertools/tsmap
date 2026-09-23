@@ -2,6 +2,7 @@ import type { TestDef, TestOverride } from './types';
 import { createRangeSelection } from './listSelection';
 import { webDieBudgetWarning } from './lib';
 import { ICONS } from '@wafertools/wafermap/render';
+import { DERIVED_MARK, DERIVED_KEY } from '@wafertools/wafermap';
 import { attachTooltip } from './tooltip';
 import { buildToggleGroup } from './toggleGroup';
 import { makeLoadDefinitionsButton, type RecentLoadRow } from './recentDefinitionsUI';
@@ -36,7 +37,7 @@ export interface TestSelectorOptions {
    * with them preserved. Only wired when widening is possible (>1 file, scope
    * still `'largest'`); absent otherwise, which hides the toggle.
    */
-  onScanAll?: (selection: number[], testOverrides: Map<number, TestOverride>) => void;
+  onScanAll?: (selection: number[], testOverrides: Map<number, TestOverride>, derived: DerivedSelection) => void;
   initialSelection?: number[];
   testOverrides?: Map<number, TestOverride>;
   capacity?: CapacityInfo;
@@ -74,15 +75,33 @@ export interface TestSelectorOptions {
    * "test selector is always shown, user must choose explicitly" rule.
    */
   preloadListText?: string;
+  /**
+   * Derived tests defined for this lot (rows with an `expression`). They are
+   * listed, selected, renamed and filtered like any other test — marked †, with
+   * the expression on hover — and `initialSelection` may include their numbers.
+   * `onConfirm` hands them back separately (`DerivedSelection`), never in the
+   * measured selection: they are not in the data, so the parser must never be
+   * asked for them.
+   */
+  derivedTests?: TestListEntry[];
   onLog?: (level: 'info' | 'warn' | 'error', message: string) => void;
   onAsk?: (message: string) => Promise<boolean>;
 }
 
 /** One row of a parsed test-list/definitions file — `num` plus whatever
- * override fields that row actually specified. */
-export type TestListEntry = { num: number } & TestOverride;
+ * override fields that row actually specified. A row with an `expression` is a
+ * DERIVED test: it does not name a test in the data, it defines a new one that
+ * wmap computes per die from the tests it reads (`WaferMapInput.derivedTests`). */
+export type TestListEntry = { num: number } & TestOverride & { expression?: string };
 
-type TestListField = 'num' | 'name' | 'loLimit' | 'hiLimit' | 'units' | 'testType';
+/** What the selector hands back about derived tests: every definition (with any
+ *  rename or limit made in the dialog folded in), and which of them are selected. */
+export interface DerivedSelection {
+  tests: TestListEntry[];
+  selected: number[];
+}
+
+type TestListField = 'num' | 'name' | 'loLimit' | 'hiLimit' | 'units' | 'testType' | 'expression';
 
 /** Header cell (normalized: trimmed, lowercased, spaces/dashes/underscores
  * collapsed) -> canonical column. Lets a hand-authored or externally-exported
@@ -94,6 +113,8 @@ const HEADER_FIELD_ALIASES: Record<string, TestListField> = {
   hilimit: 'hiLimit', hi: 'hiLimit', usl: 'hiLimit', high: 'hiLimit', highlimit: 'hiLimit',
   units: 'units', unit: 'units',
   testtype: 'testType', type: 'testType',
+  // "Derived from" is the column wmap's own CSV exports carry for a derived test.
+  expression: 'expression', expr: 'expression', formula: 'expression', derivedfrom: 'expression',
 };
 
 function normalizeHeaderKey(s: string): string {
@@ -105,6 +126,54 @@ function normalizeHeaderKey(s: string): string {
  * the new optional columns. */
 const DEFAULT_COLUMNS: TestListField[] = ['num', 'name', 'loLimit', 'hiLimit', 'units', 'testType'];
 
+/** One comma-separated field and where it starts in the line. */
+interface CsvField { value: string; start: number }
+
+/**
+ * Split one line on commas, honouring RFC 4180 quotes (`"a, b"`, `""` for a
+ * literal quote) — what Excel writes for any cell containing a comma. Unquoted
+ * values are trimmed. Each field keeps its start offset, so the caller can take
+ * "the rest of the line" for a last column that was not quoted.
+ */
+function splitCsvLine(line: string): CsvField[] {
+  const out: CsvField[] = [];
+  let i = 0;
+  for (;;) {
+    const start = i;
+    while (line[i] === ' ' || line[i] === '\t') i++;
+    if (line[i] === '"') {
+      let value = '';
+      i++;
+      for (;;) {
+        if (i >= line.length) break;
+        if (line[i] === '"') {
+          if (line[i + 1] === '"') { value += '"'; i += 2; continue; }
+          i++;
+          break;
+        }
+        value += line[i++];
+      }
+      while (i < line.length && line[i] !== ',') i++;   // anything after the closing quote
+      out.push({ value, start });
+    } else {
+      const end = line.indexOf(',', i);
+      const stop = end < 0 ? line.length : end;
+      out.push({ value: line.slice(start, stop).trim(), start });
+      i = stop;
+    }
+    if (i >= line.length) return out;
+    i++;   // the comma
+  }
+}
+
+/** An expression cell that was not quoted: the rest of the line from `start`,
+ *  so its own commas (`max(t[1], t[2])`) are kept rather than split into
+ *  columns. A lone quoted cell is unquoted as usual. */
+function restOfLine(line: string, fields: CsvField[], index: number): string {
+  if (index === fields.length - 1) return fields[index].value;
+  return line.slice(fields[index].start).trim();
+}
+
 /**
  * Parses a "test list" / test-definitions file: one test per line, either
  * `<num> <name>` (legacy, whitespace/semicolon-separated, no limit/type
@@ -114,6 +183,11 @@ const DEFAULT_COLUMNS: TestListField[] = ['num', 'name', 'loLimit', 'hiLimit', '
  * like `lsl`/`usl`/`type` — see `HEADER_FIELD_ALIASES`). Without a header,
  * comma-delimited rows use the default column order above, so old
  * header-less `num,name` saves keep parsing exactly as before.
+ *
+ * An `expression` column (header required) makes a row a derived test. It must
+ * be the LAST column: an expression contains commas (`if(a, b, c)`), and as the
+ * last column everything to the end of the line belongs to it, so it reads the
+ * same whether or not it was quoted. Quoted cells are read anywhere.
  *
  * Never throws: a malformed individual field is dropped (with `onWarn`, if
  * given) but leaves the rest of the row intact; only a row whose test number
@@ -144,7 +218,8 @@ export function parseTestListFile(
       continue;
     }
 
-    const fields = line.split(',').map(f => f.trim());
+    const cells = splitCsvLine(line);
+    const fields = cells.map(c => c.value);
     const numIdx = columns.indexOf('num');
     const numRaw = numIdx >= 0 && numIdx < fields.length ? fields[numIdx] : fields[0];
     const num = parseInt(numRaw, 10);
@@ -165,6 +240,11 @@ export function parseTestListFile(
         else if (raw) unmatchedRaw.push(raw);
       }
       if (matchedAny) {
+        const exprIdx = mapping.indexOf('expression');
+        if (exprIdx >= 0 && exprIdx !== mapping.length - 1) {
+          mapping[exprIdx] = undefined;
+          onWarn?.(lineNo, 'The expression column must be the last column — it was ignored');
+        }
         columns = mapping;
         for (const raw of unmatchedRaw) onWarn?.(lineNo, `Unrecognized column "${raw}" ignored`);
       }
@@ -174,6 +254,11 @@ export function parseTestListFile(
     const row: TestListEntry = { num };
     for (let c = 0; c < fields.length; c++) {
       const field = columns[c];
+      if (field === 'expression') {
+        const expr = restOfLine(line, cells, c);
+        if (expr) row.expression = expr;
+        break;   // the rest of the line was the expression
+      }
       const raw = fields[c];
       if (!field || field === 'num') {
         if (field !== 'num' && raw) onWarn?.(lineNo, `Unrecognized extra column ${c + 1} ("${raw}") ignored`);
@@ -209,22 +294,26 @@ export function parseTestListFile(
 }
 
 /** Serializes test-list entries back to the file `parseTestListFile` reads —
- * canonical header, one row per entry, all 6 columns always present (blank
- * for unset fields). Commas inside `name`/`units` are replaced with a space
- * (no CSV quoting support) — a pre-existing lossy edge case, not new here. */
+ * canonical header, one row per entry, all 7 columns always present (blank
+ * for unset fields). A cell containing a comma or a quote is quoted, RFC 4180
+ * style; `expression` is last, so an expression reads back the same even if
+ * someone later removes its quotes by hand. */
 export function formatTestListCsv(entries: TestListEntry[]): string {
-  const clean = (s: string) => s.replace(/,/g, ' ');
+  // Quoted only when needed, as Excel does, so a saved file opens cleanly in a
+  // spreadsheet and survives being saved from one.
+  const quote = (s: string) => (/[",]/.test(s) || s !== s.trim() ? `"${s.replace(/"/g, '""')}"` : s);
   const lines = [
     '# tsmap test definitions',
     `# Saved: ${new Date().toISOString()}`,
-    'num,name,loLimit,hiLimit,units,testType',
+    'num,name,loLimit,hiLimit,units,testType,expression',
     ...entries.map(e => [
       e.num,
-      e.name !== undefined ? clean(e.name) : '',
+      e.name !== undefined ? quote(e.name) : '',
       e.loLimit !== undefined ? e.loLimit : '',
       e.hiLimit !== undefined ? e.hiLimit : '',
-      e.units !== undefined ? clean(e.units) : '',
+      e.units !== undefined ? quote(e.units) : '',
       e.testType ?? '',
+      e.expression !== undefined ? quote(e.expression) : '',
     ].join(',')),
   ];
   return lines.join('\n');
@@ -400,9 +489,28 @@ export function matchTestRange(rawInput: string, entries: RangeMatchEntry[]): Se
   return matched;
 }
 
+/** A measured test always wins its number: derived tests that reuse one are
+ *  split out, to be dropped with `derivedClashMessage`. One rule for a loaded
+ *  file and for derived tests carried in from the previous lot. */
+export function splitDerivedByClash(
+  derived: readonly TestListEntry[], measured: Record<string, unknown>,
+): { kept: TestListEntry[]; clashing: TestListEntry[] } {
+  return {
+    kept: derived.filter(d => !(d.num in measured)),
+    clashing: derived.filter(d => d.num in measured),
+  };
+}
+
+/** The one wording for derived tests dropped because a measured test already
+ *  has their number — from a loaded file, or carried in from the previous lot. */
+export function derivedClashMessage(clashing: readonly TestListEntry[]): string {
+  const n = clashing.length;
+  return `${n} derived test${n !== 1 ? 's' : ''} ignored — ${clashing.map(r => r.num).join(', ')} ${n !== 1 ? 'are' : 'is'} already a measured test's number; give ${n !== 1 ? 'them unused numbers' : 'it an unused number'}`;
+}
+
 export function showTestSelectorOverlay(
   testDefs: Record<string, TestDef>,
-  onConfirm: (selected: number[], testOverrides: Map<number, TestOverride>) => void,
+  onConfirm: (selected: number[], testOverrides: Map<number, TestOverride>, derived: DerivedSelection) => void,
   onCancel: () => void,
   options: TestSelectorOptions = {},
 ): void {
@@ -411,12 +519,16 @@ export function showTestSelectorOverlay(
   // lib.ts's stableTestNumber), so sorting by number would show tests in an
   // arbitrary-looking order. `order` is absent for STDF/ATDF, where the real
   // test number IS a meaningful order, hence the `?? a.num` fallback.
-  const entries: Array<{ num: number; def: TestDef }> = Object.entries(testDefs)
+  const measuredEntries: Array<{ num: number; def: TestDef }> = Object.entries(testDefs)
     .map(([k, def]) => ({ num: parseInt(k, 10), def }))
     .filter(e => !isNaN(e.num))
     .sort((a, b) => (a.def.order ?? a.num) - (b.def.order ?? b.num));
 
-  const allNums = entries.map(e => e.num);
+  // Derived tests are listed after the measured ones, as a file reads: the
+  // tests, then what is computed from them. They are rebuilt whenever a loaded
+  // file replaces them, so `entries`/`allNums` are not constants.
+  let entries: Array<{ num: number; def: TestDef; derived?: TestListEntry }> = [];
+  let allNums: number[] = [];
 
   // Default: nothing selected, or caller-supplied initial selection
   const selected = new Set<number>(options.initialSelection ?? []);
@@ -425,6 +537,40 @@ export function showTestSelectorOverlay(
   // parser-supplied name/limits/units/type for display, and are applied on
   // top of the real TestDef after import (see applyTestOverrides in lib.ts).
   const testOverrides = new Map<number, TestOverride>(options.testOverrides ?? []);
+
+  // Derived tests travel with the definitions file. They are listed and selected
+  // like any other test, but never passed on as part of the measured selection:
+  // they do not exist in the data, wmap computes them at build.
+  //
+  // Carried in from the previous load, they meet THIS lot's tests for the
+  // first time here. A measured test always wins its number: a derived test
+  // reusing it is dropped, and so is its selection — left in, the number
+  // pre-selected the lot's measured test, then `confirmedState` dropped it as
+  // derived, so the measured data was silently never imported.
+  const { kept: carriedKept, clashing: carriedClash } = splitDerivedByClash(options.derivedTests ?? [], testDefs);
+  let derivedTests: TestListEntry[] = carriedKept;
+  for (const d of carriedClash) selected.delete(d.num);
+  if (carriedClash.length > 0) options.onLog?.('warn', derivedClashMessage(carriedClash));
+  let derivedNums = new Set<number>();
+  const isDerivedNum = (num: number) => derivedNums.has(num);
+
+  function rebuildEntries(): void {
+    entries = [
+      ...measuredEntries,
+      ...derivedTests.map(d => ({
+        num: d.num,
+        def: {
+          name: d.name ?? `Derived ${d.num}`,
+          testType: d.testType ?? 'P',
+          loLimit: d.loLimit, hiLimit: d.hiLimit, units: d.units,
+        } satisfies TestDef,
+        derived: d,
+      })),
+    ];
+    allNums = entries.map(e => e.num);
+    derivedNums = new Set(derivedTests.map(d => d.num));
+  }
+  rebuildEntries();
 
   function displayName(num: number, def: TestDef): string {
     return testOverrides.get(num)?.name ?? def.name;
@@ -504,12 +650,16 @@ export function showTestSelectorOverlay(
     'font-size:12px',
   ].join(';');
 
-  let activeType: 'all' | 'P' | 'F' = 'all';
-  const typeFilter = buildToggleGroup<'all' | 'P' | 'F'>({
+  // "Derived" is a fourth option on the same control rather than a second
+  // filter: one choice, no combinations. It overlaps the other two — a derived
+  // test is also parametric or functional, and appears under that type too.
+  let activeType: 'all' | 'P' | 'F' | 'derived' = 'all';
+  const typeFilter = buildToggleGroup<'all' | 'P' | 'F' | 'derived'>({
     options: [
       { value: 'all', label: 'All' },
       { value: 'P', label: 'Parametric' },
       { value: 'F', label: 'Functional' },
+      { value: 'derived', label: `${DERIVED_MARK} Derived` },
     ],
     active: activeType,
     ariaLabel: 'Test type',
@@ -643,10 +793,10 @@ export function showTestSelectorOverlay(
     if (evt.key === 'Enter') { evt.preventDefault(); evt.stopPropagation(); applyRangeBtn.click(); }
   });
 
-  function getVisible(): Array<{ num: number; def: TestDef }> {
+  function getVisible(): typeof entries {
     const q = searchInput.value.trim().toLowerCase();
     return entries.filter(e => {
-      if (activeType !== 'all' && e.def.testType !== activeType) return false;
+      if (activeType === 'derived' ? !e.derived : activeType !== 'all' && effectiveLimits(e.num, e.def).testType !== activeType) return false;
       if (q) {
         const numMatch = e.num.toString().includes(q);
         const nameMatch = displayName(e.num, e.def).toLowerCase().includes(q);
@@ -801,7 +951,21 @@ export function showTestSelectorOverlay(
         attachTooltip(typeSpan, 'Loaded from file');
       }
 
-      row.append(cb, numSpan, nameInput, limitsSpan, typeSpan);
+      // The derived mark, in front of the name like everywhere else it is shown,
+      // in a slot every row reserves when the list holds any derived test — so
+      // names stay aligned and the marks form a column. No slot otherwise.
+      if (derivedTests.length > 0) {
+        const mark = document.createElement('span');
+        mark.style.cssText = 'flex-shrink:0;width:1.1em;text-align:center;color:var(--text-secondary)';
+        if (e.derived) {
+          mark.textContent = DERIVED_MARK;
+          attachTooltip(mark, `${DERIVED_KEY}: ${e.derived.expression ?? ''}`);
+          nameInput.setAttribute('aria-label', `Display name for derived test ${e.num} — ${DERIVED_KEY.toLowerCase()}, computed as ${e.derived.expression ?? ''}`);
+        }
+        row.append(cb, numSpan, mark, nameInput, limitsSpan, typeSpan);
+      } else {
+        row.append(cb, numSpan, nameInput, limitsSpan, typeSpan);
+      }
       listContainer.appendChild(row);
     }
   }
@@ -832,7 +996,7 @@ export function showTestSelectorOverlay(
       attachTooltip(scanAllBtn, 'Re-scan every file and merge the full test definitions (use when a test only appears in a smaller file). Your current selection is kept.');
       scanAllBtn.addEventListener('click', () => {
         cleanup();
-        options.onScanAll!(Array.from(selected).sort((a, b) => a - b), new Map(testOverrides));
+        options.onScanAll!(...confirmedState());
       });
       scopeRow.appendChild(scanAllBtn);
     }
@@ -865,19 +1029,11 @@ export function showTestSelectorOverlay(
       // `Array.from(selected).sort by number` — a saved list a user might
       // hand-edit should read in the file's own column order, not in the
       // order of a now-hashed, not-particularly-meaningful number.
+      // Derived tests are already last in `entries` and are saved like any other
+      // selected test, with their expression.
       const saveEntries: TestListEntry[] = entries
         .filter(e => selected.has(e.num))
-        .map(({ num, def }) => {
-          const eff = effectiveLimits(num, def);
-          return {
-            num,
-            name: displayName(num, def) || String(num),
-            loLimit: eff.loLimit,
-            hiLimit: eff.hiLimit,
-            units: eff.units,
-            testType: eff.testType,
-          };
-        });
+        .map(({ num, def, derived }) => resolvedEntry(num, def, derived));
       try {
         await options.onSave!(saveEntries);
         options.onLog?.('info', `Test definitions saved: ${saveEntries.length} test${saveEntries.length !== 1 ? 's' : ''}`);
@@ -887,6 +1043,39 @@ export function showTestSelectorOverlay(
       }
     });
     btnRow.appendChild(saveBtn);
+  }
+
+  /**
+   * The dialog's state as handed back — on confirm, or to carry across a
+   * "scan all files" reopen. Derived tests are split out of the measured
+   * selection and overrides here, the one place, so the parser is never asked
+   * for a test that exists only as an expression.
+   */
+  function confirmedState(): [number[], Map<number, TestOverride>, DerivedSelection] {
+    const derivedEntries = entries.filter(e => e.derived);
+    return [
+      Array.from(selected).filter(n => !isDerivedNum(n)).sort((a, b) => a - b),
+      new Map([...testOverrides].filter(([n]) => !isDerivedNum(n))),
+      {
+        tests: derivedEntries.map(e => resolvedEntry(e.num, e.def, e.derived)),
+        selected: derivedEntries.filter(e => selected.has(e.num)).map(e => e.num),
+      },
+    ];
+  }
+
+  /** A listed test as a definitions row, with the dialog's renames and any
+   *  loaded overrides applied — the one form both Save and confirm hand on. */
+  function resolvedEntry(num: number, def: TestDef, derived?: TestListEntry): TestListEntry {
+    const eff = effectiveLimits(num, def);
+    return {
+      num,
+      name: displayName(num, def) || String(num),
+      loLimit: eff.loLimit,
+      hiLimit: eff.hiLimit,
+      units: eff.units,
+      testType: eff.testType,
+      ...(derived?.expression !== undefined ? { expression: derived.expression } : {}),
+    };
   }
 
   // Shared by the interactive "Load definitions" button and a CLI-supplied
@@ -899,11 +1088,23 @@ export function showTestSelectorOverlay(
       options.onLog?.('warn', 'Test definitions file contained no valid entries');
       return;
     }
+    // A file is the whole definition, so its derived tests replace any loaded
+    // before — as its rows replace the selection. A derived test may not reuse
+    // a measured test's number: wmap would drop it, and a number meaning two
+    // things in one lot is the confusion test numbers exist to prevent.
+    const derivedRows = parsed.filter(r => r.expression !== undefined);
+    const { kept, clashing } = splitDerivedByClash(derivedRows, testDefs);
+    // The previous derived tests' dialog-side overrides go with them.
+    for (const d of derivedTests) testOverrides.delete(d.num);
+    derivedTests = kept;
+    rebuildEntries();
     const currentNames = new Map(entries.map(e => [e.num, displayName(e.num, e.def)]));
-    const result = resolveLoadedTestList(parsed, testDefs, currentNames, testOverrides);
+    const result = resolveLoadedTestList(
+      parsed.filter(r => r.expression === undefined), testDefs, currentNames, testOverrides);
 
     selected.clear();
     for (const num of result.selectedNums) selected.add(num);
+    for (const d of derivedTests) selected.add(d.num);   // a file's rows are its selection
     for (const [num, ov] of result.overrides) testOverrides.set(num, ov);
 
     const notes: string[] = [];
@@ -930,6 +1131,14 @@ export function showTestSelectorOverlay(
       const msg = `${result.limitOnFunctionalCount} functional test${result.limitOnFunctionalCount !== 1 ? 's' : ''} had limit values ignored (limits only apply to parametric tests)`;
       options.onLog?.('warn', msg);
       notes.push(`${msg}.`);
+    }
+    if (clashing.length > 0) {
+      const msg = derivedClashMessage(clashing);
+      options.onLog?.('warn', msg);
+      notes.push(`${msg}.`);
+    }
+    if (derivedTests.length > 0) {
+      options.onLog?.('info', `${derivedTests.length} derived test${derivedTests.length !== 1 ? 's' : ''} defined: ${derivedTests.map(r => r.name ?? r.num).join(', ')}`);
     }
     if (malformedCount > 0) {
       const msg = `${malformedCount} field${malformedCount !== 1 ? 's' : ''} in file could not be parsed and were ignored`;
@@ -1040,7 +1249,8 @@ export function showTestSelectorOverlay(
   }
 
   confirmBtn.addEventListener('click', async () => {
-    const sel = Array.from(selected).sort((a, b) => a - b);
+    // Derived tests are split back out: only measured tests may reach the parser.
+    const sel = Array.from(selected).filter(n => !isDerivedNum(n)).sort((a, b) => a - b);
     const ask = options.onAsk ?? ((msg) => Promise.resolve(window.confirm(msg)));
     if (sel.length === 0) {
       if (!await ask('No tests selected — only bin data will be loaded. Continue?')) return;
@@ -1052,12 +1262,14 @@ export function showTestSelectorOverlay(
       if (!await ask('This is a very large selection and may run out of memory. Consider selecting fewer tests. Continue anyway?')) return;
     }
     cleanup();
-    onConfirm(sel, new Map(testOverrides));
+    onConfirm(...confirmedState());
   });
 
   function updateFooter(): void {
     const n = selected.size;
-    countLabel.textContent = `${n} of ${allNums.length} tests selected`;
+    const derivedSel = entries.filter(e => e.derived && selected.has(e.num)).length;
+    countLabel.textContent = `${n} of ${allNums.length} tests selected`
+      + (derivedSel ? ` (${derivedSel} derived)` : '');
     confirmBtn.textContent = options.confirmLabel
       ? options.confirmLabel(n)
       : (n === 0 ? 'Import (bin data only) →' : `Import ${n} test${n !== 1 ? 's' : ''} →`);

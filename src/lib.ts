@@ -3,7 +3,7 @@
 import type { LotMeta, MetaField, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 import type { RustParsedFile, StdfTestNames } from './platform';
 import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
-import type { PlotMode } from '@wafertools/wafermap';
+import type { PlotMode, DerivedTestDef } from '@wafertools/wafermap';
 import type { WaferMetadata } from '@wafertools/wafermap/renderer';
 import type { WaferConfig, DieConfig, BinDef } from '@wafertools/wafermap';
 import { displayValue, isHiddenField } from './metadata';
@@ -64,25 +64,34 @@ export function checkSameExtension(names: string[], relaxed = false): string | n
   return null;
 }
 
-/** Formats tsmap can dispatch a URL-sourced import to — mirrors
- *  `SUPPORTED_FORMATS` in `src-tauri/src/commands/fetch_url.rs`, and the set
- *  `effectiveExt`-based dispatch in `handleFiles` (main.ts) already handles.
- *  Backs both `--url-format` (desktop CLI) and `dataFormat` (web query param)
- *  — an explicit hint is required in both cases, never sniffed. */
 /** Every extension tsmap can open, as the folder scan needs them — including
  *  the double forms, since a `.stdf.gz` is a data file and a bare `.gz` from
  *  somewhere else is not necessarily. Sent to the Rust `list_dir_files`
  *  command so this list stays the one source of truth rather than being
- *  restated there. (The `<input accept>` strings and the native dialog's own
- *  filter list still restate it — worth consolidating, but they take different
- *  shapes and neither drives the scan.) */
+ *  restated there. Pickers use `DATA_PICKER_EXTENSIONS` below instead. */
 export const DATA_FILE_EXTENSIONS = [
   'stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet',
   'stdf.gz', 'std.gz', 'atdf.gz', 'atd.gz', 'csv.gz', 'json.gz', 'parquet.gz',
   'zip',
 ] as const;
 
-/** `zip` lets one URL carry several files (e.g. one STDF per lot); it takes the
+/** What a file PICKER offers for wafer data — single-part extensions only, the
+ *  form both `<input accept>` and the File System Access API's `accept` take
+ *  (the API rejects `.stdf.gz`; `.gz` covers every compressed format). Every
+ *  web picker reads it: `#file-input` (main.ts sets its `accept` from this at
+ *  start-up), the file filter's own input, and `pickWebFilesByPurpose`. The
+ *  native desktop dialog's filter list is per-format and stays in platform.ts. */
+export const DATA_PICKER_EXTENSIONS = [
+  'stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet', 'gz', 'zip', 'txt', 'dat',
+] as const;
+
+/** Formats tsmap can dispatch a URL-sourced import to — mirrors
+ *  `SUPPORTED_FORMATS` in `src-tauri/src/commands/fetch_url.rs`, and the set
+ *  `effectiveExt`-based dispatch in `handleFiles` (main.ts) already handles.
+ *  Backs both `--url-format` (desktop CLI) and `dataFormat` (web query param)
+ *  — an explicit hint is required in both cases, never sniffed.
+ *
+ *  `zip` lets one URL carry several files (e.g. one STDF per lot); it takes the
  *  same expand-then-load route in `handleFiles` as a zip opened from disk. */
 export const URL_IMPORT_FORMATS = ['stdf', 'atdf', 'csv', 'json', 'parquet', 'zip'] as const;
 export type UrlImportFormat = typeof URL_IMPORT_FORMATS[number];
@@ -685,6 +694,29 @@ export function toWmapTestDefs(testDefs: Record<string, TestDef>): WmapTestDef[]
     limitHigh: def.hiLimit,
     testType: def.testType,
   }));
+}
+
+/**
+ * Derived-test rows of a test-definitions file (those with an `expression`) as
+ * wmap's `derivedTests`. Undefined when there are none, so a lot without derived
+ * tests builds exactly as before. The expression is passed through untouched:
+ * wmap parses and validates it, and reports a rejected one by name.
+ */
+export function toWmapDerivedTests(
+  entries: ReadonlyArray<{ num: number; expression?: string } & TestOverride>,
+): DerivedTestDef[] | undefined {
+  const out = entries
+    .filter((e): e is typeof e & { expression: string } => e.expression !== undefined)
+    .map(e => ({
+      testNumber: e.num,
+      name: e.name || `Derived ${e.num}`,
+      unit: e.units,
+      limitLow: e.loLimit,
+      limitHigh: e.hiLimit,
+      testType: e.testType,
+      expression: e.expression,
+    }));
+  return out.length ? out : undefined;
 }
 
 export function autoPlotMode(wafers: WaferData[]): PlotMode {

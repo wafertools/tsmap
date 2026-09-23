@@ -237,6 +237,8 @@ tsmap --list files.txt                     # a text file of paths, one per line
 cat files.txt | tsmap                      # or piped via stdin
 tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
+tsmap lot1.stdf --sweeps my-sweeps.json    # sweeps for Insights → Sweeps (see 7.1)
+tsmap --sweeps my-sweeps.json              # sent to a running tsmap: replaces the sweeps of what is open
 tsmap lot1.stdf --wafer-diameter 300       # sets the wafer diameter (mm) for this launch
 tsmap lot1.stdf --wafer-diameter 300 --edge-exclusion 3   # plus an edge-exclusion band (mm)
 tsmap --url https://.../lot.stdf --url-format stdf   # fetch and open a URL — see below
@@ -252,6 +254,11 @@ pre-fills the selector's checkboxes, renames, and limit/type overrides — the o
 always appears and still needs a confirm click, the same as any other load; it just saves
 re-picking (and re-entering limits for) tests you already set up before.
 
+`--sweeps` takes the same JSON file as **Setup ▾ → Sweeps…** (see [Sweeps](#71-sweeps)) and
+does the same thing: it replaces the session's sweeps, with the same log messages for anything
+in the file it cannot use. Unlike `--tests` and `--splits` it needs no data file with it — sent
+to a tsmap that is already open, it applies to the lot on screen.
+
 `--wafer-diameter`/`--edge-exclusion` set the same values as the
 [Diameter & edge exclusion… dialog](#12-wafer-diameter-and-edge-exclusion) — a bare number in mm,
 not a file path. `--edge-exclusion` only takes effect once a diameter is known, from
@@ -262,7 +269,9 @@ silently applied against whatever tsmap would otherwise infer.
 If tsmap is already running, launching it again with files hands them to the running window
 instead of opening a second blank one: with nothing currently loaded they open right away;
 with data already loaded, a dialog asks whether to replace it. Decline and the new files open
-in a separate, independent tsmap window instead, so nothing is lost either way.
+in a separate, independent tsmap window instead, so nothing is lost either way. A launch with
+no data files — only `--sweeps`, `--wafer-diameter` or `--edge-exclusion` — replaces nothing,
+so it applies to the running window straight away without asking.
 
 ### Opening data from a URL
 
@@ -513,6 +522,41 @@ or wrong results.
 | **Display info** | Additional metadata captured for grouping/comparison (and shown in tooltips). Values are recorded **per wafer**, so a file mixing temperatures or test programs labels each wafer with its own. If the same wafer appears more than once — tested at two temperatures, say — and one of these columns tells the passes apart, each pass becomes its own wafer map, and the log says which column did it; with nothing to tell them apart the repeats are treated as retests. A column whose value changes *within* a wafer (a per-die timestamp) is not shown as a wafer property, and the log says so. The **Subdivide file by this column** checkbox is a structural escape hatch for flat files that pack several wafers into one file with no wafer column — it subdivides the file into one wafer map per distinct value of the column. (Do not use it for parallel-test sites — map those to **Test site** instead.) |
 | **— ignore —** | Column is not imported |
 
+### Auto-detected column names
+
+<!-- BEGIN AUTO-DETECTED-PATTERNS: kept in sync with EXACT_ROLES in src/mappingUI.ts by scripts/check-mapping-docs.mjs (wired into `npm run check:docs`) — edit that source first, then update this table to match, not the other way round. -->
+
+The overlay pre-fills a role for any column whose header exactly matches one of these
+(case-insensitive):
+
+| Role | Recognised column names |
+|------|--------------------------|
+| **X position** | `x`, `die_x`, `x_loc`, `xloc`, `col`, `column`, `step_x`, `stepx`, `diex`, `xstep`, `x_step`, `xcoord`, `x_coord`, `xpos`, `x_pos` |
+| **Y position** | `y`, `die_y`, `y_loc`, `yloc`, `row`, `step_y`, `stepy`, `diey`, `ystep`, `y_step`, `ycoord`, `y_coord`, `ypos`, `y_pos` |
+| **Hard bin** | `hbin`, `hard_bin`, `h_bin`, `hardbin`, `hb`, `hbn`, `bin`, `hard_bin_num`, `hbin_num` |
+| **Soft bin** | `sbin`, `soft_bin`, `s_bin`, `softbin`, `sb`, `sbn`, `soft_bin_num`, `sbin_num` |
+| **Wafer ID** | `wafer`, `wafer_id`, `waferid`, `wafer_num`, `wafernum`, `wid`, `wafer_no`, `waferno`, `wfr`, `wfr_id`, `wnum` |
+| **Lot ID** | `lot`, `lot_id`, `lotid`, `lot_num`, `lotnum`, `lot_no`, `lotno` |
+| **Test site** | `site`, `site_num`, `sitenum`, `site_no`, `siteno`, `site_id`, `siteid` |
+| **Test name (long format)** | `test_name`, `testname`, `param`, `parameter`, `param_name`, `measurement`, `test_item` |
+| **Test number (long format)** | `test_num`, `testnum`, `tnum`, `test_number`, `testnumber`, `testno`, `test_no`, `t_num` |
+| **Test result (long format)** | `result`, `value`, `val`, `measured`, `meas`, `reading`, `test_value`, `test_result`, `meas_value`, `meas_val` |
+| **Low limit (long format)** | `lo_limit`, `low_limit`, `lolimit`, `lower_limit`, `ll`, `lsl`, `spec_lo`, `spec_low`, `min_limit`, `lo_lim` |
+| **High limit (long format)** | `hi_limit`, `high_limit`, `hilimit`, `upper_limit`, `ul`, `usl`, `spec_hi`, `spec_high`, `max_limit`, `hi_lim` |
+| **Units (long format)** | `units`, `unit`, `uom`, `test_units`, `test_unit` |
+| **Display info** | `testdate`, `test_date`, `date`, `temp`, `temperature`, `tst_temp`, `operator`, `oper`, `testprogram`, `test_program`, `job_nam`, `node`, `node_nam`, `tester`, `tstr_typ`, `part_typ`, `part_type`, `device`, `handler`, `hand_typ`, `sublot`, `sblot_id`, `exec_typ`, `exec_ver`, `serl_num`, `serial` |
+
+<!-- END AUTO-DETECTED-PATTERNS -->
+
+A header that misses this list is still often caught: a regex fallback recognises further
+shapes of the same names (different separators/casing — `Test Number`, `t-num`), and
+anything left over falls back to a fuzzy match — a numeric column becomes **Test value**
+unless a fragment of its name (`id`, `index`, `count`, `date`, a unit like `mm`, …) marks it
+as something other than a test. **Test value** itself has no fixed name list for this reason:
+it's the fallback role for a numeric column nothing else claimed, not a pattern match.
+Nothing in this section is a hard rule — whatever role a column lands on, reassign it in the
+overlay before continuing; no data is imported until you confirm.
+
 ### Wide vs long format
 
 **Wide format** has one column per test (the most common layout from prober exports). Assign
@@ -734,6 +778,54 @@ You can hand-edit a list file to rename tests, or add/adjust limits, without cha
 in the original data file — e.g. `1000,Threshold Voltage,0.2,1.2,mA,P`. Those names, limits,
 and type appear in the selector, on the map tooltip, in chart axis labels, and — for
 limits — as histogram LSL/USL lines and in the Process Capability panel.
+
+#### Derived tests
+
+A test definitions file can also define **derived tests**: tests computed from other tests on
+the same die, rather than measured. A row with a value in the **expression** column is one:
+
+    num,name,loLimit,hiLimit,units,testType,expression
+    3126,Set I @ +1.1 V,,,uA,P,
+    900001,Set plateau,60,,uA,P,mean(t[3126..3130])
+    900002,Memory window,1.5,,dec,P,"log10(t[900001] / max(t[3115], 0.01))"
+    900003,Switching OK,,,,F,testPass[2001] and t[900001] > 50
+
+From then on a derived test is an ordinary test — plot it on the map, colour it against its
+limits, see it in Insights and the reports. Wherever it is named it carries a **†** mark, and
+its tooltip shows the expression, so it is never mistaken for a measurement.
+
+- **What an expression can read:** `t[3126]` is a test's value, `testPass[2001]` the tester's
+  recorded pass/fail, `specPass[3126]` whether the value is inside its limits, and `diePass()`
+  the die's bin verdict. `3126..3130` names every test in that range that exists — so a
+  program numbered in steps of two needs nothing special. A range must be reduced with
+  `mean`, `sum`, `min`, `max`, `all`, `any`, `none`, `countTrue`, `countFalse` or
+  `countKnown`. The full list of operators and functions is in the
+  [wafer map guide](https://wafertools.github.io/wafermap/api/#419-derivedtestdef).
+- **A derived test can read another** — `900002` above reads `900001`. Order in the file
+  does not matter.
+- **`testType` F** makes a pass/fail test: the expression must be a true/false comparison.
+- **The expression column must be last**, and needs a header row. Because it is last, an
+  expression containing commas reads the same with or without quotes, so a hand-edited file
+  that forgot them still loads. tsmap writes the quotes itself when saving, as Excel does.
+- **Use test numbers the tester does not.** A derived row whose number is already a measured
+  test is ignored, and the log says so. Numbers from 900001 upwards are a safe convention.
+- **The tests it reads must be imported.** A derived test reading an unselected test cannot be
+  computed; it is left out, and the log names the test it needed.
+- A derived test that cannot be computed — a typo, an unknown test, volts minus amps — is
+  left out with the reason and the position in the log. It is never half-computed.
+
+**In the test selector** derived tests are listed after the measured ones, marked **†** in
+front of the name — hover the mark for the expression. Select, deselect, rename and search
+them like any other test; a deselected derived test stays defined but is not computed. The
+**Derived** filter button shows only derived tests. It overlaps the other two: a derived
+test is also parametric or functional, and appears under that filter as well. Loading a
+definitions file replaces the derived tests along with the selection; **Save definitions**
+writes the selected ones back. The footer counts them ("84 of 84 tests selected (7
+derived)").
+
+Everywhere else a derived test is named — the map's plot-mode test list, the map title,
+tooltips, Insights charts and their test pickers, findings and reports — it carries the
+same **†** in front of its name, with the words *Derived, not measured* nearby.
 
 ### Memory advisory
 
@@ -975,6 +1067,104 @@ with one sub-bar per arm, which is the question a split experiment is usually ru
 It reports rates rather than counts, so arms with different wafer counts stay comparable. The
 same comparison is written into the **lot summary report**, so it can leave the app.
 
+### 7.1 Sweeps
+
+A **sweep** reads a run of tests — one quantity measured at a series of voltages,
+temperatures, load currents or cycle counts — as a curve rather than as separate tests. Two
+series side by side (a rising one and a falling one, typically) are measured against each
+other: where they **cross**, and how far apart they are, horizontally, at given levels (the
+**width** of the V they form). Each sweep gets a card in Insights' **Sweeps** tab, which
+appears once any are defined; the card itself is described in the
+[wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
+
+Sweeps are defined in a **sweeps file** and loaded through **Setup ▾ → Sweeps…**, which also
+saves the current sweeps back to a file. Loading replaces every sweep; a file with an empty
+list clears them. Unlike the other definitions files it is JSON, because a sweep has series
+inside it:
+
+```json
+{
+  "format": "tsmap-sweeps",
+  "version": 1,
+  "sweeps": [
+    {
+      "id": "set-reset",
+      "title": "Set / reset switching",
+      "xLabel": "Voltage (V)",
+      "yLabel": "Read current",
+      "separationAt": [10, 50],
+      "series": [
+        {"label": "Reset", "tests": ["3000..3030"], "xValues": [-1.5, -1.4, …, 1.5]},
+        {"label": "Set",   "tests": ["3100..3130"], "xValues": [-1.5, -1.4, …, 1.5]}
+      ]
+    }
+  ]
+}
+```
+
+| Field | |
+|---|---|
+| `id` | A short unique name for the sweep |
+| `title` | The card title |
+| `series` | Two or more curves. Crossing and widths are measured between the first two |
+| `series[].tests` | The tests in sweep order: numbers, or ranges like `"3000..3030"` — the same range syntax as a derived test, matching every test in that range that exists |
+| `series[].xValues` | The real swept value for each test (volts, °C, cycles). One per test **after** ranges are expanded. Without it the x axis is simply test order |
+| `series[].xFromName` | Read each test's swept value from its **name** instead, for programs that only write it into the test text — see below |
+| `separationAt` | Levels, in the tests' own units, at which to report the width between the first two curves |
+| `crossing` | `false` to stop reporting a crossing, for curves that are not meant to meet |
+| `xLabel` / `yLabel` | Axis titles |
+| `xUnit` | The unit of the swept values, such as `"Ω"` or `"V"`. The axis and the measurements then read `47.3 kΩ` rather than `47300` |
+| `xScale` | `"log"` for steps that grow by multiples (1K, 2K, 5K … 1M) — see below |
+
+**Swept values in the test names.** Some programs record the swept value only in the test
+text — `Normalized_LRS= LRS_STATS_12K / Total_LRS= …`. `xFromName` reads it from there:
+
+```json
+{
+  "id": "lrs-cdf", "title": "LRS CDF — before vs after", "xLabel": "LRS threshold",
+  "xUnit": "Ω", "xScale": "log", "yLabel": "Normalized LRS", "separationAt": [0.5],
+  "series": [
+    {"label": "Before",    "tests": ["31200..31230"], "xFromName": "LRS_STATS_{x}"},
+    {"label": "After 0x5", "tests": ["31300..31330"], "xFromName": "LRS_STATS_{x}"}
+  ]
+}
+```
+
+- `{x}` marks where the number is and `*` stands for any text; everything else must appear
+  in the name as written, though capitals do not matter. The pattern is found anywhere in
+  the name, so it needs only enough text around `{x}` to be unambiguous — `LRS_STATS_{x}`,
+  not the whole name.
+- `{x}` reads a unit prefix with the number: `12K` is 12,000 and `1M` is 1,000,000. Here
+  capitals **do** matter — `m` is milli and `M` is mega. A letter only counts as a prefix
+  when it stands on its own or comes before a unit (`12K`, `12kΩ`, `5us`), so `12Kangaroos`
+  reads as 12. A name written all in capitals has lost that difference, so there a prefix
+  before a unit is read either way (`5NS` is 5 ns) — except `M`, which could be milli or
+  mega: a name like `V_2MV` is reported rather than guessed. Put the letter into the pattern
+  instead (`V_{x}MV`) and the unit into the axis title. To keep the numbers as the names
+  write them (12 rather than 12,000), put the letter in the pattern — `LRS_STATS_{x}K` —
+  and the unit in the axis title, `"xLabel": "LRS threshold (kΩ)"`.
+- It is not a regular expression, deliberately: a sweeps file is shared, and a regular
+  expression can be written so that it freezes the app. This pattern cannot.
+- A test whose name the pattern does not fit is named on the card, and the crossing and
+  widths are not measured. Unlike `xValues`, each value stays with its own test, so a
+  missing test costs one point rather than shifting every later one.
+
+**A log axis** (`"xScale": "log"`) spreads steps that grow by multiples evenly across the
+chart; on a linear axis everything below 100K would crowd into the left edge. The crossing
+is then found along the log axis, and a width is reported as a ratio between the two curves
+— `×2.49 (15.9 kΩ → 39.7 kΩ)` — because on a log axis the same shift is the same multiple
+anywhere along it.
+
+**If a test in a range is missing** — not in this lot, or not imported — the range comes up
+one short of `xValues`. The card then lists the tests it did find and does not measure the
+crossing or widths, rather than pairing the remaining values with the wrong tests.
+
+A mistake in the file is reported in the log with where it is: a JSON syntax error by line
+and column, a bad sweep or series by its id and label. The good sweeps in the same file still
+load. A sweep can read derived tests — sweeping `log10(t[n])` per step is how to draw a curve
+whose *values* span decades; `"xScale": "log"` is for swept values that do. The RRAM sample's
+endurance sweep does the latter, reading each cycle count (`1e3`) from its test name.
+
 ---
 
 ## 8. The log panel
@@ -1041,8 +1231,9 @@ Browser requirements: Chrome 80+, Firefox 113+, Safari 16.4+, Edge 80+.
 
 ## 10. Test definitions
 
-tsmap has **three kinds of definitions file** — test definitions, [wafer splits](#6-wafer-splits),
-and [bin definitions](#11-bin-definitions) — each a small CSV round-trip for one axis of a lot's
+tsmap has **four kinds of definitions file** — test definitions (including
+[derived tests](#derived-tests)), [wafer splits](#6-wafer-splits),
+[bin definitions](#11-bin-definitions) and [sweeps](#71-sweeps) — each a small round-trip for one axis of a lot's
 metadata that either isn't in the raw data at all, or that you want to correct/extend after
 parsing. This section and the next cover the two reached from the same place; splits get their
 own fuller section back at [§6](#6-wafer-splits) since assigning them is an interactive workflow
@@ -1168,7 +1359,7 @@ the same values from the command line at launch — see [Command line](#command-
 
 **Help → Definitions file formats…** is reachable at any time, including with nothing loaded
 yet — unlike every Setup ▾ dialog above, which needs a file open first. Each row (test
-definitions, splits, bin definitions) has a **Save template…** button that writes a realistic,
+definitions, splits, bin definitions, sweeps) has a **Save template…** button that writes a realistic,
 filled-in example of that file, using the exact same formatter its real Save button uses — so
 the column layout is discoverable without reading this guide, and without loading any data
 first. Useful for preparing a definitions file ahead of time (e.g. from a fab's lot traveler or

@@ -222,16 +222,70 @@ describe('formatTestListCsv / parseTestListFile round-trip', () => {
     expect(parseTestListFile(csv)).toEqual(entries);
   });
 
-  it('sanitizes commas in name/units on save rather than corrupting columns', () => {
+  it('quotes commas in name/units on save, so they round-trip exactly', () => {
     const entries = [{ num: 1001, name: 'Vdd, Core', units: 'mA, RMS' }];
     const csv = formatTestListCsv(entries);
-    const result = parseTestListFile(csv);
-    expect(result).toEqual([{ num: 1001, name: 'Vdd  Core', units: 'mA  RMS' }]);
+    expect(csv).toContain('1001,"Vdd, Core",,,"mA, RMS",,');
+    expect(parseTestListFile(csv)).toEqual(entries);
   });
 
-  it('writes the canonical header', () => {
+  it('writes the canonical header, expression last', () => {
     const csv = formatTestListCsv([{ num: 1001, name: 'Vdd' }]);
-    expect(csv).toContain('num,name,loLimit,hiLimit,units,testType');
+    expect(csv).toContain('num,name,loLimit,hiLimit,units,testType,expression');
+  });
+
+  it('round-trips a derived test, quoting an expression only when it has a comma', () => {
+    const entries = [
+      { num: 900001, name: 'Shift', units: 'uA', testType: 'P' as const, hiLimit: 5, expression: 'abs(t[1020] - t[1010])' },
+      { num: 900002, name: 'Guarded', expression: 'log10(t[1] / max(t[2], 0.01))' },
+      { num: 900003, name: 'Quoted', expression: 'if(t[1] > 0, 1, 2) + "x"' },
+    ];
+    const csv = formatTestListCsv(entries);
+    expect(csv).toContain(',abs(t[1020] - t[1010])');
+    expect(csv).toContain(',"log10(t[1] / max(t[2], 0.01))"');
+    expect(parseTestListFile(csv)).toEqual(entries);
+  });
+});
+
+// ── Derived tests: the expression column ───────────────────────────────────────
+// An expression contains commas. As the last column it reads the same whether
+// or not it was quoted — a hand-edited file that forgot the quotes still loads.
+
+describe('parseTestListFile — expression column', () => {
+  const HEADER = 'num,name,loLimit,hiLimit,units,testType,expression';
+
+  it('reads an unquoted expression with commas as one cell', () => {
+    const [row] = parseTestListFile(`${HEADER}\n900001,Ratio,,,,P,max(t[1], t[2]) / min(t[3],t[4])`);
+    expect(row).toEqual({ num: 900001, name: 'Ratio', testType: 'P', expression: 'max(t[1], t[2]) / min(t[3],t[4])' });
+  });
+
+  it('reads the same expression quoted, as Excel writes it', () => {
+    const [row] = parseTestListFile(`${HEADER}\n900001,Ratio,,,,P,"max(t[1], t[2]) / min(t[3],t[4])"`);
+    expect(row.expression).toBe('max(t[1], t[2]) / min(t[3],t[4])');
+  });
+
+  it('a row with a blank expression is an ordinary test row', () => {
+    const [row] = parseTestListFile(`${HEADER}\n1001,Vdd,1,2,V,P,`);
+    expect(row).toEqual({ num: 1001, name: 'Vdd', loLimit: 1, hiLimit: 2, units: 'V', testType: 'P' });
+  });
+
+  it('accepts the "Derived from" header wmap exports use', () => {
+    const [row] = parseTestListFile('num,name,Derived from\n900001,Sum,t[1] + t[2]');
+    expect(row.expression).toBe('t[1] + t[2]');
+  });
+
+  it('ignores an expression column that is not last, and says so', () => {
+    const warnings: string[] = [];
+    const rows = parseTestListFile('num,expression,name\n900001,t[1],Oops', (_n, m) => warnings.push(m));
+    expect(rows[0].expression).toBeUndefined();
+    expect(warnings.join(' ')).toMatch(/must be the last column/);
+  });
+
+  it('never reads an expression from a header-less file', () => {
+    const warnings: string[] = [];
+    const [row] = parseTestListFile('1001,Vdd,1,2,V,P,t[1]', (_n, m) => warnings.push(m));
+    expect(row.expression).toBeUndefined();
+    expect(warnings.length).toBe(1);
   });
 });
 
@@ -413,5 +467,20 @@ describe('matchTestRange', () => {
     // nothing" from "matches, but hidden" — which is the distinction the
     // dialog's inline message depends on.
     expect(got('1001-2000')).toEqual([1001, 1002, 1050, 1051, 2000]);
+  });
+});
+
+describe('derived tests meeting a lot that measures their number', () => {
+  it('the measured test wins: the derived one is split out and named in the warning', async () => {
+    const { splitDerivedByClash, derivedClashMessage } = await import('./testSelectorUI');
+    const derived = [
+      { num: 900001, name: 'Leakage shift', expression: 'abs(t[1020] - t[1010])' },
+      { num: 900002, name: 'Ratio', expression: 't[1010] / t[1020]' },
+    ] as Parameters<typeof splitDerivedByClash>[0];
+    const measured = { '900001': { name: 'Real 900001' }, '1010': {}, '1020': {} };
+    const { kept, clashing } = splitDerivedByClash(derived, measured);
+    expect(kept.map(d => d.num)).toEqual([900002]);
+    expect(clashing.map(d => d.num)).toEqual([900001]);
+    expect(derivedClashMessage(clashing)).toBe("1 derived test ignored — 900001 is already a measured test's number; give it an unused number");
   });
 });
