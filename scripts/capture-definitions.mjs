@@ -50,8 +50,7 @@ export const CAPTURES = [
   // ── §2 Empty-state toolbar ────────────────────────────────────────────────
   // Replaces the hand-authored toolbar mockup — real empty-state screenshot,
   // no data loaded. (Re-added 2026-07-12: the guide's in-app modal used to
-  // strip all images and rely on mockups instead — see WMAP_ISSUES.md #32 —
-  // that constraint is gone now that the guide bundles real image files.)
+  // strip all images and rely on mockups instead; that constraint is gone now that the guide bundles real image files.)
   {
     file: 'empty-toolbar',
     group: 'ui',
@@ -332,8 +331,8 @@ export const CAPTURES = [
   },
 
   // ── §7 Insights — Overview sub-tab (yield + bin pareto + ring/quadrant) ───
-  // wmap's own Insights tab replaced tsmap's former bespoke Charts view (see
-  // WMAP_ISSUES.md) — Overview/Distributions/Correlation sub-tabs, opened via
+  // wmap's own Insights tab replaced tsmap's former bespoke Charts view —
+  // Overview/Distributions/Correlation sub-tabs, opened via
   // the map/gallery's "Insights" button rather than a tsmap #charts-btn.
   {
     file: 'charts-overview',

@@ -550,8 +550,8 @@ export async function showMappingOverlay(
   // existing gallery opened this overlay over a live map, wiped it, and left the
   // user on a permanently blank view if they then cancelled (the app still held
   // the wafers, so nothing re-rendered and no empty state appeared). It also
-  // bypassed destroyMainView(), leaking wmap's controller and observers —
-  // see WMAP_ISSUES.md #21. Clearing the view is handleFiles' own job, which it
+  // bypassed destroyMainView(), leaking wmap's controller and observers.
+  // Clearing the view is handleFiles' own job, which it
   // does via showLoadingState() only AFTER the cancellable gates have resolved.
   overlay.querySelector<HTMLElement>('.mapping-panel')?.focus(); // focus the dialog for Esc/SR
 

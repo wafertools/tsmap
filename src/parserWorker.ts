@@ -15,8 +15,7 @@
 // 105 MB and works, so the transfer is not what fails — what fails is the main
 // thread holding a whole lot as JS objects (~5 KB/die) while this worker is still
 // resident. Adding backpressure did not change that, and the streaming protocol
-// cost ~12% throughput for no benefit. See tsmap's COLUMNAR_DATA.md section 3d
-// before trying it again.
+// cost ~12% throughput for no benefit. Measure before trying it again.
 
 import type { CsvMapping } from './mappingUI';
 

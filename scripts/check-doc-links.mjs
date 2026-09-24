@@ -135,8 +135,8 @@ function linksIn(file) {
   const links = [];
   const lines = src.split('\n');
   lines.forEach((rawLine, i) => {
-    // Inline code spans are prose ABOUT markup, not markup: WMAP_ISSUES.md
-    // discusses `<a download href="blob:…">`, which is not a link to check.
+    // Inline code spans are prose ABOUT markup, not markup: `<a download
+    // href="blob:…">` written in backticks is not a link to check.
     const line = rawLine.replace(/`[^`]*`/g, '');
     // Markdown inline links and images, plus raw href/src in embedded HTML.
     for (const m of line.matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
@@ -170,10 +170,9 @@ function walk(dir, out = []) {
 
 const files = [
   ...walk(resolve(root, 'docs')),
-  // Root Markdown that links into the docs, or into each other. IDEAS.md and
-  // COLUMNAR_DATA.md were added once they started cross-linking: an unchecked
-  // link rots exactly as quietly as an unchecked one in docs/.
-  ...['README.md', 'WMAP_ISSUES.md', 'IDEAS.md', 'COLUMNAR_DATA.md']
+  // Root Markdown that links into the docs: an unchecked link rots exactly as
+  // quietly as an unchecked one in docs/.
+  ...['README.md']
     .map((f) => resolve(root, f))
     .filter(existsSync),
 ];

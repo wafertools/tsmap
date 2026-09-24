@@ -1188,8 +1188,7 @@ export function showTestSelectorOverlay(
   //    integer-like keys as array indices, and the same 50 readings occupy
   //    6,108 B, 1,560 B or 336 B depending on which representation the object
   //    lands in — two files with identical test numbers have been measured 3.9x
-  //    apart (2026-09-20, heap snapshot; `WMAP_ISSUES.md` #64,
-  //    `COLUMNAR_DATA.md` §11). The conclusion above is unaffected and if
+  //    apart (2026-09-20, heap snapshot). The conclusion above is unaffected and if
   //    anything stronger: per-die cost is the container, the marginal cost of
   //    one more test is small, so die count is the right axis.
   //

@@ -1008,8 +1008,7 @@
            append to an ALREADY-rendered gallery, so they'd render invisibly
            behind wmap's own toolbar. There is no such thing as a page-level
            overlay in this app that is structurally guaranteed to never appear
-           over a rendered map — always use --z-modal for a new one. See
-           WMAP_ISSUES.md #22/#23. */
+           over a rendered map — always use --z-modal for a new one. */
         --z-modal:    7000;
         --z-tooltip:  7100;
 
@@ -1021,7 +1020,7 @@
            solarized-dark, solarized-light all do). */
         --btn-primary-text: var(--text-white);
 
-        /* wmap chrome theming (WMAP_ISSUES #25): wmap reads its toolbar / panel /
+        /* wmap chrome theming: wmap reads its toolbar / panel /
            canvas colours from these --wmap-* tokens (the full list is wmap's own
            `WMAP_TOKEN_NAMES`, packages/canvas-adapter/toolbar.ts). Mapping them
            to tsmap's own --var tokens makes the embedded wafer map follow

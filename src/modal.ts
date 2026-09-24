@@ -8,7 +8,7 @@
 // Stacking: the backdrop sits at --z-modal (see the scale in index.html :root),
 // which clears wmap's map-toolbar overlay band (--wmap-z, default 6000) so a
 // modal opened over a rendered wafer map is never shown through by the map's
-// own toolbar. See WMAP_ISSUES.md #22/#23.
+// own toolbar.
 //
 // "Maximize" is a CSS grow-to-viewport, NOT the real Fullscreen API: WKWebView
 // (macOS Tauri) disables element fullscreen unless Apple private API is enabled.
@@ -131,7 +131,7 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   box.tabIndex = -1;
   // `wmap-modal-box`: wmap's toolbar reparents its plot-mode dropdown into the
   // nearest `.wmap-modal-box` ancestor, so a map rendered into this body lands
-  // its menus inside the box. Harmless for non-map modals. See WMAP_ISSUES #22.
+  // its menus inside the box. Harmless for non-map modals.
   // `tsmap-modal-box`: tsmap's own stable handle on the dialog box (used by the
   // guide screenshot captures, which need to frame the box including its title
   // bar rather than just the content the caller mounted).

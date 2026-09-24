@@ -120,8 +120,7 @@ const pwaPlugin = VitePWA({
       // rule does cover is wmap's in-page fallback, used when the browser or
       // policy blocks popups, which IS controlled. Verified both ways: popup →
       // uncontrolled, cache stays empty; fallback → controlled, 12 entries.
-      // The consequence for users is in docs/web.md; the wmap-side gap is
-      // logged in WMAP_ISSUES.md.
+      // The consequence for users is in docs/web.md.
       urlPattern: /\/guide\/images\/[^/]+$/,
       handler: 'CacheFirst',
       options: {

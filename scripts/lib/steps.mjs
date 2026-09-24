@@ -373,7 +373,7 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
 
     case 'openInsights': {
       // wmap's own Insights button — tsmap's bespoke Charts view (#charts-btn,
-      // .chart-card) was removed and folded into wmap (see WMAP_ISSUES.md).
+      // .chart-card) was removed and folded into wmap.
       await page.click('button[aria-label="Insights"]');
       await page.waitForTimeout(1200);
       break;
@@ -571,7 +571,7 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       // those two (which walk headings by text — see their own comments on
       // why, predating the data-wmap-* hooks), this locates the card via
       // data-wmap-chart-card/data-wmap-chart-title directly — added
-      // alongside those hooks (WMAP_ISSUES.md #36), so new steps should
+      // alongside those hooks, so new steps should
       // prefer them over the heading-text walk.
       const [wanted, colIdx, numCols] = args;
       const box = await page.evaluate((titleText) => {

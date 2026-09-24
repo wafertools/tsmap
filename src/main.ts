@@ -52,7 +52,7 @@ const platform = createPlatform();
 // `userGuideExtension`, and directly to `openWaferMapGuide` for the
 // nothing-loaded case — the SAME object both places, so tsmap's Help menu
 // shows identical combined content regardless of whether a map is currently
-// rendered. See WMAP_ISSUES.md #37 (2026-08-28 decision, reversing #32).
+// rendered.
 const guideExtension = { title: 'tsmap — User Guide', html: TSMAP_GUIDE_HTML };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -284,15 +284,14 @@ let showSplitSuffix = true;
 // edgeExclusionMm is only ever non-undefined when waferDiameterMm is also
 // set — see waferGeometry.ts's normalizeWaferGeometry, the single place that
 // enforces this (an absolute mm exclusion value is only meaningful relative
-// to a confirmed diameter — WMAP_ISSUES.md #42).
+// to a confirmed diameter).
 let waferDiameterMm: number | undefined = getWaferDiameterMm();
 let edgeExclusionMm: number | undefined = getEdgeExclusionMm();
 
 let cachedLotStats: NonNullable<Awaited<ReturnType<typeof buildLotStatsSummary>>> | null = null;
 // The wmap controller for the map currently rendered into the main `container`
 // (full-window map/gallery view). Destroyed before the container is cleared so
-// wmap's observers/listeners are disconnected deterministically (see
-// WMAP_ISSUES.md #21). The modal drilldown owns its own controller separately.
+// wmap's observers/listeners are disconnected deterministically. The modal drilldown owns its own controller separately.
 let mainViewController: { destroy(): void; openUserGuide(): void } | null = null;
 /**
  * Resolver for the in-flight "gallery has settled" wait, or null when nothing is
@@ -1083,7 +1082,7 @@ const onSaveImage = isTauri
 
 // Route wmap CSV/text exports (Summary/Insights "Export CSV") through the
 // native dialog in Tauri; undefined on web uses the default download. Mirrors
-// onSaveImage — see WMAP_ISSUES.md #33.
+// onSaveImage.
 const onSaveText = isTauri
   ? (text: string, suggestedName: string) => {
       platform.saveTextFile(text, suggestedName, 'exports', 'Save exported data')
@@ -1164,7 +1163,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
       // button click. tsmap's own guide content is folded into that same
-      // window via userGuideExtension below. See WMAP_ISSUES.md #37.
+      // window via userGuideExtension below.
       showHelpButton: false,
       userGuideExtension: guideExtension,
       onSaveImage,
@@ -1180,8 +1179,8 @@ async function renderWaferView(wafers: WaferData[]) {
       // { display: false } — that hides the geometry advisory from anyone who
       // never opens the log panel, which is the gap wmap 0.22.0 closed.
       // Single-wafer counterpart to the gallery's insights below — closes
-      // the gap that blocked removing tsmap's own Charts page (see
-      // WMAP_ISSUES.md): single-wafer loads had no chart access at all
+      // the gap that blocked removing tsmap's own Charts page:
+      // single-wafer loads had no chart access at all
       // without this.
       insights: insightsOpts(),
     });
@@ -1265,7 +1264,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
       // button click. tsmap's own guide content is folded into that same
-      // window via userGuideExtension below. See WMAP_ISSUES.md #37.
+      // window via userGuideExtension below.
       showHelpButton: false,
       userGuideExtension: guideExtension,
       onSaveImage,
@@ -1277,7 +1276,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // default) — see the note on the single-wafer call above. The gallery
       // collects across every card and de-duplicates, so a lot-wide geometry
       // advisory is stated once there; tsmap's log keeps the per-wafer detail.
-      // wmap-owned Insights tab (see WMAP_ISSUES.md #31) — the only chart
+      // wmap-owned Insights tab — the only chart
       // access now that tsmap's own Charts page has been removed.
       insights: insightsOpts(),
     });
@@ -1297,8 +1296,7 @@ async function renderWaferView(wafers: WaferData[]) {
  * `renderWafers` replaces this once the parse completes.
  *
  * **It used to write its own centred "Loading x.stdf…" message, which made it a
- * fourth busy surface** — the one `IDEAS.md`'s table of three did not list, so
- * unifying the three it did list left this one behind. Worse, `innerHTML = ''`
+ * fourth busy surface**, and unifying the other three left this one behind. Worse, `innerHTML = ''`
  * destroys the load indicator, so the message it replaced it with then had no
  * bar and did not advance. It now clears the view and re-asserts the one
  * indicator, which is already saying what is happening.
@@ -2883,8 +2881,8 @@ function openSplitsDialog() {
 // over wmap's own inference; the inference tier is only trusted when
 // buildWaferMap actually resolved real physical units (`units === 'mm'`) —
 // otherwise `.wafer.diameter` is a dimensionless grid-step count, not
-// millimetres (see WMAP_ISSUES.md's discussion in waferGeometry.ts's module
-// doc), and must never be shown as one.
+// millimetres (see waferGeometry.ts's module doc), and must never be shown
+// as one.
 function inferredWaferDiameterHint(): InferredDiameterHint {
   if (currentWafers.length === 0) return { source: 'none' };
   const wcr = wcrGeometryFrom(currentWafers[0].source);
@@ -3192,8 +3190,7 @@ let closeHelpMenu: (() => void) | null = null;
  *
  * Used to be two rows (tsmap's own guide as a standalone page always
  * available, "Wafer map reference" gated on a live render) — collapsed to one
- * per WMAP_ISSUES.md #37's 2026-08-28 decision, reversing #32's 2026-07-12
- * cutover. The old "gated on mainViewController" behaviour would have left
+ * on 2026-08-28. The old "gated on mainViewController" behaviour would have left
  * the empty state (nothing loaded yet) with no guide access at all, since
  * `mainViewController.openUserGuide()` needs a live render — closed by
  * wmap's new controller-free `openWaferMapGuide` export (used only in that

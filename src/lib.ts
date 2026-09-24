@@ -837,7 +837,7 @@ export function applyTestSelection(
 /**
  * Dies the browser build can be relied on to open.
  *
- * Measured in Chrome on 2026-09-19 (see `COLUMNAR_DATA.md` §3): the web build
+ * Measured in Chrome on 2026-09-19: the web build
  * parses in a Worker and the result is structured-cloned to the main thread, so
  * two copies are live and the ceiling is total heap. A lot is roughly 5 KB of JS
  * heap per die — about 12 KB where the data carries per-test pass/fail verdicts —
@@ -862,8 +862,8 @@ export function applyTestSelection(
  * object keyed by test number, V8 stores integer-like keys as array indices,
  * and the same 50 readings occupy 6,108 B, 1,560 B or 336 B depending on the
  * representation the object lands in — two files with identical test numbers
- * measured 3.9x apart (2026-09-20, heap snapshot; `WMAP_ISSUES.md` #64 and
- * `COLUMNAR_DATA.md` §11). The threshold above is unaffected, and better
+ * measured 3.9x apart (2026-09-20, heap snapshot). The threshold above is
+ * unaffected, and better
  * explained: die count is the right axis precisely because the container
  * dominates and one more test costs little.
  *
@@ -916,7 +916,7 @@ export const WEB_DIE_BUDGET = 200_000;
  *
  * Nothing about this number is specific to tsmap; it describes wmap's per-card
  * build cost. The gallery should arguably apply it itself rather than every host
- * repeating the judgement — logged as `WMAP_ISSUES.md` #62.
+ * repeating the judgement.
  */
 export const GALLERY_PROGRESSIVE_DIE_THRESHOLD = 10_000;
 

@@ -8,8 +8,7 @@
  *
  * Extracted from capture-screenshots.mjs (2026-08) so the screenshot harness
  * and the scenario runner (scripts/run-scenario.mjs) share one server rather
- * than two copies drifting apart — see IDEAS.md's "shared capture harness"
- * entry, and note this is the *tsmap-internal* half of that job only; the
+ * than two copies drifting apart. Note this is the *tsmap-internal* half of that job only; the
  * cross-repo extraction with ../wafermap's own capture-screenshots.mjs is a
  * separate, unstarted job.
  */

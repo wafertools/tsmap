@@ -30,7 +30,7 @@
  * NOTE ../wafermap/scripts/capture-screenshots.mjs is the same kind of
  * harness (static server + headless Chromium + a setup-step vocabulary)
  * pointed at a different app. Extracting a harness shared *across* the two
- * repos is a separate, unstarted job — see IDEAS.md. scripts/lib/ here only
+ * repos is a separate, unstarted job. scripts/lib/ here only
  * de-duplicates the two *tsmap-internal* consumers of this harness
  * (screenshot capture and the scenario runner).
  */

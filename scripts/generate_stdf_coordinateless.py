@@ -11,7 +11,7 @@ Produces a 3-wafer lot, same test program as generate_stdf.py (3 PTR + 1 FTR):
 Use this to exercise: the wafer-map/gallery falling back to a die-list for
 W03, the "+N dies without position data" expandable footer on W02's card,
 and that ring/quadrant/cluster findings never reference a coordinate-less
-die while yield/bin/per-test stats still count it. See WMAP_ISSUES.md #39.
+die while yield/bin/per-test stats still count it.
 """
 
 import struct

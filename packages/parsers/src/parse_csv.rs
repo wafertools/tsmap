@@ -890,7 +890,7 @@ mod tests {
     fn sample_file_coordinateless_lot() {
         // sample_data/TESTNUM-COORDLESS-01.csv — W01 fully positioned, W02
         // mixed (2 of 4 rows have blank x/y), W03 fully coordinate-less (no
-        // row has x/y). See WMAP_ISSUES.md #39.
+        // row has x/y).
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/TESTNUM-COORDLESS-01.csv");
         let mut m = basic_mapping("x", "y");
         m.wafer = Some("wafer".to_string());

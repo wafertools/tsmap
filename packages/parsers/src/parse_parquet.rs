@@ -828,7 +828,7 @@ mod tests {
     fn sample_file_coordinateless_lot() {
         // sample_data/TESTNUM-COORDLESS-01.parquet — same lot as the CSV/JSON
         // fixtures of the same name: W01 fully positioned, W02 mixed (2 of 4
-        // rows have null x/y), W03 fully coordinate-less. See WMAP_ISSUES.md #39.
+        // rows have null x/y), W03 fully coordinate-less.
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/TESTNUM-COORDLESS-01.parquet");
         let mut m = basic_mapping("x", "y");
         m.wafer = Some("wafer".to_string());

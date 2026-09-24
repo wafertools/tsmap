@@ -14,7 +14,7 @@
  *
  * It also guards the property the whole design exists for: ONE surface. The load
  * chrome was three disagreeing surfaces before 2026-09-20 (see the LoadPhase
- * block in src/main.ts, and IDEAS.md). This scans the whole DOM for visible
+ * block in src/main.ts). This scans the whole DOM for visible
  * busy-looking text, not just `#render-progress` — the first version counted
  * indicators by id and therefore missed `showLoadingState`, a FOURTH surface
  * that wrote its own "Loading x.stdf…" and destroyed the real indicator on the

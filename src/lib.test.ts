@@ -751,7 +751,7 @@ describe('mergePassHbins', () => {
 // ── unionTestDefs (cross-file test-number reconciliation) ────────────────────
 // A test number identifies a test WITHIN a test program. Across files it does
 // not, so the old `Object.assign` merge (last-wins) could hand every wafer a
-// definition from a different program. See WMAP_ISSUES.md #50.
+// definition from a different program.
 describe('unionTestDefs', () => {
   const def = (over: Partial<TestDef> = {}): TestDef =>
     ({ name: 'vth_n_mV', testType: 'P', units: 'mV', loLimit: 260, hiLimit: 380, ...over });
@@ -883,7 +883,7 @@ describe('unionTestDefs', () => {
 // ── unionBinInfo (cross-file pass-bin reconciliation) ───────────────────────
 // A hard bin's pass/fail verdict belongs to the file that produced the dies.
 // Unioning it across files makes a bin one file counts as a fail count as a
-// pass lot-wide, moving every yield figure. See WMAP_ISSUES.md #50.
+// pass lot-wide, moving every yield figure.
 describe('unionBinInfo', () => {
   const wafer = (hbins: number[]): WaferData => ({
     waferId: 'W1',
@@ -1022,7 +1022,7 @@ describe('webDieBudgetWarning', () => {
   });
 
   it('classifies every measured case correctly', () => {
-    // From COLUMNAR_DATA.md section 3b — the point of thresholding on die count
+    // Measured 2026-09-19 — the point of thresholding on die count
     // rather than dies x tests is that 200k x 100 loads while 400k x 50 does not.
     expect(webDieBudgetWarning(200_000)).toBeNull();   // 50 tests: loaded
     expect(webDieBudgetWarning(200_000)).toBeNull();   // 100 tests: loaded

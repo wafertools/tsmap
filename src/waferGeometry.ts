@@ -10,7 +10,7 @@ import { storageKey } from './storageKeys';
 // wmap's diameter is *inferred* from the die grid when not supplied (see
 // `inferWaferFromXY`, packages/core/inference/wafer.ts in wafermap), and its
 // edge-exclusion math has no guard against an exclusion value that doesn't
-// fit the resolved radius — logged as WMAP_ISSUES.md #42. `normalizeWaferGeometry`
+// fit the resolved radius. `normalizeWaferGeometry`
 // below is the single place that enforces "edge exclusion only applies once a
 // diameter is set" — every caller (the dialog, the CLI) goes through it
 // rather than re-deriving the rule.

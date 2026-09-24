@@ -7,7 +7,7 @@
 // a plain save-on-change / restore-on-mount. It used to be impossible to do
 // honestly: wmap had ONE `colorScheme` and reset it to 'default' whenever a bin
 // mode was entered, so a saved choice would only ever have described whichever
-// mode the user touched last. See WMAP_ISSUES.md #52.
+// mode the user touched last.
 
 import { listBinColorSchemes, listValueColorSchemes } from '@wafertools/wafermap';
 import type { WaferViewOptions } from '@wafertools/wafermap/render';

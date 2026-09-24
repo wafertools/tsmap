@@ -15,7 +15,7 @@
  * output, not invented.
  *
  * Beats 5-7 needed wmap's Insights DOM to carry stable data-wmap-* hooks —
- * added (WMAP_ISSUES.md #36) alongside these beats. The actual navigation
+ * added alongside these beats. The actual navigation
  * they exercise, verified empirically against a live build rather than
  * assumed from the plan's original sketch:
  *   - Distributions' "Process capability" panel sorts tests by Cpk

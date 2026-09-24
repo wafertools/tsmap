@@ -108,7 +108,7 @@ export function showWaferGeometryDialog(
         'Dies within this distance of the wafer edge are excluded from yield and shown dimmed on the map.';
 
       // Diameter gates exclusion — an absolute mm value is only meaningful
-      // relative to a confirmed diameter (WMAP_ISSUES.md #42). Enforced live,
+      // relative to a confirmed diameter. Enforced live,
       // not just on Apply, so the constraint is visible while typing. One
       // shared parse, used by both updateExclusionEnabled (live) and
       // readValidated (Apply) — these used to be two independent
@@ -189,7 +189,8 @@ export function showWaferGeometryDialog(
       clearBtn.addEventListener('mouseleave', () => { clearBtn.style.borderColor = 'var(--border-mid)'; clearBtn.style.color = 'var(--text-secondary)'; });
       clearBtn.addEventListener('click', () => {
         // Clears both together — leaving a pinned exclusion behind after
-        // diameter reverts to auto-inferred would reopen WMAP_ISSUES.md #42.
+        // diameter reverts to auto-inferred would leave an exclusion with no
+        // confirmed diameter to measure it against.
         onApply({ diameterMm: undefined, edgeExclusionMm: undefined });
         modalHandle.close();
       });

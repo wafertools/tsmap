@@ -11,9 +11,7 @@
 // controller-free `openWaferMapGuide` (see src/main.ts's openHelpMenu) — wmap
 // prepends it before its own built-in guide content in ONE combined guide
 // window, so tsmap has a single Help entry point instead of two separate
-// guide systems. See WMAP_ISSUES.md #37 (2026-08-28 decision) — this reverses
-// #32's 2026-07-12 cutover, which stopped using this option for the opposite
-// reason (see CLAUDE.md's "User guide maintenance" section for the history).
+// guide systems (decided 2026-08-28).
 //
 // Unlike the old standalone page this replaces, this fragment is injected
 // into the SAME running app document (Tauri webview / web app), never opened
@@ -71,7 +69,7 @@ function pngDimensions(filePath) {
 // No TOC built here any more — wmap's own guide window builds ONE combined
 // "Contents" nav covering every `<h2 id>` in the merged document (this
 // fragment's headings AND wmap's own), not a second one scoped to just this
-// fragment. See WMAP_ISSUES.md #37 and wmap's `buildGuideToc`
+// fragment. See wmap's `buildGuideToc`
 // (packages/canvas-adapter/toolbar.ts) — real `id`s on every heading are all
 // this fragment needs to supply for that nav to pick its sections up.
 const renderer = new Renderer();
@@ -128,7 +126,7 @@ html = html.replace(
 
 // ── Guide typography ───────────────────────────────────────────────────────────
 // Matches wmap's own `.wmap-guide` box model exactly (padding, max-width,
-// centering) — see WMAP_ISSUES.md #37 — so the two sections of the combined
+// centering) so the two sections of the combined
 // guide read as one continuous document with no visible seam, not two blocks
 // with different margins stacked on top of each other. `max-width` reads the
 // SAME `--wmap-guide-reading-width` custom property wmap's own guide content
@@ -142,8 +140,8 @@ html = html.replace(
 // This used to hardcode a fixed light-theme block (`LIGHT_TOKENS`, removed
 // 2026-08-28) on the reasoning that the guide had no host tokens to inherit
 // from — true when the guide was a standalone page, but wrong once it was
-// folded back into the SAME document as the running app (see WMAP_ISSUES.md
-// #37): in that state (the in-page floating-window fallback, which is what
+// folded back into the SAME document as the running app —
+// in that state (the in-page floating-window fallback, which is what
 // Tauri/WebKitGTK always uses — window.open is blocked there), tsmap's real,
 // live theme tokens are already sitting one ancestor away on
 // `<html data-theme="…">`, and the hardcoded block was silently shadowing

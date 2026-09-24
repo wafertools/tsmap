@@ -25,7 +25,7 @@
  * integer-like keys are ARRAY INDICES to V8, not hash keys — so the container
  * is a contiguous store, a dictionary, or a packed array depending on the key
  * set AND the insertion path. Two files with identical test numbers have been
- * observed 3.9x apart. See `WMAP_ISSUES.md` #64 and `COLUMNAR_DATA.md` §11.
+ * observed 3.9x apart.
  *
  * USAGE
  * -----
