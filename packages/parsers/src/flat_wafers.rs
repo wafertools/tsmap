@@ -214,7 +214,7 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
                test_keys: &mut TestKeys) -> WaferData {
     let blank = |pos: Option<(i32, i32)>| DieResult {
         x: pos.map(|p| p.0), y: pos.map(|p| p.1), die_index: None,
-        hbin: None, sbin: None, site_num: None, part_id: None,
+        hbin: None, sbin: None, site_num: None, part_id: None, supersedes: None,
         test_values: HashMap::new(), test_pass: HashMap::new(),
     };
     let mut dies: Vec<DieResult> = Vec::new();
@@ -255,14 +255,17 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
         if d.x.is_none() { d.die_index = Some(n); n += 1; }
     }
     let part = dies.len() as u32;
-    let good = dies.iter()
-        .filter(|d| pass_bins.is_empty()
-            || d.hbin.map_or(false, |b| pass_bins.contains(&b))
-            || d.sbin.map_or(false, |b| pass_bins.contains(&b)))
-        .count() as u32;
+    // Pass bins are hard-bin numbers, so only the hard bin decides. With none
+    // given, which dies are good is unknown — not "all of them".
+    let good = (!pass_bins.is_empty()).then(|| dies.iter()
+        .filter(|d| d.hbin.is_some_and(|b| pass_bins.contains(&b)))
+        .count() as u32);
     WaferData {
-        wafer_id, results: dies,
-        part_count: Some(part), good_count: Some(good), fail_count: Some(part - good),
+        wafer_id,
+        // No wafer column mapped (or a blank one): `W1` is a placeholder.
+        wafer_id_placeholder: rows.first().is_some_and(|r| r.wafer.is_empty()),
+        results: dies,
+        part_count: Some(part), good_count: good, fail_count: good.map(|g| part - g),
         fields: Vec::new(),
     }
 }

@@ -247,7 +247,7 @@ tsmap --version                            # print the version and exit
 ```
 
 `--tests` takes the same file a test selector's **Save definitions** button produces — selection,
-renames, and optionally spec limits/test type (see
+renames, and optionally test limits/test type (see
 [Test definitions](#test-definitions-save-load) above) — and `--splits` the same CSV the
 [Splits… dialog](#63-saving-and-loading-split-definitions-csv) saves and loads. `--tests` only
 pre-fills the selector's checkboxes, renames, and limit/type overrides — the overlay still
@@ -516,8 +516,8 @@ or wrong results.
 | **Test name (long format)** | Column containing the test name in a long/pivot layout. Optional if **Test number** is set instead — a file with only real test numbers and no descriptive names is fully supported; the number is used as the display name in that case |
 | **Test number (long format)** | Column containing the test's real number in a long/pivot layout. Optional alongside **Test name** — set alone (no name column at all) or together (real number, given name). At least one of **Test name**/**Test number** is required, along with **Test result** |
 | **Test result (long format)** | Column containing the numeric result in a long/pivot layout |
-| **Low limit (long format)** | LSL in a long-format file |
-| **High limit (long format)** | USL in a long-format file |
+| **Low limit (long format)** | Low test limit in a long-format file |
+| **High limit (long format)** | High test limit in a long-format file |
 | **Units (long format)** | Units string in a long-format file |
 | **Display info** | Additional metadata captured for grouping/comparison (and shown in tooltips). Values are recorded **per wafer**, so a file mixing temperatures or test programs labels each wafer with its own. If the same wafer appears more than once — tested at two temperatures, say — and one of these columns tells the passes apart, each pass becomes its own wafer map, and the log says which column did it; with nothing to tell them apart the repeats are treated as retests. A column whose value changes *within* a wafer (a per-die timestamp) is not shown as a wafer property, and the log says so. The **Subdivide file by this column** checkbox is a structural escape hatch for flat files that pack several wafers into one file with no wafer column — it subdivides the file into one wafer map per distinct value of the column. (Do not use it for parallel-test sites — map those to **Test site** instead.) |
 | **— ignore —** | Column is not imported |
@@ -631,7 +631,7 @@ you can choose which tests to import. This keeps memory usage and load time prop
 to what you actually need.
 
 tsmap uses a two-pass approach: a fast first pass reads only the test record headers
-(PTR/FTR) to enumerate all tests and their numbers, names, units, and spec limits —
+(PTR/FTR) to enumerate all tests and their numbers, names, units, and test limits —
 without accumulating any die data. The selector is built from this scan. The full parse
 then runs only for the tests you selected, skipping accumulation for everything else.
 For a 25-wafer lot with 500 tests and 10 000 dies per wafer, selecting 20 tests instead
@@ -662,7 +662,7 @@ type filter narrows what they can reach:
   selects every test currently shown.
 
 Each test row shows the test number (in dim monospace), the test name, and — where defined
-in the file — the units and spec limits. If a **Load definitions** (or `--tests`) has overridden a
+in the file — the units and test limits. If a **Load definitions** (or `--tests`) has overridden a
 test's limits, units, or type, the row shows those overridden values, with a tooltip noting
 they were loaded from file.
 
@@ -679,7 +679,7 @@ is shown: the selector, the map tooltip, and chart axis labels. Renames persist 
 
 The **Save definitions** and **Load definitions** buttons let you persist a selection and reuse
 it across sessions or files from the same product. Beyond just the selection and display names,
-a test definitions file can also carry **spec limits and test type** — useful when a test
+a test definitions file can also carry **test limits and test type** — useful when a test
 program ships without limits (common for characterisation/test-vehicle work, where limits come
 from simulation or are defined and adjusted separately), or when you need to correct a test's
 parametric/functional classification.
@@ -711,8 +711,8 @@ between the desktop and browser builds, and the difference matters — read this
   disk has since changed. A recent entry in the browser is **the copy taken when you last loaded
   or saved that file** — the menu says so above the list, and each row dates the copy.
 
-**Why that matters for spec limits.** A test-definitions file can set limits, and limits decide
-which dies read as out of spec, what the capability figures are, and where the limit lines are
+**Why that matters for test limits.** A test-definitions file can set limits, and limits decide
+which dies fail their limits, what the capability figures are, and where the limit lines are
 drawn. Applying a superseded copy produces numbers that look entirely normal and are wrong. So
 in the browser, when you reapply a remembered file that sets limits, tsmap says so in the log —
 naming the file, how old the copy is, and that it could not be checked.
@@ -752,7 +752,7 @@ The saved format is one test per line, with a header naming the columns:
   `num,name,loLimit,hiLimit,units,testType`.
 - `testType` accepts `P`/`p` (parametric) or `F`/`f` (functional).
 - Limits only make sense for parametric tests — a functional test is pass/fail with no
-  measured value to check a spec limit against. A `loLimit`/`hiLimit` given for a test that is
+  measured value to check a limit against. A `loLimit`/`hiLimit` given for a test that is
   (or is being reclassified to) functional is dropped with a warning; the rest of that row's
   overrides (name, units, type) still apply.
 - A blank field means "don't override this" — it leaves the parsed value (or an override
@@ -777,7 +777,9 @@ The saved format is one test per line, with a header naming the columns:
 You can hand-edit a list file to rename tests, or add/adjust limits, without changing anything
 in the original data file — e.g. `1000,Threshold Voltage,0.2,1.2,mA,P`. Those names, limits,
 and type appear in the selector, on the map tooltip, in chart axis labels, and — for
-limits — as histogram LSL/USL lines and in the Process Capability panel.
+limits — as histogram "Lo limit"/"Hi limit" lines and in the Process Capability panel. Spec limits (LSL/USL)
+read from STDF or ATDF are used by the Process Capability panel when a test has both;
+a definitions file sets test limits only.
 
 #### Derived tests
 
@@ -822,6 +824,12 @@ test is also parametric or functional, and appears under that filter as well. Lo
 definitions file replaces the derived tests along with the selection; **Save definitions**
 writes the selected ones back. The footer counts them ("84 of 84 tests selected (7
 derived)").
+
+Derived tests stay defined from one load to the next, so they are ready for the next lot
+from the same test program. **Remove derived tests** in the selector footer drops them all,
+for data they do not apply to. Like every other change in the selector it takes effect on
+import; **Cancel** keeps them. When none of them can be computed for a newly loaded lot, the log says so and points
+here.
 
 Everywhere else a derived test is named — the map's plot-mode test list, the map title,
 tooltips, Insights charts and their test pickers, findings and reports — it carries the
@@ -1078,8 +1086,16 @@ appears once any are defined; the card itself is described in the
 [wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
 
 Sweeps are defined in a **sweeps file** and loaded through **Setup ▾ → Sweeps…**, which also
-saves the current sweeps back to a file. Loading replaces every sweep; a file with an empty
-list clears them. Unlike the other definitions files it is JSON, because a sweep has series
+saves the current sweeps back to a file. Loading replaces every sweep. **Clear** removes
+them all; sweeps otherwise stay defined from one load to the next. When a sweep names none
+of a newly loaded lot's tests, the Sweeps tab says so, with a button that removes just
+those sweeps.
+
+A test number identifies a test only within one test program, so a lot from another program
+can reuse the numbers your derived tests and sweeps read, for different measurements —
+everything then computes, from the wrong tests. tsmap remembers the test names and program
+of the lot they were set up on; when a later lot uses the same numbers under different
+names, or states a different program, the log says so, with examples. Unlike the other definitions files it is JSON, because a sweep has series
 inside it:
 
 ```json
@@ -1244,7 +1260,7 @@ the [test selector](#4-test-selector-stdf-and-atdf) over the lot you already hav
 single place for everything about tests:
 
 - **Which tests are imported** — tick and untick, search, select a range.
-- **What they are called, and their limits** — rename, set spec limits, units, and
+- **What they are called, and their limits** — rename, set test limits, units, and
   parametric/functional type.
 - **Save definitions / Load definitions ▾** — the same CSV round-trip described above, including
   the list of recently used definitions files.

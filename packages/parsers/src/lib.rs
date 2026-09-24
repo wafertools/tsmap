@@ -65,9 +65,19 @@ export interface TestDef {
   name: string;
   /** "P" parametric (has a measured value) or "F" functional (verdict only). */
   testType: "P" | "F";
+  /** Test limits — the pass/fail limits (STDF LO_LIMIT/HI_LIMIT). */
   loLimit?: number;
   hiLimit?: number;
   units?: string;
+  /** Specification limits (STDF LO_SPEC/HI_SPEC) — what process capability is
+   *  judged against. Separate from the test limits. */
+  loSpec?: number;
+  hiSpec?: number;
+  /** `false` when a result equal to the low test limit fails (STDF PARM_FLG
+   *  bit 6 clear, ATDF Limit Compare `L`). Absent = it passes. */
+  loLimitInclusive?: boolean;
+  /** The same for the high test limit (STDF PARM_FLG bit 7, ATDF `H`). */
+  hiLimitInclusive?: boolean;
   /** The file's own display order. Absent for STDF/ATDF, where the real test
    *  number already sorts meaningfully. */
   order?: number;
@@ -85,7 +95,11 @@ export interface DieResult {
   hbin?: number;
   sbin?: number;
   siteNum?: number;
-  partId?: number;
+  /** STDF/ATDF PART_ID, as text. Data about the part, not an identifier. */
+  partId?: string;
+  /** The tester marked this record as replacing an earlier one: with the same
+   *  part ID (`"partId"`) or at the same X/Y (`"position"`). */
+  supersedes?: "partId" | "position";
   /** Measured values, keyed by test number as a string. Parametric tests only. */
   testValues?: Record<string, number>;
   /** Recorded pass/fail verdicts, `true` = pass, keyed like `testValues`.
@@ -96,6 +110,8 @@ export interface DieResult {
 
 export interface WaferData {
   waferId: string;
+  /** `waferId` is a placeholder (`W1`, `W2`…): the file gave this wafer no ID. */
+  waferIdPlaceholder?: boolean;
   results: DieResult[];
   partCount?: number;
   goodCount?: number;
@@ -110,6 +126,9 @@ export type ParserWarningCode =
   | "bin-invalid"
   | "coordinate-invalid"
   | "result-unusable"
+  | "records-not-read"
+  | "wafer-end-missing"
+  | "file-truncated"
   | "record-malformed"
   | "values-not-numeric"
   | "retests-assumed"

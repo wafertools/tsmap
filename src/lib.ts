@@ -416,6 +416,11 @@ export function unionTestDefs(
       if (first.units === undefined && def.units !== undefined) first.units = def.units;
       if (first.loLimit === undefined && def.loLimit !== undefined) first.loLimit = def.loLimit;
       if (first.hiLimit === undefined && def.hiLimit !== undefined) first.hiLimit = def.hiLimit;
+      // Spec limits likewise. A disagreement is not a collision here: each
+      // wafer keeps its own file's defs, and wmap's test-definition merge
+      // withholds capability for a test whose spec limits differ.
+      if (first.loSpec === undefined && def.loSpec !== undefined) first.loSpec = def.loSpec;
+      if (first.hiSpec === undefined && def.hiSpec !== undefined) first.hiSpec = def.hiSpec;
     }
   }
   const collisions: TestDefCollision[] = [...statedByTest.entries()].map(([testNumber, e]) => ({
@@ -545,6 +550,7 @@ export function makeWaferSource(meta: LotMeta, sourceFile: string): WaferSource 
 export function toWaferData(w: Pick<WaferData, 'waferId' | 'results'> & Partial<WaferData>): WaferData {
   return {
     waferId: w.waferId,
+    waferIdPlaceholder: w.waferIdPlaceholder,
     results: w.results,
     partCount: w.partCount,
     goodCount: w.goodCount,
@@ -684,6 +690,74 @@ export function wcrGeometryFrom(source: WaferSource | undefined): WcrGeometry | 
   return { waferConfig, dieConfig };
 }
 
+/**
+ * Derived tests requested for this build, and not one built on any wafer —
+ * read from what wmap actually built, whose own warnings give each reason.
+ * Some but not all is a typo or an unselected input, which those warnings
+ * already cover.
+ */
+export function derivedNoneBuilt(
+  results: ReadonlyArray<{ testDefs?: readonly WmapTestDef[] }>,
+  requested: readonly number[],
+): boolean {
+  if (requested.length === 0) return false;
+  const built = new Set<number>();
+  for (const r of results) for (const d of r.testDefs ?? []) if (d.derived) built.add(d.testNumber);
+  return !requested.some(n => built.has(n));
+}
+
+/**
+ * What a lot's test numbers meant, recorded when derived tests or sweeps were
+ * set up on it. A test number identifies a test only within one test program:
+ * a later lot can reuse the numbers for different measurements, and the derived
+ * tests and sweeps then compute plausible, wrong values with nothing failing.
+ */
+export interface DefinitionsAnchor {
+  /** Measured test number → name. */
+  names: Map<number, string>;
+  /** The lot's test program (STDF JOB_NAM), when every wafer states the same one. */
+  program?: string;
+}
+
+type BuiltLot = ReadonlyArray<{ testDefs?: readonly WmapTestDef[]; metadata?: { testProgram?: unknown } | null }>;
+
+export function definitionsAnchorOf(results: BuiltLot): DefinitionsAnchor {
+  const names = new Map<number, string>();
+  for (const r of results) {
+    for (const d of r.testDefs ?? []) {
+      if (!d.derived && d.name.trim() && !names.has(d.testNumber)) names.set(d.testNumber, d.name.trim());
+    }
+  }
+  const programs = new Set<string>();
+  for (const r of results) {
+    const p = r.metadata?.testProgram;
+    if (typeof p === 'string' && p.trim()) programs.add(p.trim());
+  }
+  return { names, program: programs.size === 1 ? [...programs][0] : undefined };
+}
+
+/**
+ * How `results` differ from the lot the definitions were set up on: test
+ * numbers present in both under different names (compared trimmed and
+ * case-insensitively, as `unionTestDefs` does), and a different program when
+ * both lots state one. `null` when nothing differs.
+ */
+export function definitionsAnchorMismatch(
+  anchor: DefinitionsAnchor,
+  results: BuiltLot,
+): { renamed: Array<{ testNumber: number; was: string; now: string }>; program?: { was: string; now: string } } | null {
+  const now = definitionsAnchorOf(results);
+  const renamed: Array<{ testNumber: number; was: string; now: string }> = [];
+  for (const [n, name] of now.names) {
+    const was = anchor.names.get(n);
+    if (was !== undefined && was.toLowerCase() !== name.toLowerCase()) renamed.push({ testNumber: n, was, now: name });
+  }
+  renamed.sort((a, b) => a.testNumber - b.testNumber);
+  const program = anchor.program && now.program && anchor.program.toLowerCase() !== now.program.toLowerCase()
+    ? { was: anchor.program, now: now.program } : undefined;
+  return renamed.length || program ? { renamed, ...(program ? { program } : {}) } : null;
+}
+
 /** Convert tsmap's `Record<string, TestDef>` to wmap's `TestDef[]`. */
 export function toWmapTestDefs(testDefs: Record<string, TestDef>): WmapTestDef[] {
   return Object.entries(testDefs).map(([key, def]) => ({
@@ -692,6 +766,10 @@ export function toWmapTestDefs(testDefs: Record<string, TestDef>): WmapTestDef[]
     unit: def.units,
     limitLow: def.loLimit,
     limitHigh: def.hiLimit,
+    specLow: def.loSpec,
+    specHigh: def.hiSpec,
+    limitLowInclusive: def.loLimitInclusive,
+    limitHighInclusive: def.hiLimitInclusive,
     testType: def.testType,
   }));
 }

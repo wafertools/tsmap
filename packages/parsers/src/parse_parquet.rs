@@ -270,6 +270,10 @@ fn parse_from_reader<R: FileReader>(reader: &R, mapping: CsvMapping) -> ParseRes
                     hi_limit: None,
                     units: None,
                     order: Some(i as u32),
+                    lo_spec: None,
+                    hi_spec: None,
+                    lo_limit_inclusive: None,
+                    hi_limit_inclusive: None,
                 },
             )
         })
@@ -309,6 +313,21 @@ fn coerce_role_f64(field: Option<&Field>, role_key: &str, mismatches: &mut HashM
         *mismatches.entry(role_key.to_string()).or_insert(0) += 1;
     }
     None
+}
+
+/// A whole number from a numeric role, or `None` — never truncated or clamped.
+/// 2.7, −1 for an unsigned role, NaN and out-of-range values are not bins, sites
+/// or coordinates; they are counted with the role's other unusable values.
+fn coerce_role_whole<T: TryFrom<i64>>(field: Option<&Field>, role_key: &str,
+                                      mismatches: &mut HashMap<String, u32>) -> Option<T> {
+    let v = coerce_role_f64(field, role_key, mismatches)?;
+    let whole = (v.is_finite() && v.fract() == 0.0 && v.abs() < 9.0e15)
+        .then(|| T::try_from(v as i64).ok())
+        .flatten();
+    if whole.is_none() {
+        *mismatches.entry(role_key.to_string()).or_insert(0) += 1;
+    }
+    whole
 }
 
 fn mismatch_warnings(mismatches: &HashMap<String, u32>, test_defs: &HashMap<String, TestDef>) -> Vec<ParserWarning> {
@@ -358,26 +377,25 @@ fn parse_wide_format(
         let fields = row_fields(&row);
         let cell = |i: usize| fields.get(i).copied();
         let text = |i: Option<usize>| i.and_then(cell).map(field_to_string).unwrap_or_default();
-        // No x/y column mapped, or this cell doesn't coerce to a number —
-        // kept as a coordinate-less die rather than dropped.
-        let num = |i: Option<usize>| i.and_then(cell).and_then(field_to_f64);
 
         let mut tests: Vec<(u32, f64)> = Vec::with_capacity(test_i.len());
         for (t, key, i) in &test_i {
             if let Some(v) = coerce_role_f64(cell(*i), key, &mut mismatches) { tests.push((*t, v)); }
         }
-        let hbin = coerce_role_f64(hbin_i.and_then(cell), "hbin", &mut mismatches).map(|v| v as u32);
-        let sbin = coerce_role_f64(sbin_i.and_then(cell), "sbin", &mut mismatches).map(|v| v as u32);
-        let site_num = coerce_role_f64(site_i.and_then(cell), "site", &mut mismatches).map(|v| v as u32);
+        let hbin = coerce_role_whole::<u32>(hbin_i.and_then(cell), "hbin", &mut mismatches);
+        let sbin = coerce_role_whole::<u32>(sbin_i.and_then(cell), "sbin", &mut mismatches);
+        let site_num = coerce_role_whole::<u32>(site_i.and_then(cell), "site", &mut mismatches);
+        // No x/y column mapped, or a cell that is not a whole number: the die is
+        // kept, coordinate-less, rather than dropped or moved.
+        let x = coerce_role_whole::<i32>(x_i.and_then(cell), "x", &mut mismatches);
+        let y = coerce_role_whole::<i32>(y_i.and_then(cell), "y", &mut mismatches);
 
         rows.push(FlatRow {
             lot: text(lot_i),
             wafer: text(wafer_i),
             split_parts: split_parts(&mapping.split_by, |c| text(idx(c))),
             meta: meta_i.iter().map(|i| text(*i)).collect(),
-            x: num(x_i).map(|v| v as i32),
-            y: num(y_i).map(|v| v as i32),
-            hbin, sbin, site_num, tests,
+            x, y, hbin, sbin, site_num, tests,
         });
     }
 
@@ -461,6 +479,10 @@ fn parse_long_format(
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
                     order: Some(order),
+                    lo_spec: None,
+                    hi_spec: None,
+                    lo_limit_inclusive: None,
+                    hi_limit_inclusive: None,
                 });
                 n
             });
@@ -548,6 +570,37 @@ mod tests {
             writer.close().unwrap();
         }
         buf
+    }
+
+    /// Bins, sites and coordinates held as doubles are used only when they are
+    /// whole numbers in range — never truncated (2.7 → 2) or wrapped (−1 → 0).
+    #[test]
+    fn double_bins_and_coordinates_are_never_truncated() {
+        let schema = Arc::new(parse_message_type(
+            "message schema { REQUIRED DOUBLE x; REQUIRED DOUBLE y; REQUIRED DOUBLE hbin; }",
+        ).unwrap());
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            let mut rg = writer.next_row_group().unwrap();
+            for vals in [[0.0, 1.9, 2.0, 3.0], [0.0, 0.0, 0.0, f64::NAN], [1.0, 1.0, -1.0, 2.7]] {
+                let mut col = rg.next_column().unwrap().unwrap();
+                col.typed::<DoubleType>().write_batch(&vals, None, None).unwrap();
+                col.close().unwrap();
+            }
+            rg.close().unwrap();
+            writer.close().unwrap();
+        }
+        let mut m = basic_mapping("x", "y");
+        m.hbin = Some("hbin".into());
+        let r = parse_parquet_from_bytes(&buf, m).unwrap();
+        let dies = &r.wafers[0].results;
+        assert_eq!((dies[0].x, dies[0].hbin), (Some(0), Some(1)), "whole numbers are read");
+        assert_eq!(dies[1].x, None, "x = 1.9 is not a position");
+        assert_eq!(dies[2].hbin, None, "−1 is not a bin");
+        assert_eq!((dies[3].y, dies[3].hbin), (None, None), "NaN and 2.7 are not read");
+        assert!(r.warnings.iter().any(|w| w.code == "values-not-numeric"));
     }
 
     fn wide_mapping() -> CsvMapping {

@@ -1162,6 +1162,23 @@ export function showTestSelectorOverlay(
     }));
   }
 
+  // Derived tests are carried from lot to lot, so a lot with different tests
+  // needs a way to drop them without loading a file. Like every other change
+  // here it applies on Import; Cancel keeps them.
+  const clearDerivedBtn = document.createElement('button');
+  clearDerivedBtn.textContent = 'Remove derived tests';
+  clearDerivedBtn.className = 'btn-secondary';
+  clearDerivedBtn.addEventListener('click', () => {
+    const n = derivedTests.length;
+    for (const d of derivedTests) { testOverrides.delete(d.num); selected.delete(d.num); }
+    derivedTests = [];
+    rebuildEntries();
+    renderList();
+    updateFooter();
+    options.onLog?.('info', `${n} derived test${n !== 1 ? 's' : ''} removed — applies on import`);
+  });
+  btnRow.appendChild(clearDerivedBtn);
+
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
   cancelBtn.className = 'btn-secondary';
@@ -1273,6 +1290,7 @@ export function showTestSelectorOverlay(
       ? options.confirmLabel(n)
       : (n === 0 ? 'Import (bin data only) →' : `Import ${n} test${n !== 1 ? 's' : ''} →`);
     updateMemAdvisory();
+    clearDerivedBtn.style.display = derivedTests.length > 0 ? '' : 'none';
   }
 
   btnRow.append(cancelBtn, confirmBtn);

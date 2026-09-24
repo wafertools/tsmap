@@ -11,15 +11,15 @@ import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/w
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
-import { basename, rustToLocal, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
+import { basename, rustToLocal, derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
 import { showMappingOverlay } from './mappingUI';
-import { showRenameOverlay, showAppendConfirm, needsWaferLabelPrompt } from './multiFileUI';
+import { showRenameOverlay, showAppendConfirm, needsWaferLabelPrompt, markPlaceholder } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
 import type { TestListEntry, DerivedSelection } from './testSelectorUI';
 import { parseSweepsFile, formatSweepsFile, type SweepSpec } from './sweeps';
 import type { CsvMapping } from './mappingUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
-import type { PassBinCollision, TestDefCollision } from './lib';
+import type { PassBinCollision, TestDefCollision, DefinitionsAnchor } from './lib';
 import type { FileDefs, ParsedFile, WaferData, TestDef, TestOverride, WaferSource } from './types';
 import { attachTooltip, upgradeTitleTooltips } from './tooltip';
 import { openAnchoredMenu, makeMenuRow } from './anchoredMenu';
@@ -233,6 +233,10 @@ let currentDerivedSelected = new Set<number>();
 const derivedForSelector = () => ({ tests: currentDerivedTests, selected: [...currentDerivedSelected] });
 /** Adopt what the selector confirmed. */
 function adoptDerived(d: DerivedSelection): void {
+  // New definitions are set up on whichever lot is built next; the same ones
+  // carried to another lot keep the lot they were set up on.
+  const key = (t: TestListEntry[]) => JSON.stringify(t.map(e => [e.num, e.expression]));
+  if (key(d.tests) !== key(currentDerivedTests)) definitionsAnchor = null;
   currentDerivedTests = d.tests;
   currentDerivedSelected = new Set(d.selected);
 }
@@ -240,7 +244,17 @@ function adoptDerived(d: DerivedSelection): void {
 // Insights Sweeps tab, which wmap shows only when there is at least one.
 let currentSweeps: SweepSpec[] = [];
 /** Insights options for both mounts, so the map and the gallery offer the same tabs. */
-const insightsOpts = () => ({ enabled: true, sweeps: currentSweeps.length ? currentSweeps : undefined });
+const insightsOpts = () => ({
+  enabled: true,
+  sweeps: currentSweeps.length ? currentSweeps : undefined,
+  // The Sweeps tab's own notice about sweeps that name none of this lot's tests.
+  onRemoveSweeps: (ids: string[]) => {
+    const gone = currentSweeps.filter(s => ids.includes(s.id));
+    currentSweeps = currentSweeps.filter(s => !ids.includes(s.id));
+    log('info', `Sweep${gone.length !== 1 ? 's' : ''} removed: ${gone.map(s => s.title).join(', ')}`);
+    rerenderCurrentLot('Rendering');
+  },
+});
 let currentSbinDefs: BinDef[] | undefined;
 let currentPassHbins: number[] | undefined;
 
@@ -688,6 +702,64 @@ function logWmapWarnings(waferLabel: string, waferMap: WaferMapResult, statsSumm
   }
 }
 
+/**
+ * The lot the current derived tests and sweeps were set up on — see
+ * `DefinitionsAnchor` (lib.ts). Recorded at the first build after they change,
+ * and compared with every later lot.
+ */
+let definitionsAnchor: DefinitionsAnchor | null = null;
+
+/**
+ * After a build, say when the session's derived tests or sweeps may not fit
+ * this lot. Flags only; removing them stays the user's call. Logged once per
+ * load, like wmap's own warnings.
+ *
+ * - None of the requested derived tests could be computed.
+ * - This lot's test numbers name different tests than on the lot they were set
+ *   up on, or it states a different test program. That is the case nothing
+ *   else catches: the numbers exist, so everything computes — from another
+ *   program's measurements.
+ *
+ * A sweep naming none of the lot's tests is said on the Sweeps tab itself.
+ */
+function logDefinitionsNotApplying(results: Parameters<typeof definitionsAnchorOf>[0]): void {
+  const hasDerived = currentDerivedTests.length > 0;
+  const hasSweeps = currentSweeps.length > 0;
+  if (!hasDerived && !hasSweeps) { definitionsAnchor = null; return; }
+  const once = (key: string, msg: string) => {
+    if (loggedWmapWarnings.has(key)) return;
+    loggedWmapWarnings.add(key);
+    log('warn', msg);
+  };
+
+  const requested = currentDerivedTests.filter(d => currentDerivedSelected.has(d.num)).map(d => d.num);
+  if (derivedNoneBuilt(results, requested)) {
+    const n = requested.length;
+    once('tsmap:derived-none-built',
+      `None of the ${n} derived test${n !== 1 ? 's' : ''} could be computed for this data — the warnings above say why. `
+      + 'If they belong to another test program, remove them: Setup ▾ → Tests… → Remove derived tests.');
+  }
+
+  if (!definitionsAnchor) { definitionsAnchor = definitionsAnchorOf(results); return; }
+  const mismatch = definitionsAnchorMismatch(definitionsAnchor, results);
+  if (!mismatch) return;
+  const what = hasDerived && hasSweeps ? 'The derived tests and sweeps were' : hasDerived ? 'The derived tests were' : 'The sweeps were';
+  const parts: string[] = [];
+  if (mismatch.program) parts.push(`set up on test program "${mismatch.program.was}"; this lot is "${mismatch.program.now}"`);
+  if (mismatch.renamed.length) {
+    const shown = mismatch.renamed.slice(0, 3).map(r => `test ${r.testNumber} was "${r.was}", now "${r.now}"`).join('; ');
+    const more = mismatch.renamed.length > 3 ? ` (${mismatch.renamed.length} tests differ)` : '';
+    parts.push(`set up on a lot where the same test numbers name different tests: ${shown}${more}`);
+  }
+  const remove = [
+    hasDerived ? 'Setup ▾ → Tests… → Remove derived tests' : '',
+    hasSweeps ? 'Setup ▾ → Sweeps… → Clear' : '',
+  ].filter(Boolean).join(', or ');
+  once('tsmap:definitions-other-program',
+    `${what} ${parts.join(', and ')}. They may belong to another test program and compute from the wrong tests — `
+    + `check them before relying on them, or remove them: ${remove}.`);
+}
+
 // Return type is inferred (not annotated) so `items[i].label`/`.statsSummary`
 // stay visible to TS — they're real fields (spread from `waferMap` plus both
 // added below), but an explicit `{ items: ReturnType<typeof buildWaferMap>[] }`
@@ -857,6 +929,7 @@ async function buildLotStatsSummary(
   onProgress?.(wafers.length, wafers.length);
   await yieldToPaint();
   if (!isCurrent()) return null;
+  logDefinitionsNotApplying(items);
   const perWaferSummaries = items.map(i => i.statsSummary);
   const lotStatsSummary = analyzeWaferLot(items, { perWaferSummaries, ...analyzeOpts() });
   return { items, lotStatsSummary };
@@ -1156,6 +1229,7 @@ async function renderWaferView(wafers: WaferData[]) {
     ));
     const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
     logWmapWarnings(wafers[0].waferId, waferMap, statsSummary);
+    logDefinitionsNotApplying([waferMap]);
     mainViewController = renderWaferMap(container, waferMap, {
       statsSummary,
       summaryPanel: { placement: 'right', defaultOpen: true },
@@ -2115,7 +2189,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
       // needsRename is false only for a single entry, so all wafers share its source.
       const source = makeWaferSource(entries[0].parsed.meta, entries[0].fileName);
       return Promise.resolve(allWafers.map(w => ({
-        waferId: w.waferId,
+        waferId: markPlaceholder(w.waferId, w.waferIdPlaceholder),
         results: w.results,
         partCount: w.partCount,
         goodCount: w.goodCount,
@@ -2937,8 +3011,12 @@ function openSaveLoadDefinitionsDialog(opts: {
   kind: DefinitionKind;
   onSave: () => string;
   onLoad: (text: string) => boolean;
+  /** Offers a Clear button: forget the definitions without loading a
+   *  replacement. `clearDisabled` greys it when there is nothing to clear. */
+  onClear?: () => void;
+  clearDisabled?: boolean;
 }): void {
-  const { title, errorLabel, savedMessage, description, saveDisabled, saveFileName, kind, onSave, onLoad } = opts;
+  const { title, errorLabel, savedMessage, description, saveDisabled, saveFileName, kind, onSave, onLoad, onClear, clearDisabled } = opts;
 
   const modalHandle = openModal({
     title,
@@ -2984,6 +3062,21 @@ function openSaveLoadDefinitionsDialog(opts: {
         onError: (msg) => log('error', `Failed to load ${errorLabel}: ${msg}`),
       });
 
+      if (onClear) {
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = 'Clear';
+        clearBtn.className = 'btn-secondary';
+        clearBtn.disabled = !!clearDisabled;
+        clearBtn.style.opacity = clearBtn.disabled ? '0.5' : '';
+        clearBtn.addEventListener('click', () => {
+          onClear();
+          rerenderCurrentLot('Rendering');
+          modalHandle.close();
+        });
+        // Apart from Save/Load: it discards rather than transfers.
+        clearBtn.style.marginRight = 'auto';
+        buttonRow.append(clearBtn);
+      }
       buttonRow.append(saveBtn, loadBtn);
       body.append(descriptionEl, buttonRow);
     },
@@ -3095,8 +3188,8 @@ function recentDefinitionRows(kind: DefinitionKind) {
   });
 }
 /**
- * Setup ▾ → Sweeps…: load or save the sweeps file (sweeps.ts). Loading replaces
- * every sweep; a sweeps file with an empty list clears them.
+ * Setup ▾ → Sweeps…: load or save the sweeps file (sweeps.ts), or clear the
+ * sweeps. Loading replaces every sweep.
  */
 function openSweepsDialog(): void {
   if (currentWafers.length === 0) return;
@@ -3108,11 +3201,16 @@ function openSweepsDialog(): void {
     savedMessage: 'Sweeps saved',
     description: n === 0
       ? 'A sweep reads a run of tests — the same quantity measured at a series of voltages, temperatures or cycle counts — as a curve, and measures where two such curves cross. Load a sweeps file (JSON) to add them to Insights → Sweeps.'
-      : `${n} sweep${n !== 1 ? 's are' : ' is'} defined: ${currentSweeps.map(s => s.title).join(', ')}. Save them to a file, or load a sweeps file to replace them.`,
+      : `${n} sweep${n !== 1 ? 's are' : ' is'} defined: ${currentSweeps.map(s => s.title).join(', ')}. Save them to a file, load a sweeps file to replace them, or clear them.`,
     saveDisabled: n === 0,
     saveFileName: 'sweeps.json',
     onSave: () => formatSweepsFile(currentSweeps),
     onLoad: adoptSweepsFile,
+    onClear: () => {
+      currentSweeps = [];
+      log('info', 'Sweeps cleared');
+    },
+    clearDisabled: n === 0,
   });
 }
 
@@ -3130,6 +3228,7 @@ function adoptSweepsFile(text: string): boolean {
   }
   for (const w of parsed.warnings) log('warn', `Sweeps file: ${w}`);
   currentSweeps = parsed.sweeps;
+  definitionsAnchor = null;
   log('info', parsed.sweeps.length
     ? `Sweeps loaded: ${parsed.sweeps.map(s => s.title).join(', ')} — see Insights → Sweeps`
     : 'Sweeps cleared — the file defines none');

@@ -42,15 +42,10 @@ const WCR: &[&str] = &[
 // independently verified against a real ATDF file.
 const HBR: &[&str] = &["HEAD_NUM","SITE_NUM","HBIN_NUM","HBIN_CNT","HBIN_PF","HBIN_NAM"];
 const SBR: &[&str] = &["HEAD_NUM","SITE_NUM","SBIN_NUM","SBIN_CNT","SBIN_PF","SBIN_NAM"];
-// PTR is used by the first-pass scan; the full parse reads PIR/PRR/FTR positionally
-// (see the *_idx constants), so no field-name arrays are needed for those.
-const PTR: &[&str] = &[
-    "TEST_NUM","HEAD_NUM","SITE_NUM","RESULT","PASS_FAIL","ALARM_FLAGS",
-    "TEST_TXT","ALARM_ID","LIMIT_COMPARE","UNITS","LO_LIMIT","HI_LIMIT",
-    "C_RESFMT","C_LLMFMT","C_HLMFMT","LO_SPEC","HI_SPEC","RES_SCAL",
-    "LLM_SCAL","HLM_SCAL",
-];
-const FTR: &[&str] = &["TEST_NUM","HEAD_NUM","SITE_NUM","PASS_FAIL"];
+// PTR, FTR, PIR, PRR and TSR are read positionally (the *_… index constants
+// below). ATDF PTR field order: TEST_NUM, HEAD_NUM, SITE_NUM, RESULT, PASS_FAIL,
+// ALARM_FLAGS, TEST_TXT, ALARM_ID, LIMIT_COMPARE, UNITS, LO_LIMIT, HI_LIMIT,
+// C_RESFMT, C_LLMFMT, C_HLMFMT, LO_SPEC, HI_SPEC, RES_SCAL, LLM_SCAL, HLM_SCAL.
 
 fn field_map<'a>(names: &[&'static str], values: &'a [&'a str]) -> HashMap<&'static str, &'a str> {
     names.iter().enumerate()
@@ -66,13 +61,13 @@ fn get<'a>(m: &HashMap<&str, &'a str>, key: &str) -> &'a str {
 /// up ~99% of records. Avoids building a `HashMap<&str,&str>` per record (and the
 /// per-field hashmap lookups) — the field order is fixed by the spec, so we read
 /// by index directly. Cold records (MIR/WIR/WRR, a handful per file) keep
-/// `field_map`. Index constants below mirror the PTR/PRR/PIR/FTR name arrays.
+/// `field_map`.
 #[inline]
 fn at<'a>(fields: &[&'a str], i: usize) -> &'a str {
     fields.get(i).copied().unwrap_or("").trim()
 }
 
-// PTR field indices (see `PTR` array).
+// PTR field indices.
 const PTR_TEST_NUM: usize = 0;
 const PTR_HEAD_NUM: usize = 1;
 const PTR_SITE_NUM: usize = 2;
@@ -80,15 +75,23 @@ const PTR_RESULT: usize = 3;
 const PTR_PASS_FAIL: usize = 4;
 const PTR_ALARM_FLAGS: usize = 5;
 const PTR_TEST_TXT: usize = 6;
+const PTR_LIMIT_COMPARE: usize = 8;
 const PTR_UNITS: usize = 9;
 const PTR_LO_LIMIT: usize = 10;
 const PTR_HI_LIMIT: usize = 11;
-// FTR field indices (see `FTR` array).
+const PTR_LO_SPEC: usize = 15;
+const PTR_HI_SPEC: usize = 16;
+// FTR field indices.
 const FTR_TEST_NUM: usize = 0;
 const FTR_HEAD_NUM: usize = 1;
 const FTR_SITE_NUM: usize = 2;
 const FTR_PASS_FAIL: usize = 3;
 const FTR_ALARM_FLAGS: usize = 4;
+// FTR TEST_TXT is field 21 (spec sample `FTR:27|2|1|P||CHECKERBOARD|A1|…|DRV|Check Driver|…`).
+const FTR_TEST_TXT: usize = 20;
+// TSR: HEAD_NUM, SITE_NUM, TEST_NUM, TEST_NAM, … (spec sample `TSR:2|2|600|Leakage|P|…`).
+const TSR_TEST_NUM: usize = 2;
+const TSR_TEST_NAM: usize = 3;
 // PIR field indices (see `PIR` array).
 const PIR_HEAD_NUM: usize = 0;
 const PIR_SITE_NUM: usize = 1;
@@ -96,6 +99,7 @@ const PIR_SITE_NUM: usize = 1;
 const PRR_HEAD_NUM: usize = 0;
 const PRR_SITE_NUM: usize = 1;
 const PRR_PART_ID: usize = 2;
+const PRR_RETEST_CODE: usize = 9;
 const PRR_HARD_BIN: usize = 5;
 const PRR_SOFT_BIN: usize = 6;
 const PRR_X_COORD: usize = 7;
@@ -110,6 +114,12 @@ fn site_key(head: &str, site: &str) -> u32 {
     (h << 16) | (s & 0xFFFF)
 }
 
+/// A HEAD_NUM field (U*1); a blank or unreadable one is head 1, the spec's
+/// value for a tester that does not identify its head.
+fn atdf_head(field: &str) -> u8 {
+    field.trim().parse().unwrap_or(1)
+}
+
 /// ATDF PTR/MPR/FTR Pass/Fail Flag: `P` passed, `A` passed alternate limits,
 /// `F` failed; blank or anything else is no verdict.
 fn atdf_verdict(flag: &str) -> Option<bool> {
@@ -118,6 +128,51 @@ fn atdf_verdict(flag: &str) -> Option<bool> {
         f if f.eq_ignore_ascii_case("F") => Some(false),
         _ => None,
     }
+}
+
+/// ATDF record decoding for `TestDefBuilder`, which holds the naming and
+/// limits rule shared with the STDF parser. Used by the full parse and the
+/// first-pass scan alike.
+fn define_ptr(defs: &mut TestDefBuilder, f: &[&str]) {
+    let test_num = at(f, PTR_TEST_NUM);
+    if test_num.is_empty() { return; }
+    let num = |i: usize| at(f, i).parse::<f64>().ok().filter(|v| v.is_finite());
+    let (lo, hi, lo_spec, hi_spec) = (num(PTR_LO_LIMIT), num(PTR_HI_LIMIT), num(PTR_LO_SPEC), num(PTR_HI_SPEC));
+    let units = nonempty(at(f, PTR_UNITS));
+    // Limit Compare: empty = a result equal to either limit passes; `L` = the
+    // low comparison was >= (equal fails), `H` = the high one was <=.
+    let compare = at(f, PTR_LIMIT_COMPARE);
+    let exclusive = |c: char| compare.contains(c).then_some(false);
+    if defs.contains(test_num) {
+        defs.fill(test_num, lo, hi, units, lo_spec, hi_spec);
+    } else {
+        defs.define(test_num, TestDef {
+            name: at(f, PTR_TEST_TXT).to_string(),
+            test_type: "P".to_string(),
+            lo_limit: lo,
+            hi_limit: hi,
+            units,
+            lo_spec,
+            hi_spec,
+            lo_limit_inclusive: exclusive('L'),
+            hi_limit_inclusive: exclusive('H'),
+            ..Default::default()
+        });
+    }
+}
+
+fn define_ftr(defs: &mut TestDefBuilder, f: &[&str]) {
+    let test_num = at(f, FTR_TEST_NUM);
+    if test_num.is_empty() { return; }
+    defs.define(test_num, TestDef {
+        name: at(f, FTR_TEST_TXT).to_string(),
+        test_type: "F".to_string(),
+        ..Default::default()
+    });
+}
+
+fn define_tsr(defs: &mut TestDefBuilder, f: &[&str]) {
+    defs.tsr_name(at(f, TSR_TEST_NUM), at(f, TSR_TEST_NAM));
 }
 
 fn nonempty(s: &str) -> Option<String> {
@@ -237,7 +292,7 @@ fn atdf_time_to_iso(raw: &str) -> String {
     if h > 23 || mi > 59 || s > 60 || d == 0 || d > 31 {
         return t.to_string();
     }
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", y, mon_idx + 1, d, h, mi, s)
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", y, mon_idx + 1, d, h, mi, s)
 }
 
 /// The one place a raw ATDF field value becomes an emitted metadata value.
@@ -295,9 +350,10 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     let (records, delim) = split_atdf_records(raw);
 
     let mut lots = LotRecords::default();
-    let mut test_defs: HashMap<String, TestDef> = HashMap::new();
+    let mut test_defs = TestDefBuilder::default();
     let mut wafers: Vec<WaferData> = Vec::new();
-    let mut current_wafer: Option<WaferData> = None;
+    // One open wafer per test head — see OpenWafers.
+    let mut open = OpenWafers::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
     let mut hbin_names: HashMap<u32, String> = HashMap::new();
     let mut sbin_names: HashMap<u32, String> = HashMap::new();
@@ -310,10 +366,6 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     let mut test_keys = TestKeys::default();
     let mut pending_site: HashMap<u32, u32> = HashMap::new();
     let mut spec = SpecCheck::default();
-    // Per-wafer PRR-encounter ordinal, reset on each WIR — used as die_index
-    // for a die with no reported X/Y (see the PRR branch below), mirroring
-    // parse_stdf.rs's identical scheme.
-    let mut prr_index_in_wafer: u32 = 0;
 
     let mut raw_fields: Vec<&str> = Vec::new();
     for rec in &records {
@@ -372,29 +424,21 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
             }
             "WIR" => {
                 let f = field_map(WIR, &raw_fields);
-                let wafer_id = {
-                    let id = get(&f, "WAFER_ID");
-                    if id.is_empty() { format!("W{}", wafers.len() + 1) } else { id.to_string() }
-                };
                 let mut fields = Vec::new();
                 push_field(&mut fields, "waferStartT",
                     nonempty(get(&f, "START_T")).map(|v| meta_value("waferStartT", v)));
-                prr_index_in_wafer = 0;
-                current_wafer = Some(WaferData {
-                    wafer_id,
-                    results: Vec::new(),
-                    part_count: None,
-                    good_count: None,
-                    fail_count: None,
-                    fields,
-                });
+                open.wir(atdf_head(get(&f, "HEAD_NUM")), get(&f, "WAFER_ID").to_string(), fields,
+                         &mut lots, &mut wafers);
             }
             "WRR" => {
                 let f = field_map(WRR, &raw_fields);
-                if let Some(mut w) = current_wafer.take() {
+                if let Some(mut w) = open.wrr(atdf_head(get(&f, "HEAD_NUM"))) {
                     w.fields.extend(fields_from(&f, WRR_KEYS));
                     let wid = get(&f, "WAFER_ID");
-                    if !wid.is_empty() { w.wafer_id = wid.to_string(); }
+                    if !wid.is_empty() {
+                        w.wafer_id = wid.to_string();
+                        w.wafer_id_placeholder = false;
+                    }
                     w.part_count = get(&f, "PART_CNT").parse().ok();
                     w.good_count = get(&f, "GOOD_CNT").parse().ok();
                     w.fail_count = match (w.part_count, w.good_count) {
@@ -417,19 +461,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
             "PTR" => {
                 let test_num = at(&raw_fields, PTR_TEST_NUM);
                 let key = site_key(at(&raw_fields, PTR_HEAD_NUM), at(&raw_fields, PTR_SITE_NUM));
-                if !test_defs.contains_key(test_num) {
-                    let lo = at(&raw_fields, PTR_LO_LIMIT).parse::<f64>().ok();
-                    let hi = at(&raw_fields, PTR_HI_LIMIT).parse::<f64>().ok();
-                    let txt = at(&raw_fields, PTR_TEST_TXT);
-                    test_defs.insert(test_num.to_string(), TestDef {
-                        name: if txt.is_empty() { test_num.to_string() } else { txt.to_string() },
-                        test_type: "P".to_string(),
-                        lo_limit: lo,
-                        hi_limit: hi,
-                        units: nonempty(at(&raw_fields, PTR_UNITS)),
-                        ..Default::default()
-                    });
-                }
+                define_ptr(&mut test_defs, &raw_fields);
                 if want(test_num) {
                     let flags = ResultFlags::from_atdf(at(&raw_fields, PTR_ALARM_FLAGS));
                     if let Ok(result) = at(&raw_fields, PTR_RESULT).parse::<f64>() {
@@ -449,16 +481,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
             "FTR" => {
                 let test_num = at(&raw_fields, FTR_TEST_NUM);
                 let key = site_key(at(&raw_fields, FTR_HEAD_NUM), at(&raw_fields, FTR_SITE_NUM));
-                if !test_defs.contains_key(test_num) {
-                    test_defs.insert(test_num.to_string(), TestDef {
-                        name: test_num.to_string(),
-                        test_type: "F".to_string(),
-                        lo_limit: None,
-                        hi_limit: None,
-                        units: None,
-                        ..Default::default()
-                    });
-                }
+                define_ftr(&mut test_defs, &raw_fields);
                 if want(test_num) {
                     // Functional outcomes are verdicts, not values: they go to the pass
                     // channel; no verdict records nothing (never a fabricated fail).
@@ -470,6 +493,8 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     }
                 }
             }
+            "TSR" => define_tsr(&mut test_defs, &raw_fields),
+            "MPR" => spec.mpr_not_read(),
             "PRR" => {
                 // A blank or -32768 X/Y is a die with no recorded position —
                 // kept unpositioned rather than dropped. One missing or
@@ -486,49 +511,31 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                 let test_pass = pending_pass.remove(&key).unwrap_or_default();
                 let hbin = spec.hard_bin(RawField::from_text(at(&raw_fields, PRR_HARD_BIN)));
                 let sbin = spec.soft_bin(RawField::from_text(at(&raw_fields, PRR_SOFT_BIN)));
-                let part_id: Option<u32> = at(&raw_fields, PRR_PART_ID).parse().ok();
-                let die_index = if x.is_none() {
-                    let idx = prr_index_in_wafer;
-                    prr_index_in_wafer += 1;
-                    Some(idx)
-                } else {
-                    None
+                let part_id = part_id_text(at(&raw_fields, PRR_PART_ID));
+                // Retest code: `I` = supersedes the same part ID, `C` = the same X/Y.
+                let supersedes = match at(&raw_fields, PRR_RETEST_CODE) {
+                    c if c.eq_ignore_ascii_case("I") => Some("partId"),
+                    c if c.eq_ignore_ascii_case("C") => Some("position"),
+                    _ => None,
                 };
-                let die = DieResult { x, y, die_index, hbin, sbin, site_num, part_id, test_values, test_pass };
-                match current_wafer.as_mut() {
-                    Some(w) => w.results.push(die),
-                    None => {
-                        prr_index_in_wafer = 0;
-                        let mut w = WaferData {
-                            wafer_id: format!("W{}", wafers.len() + 1),
-                            results: Vec::new(),
-                            part_count: None,
-                            good_count: None,
-                            fail_count: None,
-                            fields: Vec::new(),
-                        };
-                        w.results.push(die);
-                        current_wafer = Some(w);
-                    }
-                }
+                open.die(atdf_head(at(&raw_fields, PRR_HEAD_NUM)),
+                    DieResult { x, y, die_index: None, hbin, sbin, site_num, part_id, supersedes, test_values, test_pass });
             }
             _ => {}
         }
     }
 
-    if let Some(w) = current_wafer {
-        if !w.results.is_empty() {
-            lots.push_wafer(&mut wafers, w);
-        }
-    }
+    let wafer_end = open.finish(&mut lots, &mut wafers);
 
     let mut warnings = spec.warnings();
+    warnings.extend(wafer_end);
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
     let sbin_defs = finish_bin_defs(sbin_names);
     let mut pass_hbins: Vec<u32> = pass_hbins.into_iter().collect();
     pass_hbins.sort_unstable();
+    let test_defs = test_defs.finish();
     Ok(ParsedStdf { meta, wafers, test_defs, sites, hbin_defs, sbin_defs, pass_hbins, warnings })
 }
 
@@ -555,7 +562,7 @@ pub fn parse_atdf_test_names(bytes: &[u8]) -> ParseResult<crate::types::ScanResu
 fn parse_atdf_test_names_str(raw: &str) -> ParseResult<crate::types::ScanResult> {
     let (records, delim) = split_atdf_records(raw);
 
-    let mut test_defs: HashMap<String, TestDef> = HashMap::new();
+    let mut test_defs = TestDefBuilder::default();
     let mut pir_count: u32 = 0;
 
     let mut raw_fields: Vec<&str> = Vec::new();
@@ -573,42 +580,14 @@ fn parse_atdf_test_names_str(raw: &str) -> ParseResult<crate::types::ScanResult>
 
         match name {
             "PIR" => { pir_count += 1; }
-            "PTR" => {
-                let f = field_map(PTR, &raw_fields);
-                let test_num = get(&f, "TEST_NUM").to_string();
-                test_defs.entry(test_num.clone()).or_insert_with(|| {
-                    let lo = get(&f, "LO_LIMIT").parse::<f64>().ok();
-                    let hi = get(&f, "HI_LIMIT").parse::<f64>().ok();
-                    TestDef {
-                        name: {
-                            let t = get(&f, "TEST_TXT");
-                            if t.is_empty() { test_num.clone() } else { t.to_string() }
-                        },
-                        test_type: "P".to_string(),
-                        lo_limit: lo,
-                        hi_limit: hi,
-                        units: nonempty(get(&f, "UNITS")),
-                        ..Default::default()
-                    }
-                });
-            }
-            "FTR" => {
-                let f = field_map(FTR, &raw_fields);
-                let test_num = get(&f, "TEST_NUM").to_string();
-                test_defs.entry(test_num.clone()).or_insert_with(|| TestDef {
-                    name: test_num.clone(),
-                    test_type: "F".to_string(),
-                    lo_limit: None,
-                    hi_limit: None,
-                    units: None,
-                    ..Default::default()
-                });
-            }
+            "PTR" => define_ptr(&mut test_defs, &raw_fields),
+            "FTR" => define_ftr(&mut test_defs, &raw_fields),
+            "TSR" => define_tsr(&mut test_defs, &raw_fields),
             _ => {}
         }
     }
 
-    Ok(crate::types::ScanResult { test_defs, die_count: pir_count })
+    Ok(crate::types::ScanResult { test_defs: test_defs.finish(), die_count: pir_count })
 }
 
 /// Fast metadata-only scan for the file-filter table — the ATDF twin of
@@ -796,6 +775,91 @@ mod tests {
         assert!(!r.warnings.iter().any(|w| w.code == "coordinate-invalid"), "missing is not invalid");
     }
 
+    /// PART_ID is text; the retest code `I`/`C` says which record is superseded.
+    #[test]
+    fn part_id_is_text_and_retest_code_passes_through() {
+        let inner = [
+            pir(1, 1), "PRR:1|1|A12-003|4|P|1|1|0|0\n".to_string(),
+            pir(1, 1), "PRR:1|1|A12-003|4|P|1|1|0|0|C\n".to_string(),
+            pir(1, 1), "PRR:1|1|9|4|P|1|1|1|0|I\n".to_string(),
+        ].concat();
+        let r = parse_atdf_str(&one_wafer("W1", &inner), None).unwrap();
+        let d = &r.wafers[0].results;
+        assert_eq!((d[0].part_id.as_deref(), d[0].supersedes), (Some("A12-003"), None));
+        assert_eq!(d[1].supersedes, Some("position"));
+        assert_eq!((d[2].part_id.as_deref(), d[2].supersedes), (Some("9"), Some("partId")));
+    }
+
+    /// Test limits and spec limits are separate fields (PTR fields 11-12 and 16-17).
+    #[test]
+    fn ptr_reads_spec_limits_apart_from_test_limits() {
+        let ptr = "PTR:5|1|1|1.0|P||Vth|||V|0.5|5.5||||0.25|6.0\n".to_string();
+        let r = parse_atdf_str(&one_wafer("W1", &(pir(1, 1) + &ptr + &prr(1, 1, 0, 0, 1, 1))), None).unwrap();
+        let d = &r.test_defs["5"];
+        assert_eq!((d.lo_limit, d.hi_limit, d.lo_spec, d.hi_spec), (Some(0.5), Some(5.5), Some(0.25), Some(6.0)));
+    }
+
+    /// Limit Compare (field 9): empty = equal passes; `L`/`H` = equal fails.
+    #[test]
+    fn ptr_limit_compare_sets_exclusive_limits() {
+        let def = |cmp: &str| {
+            let ptr = format!("PTR:5|1|1|1.0|P||Vth||{cmp}|V|0.5|5.5\n");
+            let r = parse_atdf_str(&one_wafer("W1", &(pir(1, 1) + &ptr + &prr(1, 1, 0, 0, 1, 1))), None).unwrap();
+            let d = &r.test_defs["5"];
+            (d.lo_limit_inclusive, d.hi_limit_inclusive)
+        };
+        assert_eq!(def(""), (None, None));
+        assert_eq!(def("L"), (Some(false), None));
+        assert_eq!(def("H"), (None, Some(false)));
+        assert_eq!(def("LH"), (Some(false), Some(false)));
+    }
+
+    /// A WIR with no WRR is closed by the next WIR instead of losing its dies.
+    #[test]
+    fn a_missing_wrr_keeps_the_wafer() {
+        let text = format!("{}{}{}{}{}{}{}",
+            far(), mir_full(),
+            wir("W1"), pir(1, 1) + &prr(1, 1, 0, 0, 1, 1),
+            wir("W2"), pir(1, 1) + &prr(1, 1, 1, 0, 1, 1),
+            wrr("W2", 1, 1));
+        let r = parse_atdf_str(&text, None).unwrap();
+        let ids: Vec<&str> = r.wafers.iter().map(|w| w.wafer_id.as_str()).collect();
+        assert_eq!(ids, ["W1", "W2"]);
+        assert!(r.warnings.iter().any(|w| w.code == "wafer-end-missing"));
+    }
+
+    /// Same naming rule as the STDF parser: first TEST_TXT, never renamed,
+    /// a non-empty TSR TEST_NAM overwrites; FTR names come from TEST_TXT.
+    #[test]
+    fn test_names_first_record_then_tsr() {
+        let ftr_with_txt = |num: u32, txt: &str| {
+            let mut f = vec![num.to_string(), "1".into(), "1".into(), "P".into()];
+            f.resize(20, String::new());
+            f.push(txt.to_string());
+            format!("FTR:{}\n", f.join("|"))
+        };
+        let inner = [
+            pir(1, 1),
+            ptr_rec("1", 1, 1, 1.0, 0.0, 2.0, "first", "V"),
+            ptr_rec("1", 1, 1, 1.0, 0.0, 2.0, "second", "V"),
+            ptr_rec("2", 1, 1, 1.0, 0.0, 2.0, "", "V"),
+            ftr_with_txt(3, "Check Driver"),
+            prr(1, 1, 0, 0, 1, 1),
+        ].concat();
+        let text = format!("{}TSR:1|1|2|Leakage|P\nTSR:1|1|1||P\nMPR:9|1|1\n", one_wafer("W1", &inner));
+        let full = parse_atdf_str(&text, None).unwrap();
+        let name = |k: &str| full.test_defs.get(k).map(|d| d.name.as_str());
+        assert_eq!(name("1"), Some("first"));
+        assert_eq!(name("2"), Some("Leakage"));
+        assert_eq!(name("3"), Some("Check Driver"), "FTR name from its TEST_TXT field");
+        assert!(full.warnings.iter().any(|w| w.code == "records-not-read"));
+
+        let scan = parse_atdf_test_names_str(&text).unwrap();
+        for k in ["1", "2", "3"] {
+            assert_eq!(scan.test_defs.get(k).map(|d| d.name.as_str()), name(k), "scan disagrees on {k}");
+        }
+    }
+
     /// ATDF alarm flags carry the STDF usefulness rule; `A` is a pass.
     #[test]
     fn ptr_alarm_flags_and_alternate_limit_pass() {
@@ -855,7 +919,7 @@ mod tests {
         for (key, want) in [
             ("lotId", "A3002B"), ("partType", "80386"), ("jobName", "80386HOT"),
             ("nodeName", "akbar"), ("testerType", "J971"),
-            ("setupT", "1992-07-23T08:14:59Z"), ("startT", "1992-07-23T08:23:02Z"),
+            ("setupT", "1992-07-23T08:14:59"), ("startT", "1992-07-23T08:23:02"),
             ("operName", "Sandy"), ("sublotId", "2B"), ("testCode", "HOT"),
             ("jobRev", "3.1.2"), ("execType", "IG900"), ("execVer", "2.4"), ("testTemp", "100"),
             ("wfFlat", "D"), ("posX", "R"), ("posY", "D"), ("wafrSiz", "5"),
@@ -1304,9 +1368,9 @@ mod tests {
 
     #[test]
     fn atdf_time_converts_spec_format_to_iso() {
-        assert_eq!(atdf_time_to_iso("14:32:05 16-AUG-2026"), "2026-08-16T14:32:05Z");
-        assert_eq!(atdf_time_to_iso("09:00:00 01-jan-2020"), "2020-01-01T09:00:00Z");
-        assert_eq!(atdf_time_to_iso("  23:59:59 31-DEC-1999  "), "1999-12-31T23:59:59Z");
+        assert_eq!(atdf_time_to_iso("14:32:05 16-AUG-2026"), "2026-08-16T14:32:05");
+        assert_eq!(atdf_time_to_iso("09:00:00 01-jan-2020"), "2020-01-01T09:00:00");
+        assert_eq!(atdf_time_to_iso("  23:59:59 31-DEC-1999  "), "1999-12-31T23:59:59");
     }
 
     #[test]
@@ -1343,8 +1407,8 @@ mod tests {
         );
         let meta = parse_atdf_file_meta(text.as_bytes()).unwrap();
         assert_eq!(meta.wafer_count, 3);
-        assert_eq!(meta.earliest_start.as_deref(), Some("2026-02-01T23:00:00Z"));
-        assert_eq!(meta.latest_finish.as_deref(), Some("2026-02-03T12:00:00Z"));
+        assert_eq!(meta.earliest_start.as_deref(), Some("2026-02-01T23:00:00"));
+        assert_eq!(meta.latest_finish.as_deref(), Some("2026-02-03T12:00:00"));
     }
 
     // ── File-meta fast scan: consistency against the full parse (ATDF twin of

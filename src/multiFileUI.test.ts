@@ -24,6 +24,12 @@ describe('resolveWaferId', () => {
   it('falls back to contentId when neither lot ID nor filename stem is usable', () => {
     expect(resolveWaferId('W1', '.stdf')).toBe('W1');
   });
+
+  it('marks a placeholder ID the parser made up, wherever it is shown', () => {
+    expect(resolveWaferId('W1', 'lot.stdf', 'LOT9', true)).toBe('LOT9 · W1 (no ID)');
+    expect(resolveWaferId('W1', 'lot_wafer3.stdf', undefined, true)).toBe('lot_wafer3');
+    expect(resolveWaferId('W1', 'lot.stdf', 'LOT9', false)).toBe('LOT9 · W1');
+  });
 });
 
 // ── needsWaferLabelPrompt ─────────────────────────────────────────────────────

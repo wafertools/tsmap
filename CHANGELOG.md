@@ -9,6 +9,18 @@ technical record, including internal changes.
 **Needs a `@wafertools/testdata-parser` minor bump (0.12.0) and publish before release** —
 bin and coordinate handling, and the warning codes below.
 
+### Added
+
+- **Derived tests and sweeps can be cleared.** The test selector has **Remove derived
+  tests** (applied on import), and **Setup ▾ → Sweeps…** has **Clear**. Both otherwise stay
+  defined from one load to the next.
+- **A warning when derived tests or sweeps may not fit the loaded data.** After a load, the
+  log says when none of the derived tests could be computed, and when the lot's test numbers
+  name different tests — or it states a different test program — than the lot the derived
+  tests and sweeps were set up on, and points to where to remove them.
+- **The Sweeps tab says when a sweep names none of the lot's tests**, with a button to
+  remove those sweeps; the other sweeps are kept.
+
 ### Changed
 
 - **STDF and ATDF bins and coordinates are read to the STDF V4 value rules.** Hard and soft
@@ -22,8 +34,43 @@ bin and coordinate handling, and the warning codes below.
   verdict is kept, reported with a new `result-unusable` warning. A test the tester marks as
   not executed contributes neither. The same flags are read from ATDF's alarm-flag field, and
   an ATDF verdict of `A` (passed alternate limits) counts as a pass.
+- **Test names:** the first test record's text names a test, and a test summary record
+  (TSR) name takes precedence when the file has one, in STDF and ATDF alike. ATDF functional
+  tests are named from their text field. The test list shown before a full load uses the
+  same rule.
+- **Multiple-result parametric records (MPR)** are reported with a new `records-not-read`
+  warning; they are not read yet.
+- **Wafers are assembled per test head**, so a two-head prober's interleaved wafers stay
+  separate. A wafer whose end record (WRR) is missing is closed at the next wafer on its head
+  or at the end of the file and reported with `wafer-end-missing`; placeholder wafer IDs count
+  every wafer opened.
+- **A file that ends part-way through a record** keeps everything before that point and is
+  reported with `file-truncated`.
+- **Parquet bins, sites and coordinates held as floating-point columns** are read only when
+  they are whole numbers in range; other values are skipped and reported with the column's
+  `values-not-numeric` warning.
+- **CSV/JSON/Parquet wafer good counts** use the hard bin against the pass bins only; with no
+  pass bins mapped, the good and fail counts are left unset.
+- **STDF and ATDF times are given as recorded**, as local date-times with no zone, since the
+  spec defines them in the tester's local time.
+- **Part IDs are text**, as STDF defines them, so IDs such as `A12-003` are kept. A die
+  record the tester marks as replacing an earlier one (STDF `PART_FLG` bits 0/1, ATDF retest
+  code `I`/`C`) carries a new `supersedes` field.
+- **Wafers the file gives no ID are labelled as such** — `W1 (no ID)` — so a placeholder is
+  never read as the wafer's real ID. The parser marks them with a new `waferIdPlaceholder`
+  field.
 - **Die result records that omit their optional trailing fields are read**, as the spec
   allows. A record too short to hold a hard bin is reported with `record-malformed`.
+- **Spec limits are read from STDF and ATDF parametric records** (`LO_SPEC`/`HI_SPEC`) as
+  `loSpec`/`hiSpec`, separate from the test limits. Process capability is measured against
+  them when a test has both, and against the test limits otherwise; the chart says which.
+- **A result exactly equal to a test limit is judged as the file says.** STDF's `PARM_FLG`
+  bits 6/7 and ATDF's Limit Compare field state whether it passes; they are read as
+  `loLimitInclusive`/`hiLimitInclusive` and applied to every pass/fail display and yield.
+  In STDF a clear bit means the value fails.
+- **Test limits and spec limits are labelled apart:** test limits are shown as "Lo limit" /
+  "Hi limit" and the map's pass/fail option is "Limit pass/fail". LSL/USL are used only for
+  spec limits.
 - The `soft-bin-mirrored` warning code is retired.
 
 ## [0.1.39] — 2026-09-23

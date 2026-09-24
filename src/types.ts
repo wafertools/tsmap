@@ -6,6 +6,14 @@ export interface TestDef {
   testType: 'P' | 'F';
   loLimit?: number;
   hiLimit?: number;
+  /** Spec limits (STDF `LO_SPEC`/`HI_SPEC`), distinct from the test limits
+   *  above. Only process capability reads them, via wmap's `specLow`/`specHigh`. */
+  loSpec?: number;
+  hiSpec?: number;
+  /** `false` when a value equal to the low/high test limit fails, as the file
+   *  states (STDF PARM_FLG bits 6/7, ATDF Limit Compare). Absent = it passes. */
+  loLimitInclusive?: boolean;
+  hiLimitInclusive?: boolean;
   units?: string;
   /**
    * Position to display this test in, independent of its number — CSV/JSON
@@ -49,6 +57,8 @@ export interface MetaField {
 
 export interface WaferData {
   waferId: string;
+  /** `waferId` is a placeholder (`W1`…) from the parser: the file gave this wafer no ID. */
+  waferIdPlaceholder?: boolean;
   results: DieResult[];
   partCount?: number;
   goodCount?: number;

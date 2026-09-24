@@ -67,7 +67,7 @@ export function buildRenameRows(entries: FileWaferEntry[]): RenameRow[] {
     const fileDefs: FileDefs = { testDefs: entry.parsed.testDefs, passHbins: entry.parsed.passHbins };
     const lotId = entry.parsed.meta.fields.find(f => f.key === 'lotId')?.value;
     for (const wafer of entry.parsed.wafers) {
-      const defaultId = resolveWaferId(wafer.waferId, entry.fileName, lotId);
+      const defaultId = resolveWaferId(wafer.waferId, entry.fileName, lotId, wafer.waferIdPlaceholder);
       rows.push({ defaultId, fileLabel: entry.fileName, wafer, source, fileDefs });
     }
   }
@@ -168,15 +168,22 @@ export function showRenameOverlay(
  *      filename, even for multi-wafer files where every wafer shares the lot.
  *   3. Neither — fall back to the filename stem (the genuinely metadata-less
  *      case, e.g. a bare CSV with no lot/wafer columns).
+ * A `placeholder` ID (the file gave the wafer none) is marked wherever it is shown.
  */
-export function resolveWaferId(contentId: string, fileName: string, lotId?: string): string {
-  if (!isGenericWaferId(contentId)) return contentId;
-  if (!labelFallsBackToFileName(contentId, lotId)) return `${lotId} · ${contentId}`;
+export function resolveWaferId(contentId: string, fileName: string, lotId?: string, placeholder = false): string {
+  if (!isGenericWaferId(contentId)) return markPlaceholder(contentId, placeholder);
+  if (!labelFallsBackToFileName(contentId, lotId)) return `${lotId} · ${markPlaceholder(contentId, placeholder)}`;
   const stem = fileName.replace(/\.[^.]+$/, '');
   return stem || contentId;
 }
 
 const isGenericWaferId = (id: string) => /^W\d+$/.test(id); // W1, W01, W12 etc.
+
+/** A wafer ID the parser made up (`W1`…) is labelled as such, so it is never
+ *  read as the wafer's real ID. */
+export function markPlaceholder(id: string, placeholder: boolean | undefined): string {
+  return placeholder ? `${id} (no ID)` : id;
+}
 
 /** Precedence case 3 of `resolveWaferId`: nothing in the data identifies the
  *  wafer, so its label can only come from the file name. */

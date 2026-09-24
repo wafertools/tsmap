@@ -64,8 +64,15 @@ pub struct DieResult {
     pub sbin: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub site_num: Option<u32>,
+    /// STDF/ATDF PART_ID — text, up to 255 characters. Data about the part, not
+    /// an identifier: a die's identity is its position (or `die_index`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub part_id: Option<u32>,
+    pub part_id: Option<String>,
+    /// Set when the tester marked this record as replacing an earlier one
+    /// (STDF PRR `PART_FLG` bit 0/1; ATDF retest code `I`/`C`): `"partId"` = the
+    /// earlier record with the same part ID, `"position"` = the same X/Y.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supersedes: Option<&'static str>,
     /// Measured values, keyed by test number as a string.
     ///
     /// `Arc<str>` rather than `String` because the key is the same handful of
@@ -102,6 +109,19 @@ pub struct TestDef {
     pub hi_limit: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub units: Option<String>,
+    /// Specification limits (STDF PTR `LO_SPEC`/`HI_SPEC`), distinct from the
+    /// test limits above: what process capability is judged against.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lo_spec: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hi_spec: Option<f64>,
+    /// `Some(false)` when a result equal to the low test limit FAILS (STDF
+    /// `PARM_FLG` bit 6 clear, ATDF Limit Compare `L`). `None` = it passes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lo_limit_inclusive: Option<bool>,
+    /// The same for the high test limit (STDF `PARM_FLG` bit 7, ATDF `H`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hi_limit_inclusive: Option<bool>,
     /// Position to display this test in, independent of its (possibly
     /// hashed, see `test_identity`) number — CSV/JSON wide format sets this to
     /// the column's position, long format to first-encounter-in-file order.
@@ -115,6 +135,9 @@ pub struct TestDef {
 #[serde(rename_all = "camelCase")]
 pub struct WaferData {
     pub wafer_id: String,
+    /// `wafer_id` is a placeholder (`W1`, `W2`…): the file gave this wafer no ID.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wafer_id_placeholder: bool,
     pub results: Vec<DieResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub part_count: Option<u32>,
@@ -272,6 +295,74 @@ impl RawField {
     }
 }
 
+/// Test definitions built as the records arrive, for both STDF and ATDF.
+/// Summary records are often missing from real files, so nothing waits for them:
+/// - the first PTR/FTR (MPR) for a test number defines it: name from its
+///   `TEST_TXT`, type, limits and units; a later record never renames it;
+/// - a later record may supply limits or units the definition lacks;
+/// - a TSR's non-empty `TEST_NAM` overwrites the name, wherever the TSR sits.
+///
+/// A test with no name anywhere keeps an empty name; the host shows its number.
+#[derive(Default)]
+pub struct TestDefBuilder {
+    defs: HashMap<String, TestDef>,
+    tsr_names: HashMap<String, String>,
+}
+
+impl TestDefBuilder {
+    pub fn contains(&self, key: &str) -> bool { self.defs.contains_key(key) }
+
+    /// Defines a test from its first record. Returns `false`, changing nothing,
+    /// when it is already defined.
+    pub fn define(&mut self, key: &str, def: TestDef) -> bool {
+        if self.defs.contains_key(key) { return false; }
+        self.defs.insert(key.to_string(), def);
+        true
+    }
+
+    /// Limits or units from a later record, used only where the definition has none.
+    pub fn fill(&mut self, key: &str, lo: Option<f64>, hi: Option<f64>, units: Option<String>,
+                lo_spec: Option<f64>, hi_spec: Option<f64>) {
+        if let Some(def) = self.defs.get_mut(key) {
+            if def.lo_limit.is_none() { def.lo_limit = lo; }
+            if def.hi_limit.is_none() { def.hi_limit = hi; }
+            if def.units.is_none() { def.units = units; }
+            if def.lo_spec.is_none() { def.lo_spec = lo_spec; }
+            if def.hi_spec.is_none() { def.hi_spec = hi_spec; }
+        }
+    }
+
+    pub fn tsr_name(&mut self, key: &str, name: &str) {
+        let name = name.trim();
+        if !name.is_empty() {
+            self.tsr_names.insert(key.to_string(), name.to_string());
+        }
+    }
+
+    pub fn finish(mut self) -> HashMap<String, TestDef> {
+        for (key, name) in self.tsr_names {
+            if let Some(def) = self.defs.get_mut(&key) { def.name = name; }
+        }
+        self.defs
+    }
+}
+
+/// PRR `PART_FLG` bits 0/1: which earlier record this one supersedes. The spec
+/// allows either bit but not both; both set is contradictory and ignored.
+pub fn supersedes_from_part_flg(part_flg: u8) -> Option<&'static str> {
+    match part_flg & 0x03 {
+        0x01 => Some("partId"),
+        0x02 => Some("position"),
+        _ => None,
+    }
+}
+
+/// A PART_ID as text, trimmed; blank is none.
+pub fn part_id_text(raw: &str) -> Option<String> {
+    let t = raw.trim();
+    (!t.is_empty()).then(|| t.to_string())
+}
+
 /// What the tester says about one test execution's result. STDF V4 (PTR): RESULT
 /// "is considered useful only if" TEST_FLG bits 0–5 (alarm, result invalid,
 /// unreliable, timeout, not executed, aborted) and PARM_FLG bits 0–2 (scale,
@@ -324,6 +415,8 @@ pub struct SpecCheck {
     prr_malformed: usize,
     result_flagged: usize,
     result_not_finite: usize,
+    mpr_not_read: usize,
+    truncated: bool,
 }
 
 impl SpecCheck {
@@ -369,6 +462,12 @@ impl SpecCheck {
 
     /// A PRR too short to hold its required fields; the die is dropped.
     pub fn prr_malformed(&mut self) { self.prr_malformed += 1; }
+
+    /// The file ends part-way through a record.
+    pub fn file_truncated(&mut self) { self.truncated = true; }
+
+    /// A multiple-result parametric record (MPR), which is not read yet.
+    pub fn mpr_not_read(&mut self) { self.mpr_not_read += 1; }
 
     /// A measured value, or `None` when there is no usable one. A test that was
     /// not executed is simply absent and is not counted.
@@ -424,6 +523,17 @@ impl SpecCheck {
                 results.join("; ")
             )));
         }
+        if self.truncated {
+            out.push(ParserWarning::warning("file-truncated",
+                "The file ends part-way through a record; everything before that point was read. \
+                 Testing may have been interrupted.".to_string()));
+        }
+        if self.mpr_not_read > 0 {
+            out.push(ParserWarning::error("records-not-read", format!(
+                "{} multiple-result parametric test record(s) (MPR) are not read; those tests are not shown.",
+                self.mpr_not_read
+            )));
+        }
         if self.prr_malformed > 0 {
             out.push(ParserWarning::error("record-malformed", format!(
                 "{} part result record(s) (PRR) were too short to hold a hard bin and were dropped.",
@@ -438,7 +548,7 @@ impl SpecCheck {
 /// those dies have no value for it. `error`: data was dropped.
 pub fn value_not_numeric_warning(label: &str, count: u32) -> ParserWarning {
     ParserWarning::error("values-not-numeric", format!(
-        "Column mapped to '{label}' contained {count} non-numeric value(s) that were skipped"
+        "Column mapped to '{label}' contained {count} value(s) that were not usable numbers and were skipped"
     ))
 }
 
@@ -589,6 +699,101 @@ impl LotRecords {
     }
 }
 
+/// The wafers open at the moment, one per test head — shared by the STDF and
+/// ATDF parsers. A WIR/WRR pair brackets a wafer and carries the same
+/// HEAD_NUM, and a two-head prober interleaves two wafers' records (STDF V4,
+/// "STDF File Ordering", example 5), so each die goes to its own head's wafer.
+///
+/// Real files are often incomplete, so the structure is inferred leniently and
+/// reported: a WIR for a head whose wafer is still open closes that wafer (its
+/// WRR is missing), the end of the file closes the rest, and a record whose head
+/// matches no open wafer goes to the only open one when there is exactly one.
+#[derive(Default)]
+pub struct OpenWafers {
+    open: Vec<OpenWafer>,
+    opened: usize,
+    closed_without_wrr: usize,
+}
+
+struct OpenWafer {
+    head: u8,
+    wafer: WaferData,
+    from_wir: bool,
+    unpositioned: u32,
+}
+
+impl OpenWafers {
+    /// A WIR: opens a wafer for `head`, closing any wafer still open there.
+    pub fn wir(&mut self, head: u8, wafer_id: String, fields: Vec<MetaField>,
+               lots: &mut LotRecords, wafers: &mut Vec<WaferData>) {
+        if let Some(i) = self.open.iter().position(|w| w.head == head) {
+            self.close(i, lots, wafers);
+        }
+        self.open_wafer(head, wafer_id, fields, true);
+    }
+
+    /// A PRR's die. An unpositioned die gets the next per-wafer `die_index`.
+    pub fn die(&mut self, head: u8, mut die: DieResult) {
+        let i = match self.index_for(head) {
+            Some(i) => i,
+            None => { self.open_wafer(head, String::new(), Vec::new(), false); self.open.len() - 1 }
+        };
+        let w = &mut self.open[i];
+        if die.x.is_none() {
+            die.die_index = Some(w.unpositioned);
+            w.unpositioned += 1;
+        }
+        w.wafer.results.push(die);
+    }
+
+    /// A WRR: the wafer it closes, for the caller to complete and push, or
+    /// `None` when no wafer is open.
+    pub fn wrr(&mut self, head: u8) -> Option<WaferData> {
+        let i = self.index_for(head)?;
+        Some(self.open.remove(i).wafer)
+    }
+
+    /// End of file: closes every wafer still open, in the order they opened.
+    pub fn finish(mut self, lots: &mut LotRecords, wafers: &mut Vec<WaferData>) -> Option<ParserWarning> {
+        while !self.open.is_empty() {
+            self.close(0, lots, wafers);
+        }
+        (self.closed_without_wrr > 0).then(|| ParserWarning::warning("wafer-end-missing", format!(
+            "{} wafer(s) had no wafer-end record (WRR); each was closed at the next wafer on its \
+             head or at the end of the file. The file may be incomplete.",
+            self.closed_without_wrr
+        )))
+    }
+
+    fn index_for(&self, head: u8) -> Option<usize> {
+        self.open.iter().position(|w| w.head == head)
+            .or((self.open.len() == 1).then_some(0))
+    }
+
+    fn open_wafer(&mut self, head: u8, wafer_id: String, fields: Vec<MetaField>, from_wir: bool) {
+        self.opened += 1;
+        let placeholder = wafer_id.is_empty();
+        let wafer_id = if placeholder { format!("W{}", self.opened) } else { wafer_id };
+        self.open.push(OpenWafer {
+            head,
+            wafer: WaferData {
+                wafer_id, wafer_id_placeholder: placeholder, results: Vec::new(), part_count: None,
+                good_count: None, fail_count: None, fields,
+            },
+            from_wir,
+            unpositioned: 0,
+        });
+    }
+
+    /// Closes a wafer that had no WRR. One with no dies is dropped, as before.
+    fn close(&mut self, i: usize, lots: &mut LotRecords, wafers: &mut Vec<WaferData>) {
+        let w = self.open.remove(i);
+        if w.wafer.results.is_empty() { return; }
+        if w.from_wir { self.closed_without_wrr += 1; }
+        lots.push_wafer(wafers, w.wafer);
+    }
+}
+
 /// Shared helper: append a non-empty field. Used for both lot- and wafer-level.
 pub fn push_field(fields: &mut Vec<MetaField>, key: &str, value: Option<String>) {
     if let Some(v) = value {
@@ -599,9 +804,11 @@ pub fn push_field(fields: &mut Vec<MetaField>, key: &str, value: Option<String>)
     }
 }
 
-/// Format an STDF U4 timestamp (seconds since the Unix epoch, UTC) as an ISO
-/// 8601 string `YYYY-MM-DDTHH:MM:SSZ`. The host truncates to date-only where it
-/// groups by date. Returns None for the zero/sentinel value. Pure (no chrono):
+/// Format an STDF U4 timestamp as ISO 8601 `YYYY-MM-DDTHH:MM:SS`, with no zone
+/// designator: STDF V4 counts seconds since 1970-01-01 *in the tester's local
+/// time zone*, so the digits are local time and the zone is unknown. JavaScript
+/// reads a date-time without an offset as local, so it displays as recorded.
+/// The host truncates to date-only where it groups by date. Returns None for the zero/sentinel value. Pure (no chrono):
 /// a civil-date conversion via the days-from-epoch algorithm.
 pub fn epoch_to_iso(secs: u32) -> Option<String> {
     if secs == 0 || secs == u32::MAX {
@@ -621,7 +828,7 @@ pub fn epoch_to_iso(secs: u32) -> Option<String> {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = if m <= 2 { y + 1 } else { y };
-    Some(format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", year, m, d, hh, mm, ss))
+    Some(format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", year, m, d, hh, mm, ss))
 }
 
 #[derive(Serialize)]
@@ -700,18 +907,18 @@ mod tests {
 
     #[test]
     fn epoch_to_iso_converts_known_timestamps() {
-        // 2009-02-13T23:31:30Z = 1234567890
-        assert_eq!(epoch_to_iso(1_234_567_890).as_deref(), Some("2009-02-13T23:31:30Z"));
+        // 1234567890 seconds = 2009-02-13 23:31:30 (local time, no zone)
+        assert_eq!(epoch_to_iso(1_234_567_890).as_deref(), Some("2009-02-13T23:31:30"));
         // Unix epoch
         assert_eq!(epoch_to_iso(0), None); // 0 treated as "unset"
-        assert_eq!(epoch_to_iso(1).as_deref(), Some("1970-01-01T00:00:01Z"));
+        assert_eq!(epoch_to_iso(1).as_deref(), Some("1970-01-01T00:00:01"));
         assert_eq!(epoch_to_iso(u32::MAX), None); // sentinel
     }
 
     #[test]
     fn die_result_serialises_test_pass_camel_case_and_omits_empty() {
         let mut die = DieResult {
-            x: Some(1), y: Some(2), die_index: None, hbin: Some(1), sbin: None, site_num: None, part_id: None,
+            x: Some(1), y: Some(2), die_index: None, hbin: Some(1), sbin: None, site_num: None, part_id: None, supersedes: None,
             test_values: HashMap::new(), test_pass: HashMap::new(),
         };
         let json = serde_json::to_string(&die).unwrap();
@@ -724,7 +931,7 @@ mod tests {
     #[test]
     fn die_result_omits_x_y_when_unpositioned_and_serialises_die_index() {
         let die = DieResult {
-            x: None, y: None, die_index: Some(3), hbin: Some(1), sbin: None, site_num: None, part_id: None,
+            x: None, y: None, die_index: Some(3), hbin: Some(1), sbin: None, site_num: None, part_id: None, supersedes: None,
             test_values: HashMap::new(), test_pass: HashMap::new(),
         };
         let json = serde_json::to_string(&die).unwrap();
@@ -740,12 +947,12 @@ mod tests {
     #[test]
     fn every_warning_code_and_severity_is_as_documented() {
         let wafer = |id: &str, positioned: bool| WaferData {
-            wafer_id: id.to_string(),
+            wafer_id: id.to_string(), wafer_id_placeholder: false,
             results: vec![DieResult {
                 x: if positioned { Some(1) } else { None },
                 y: if positioned { Some(1) } else { None },
                 die_index: if positioned { None } else { Some(0) },
-                hbin: Some(1), sbin: None, site_num: None, part_id: None,
+                hbin: Some(1), sbin: None, site_num: None, part_id: None, supersedes: None,
                 test_values: HashMap::new(), test_pass: HashMap::new(),
             }],
             part_count: None, good_count: None, fail_count: None, fields: vec![],
@@ -756,6 +963,8 @@ mod tests {
         invalid.position(RawField::Value(40_000), RawField::Value(0));
         invalid.prr_malformed();
         invalid.result(ResultFlags { not_executed: false, unusable: true }, 1.0);
+        invalid.mpr_not_read();
+        invalid.file_truncated();
 
         let all: Vec<ParserWarning> = vec![
             position_warnings(&[wafer("W01", false)]).remove(0),
@@ -763,11 +972,20 @@ mod tests {
             invalid.warnings()[1].clone(),
             invalid.warnings()[2].clone(),
             invalid.warnings()[3].clone(),
+            invalid.warnings()[4].clone(),
+            invalid.warnings()[5].clone(),
             value_not_numeric_warning("Vdd", 7),
             retests_assumed_warning("Wafer W01", 4),
             wafer_split_warning("Wafer W01", "temp", &["25".into(), "85".into()]),
             column_varies_warning("stamp", "12:00"),
             multiple_lot_records_warning(2),
+            {
+                let mut open = OpenWafers::default();
+                let (mut lots, mut wafers) = (LotRecords::default(), Vec::new());
+                open.wir(1, "W".into(), vec![], &mut lots, &mut wafers);
+                open.die(1, wafer("x", true).results.remove(0));
+                open.finish(&mut lots, &mut wafers).unwrap()
+            },
         ];
 
         // `error` is reserved for "a number or a plot built from this can
@@ -777,12 +995,15 @@ mod tests {
             ("bin-invalid",                 "error"),
             ("coordinate-invalid",          "error"),
             ("result-unusable",             "warning"),
+            ("file-truncated",              "warning"),
+            ("records-not-read",            "error"),
             ("record-malformed",            "error"),
             ("values-not-numeric",          "error"),
             ("retests-assumed",             "warning"),
             ("wafer-split-by-column",       "warning"),
             ("column-varies-within-wafer",  "warning"),
             ("multiple-lot-records",        "warning"),
+            ("wafer-end-missing",           "warning"),
         ];
         assert_eq!(all.len(), expected.len(), "a warning kind was added without extending this test");
         for (w, (code, severity)) in all.iter().zip(expected) {

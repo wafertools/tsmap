@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { webDieBudgetWarning, WEB_DIE_BUDGET, shouldMountProgressively, GALLERY_PROGRESSIVE_DIE_THRESHOLD, errMsg, errCode, basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
+import { derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, webDieBudgetWarning, WEB_DIE_BUDGET, shouldMountProgressively, GALLERY_PROGRESSIVE_DIE_THRESHOLD, errMsg, errCode, basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -137,6 +137,25 @@ describe('toWmapTestDefs', () => {
     expect(r.limitHigh).toBe(1.2);
     expect(r.unit).toBe('V');
     expect(r.name).toBe('Vt');
+  });
+
+  it('passes spec limits through separately from test limits', () => {
+    const defs: Record<string, TestDef> = {
+      '5': { name: 'Vt', testType: 'P', loLimit: 0.5, hiLimit: 1.2, loSpec: 0.4, hiSpec: 1.3 },
+    };
+    const [r] = toWmapTestDefs(defs);
+    expect(r.limitLow).toBe(0.5);
+    expect(r.specLow).toBe(0.4);
+    expect(r.specHigh).toBe(1.3);
+  });
+
+  it('passes the file\'s limit-equality rule through', () => {
+    const defs: Record<string, TestDef> = {
+      '5': { name: 'Vt', testType: 'P', loLimit: 0.5, hiLimit: 1.2, loLimitInclusive: false },
+    };
+    const [r] = toWmapTestDefs(defs);
+    expect(r.limitLowInclusive).toBe(false);
+    expect(r.limitHighInclusive).toBeUndefined();
   });
 
   it('handles missing optional fields', () => {
@@ -1057,5 +1076,48 @@ describe('shouldMountProgressively', () => {
     expect(shouldMountProgressively(Array(50).fill(8000))).toBe(true);   // 400k dies, 22.6 s blocking
     expect(shouldMountProgressively(Array(50).fill(4000))).toBe(true);   // the 143 MB sweep fixture
     expect(shouldMountProgressively([300, 300, 300])).toBe(false);       // an ordinary small lot
+  });
+});
+
+// ── Derived tests and sweeps against a new lot ───────────────────────────────
+
+describe('derivedNoneBuilt', () => {
+  const P = (n: number, extra: object = {}) => ({ testNumber: n, name: `T${n}`, ...extra });
+
+  it('is true only when none of the requested derived tests was built on any wafer', () => {
+    expect(derivedNoneBuilt([{ testDefs: [P(1), P(900, { derived: true })] }], [900, 901])).toBe(false);
+    expect(derivedNoneBuilt([{ testDefs: [P(1)] }], [900, 901])).toBe(true);
+    expect(derivedNoneBuilt([{ testDefs: [P(1)] }], [])).toBe(false);
+  });
+
+  it('does not count a measured test that shares a derived test\'s number', () => {
+    expect(derivedNoneBuilt([{ testDefs: [P(900)] }], [900])).toBe(true);
+  });
+});
+
+describe('definitionsAnchorMismatch', () => {
+  const lot = (defs: Array<[number, string]>, program?: string) =>
+    [{ testDefs: defs.map(([testNumber, name]) => ({ testNumber, name })), metadata: program ? { testProgram: program } : null }];
+  const anchor = definitionsAnchorOf(lot([[3000, 'I_reset_0'], [3001, 'I_reset_1'], [5, 'Vdd']], 'RRAM_T1'));
+
+  it('is quiet for the same program, whatever other tests the lot has', () => {
+    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'i_reset_0 '], [7, 'New']], 'RRAM_T1'))).toBeNull();
+  });
+
+  it('names test numbers that now mean different tests', () => {
+    const m = definitionsAnchorMismatch(anchor, lot([[3000, 'Vth_n'], [3001, 'I_reset_1']]));
+    expect(m?.renamed).toEqual([{ testNumber: 3000, was: 'I_reset_0', now: 'Vth_n' }]);
+    expect(m?.program).toBeUndefined();
+  });
+
+  it('reports a different program only when both lots state one', () => {
+    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'I_reset_0']], 'LOGIC_A'))?.program)
+      .toEqual({ was: 'RRAM_T1', now: 'LOGIC_A' });
+    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'I_reset_0']]))).toBeNull();
+  });
+
+  it('ignores derived tests and unnamed tests', () => {
+    const a = definitionsAnchorOf([{ testDefs: [{ testNumber: 900, name: 'D', derived: true }, { testNumber: 8, name: '' }], metadata: null }]);
+    expect(a.names.size).toBe(0);
   });
 });

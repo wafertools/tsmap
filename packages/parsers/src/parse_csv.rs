@@ -182,6 +182,10 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                     hi_limit: None,
                     units: None,
                     order: Some(i as u32),
+                    lo_spec: None,
+                    hi_spec: None,
+                    lo_limit_inclusive: None,
+                    hi_limit_inclusive: None,
                 },
             )
         })
@@ -281,6 +285,10 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
                     order: Some(order),
+                    lo_spec: None,
+                    hi_spec: None,
+                    lo_limit_inclusive: None,
+                    hi_limit_inclusive: None,
                 });
                 n
             });
@@ -545,7 +553,22 @@ mod tests {
         let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
         let w = &result.wafers[0];
         assert_eq!(w.part_count, Some(3));
-        assert_eq!(w.good_count, Some(3));
+        assert_eq!(w.good_count, None, "no pass bins: which dies are good is unknown");
+        assert_eq!(w.fail_count, None);
+        assert!(w.wafer_id_placeholder, "no wafer column: W1 is a placeholder");
+    }
+
+    #[test]
+    fn good_count_uses_hard_bins_only() {
+        // Pass bins are hard-bin numbers: a soft bin of 1 on a hard-bin-2 die is a fail.
+        let csv = "x,y,hb,sb\n0,0,1,1\n1,0,2,1\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.hbin = Some("hb".to_string());
+        m.sbin = Some("sb".to_string());
+        m.pass_bins = vec![1];
+        let w = &parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap().wafers[0];
+        assert_eq!((w.good_count, w.fail_count), (Some(1), Some(1)));
     }
 
     #[test]

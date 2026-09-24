@@ -89,6 +89,10 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                     hi_limit: None,
                     units: None,
                     order: Some(i as u32),
+                    lo_spec: None,
+                    hi_spec: None,
+                    lo_limit_inclusive: None,
+                    hi_limit_inclusive: None,
                 },
             )
         })
@@ -172,6 +176,10 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
                     order: Some(order),
+                    lo_spec: None,
+                    hi_spec: None,
+                    lo_limit_inclusive: None,
+                    hi_limit_inclusive: None,
                 });
                 n
             });
@@ -540,7 +548,7 @@ mod tests {
         let result = parse_json_sync(path.to_str().unwrap().to_string(), basic_mapping("x", "y")).unwrap();
         let w = &result.wafers[0];
         assert_eq!(w.part_count, Some(3));
-        assert_eq!(w.good_count, Some(3));
+        assert_eq!(w.good_count, None, "no pass bins: which dies are good is unknown");
     }
 
     #[test]

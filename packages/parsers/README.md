@@ -157,6 +157,7 @@ interface ParsedStdf {
 
 interface WaferData {
   waferId: string;
+  waferIdPlaceholder?: boolean; // true when the file gave the wafer no ID (waferId is W1, W2…)
   results: DieResult[];
   partCount?: number;
   goodCount?: number;
@@ -171,7 +172,8 @@ interface DieResult {
   hbin?: number;
   sbin?: number;
   siteNum?: number;
-  partId?: number;
+  partId?: string;     // STDF/ATDF PART_ID as text; data, not an identifier
+  supersedes?: 'partId' | 'position'; // the tester marked this record as replacing an earlier one
   testValues?: Record<string, number>;  // keyed by test number as a string
   testPass?: Record<string, boolean>;   // recorded verdicts, true = pass; see below
 }
@@ -181,6 +183,10 @@ interface TestDef {
   testType: string; // "P" (parametric) or "F" (functional)
   loLimit?: number;
   hiLimit?: number;
+  loSpec?: number;     // specification limits (STDF LO_SPEC/HI_SPEC), separate from the test limits
+  hiSpec?: number;
+  loLimitInclusive?: boolean; // false: a result equal to the low test limit fails (STDF PARM_FLG bit 6 clear, ATDF "L")
+  hiLimitInclusive?: boolean; // the same for the high test limit (PARM_FLG bit 7, ATDF "H"); absent = equal passes
   units?: string;
   order?: number; // display order, independent of the key — see below
 }
@@ -215,6 +221,9 @@ type ParserWarningCode =
   | 'bin-invalid'               // a bin outside STDF's 0–32767, or a missing hard bin
   | 'coordinate-invalid'        // an X/Y outside STDF's -32767..32767
   | 'result-unusable'           // results the tester flagged unusable (value left out, verdict kept)
+  | 'records-not-read'          // records this parser does not read yet (MPR)
+  | 'wafer-end-missing'         // a wafer had no WRR; closed at the next wafer or end of file
+  | 'file-truncated'            // the file ends part-way through a record
   | 'record-malformed'          // a PRR too short to hold its required fields
   | 'values-not-numeric'        // a mapped column held values that would not coerce
   | 'retests-assumed'           // repeated positions read as retests
@@ -253,7 +262,7 @@ an empty array, which asserts that nothing passes.
 **`warnings` carries a stable `code`, prose, and a severity** — branch on the code, display
 the message, and never match on the prose. `severity: 'error'` means a number or a plot
 built from this result can mislead, because data was dropped or a value was substituted
-(`unpositioned-dies`, `bin-invalid`, `coordinate-invalid`, `record-malformed`, `values-not-numeric`); `'warning'` means the
+(`unpositioned-dies`, `bin-invalid`, `coordinate-invalid`, `record-malformed`, `records-not-read`, `values-not-numeric`); `'warning'` means the
 parse applied a documented rule or interpretation — one you may want to change, or, like
 `result-unusable`, the spec's own rule for leaving out values the tester flagged — and the
 result means what the file says. Nothing here is fatal — the parse succeeded. Surface them: a silently discarded
