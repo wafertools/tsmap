@@ -108,9 +108,7 @@ fn decode_wrr(b: &[u8], o: ByteOrder) -> WrrData {
 
 /// WCR record body (2·30), per the STDF V4 table: WAFR_SIZ(R4) DIE_HT(R4) DIE_WID(R4)
 /// WF_UNITS(U1) WF_FLAT(C1) CENTER_X(I2) CENTER_Y(I2) POS_X(C1) POS_Y(C1) — 20 bytes.
-/// There is no HEAD_NUM/SITE_GRP: until 2026-09-11 this read every field 2 bytes
-/// late, expecting that prefix (see SPEC_CONFORMANCE.md). Fully fixed-width, no
-/// Cn run — unlike MIR. STDF's own missing-value
+/// There is no HEAD_NUM/SITE_GRP prefix. Fully fixed-width, no Cn run — unlike MIR. STDF's own missing-value
 /// conventions are applied before emitting (0 for R4, `SENTINEL_I2` for I2,
 /// blank for C1), so a field the tester's software never populated is
 /// omitted, not emitted as literal zero/sentinel data — the frontend treats
@@ -155,7 +153,7 @@ fn vur_fields(b: &[u8]) -> Vec<MetaField> {
 /// overwrites an earlier one. Names aren't expected to vary across those
 /// (they describe the bin, not the site), but nothing here assumes it.
 fn decode_bin_record(b: &[u8], o: ByteOrder) -> BinRecord {
-    let bin = read_u2(b, 2, o).unwrap_or(0) as u32;
+    let bin = RawField::from_opt(read_u2(b, 2, o));
     let pass = read_c1(b, 8).as_deref() == Some("P");
     let (name, _) = read_cn_str(b, 9);
     BinRecord { bin, name: nonempty(name), pass }
@@ -308,22 +306,23 @@ fn pir_head_site(b: &[u8]) -> Option<(u8, u8)> {
 struct PrrFields {
     head: u8,
     site: u8,
-    hard_bin: u16,
-    soft_bin: u16,
-    x: i16,
-    y: i16,
+    hbin: Option<u32>,
+    sbin: Option<u32>,
+    pos: Option<(i32, i32)>,
     part_id: Option<u32>,
 }
 
-fn parse_prr(b: &[u8], o: ByteOrder) -> Option<PrrFields> {
-    if b.len() < 14 { return None; }
+/// PRR with STDF V4's value rules applied (see `SpecCheck`). HEAD_NUM through
+/// HARD_BIN (7 bytes) are required; every field after that is optional and may
+/// be left off the end of the record, which makes it missing.
+fn parse_prr(b: &[u8], o: ByteOrder, spec: &mut SpecCheck) -> Option<PrrFields> {
+    if b.len() < 7 { spec.prr_malformed(); return None; }
     let head     = b[0];
     let site     = b[1];
     // b[2] = part_flg, b[3..5] = num_test
-    let hard_bin = read_u2(b, 5, o)?;
-    let soft_bin = read_u2(b, 7, o).unwrap_or(hard_bin);
-    let x        = read_i2(b, 9, o).unwrap_or(SENTINEL_I2);
-    let y        = read_i2(b, 11, o).unwrap_or(SENTINEL_I2);
+    let hbin = spec.hard_bin(RawField::from_opt(read_u2(b, 5, o)));
+    let sbin = spec.soft_bin(RawField::from_opt(read_u2(b, 7, o)));
+    let pos  = spec.position(RawField::from_opt(read_i2(b, 9, o)), RawField::from_opt(read_i2(b, 11, o)));
     // test_t is 4 bytes at 13..17, then part_id as Cn at 17
     let part_id  = if b.len() > 17 {
         let (s, _) = read_cn_str(b, 17);
@@ -331,7 +330,7 @@ fn parse_prr(b: &[u8], o: ByteOrder) -> Option<PrrFields> {
     } else {
         None
     };
-    Some(PrrFields { head, site, hard_bin, soft_bin, x, y, part_id })
+    Some(PrrFields { head, site, hbin, sbin, pos, part_id })
 }
 
 // ── PTR/FTR fast path ─────────────────────────────────────────────────────────
@@ -343,7 +342,7 @@ struct PtrFast {
     test_num: u32,
     head: u8,
     site: u8,
-    failed: bool,
+    flags: ResultFlags,
     /// Recorded pass/fail verdict from TEST_FLG: `None` when bit 6 (0x40,
     /// "no pass/fail indication") is set, else `Some(bit 7 == 0)`.
     pass: Option<bool>,
@@ -357,6 +356,14 @@ fn test_flg_pass(flg: u8) -> Option<bool> {
     if flg & 0x40 != 0 { None } else { Some(flg & 0x80 == 0) }
 }
 
+/// One PTR's contribution to its die: the value only when the tester marks it
+/// usable, the verdict unless the test was not executed.
+#[inline(always)]
+fn record_ptr(accum: &mut SiteAccum, idx: usize, ptr: &PtrFast, spec: &mut SpecCheck) {
+    if let Some(v) = spec.result(ptr.flags, ptr.result as f64) { accum.set(idx, v as f32); }
+    if let Some(p) = ptr.flags.verdict(ptr.pass) { accum.set_pass(idx, p); }
+}
+
 #[inline(always)]
 fn parse_ptr_fast(b: &[u8], o: ByteOrder) -> Option<PtrFast> {
     if b.len() < 12 { return None; }
@@ -364,7 +371,7 @@ fn parse_ptr_fast(b: &[u8], o: ByteOrder) -> Option<PtrFast> {
         test_num: read_u4(b, 0, o)?,
         head:     b[4],
         site:     b[5],
-        failed:   b[6] & 0x80 != 0,
+        flags:    ResultFlags::from_stdf(b[6], b[7]),
         pass:     test_flg_pass(b[6]),
         result:   read_f32(b, 8, o)?,
     })
@@ -425,15 +432,16 @@ fn ptr_limits_explicitly_absent(b: &[u8]) -> bool {
 }
 
 // FTR layout: [0..4] test_num, [4] head, [5] site, [6] test_flg
-// The returned verdict is `None` when TEST_FLG bit 6 marks it invalid — the
-// caller records nothing then (never a fabricated fail).
+// The returned verdict is `None` when TEST_FLG bit 6 marks it invalid or bit 4
+// says the test was not executed — the caller records nothing then (never a
+// fabricated fail).
 #[inline(always)]
 fn parse_ftr_fast(b: &[u8], o: ByteOrder) -> Option<(u32, u8, u8, Option<bool>)> {
     if b.len() < 7 { return None; }
     let test_num = read_u4(b, 0, o)?;
     let head = b[4];
     let site = b[5];
-    Some((test_num, head, site, test_flg_pass(b[6])))
+    Some((test_num, head, site, ResultFlags::from_stdf(b[6], 0).verdict(test_flg_pass(b[6]))))
 }
 
 // FTR TEST_TXT is deep in the record after many fixed + variable-length fields.
@@ -585,7 +593,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
     // test_nums whose limits are fully resolved (both lo+hi found, or opt_flag confirms absent)
     let mut limits_resolved: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut wafers: Vec<WaferData> = Vec::new();
-    let mut soft_bin_fabricated: usize = 0;
+    let mut spec = SpecCheck::default();
     let mut current_wafer: Option<WaferData> = None;
     // Per-wafer PRR-encounter ordinal — reset on each WIR, used as die_index
     // for a die that has no reported x/y (SENTINEL_I2 on either), so it still
@@ -647,13 +655,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
 
                 if let Some(accum) = site_accums.get_mut(&key) {
                     let idx = test_index.get_or_insert(ptr.test_num);
-                    let value = if ptr.failed && ptr.result == 0.0 {
-                        f32::NAN
-                    } else {
-                        ptr.result
-                    };
-                    accum.set(idx, value);
-                    if let Some(p) = ptr.pass { accum.set_pass(idx, p); }
+                    record_ptr(accum, idx, &ptr, &mut spec);
                 }
             }
 
@@ -701,12 +703,11 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
 
             // ── PRR ──────────────────────────────────────────────────────────
             (5, 20) => {
-                let Some(prr) = parse_prr(b, order) else { continue };
+                let Some(prr) = parse_prr(b, order, &mut spec) else { continue };
                 let key = (prr.head, prr.site);
-                // SENTINEL_I2 on X or Y is STDF's documented "no position
-                // reported" marker — real data, not a parse failure, so the
-                // die is kept (with x/y: None) rather than dropped.
-                let unpositioned = prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2;
+                // A missing X/Y (-32768) is real data, not a parse failure, so
+                // the die is kept unpositioned rather than dropped.
+                let unpositioned = prr.pos.is_none();
                 let (test_values, test_pass) = if let Some(accum) = site_accums.get(&key) {
                     (accum.to_test_values(&test_index, &index_keys),
                      accum.to_test_pass(&test_index, &index_keys))
@@ -716,7 +717,6 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
                 if unpositioned {
                     site_accums.remove(&key);
                 }
-                if prr.soft_bin == 65535 { soft_bin_fabricated += 1; }
                 let die_index = if unpositioned {
                     let idx = prr_index_in_wafer;
                     prr_index_in_wafer += 1;
@@ -725,15 +725,11 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
                     None
                 };
                 let die = DieResult {
-                    x: if unpositioned { None } else { Some(prr.x as i32) },
-                    y: if unpositioned { None } else { Some(prr.y as i32) },
+                    x: prr.pos.map(|p| p.0),
+                    y: prr.pos.map(|p| p.1),
                     die_index,
-                    hbin: Some(prr.hard_bin as u32),
-                    sbin: Some(if prr.soft_bin == 65535 {
-                        prr.hard_bin as u32
-                    } else {
-                        prr.soft_bin as u32
-                    }),
+                    hbin: prr.hbin,
+                    sbin: prr.sbin,
                     site_num: Some(prr.site as u32),
                     part_id: prr.part_id,
                     test_values,
@@ -810,12 +806,16 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
             }
             (1, 40) => { // HBR
                 let hbr = decode_bin_record(b, order);
-                if let Some(name) = hbr.name { hbin_names.insert(hbr.bin, name); }
-                if hbr.pass { pass_hbins.insert(hbr.bin); }
+                if let Some(bin) = spec.bin_record(hbr.bin) {
+                    if let Some(name) = hbr.name { hbin_names.insert(bin, name); }
+                    if hbr.pass { pass_hbins.insert(bin); }
+                }
             }
             (1, 50) => { // SBR
                 let sbr = decode_bin_record(b, order);
-                if let Some(name) = sbr.name { sbin_names.insert(sbr.bin, name); }
+                if let Some(bin) = spec.bin_record(sbr.bin) {
+                    if let Some(name) = sbr.name { sbin_names.insert(bin, name); }
+                }
             }
             _ => {}
         }
@@ -827,7 +827,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
         }
     }
 
-    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
+    let mut warnings = spec.warnings();
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
@@ -918,8 +918,8 @@ pub fn parse_stdf_test_names(bytes: &[u8]) -> ParseResult<crate::types::ScanResu
     Ok(crate::types::ScanResult { test_defs, die_count: pir_count })
 }
 
-/// Fast metadata-only scan for the file-filter table (WMAP_ISSUES-adjacent
-/// feature, not test-selection related — see `crate::types::FileMeta`'s own
+/// Fast metadata-only scan for the file-filter table (not test-selection
+/// related — see `crate::types::FileMeta`'s own
 /// doc comment). Matches only MIR/SDR/WIR/WRR and otherwise relies on
 /// `RecordIter::next_record`'s existing length-prefixed skip to pass over
 /// every PTR/FTR/PIR/PRR without decoding a single one — this is the same
@@ -1004,7 +1004,7 @@ pub fn parse_stdf_from_bytes_filtered(
     let mut test_num_to_key: HashMap<u32, String> = HashMap::new();
     let mut limits_resolved: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut wafers: Vec<WaferData> = Vec::new();
-    let mut soft_bin_fabricated: usize = 0;
+    let mut spec = SpecCheck::default();
     let mut current_wafer: Option<WaferData> = None;
     let mut prr_index_in_wafer: u32 = 0;
     let mut test_index = TestIndex::new();
@@ -1060,9 +1060,7 @@ pub fn parse_stdf_from_bytes_filtered(
 
                 if let Some(accum) = site_accums.get_mut(&key) {
                     let idx = test_index.get_or_insert(ptr.test_num);
-                    let value = if ptr.failed && ptr.result == 0.0 { f32::NAN } else { ptr.result };
-                    accum.set(idx, value);
-                    if let Some(p) = ptr.pass { accum.set_pass(idx, p); }
+                    record_ptr(accum, idx, &ptr, &mut spec);
                 }
             }
 
@@ -1110,12 +1108,11 @@ pub fn parse_stdf_from_bytes_filtered(
             }
 
             (5, 20) => {
-                let Some(prr) = parse_prr(b, order) else { continue };
+                let Some(prr) = parse_prr(b, order, &mut spec) else { continue };
                 let key = (prr.head, prr.site);
-                // SENTINEL_I2 on X or Y is STDF's documented "no position
-                // reported" marker — real data, not a parse failure, so the
-                // die is kept (with x/y: None) rather than dropped.
-                let unpositioned = prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2;
+                // A missing X/Y (-32768) is real data, not a parse failure, so
+                // the die is kept unpositioned rather than dropped.
+                let unpositioned = prr.pos.is_none();
                 let (test_values, test_pass) = if let Some(accum) = site_accums.get(&key) {
                     (accum.to_test_values(&test_index, &index_keys),
                      accum.to_test_pass(&test_index, &index_keys))
@@ -1125,7 +1122,6 @@ pub fn parse_stdf_from_bytes_filtered(
                 if unpositioned {
                     site_accums.remove(&key);
                 }
-                if prr.soft_bin == 65535 { soft_bin_fabricated += 1; }
                 let die_index = if unpositioned {
                     let idx = prr_index_in_wafer;
                     prr_index_in_wafer += 1;
@@ -1134,15 +1130,11 @@ pub fn parse_stdf_from_bytes_filtered(
                     None
                 };
                 let die = DieResult {
-                    x: if unpositioned { None } else { Some(prr.x as i32) },
-                    y: if unpositioned { None } else { Some(prr.y as i32) },
+                    x: prr.pos.map(|p| p.0),
+                    y: prr.pos.map(|p| p.1),
                     die_index,
-                    hbin: Some(prr.hard_bin as u32),
-                    sbin: Some(if prr.soft_bin == 65535 {
-                        prr.hard_bin as u32
-                    } else {
-                        prr.soft_bin as u32
-                    }),
+                    hbin: prr.hbin,
+                    sbin: prr.sbin,
                     site_num: Some(prr.site as u32),
                     part_id: prr.part_id,
                     test_values,
@@ -1210,12 +1202,16 @@ pub fn parse_stdf_from_bytes_filtered(
             }
             (1, 40) => { // HBR
                 let hbr = decode_bin_record(b, order);
-                if let Some(name) = hbr.name { hbin_names.insert(hbr.bin, name); }
-                if hbr.pass { pass_hbins.insert(hbr.bin); }
+                if let Some(bin) = spec.bin_record(hbr.bin) {
+                    if let Some(name) = hbr.name { hbin_names.insert(bin, name); }
+                    if hbr.pass { pass_hbins.insert(bin); }
+                }
             }
             (1, 50) => { // SBR
                 let sbr = decode_bin_record(b, order);
-                if let Some(name) = sbr.name { sbin_names.insert(sbr.bin, name); }
+                if let Some(bin) = spec.bin_record(sbr.bin) {
+                    if let Some(name) = sbr.name { sbin_names.insert(bin, name); }
+                }
             }
             _ => {}
         }
@@ -1225,7 +1221,7 @@ pub fn parse_stdf_from_bytes_filtered(
         if !wafer.results.is_empty() { lots.push_wafer(&mut wafers, wafer); }
     }
 
-    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
+    let mut warnings = spec.warnings();
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
@@ -1263,7 +1259,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
     let mut test_num_to_key: HashMap<u32, String> = HashMap::new();
     let mut limits_resolved: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut wafers: Vec<WaferData> = Vec::new();
-    let mut soft_bin_fabricated: usize = 0;
+    let mut spec = SpecCheck::default();
     let mut current_wafer: Option<WaferData> = None;
     let mut prr_index_in_wafer: u32 = 0;
     let mut test_index = TestIndex::new();
@@ -1312,9 +1308,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
                 }
                 if let Some(accum) = site_accums.get_mut(&key) {
                     let idx = test_index.get_or_insert(ptr.test_num);
-                    let value = if ptr.failed && ptr.result == 0.0 { f32::NAN } else { ptr.result };
-                    accum.set(idx, value);
-                    if let Some(p) = ptr.pass { accum.set_pass(idx, p); }
+                    record_ptr(accum, idx, &ptr, &mut spec);
                 }
             }
             (15, 20) => {
@@ -1348,9 +1342,9 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
                 site_accums.entry(key).or_insert_with(|| SiteAccum::new(cap)).reset();
             }
             (5, 20) => {
-                let Some(prr) = parse_prr(b, order) else { continue };
+                let Some(prr) = parse_prr(b, order, &mut spec) else { continue };
                 let key = (prr.head, prr.site);
-                let unpositioned = prr.x == SENTINEL_I2 || prr.y == SENTINEL_I2;
+                let unpositioned = prr.pos.is_none();
                 let t_hmap = Instant::now();
                 let (test_values, test_pass) = if let Some(accum) = site_accums.get(&key) {
                     (accum.to_test_values(&test_index, &index_keys),
@@ -1363,7 +1357,6 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
                 }
                 p2_hashmap_ns += t_hmap.elapsed().as_nanos();
                 die_count += 1;
-                if prr.soft_bin == 65535 { soft_bin_fabricated += 1; }
                 let die_index = if unpositioned {
                     let idx = prr_index_in_wafer;
                     prr_index_in_wafer += 1;
@@ -1372,11 +1365,11 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
                     None
                 };
                 let die = DieResult {
-                    x: if unpositioned { None } else { Some(prr.x as i32) },
-                    y: if unpositioned { None } else { Some(prr.y as i32) },
+                    x: prr.pos.map(|p| p.0),
+                    y: prr.pos.map(|p| p.1),
                     die_index,
-                    hbin: Some(prr.hard_bin as u32),
-                    sbin: Some(if prr.soft_bin == 65535 { prr.hard_bin as u32 } else { prr.soft_bin as u32 }),
+                    hbin: prr.hbin,
+                    sbin: prr.sbin,
                     site_num: Some(prr.site as u32),
                     part_id: prr.part_id,
                     test_values,
@@ -1441,7 +1434,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
         test_count: test_index.len(),
     };
 
-    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
+    let mut warnings = spec.warnings();
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     // Bench-only path deliberately skips HBR/SBR (and WIR/WRR field
@@ -1462,7 +1455,6 @@ mod tests {
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_W01.stdf");
     // Generated by scripts/generate_stdf_coordinateless.py — W01 fully
     // positioned, W02 ~15% coordinate-less (mixed), W03 100% coordinate-less.
-    // See WMAP_ISSUES.md #39.
     const COORDLESS_LOT: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/COORDLESS-LOT-01.stdf");
     // Generated by scripts/generate_stdf_corner_lot.py, which writes a WCR
@@ -1745,7 +1737,7 @@ mod tests {
         assert_eq!(p.pass, Some(true));
         let f = parse_ptr_fast(&mk(0x80), ByteOrder::Little).unwrap();
         assert_eq!(f.pass, Some(false));
-        assert!(f.failed);
+        assert!(!f.flags.unusable, "a plain fail is still a usable measurement");
         let n = parse_ptr_fast(&mk(0x40), ByteOrder::Little).unwrap();
         assert_eq!(n.pass, None);
     }
@@ -2144,6 +2136,99 @@ mod tests {
             wrr.extend_from_slice(&b.cn("W01"));
             out.rec(2, 20, &wrr);
             out.buf
+        }
+
+        /// STDF V4: HARD_BIN 0–32767 required; SOFT_BIN 0–32767, 65535 missing;
+        /// fields after HARD_BIN may be left off the end of a PRR.
+        #[test]
+        fn prr_and_hbr_follow_stdf_v4_bin_rules() {
+            let order = ByteOrder::Little;
+            let b = Builder::new(order);
+            let mut out = Builder::new(order);
+            out.rec(0, 10, &[2, 4]);
+            let mut wir = vec![1, 0];
+            wir.extend_from_slice(&b.u4(0));
+            wir.extend_from_slice(&b.cn("W01"));
+            out.rec(2, 10, &wir);
+            let prr = |hard: u16, soft: Option<u16>, x: i16| {
+                let mut p = vec![1, 1, 0];
+                p.extend_from_slice(&b.u2(0));
+                p.extend_from_slice(&b.u2(hard));
+                if let Some(s) = soft {
+                    p.extend_from_slice(&b.u2(s));
+                    p.extend_from_slice(&b.i2(x));
+                    p.extend_from_slice(&b.i2(0));
+                }
+                p
+            };
+            for body in [
+                prr(1, Some(65535), 0),      // soft bin missing
+                prr(0, None, 0),             // legal: ends after HARD_BIN
+                prr(40000, Some(2), 2),      // hard bin out of range
+                vec![1, 1, 0, 0, 0],         // too short to hold HARD_BIN
+            ] {
+                out.rec(5, 10, &[1, 1]);
+                out.rec(5, 20, &body);
+            }
+            let mut hbr = vec![1, 255];
+            hbr.extend_from_slice(&b.u2(40000));
+            hbr.extend_from_slice(&b.u4(1));
+            hbr.push(b'P');
+            hbr.extend_from_slice(&b.cn("Ghost"));
+            out.rec(1, 40, &hbr);
+
+            let r = parse_stdf_from_bytes(&out.buf).unwrap();
+            let dies = &r.wafers[0].results;
+            assert_eq!(dies.len(), 3, "the too-short PRR is dropped, the rest kept");
+            assert_eq!((dies[0].hbin, dies[0].sbin), (Some(1), None), "65535 is no soft bin, never the hard bin");
+            assert_eq!((dies[1].hbin, dies[1].sbin), (Some(0), None), "bin 0 is legal; an omitted SOFT_BIN is missing");
+            assert_eq!(dies[1].x, None, "omitted X/Y are missing");
+            assert_eq!((dies[2].hbin, dies[2].sbin), (None, Some(2)), "a hard bin above 32767 is invalid");
+            assert!(r.pass_hbins.is_empty() && r.hbin_defs.is_empty(), "an HBR for bin 40000 is ignored");
+            let codes: Vec<&str> = r.warnings.iter().map(|w| w.code).collect();
+            assert!(codes.contains(&"bin-invalid") && codes.contains(&"record-malformed"), "{codes:?}");
+        }
+
+        /// STDF V4: a PTR's RESULT is used only when TEST_FLG bits 0-5 and
+        /// PARM_FLG bits 0-2 are all 0; the verdict is kept unless not executed.
+        #[test]
+        fn ptr_results_follow_the_stdf_v4_usefulness_rule() {
+            let order = ByteOrder::Little;
+            let b = Builder::new(order);
+            let mut out = Builder::new(order);
+            out.rec(0, 10, &[2, 4]);
+            out.rec(5, 10, &[1, 1]);
+            for (num, test_flg, parm_flg, result) in [
+                (1u32, 0x80u8, 0u8, 0.0f32), // failed, valid reading of zero
+                (2, 0x82, 0, 9.0),           // failed, RESULT marked invalid
+                (3, 0x00, 0x02, 4.0),        // passed, drift error
+                (4, 0x10 | 0x40, 0, 7.0),    // not executed
+                (5, 0x00, 0x08, 6.0),        // passed, value above the high limit: still usable
+            ] {
+                let mut ptr = Vec::new();
+                ptr.extend_from_slice(&b.u4(num));
+                ptr.extend_from_slice(&[1, 1, test_flg, parm_flg]);
+                ptr.extend_from_slice(&b.f32(result));
+                ptr.extend_from_slice(&b.cn("T"));
+                out.rec(15, 10, &ptr);
+            }
+            let mut prr = vec![1, 1, 0];
+            prr.extend_from_slice(&b.u2(5));
+            prr.extend_from_slice(&b.u2(1));
+            out.rec(5, 20, &prr);
+
+            let r = parse_stdf_from_bytes(&out.buf).unwrap();
+            let d = &r.wafers[0].results[0];
+            assert_eq!(d.test_values.get("1"), Some(&0.0), "a failing zero is a real reading");
+            assert_eq!(d.test_values.get("2"), None);
+            assert_eq!(d.test_pass.get("2"), Some(&false), "verdict kept without the value");
+            assert_eq!(d.test_values.get("3"), None);
+            assert_eq!(d.test_pass.get("3"), Some(&true));
+            assert_eq!(d.test_values.get("4"), None);
+            assert_eq!(d.test_pass.get("4"), None, "not executed: no verdict either");
+            assert_eq!(d.test_values.get("5"), Some(&6.0));
+            let w = r.warnings.iter().find(|w| w.code == "result-unusable").expect("result-unusable");
+            assert!(w.message.contains("2 test result(s) were flagged"), "{}", w.message);
         }
 
         #[test]

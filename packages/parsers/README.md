@@ -212,7 +212,10 @@ interface ParserWarning {
 
 type ParserWarningCode =
   | 'unpositioned-dies'         // dies with no X/Y — real data, not placeable
-  | 'soft-bin-mirrored'         // sbin was the 65535 sentinel; hbin mirrored in
+  | 'bin-invalid'               // a bin outside STDF's 0–32767, or a missing hard bin
+  | 'coordinate-invalid'        // an X/Y outside STDF's -32767..32767
+  | 'result-unusable'           // results the tester flagged unusable (value left out, verdict kept)
+  | 'record-malformed'          // a PRR too short to hold its required fields
   | 'values-not-numeric'        // a mapped column held values that would not coerce
   | 'retests-assumed'           // repeated positions read as retests
   | 'wafer-split-by-column'     // one wafer per value of a mapped column
@@ -250,9 +253,10 @@ an empty array, which asserts that nothing passes.
 **`warnings` carries a stable `code`, prose, and a severity** — branch on the code, display
 the message, and never match on the prose. `severity: 'error'` means a number or a plot
 built from this result can mislead, because data was dropped or a value was substituted
-(`unpositioned-dies`, `soft-bin-mirrored`, `values-not-numeric`); `'warning'` means the
-parse made a documented interpretation you may want to change, and nothing was altered or
-lost. Nothing here is fatal — the parse succeeded. Surface them: a silently discarded
+(`unpositioned-dies`, `bin-invalid`, `coordinate-invalid`, `record-malformed`, `values-not-numeric`); `'warning'` means the
+parse applied a documented rule or interpretation — one you may want to change, or, like
+`result-unusable`, the spec's own rule for leaving out values the tester flagged — and the
+result means what the file says. Nothing here is fatal — the parse succeeded. Surface them: a silently discarded
 warning is how a partly-wrong load looks fine.
 
 `testDefs` and `testValues` are both keyed by **test number**, not test name — test numbers are the unique identity in STDF/ATDF; names are not guaranteed unique.

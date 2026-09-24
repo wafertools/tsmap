@@ -4,6 +4,28 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [Unreleased]
+
+**Needs a `@wafertools/testdata-parser` minor bump (0.12.0) and publish before release** —
+bin and coordinate handling, and the warning codes below.
+
+### Changed
+
+- **STDF and ATDF bins and coordinates are read to the STDF V4 value rules.** Hard and soft
+  bins are 0–32767; a soft bin of 65535 is "no soft bin"; X/Y are −32767 to 32767, with
+  −32768 as "no position". A value outside these is treated as missing and reported with a
+  new `bin-invalid` or `coordinate-invalid` warning. Bin summary records (HBR/SBR) follow the
+  same bin range.
+- **Test results follow the STDF V4 usefulness rule.** A result is used only when the tester's
+  flags mark it valid (no alarm, timeout, abort, unreliable or invalid result, and no scale,
+  drift or oscillation error); otherwise the value is left out and any recorded pass/fail
+  verdict is kept, reported with a new `result-unusable` warning. A test the tester marks as
+  not executed contributes neither. The same flags are read from ATDF's alarm-flag field, and
+  an ATDF verdict of `A` (passed alternate limits) counts as a pass.
+- **Die result records that omit their optional trailing fields are read**, as the spec
+  allows. A record too short to hold a hard bin is reported with `record-malformed`.
+- The `soft-bin-mirrored` warning code is retired.
+
 ## [0.1.39] — 2026-09-23
 
 Adopts wmap **0.30.3** (derived tests, sweeps with test ranges and x values from test names,

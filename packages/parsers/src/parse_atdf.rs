@@ -6,10 +6,9 @@ use crate::error::{ParseError, ParseResult};
 
 // ── ATDF field orders ─────────────────────────────────────────────────────────
 // Taken from the ATDF specification (Teradyne, V5.00.00_flx), each checked
-// against the spec's own sample record — see packages/parsers/SPEC_CONFORMANCE.md.
+// against the spec's own sample record.
 // ATDF has its OWN field order per record; it is NOT the STDF binary order
-// (MIR, WRR and WCR all differ). Never derive a layout here from the STDF table:
-// that is how MIR, WRR and WCR were all wrong until 2026-09-11.
+// (MIR, WRR and WCR all differ). Never derive a layout here from the STDF table.
 
 // Spec sample: MIR:A3002B|80386|80386HOT|akbar|J971|8:14:59 23-JUL-1992|
 //              8:23:02 23-JUL-1992|Sandy|P|1|2B|HOT|N|3.1.2|IG900|2.4|||300|100|…
@@ -79,6 +78,7 @@ const PTR_HEAD_NUM: usize = 1;
 const PTR_SITE_NUM: usize = 2;
 const PTR_RESULT: usize = 3;
 const PTR_PASS_FAIL: usize = 4;
+const PTR_ALARM_FLAGS: usize = 5;
 const PTR_TEST_TXT: usize = 6;
 const PTR_UNITS: usize = 9;
 const PTR_LO_LIMIT: usize = 10;
@@ -88,6 +88,7 @@ const FTR_TEST_NUM: usize = 0;
 const FTR_HEAD_NUM: usize = 1;
 const FTR_SITE_NUM: usize = 2;
 const FTR_PASS_FAIL: usize = 3;
+const FTR_ALARM_FLAGS: usize = 4;
 // PIR field indices (see `PIR` array).
 const PIR_HEAD_NUM: usize = 0;
 const PIR_SITE_NUM: usize = 1;
@@ -107,6 +108,16 @@ fn site_key(head: &str, site: &str) -> u32 {
     let h: u32 = head.parse().unwrap_or(1);
     let s: u32 = site.parse().unwrap_or(1);
     (h << 16) | (s & 0xFFFF)
+}
+
+/// ATDF PTR/MPR/FTR Pass/Fail Flag: `P` passed, `A` passed alternate limits,
+/// `F` failed; blank or anything else is no verdict.
+fn atdf_verdict(flag: &str) -> Option<bool> {
+    match flag.trim() {
+        f if f.eq_ignore_ascii_case("P") || f.eq_ignore_ascii_case("A") => Some(true),
+        f if f.eq_ignore_ascii_case("F") => Some(false),
+        _ => None,
+    }
 }
 
 fn nonempty(s: &str) -> Option<String> {
@@ -251,7 +262,7 @@ fn fields_from(m: &HashMap<&str, &str>, keys: &[(&str, &str)]) -> Vec<MetaField>
 /// only the field *names* differ (HBIN_* vs SBIN_*), passed in by the caller.
 fn decode_bin_record_atdf(f: &HashMap<&str, &str>, num_key: &str, pf_key: &str, nam_key: &str) -> BinRecord {
     BinRecord {
-        bin: get(f, num_key).parse().unwrap_or(0),
+        bin: RawField::from_text(get(f, num_key)),
         name: nonempty(get(f, nam_key)),
         pass: get(f, pf_key) == "P",
     }
@@ -298,7 +309,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     // Interned once per test, cloned per die — see TestKeys.
     let mut test_keys = TestKeys::default();
     let mut pending_site: HashMap<u32, u32> = HashMap::new();
-    let mut soft_bin_fabricated: usize = 0;
+    let mut spec = SpecCheck::default();
     // Per-wafer PRR-encounter ordinal, reset on each WIR — used as die_index
     // for a die with no reported X/Y (see the PRR branch below), mirroring
     // parse_stdf.rs's identical scheme.
@@ -334,13 +345,17 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
             "HBR" => {
                 let f = field_map(HBR, &raw_fields);
                 let hbr = decode_bin_record_atdf(&f, "HBIN_NUM", "HBIN_PF", "HBIN_NAM");
-                if let Some(name) = hbr.name { hbin_names.insert(hbr.bin, name); }
-                if hbr.pass { pass_hbins.insert(hbr.bin); }
+                if let Some(bin) = spec.bin_record(hbr.bin) {
+                    if let Some(name) = hbr.name { hbin_names.insert(bin, name); }
+                    if hbr.pass { pass_hbins.insert(bin); }
+                }
             }
             "SBR" => {
                 let f = field_map(SBR, &raw_fields);
                 let sbr = decode_bin_record_atdf(&f, "SBIN_NUM", "SBIN_PF", "SBIN_NAM");
-                if let Some(name) = sbr.name { sbin_names.insert(sbr.bin, name); }
+                if let Some(bin) = spec.bin_record(sbr.bin) {
+                    if let Some(name) = sbr.name { sbin_names.insert(bin, name); }
+                }
             }
             "SDR" => {
                 // Site description → ParsedStdf.sites, matching the STDF parser
@@ -416,16 +431,17 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     });
                 }
                 if want(test_num) {
+                    let flags = ResultFlags::from_atdf(at(&raw_fields, PTR_ALARM_FLAGS));
                     if let Ok(result) = at(&raw_fields, PTR_RESULT).parse::<f64>() {
-                        if let Some(vals) = pending_values.get_mut(&key) {
-                            vals.insert(test_keys.text(test_num), result);
+                        if let Some(v) = spec.result(flags, result) {
+                            if let Some(vals) = pending_values.get_mut(&key) {
+                                vals.insert(test_keys.text(test_num), v);
+                            }
                         }
                     }
-                    // ATDF PTR field 5 is Pass/Fail Flag: "P"/"F"; blank = no indication.
-                    let pf = at(&raw_fields, PTR_PASS_FAIL);
-                    if pf.eq_ignore_ascii_case("P") || pf.eq_ignore_ascii_case("F") {
+                    if let Some(p) = flags.verdict(atdf_verdict(at(&raw_fields, PTR_PASS_FAIL))) {
                         if let Some(passes) = pending_pass.get_mut(&key) {
-                            passes.insert(test_keys.text(test_num), pf.eq_ignore_ascii_case("P"));
+                            passes.insert(test_keys.text(test_num), p);
                         }
                     }
                 }
@@ -444,37 +460,32 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     });
                 }
                 if want(test_num) {
-                    // Functional outcomes are verdicts, not values: "P"/"F" go to the
-                    // pass channel; anything else records nothing (never a fabricated fail).
-                    let pf = at(&raw_fields, FTR_PASS_FAIL);
-                    if pf.eq_ignore_ascii_case("P") || pf.eq_ignore_ascii_case("F") {
+                    // Functional outcomes are verdicts, not values: they go to the pass
+                    // channel; no verdict records nothing (never a fabricated fail).
+                    let flags = ResultFlags::from_atdf(at(&raw_fields, FTR_ALARM_FLAGS));
+                    if let Some(p) = flags.verdict(atdf_verdict(at(&raw_fields, FTR_PASS_FAIL))) {
                         if let Some(passes) = pending_pass.get_mut(&key) {
-                            passes.insert(test_keys.text(test_num), pf.eq_ignore_ascii_case("P"));
+                            passes.insert(test_keys.text(test_num), p);
                         }
                     }
                 }
             }
             "PRR" => {
-                // ATDF leaves the X/Y field blank when no position was
-                // recorded for a die — kept as a coordinate-less die rather
-                // than dropped (matching parse_stdf.rs's SENTINEL_I2
-                // handling). A die is either fully positioned or fully
-                // unpositioned; a malformed/half pair (one parses, one
-                // doesn't) is treated as unpositioned too rather than losing
-                // the whole die's test data over one bad field.
-                let x_raw: Option<i32> = at(&raw_fields, PRR_X_COORD).parse().ok();
-                let y_raw: Option<i32> = at(&raw_fields, PRR_Y_COORD).parse().ok();
-                let (x, y) = if x_raw.is_some() && y_raw.is_some() { (x_raw, y_raw) } else { (None, None) };
+                // A blank or -32768 X/Y is a die with no recorded position —
+                // kept unpositioned rather than dropped. One missing or
+                // invalid coordinate leaves the whole die unpositioned rather
+                // than losing its test data (see `SpecCheck::position`).
+                let pos = spec.position(
+                    RawField::from_text(at(&raw_fields, PRR_X_COORD)),
+                    RawField::from_text(at(&raw_fields, PRR_Y_COORD)),
+                );
+                let (x, y) = (pos.map(|p| p.0), pos.map(|p| p.1));
                 let key = site_key(at(&raw_fields, PRR_HEAD_NUM), at(&raw_fields, PRR_SITE_NUM));
                 let site_num = pending_site.remove(&key);
                 let test_values = pending_values.remove(&key).unwrap_or_default();
                 let test_pass = pending_pass.remove(&key).unwrap_or_default();
-                let hbin: Option<u32> = at(&raw_fields, PRR_HARD_BIN).parse().ok();
-                let raw_sbin: Option<u32> = at(&raw_fields, PRR_SOFT_BIN).parse().ok();
-                if raw_sbin == Some(65535) { soft_bin_fabricated += 1; }
-                let sbin: Option<u32> = raw_sbin
-                    .map(|v: u32| if v == 65535 { hbin.unwrap_or(1) } else { v })
-                    .or(hbin);
+                let hbin = spec.hard_bin(RawField::from_text(at(&raw_fields, PRR_HARD_BIN)));
+                let sbin = spec.soft_bin(RawField::from_text(at(&raw_fields, PRR_SOFT_BIN)));
                 let part_id: Option<u32> = at(&raw_fields, PRR_PART_ID).parse().ok();
                 let die_index = if x.is_none() {
                     let idx = prr_index_in_wafer;
@@ -511,7 +522,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
         }
     }
 
-    let mut warnings = soft_bin_warnings(soft_bin_fabricated);
+    let mut warnings = spec.warnings();
     warnings.extend(position_warnings(&wafers));
     let meta = lots.finish(&mut wafers, &mut warnings);
     let hbin_defs = finish_bin_defs(hbin_names);
@@ -759,6 +770,56 @@ mod tests {
     }
     fn one_wafer(id: &str, inner: &str) -> String {
         format!("{}{}{}{}{}", far(), mir_full(), wir(id), inner, wrr(id, 4, 3))
+    }
+
+    /// Same STDF V4 rules as the binary parser.
+    #[test]
+    fn prr_and_hbr_follow_stdf_v4_bin_rules() {
+        let inner = [
+            pir(1, 1), "PRR:1|1|1|4|P||65535|0|0\n".to_string(),
+            pir(1, 1), "PRR:1|1|1|4|P|0|65535|1|0\n".to_string(),
+            pir(1, 1), "PRR:1|1|1|4|P|40000|2|2|0\n".to_string(),
+            pir(1, 1), "PRR:1|1|1|4|P|3|3|-32768|5\n".to_string(),
+        ].concat();
+        let text = format!("{}HBR:1|255||5|P|Ghost\n", one_wafer("W1", &inner));
+        let r = parse_atdf_str(&text, None).unwrap();
+        let dies = &r.wafers[0].results;
+        assert_eq!((dies[0].hbin, dies[0].sbin), (None, None), "no bins in the record means no bins, never bin 1");
+        assert_eq!((dies[1].hbin, dies[1].sbin), (Some(0), None), "65535 is no soft bin, never the hard bin");
+        assert_eq!((dies[2].hbin, dies[2].sbin), (None, Some(2)), "a hard bin above 32767 is invalid");
+        assert_eq!((dies[3].x, dies[3].y), (None, None), "-32768 is STDF's missing coordinate");
+        assert!(r.pass_hbins.is_empty() && r.hbin_defs.is_empty(), "an HBR with no bin number is not bin 0");
+        let bins = r.warnings.iter().find(|w| w.code == "bin-invalid").expect("bin-invalid");
+        assert!(bins.message.contains("1 die(s) had no hard bin"), "{}", bins.message);
+        assert!(bins.message.contains("1 die(s) had a hard bin outside"), "{}", bins.message);
+        assert!(bins.message.contains("1 bin summary record(s)"), "{}", bins.message);
+        assert!(!r.warnings.iter().any(|w| w.code == "coordinate-invalid"), "missing is not invalid");
+    }
+
+    /// ATDF alarm flags carry the STDF usefulness rule; `A` is a pass.
+    #[test]
+    fn ptr_alarm_flags_and_alternate_limit_pass() {
+        let inner = [
+            pir(1, 1),
+            "PTR:1|1|1|0.0|F\n".to_string(),        // failing zero: a real reading
+            "PTR:2|1|1|3.5|P|D\n".to_string(),      // drift error: no value, verdict kept
+            "PTR:3|1|1|2.0||N\n".to_string(),       // not executed: nothing
+            "PTR:4|1|1|1.5|A\n".to_string(),        // passed alternate limits
+            "PTR:5|1|1|9.0|F|H\n".to_string(),      // above the high limit: still a reading
+            "FTR:6|1|1|P|N\n".to_string(),          // not executed: no verdict
+            prr(1, 1, 0, 0, 1, 1),
+        ].concat();
+        let r = parse_atdf_str(&one_wafer("W1", &inner), None).unwrap();
+        let d = &r.wafers[0].results[0];
+        assert_eq!(d.test_values.get("1"), Some(&0.0));
+        assert_eq!(d.test_values.get("2"), None);
+        assert_eq!(d.test_pass.get("2"), Some(&true));
+        assert_eq!(d.test_values.get("3"), None);
+        assert_eq!(d.test_pass.get("3"), None);
+        assert_eq!(d.test_pass.get("4"), Some(&true), "A is a pass");
+        assert_eq!(d.test_values.get("5"), Some(&9.0));
+        assert_eq!(d.test_pass.get("6"), None);
+        assert!(r.warnings.iter().any(|w| w.code == "result-unusable"));
     }
 
     #[test]
@@ -1198,7 +1259,7 @@ mod tests {
     fn sample_file_coordinateless_mixed_wafer() {
         // Hand-written fixture (sample_data/COORDLESS-LOT-01.atdf) — one
         // wafer, 6 positioned dies + 2 with blank PRR X/Y ("no position
-        // reported"). See WMAP_ISSUES.md #39.
+        // reported").
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/COORDLESS-LOT-01.atdf");
         let result = parse_atdf_sync(path.to_string()).unwrap();
         assert_eq!(result.wafers.len(), 1);

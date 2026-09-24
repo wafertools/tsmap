@@ -107,7 +107,10 @@ export interface WaferData {
 /** Every advisory a parse can raise. Branch on this, never on the message. */
 export type ParserWarningCode =
   | "unpositioned-dies"
-  | "soft-bin-mirrored"
+  | "bin-invalid"
+  | "coordinate-invalid"
+  | "result-unusable"
+  | "record-malformed"
   | "values-not-numeric"
   | "retests-assumed"
   | "wafer-split-by-column"

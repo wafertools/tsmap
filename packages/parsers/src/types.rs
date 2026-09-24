@@ -150,8 +150,9 @@ pub struct ParserWarning {
     pub message: String,
     /// `"error"` means a number or a plot built from this parse can mislead,
     /// because data was dropped or a value was substituted. `"warning"` means
-    /// the parse made a documented interpretation the caller may want to change,
-    /// but nothing was altered or lost. Nothing here is fatal: a `ParsedStdf`
+    /// the parse applied a documented rule or interpretation — one the caller may
+    /// want to change, or the spec's own rule for leaving out values the tester
+    /// flagged — and the result means what the file says. Nothing here is fatal: a `ParsedStdf`
     /// carrying warnings is still a successful parse.
     pub severity: &'static str,
 }
@@ -230,23 +231,206 @@ pub fn position_warnings(wafers: &[WaferData]) -> Vec<ParserWarning> {
     }).collect()
 }
 
-/// The soft-bin advisory for dies whose soft bin was the sentinel 65535 ("no
-/// soft bin") and had the hard bin mirrored in instead. Empty when nothing was
-/// fabricated, so the field stays out of the serialised output.
-///
-/// One implementation for both formats. It was two — identical prose in
-/// `parse_stdf.rs` and `parse_atdf.rs`, each with its own copy of the sentinel
-/// rule — which is precisely how a code and a message drift apart between two
-/// formats that are meant to be indistinguishable to a caller.
-///
-/// `error`: a soft-bin map drawn from this shows numbers the file never stated.
-pub fn soft_bin_warnings(fabricated: usize) -> Vec<ParserWarning> {
-    if fabricated == 0 {
-        vec![]
-    } else {
-        vec![ParserWarning::error("soft-bin-mirrored", format!(
-            "{fabricated} die(s) had no soft bin (sentinel 65535) — mirrored the hard bin"
-        ))]
+// ── STDF V4 legal values and missing-value flags ────────────────────────────
+//
+// The one copy of these rules, used by the STDF and ATDF parsers alike (ATDF is
+// STDF as text and carries the same values). From the STDF V4 spec:
+//   PRR HARD_BIN  required; legal values 0 to 32767.
+//   PRR SOFT_BIN  optional; legal values 0 to 32767; missing = 65535.
+//   PRR X_COORD, Y_COORD  optional; legal values -32767 to 32767; missing = -32768.
+//   HBR HBIN_NUM, SBR SBIN_NUM  required; legal values 0 to 32767.
+// An optional field may be left off the end of a record, and is then missing.
+//
+// A value outside these rules becomes missing and is counted in a warning. It is
+// never replaced — not by 0, not by the other bin — because a substituted bin
+// silently changes yield.
+
+pub const BIN_MAX: i64 = 32_767;
+pub const SOFT_BIN_MISSING: i64 = 65_535;
+pub const COORD_MAX: i64 = 32_767;
+pub const COORD_MISSING: i64 = -32_768;
+
+/// A numeric field as read from a record, before the spec's rules are applied.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RawField {
+    /// Not in the record (binary: off the end; ATDF: empty).
+    Absent,
+    Value(i64),
+    /// Present but not an integer (ATDF text only).
+    Unreadable,
+}
+
+impl RawField {
+    pub fn from_text(s: &str) -> Self {
+        let t = s.trim();
+        if t.is_empty() { return RawField::Absent; }
+        t.parse::<i64>().map_or(RawField::Unreadable, RawField::Value)
+    }
+
+    pub fn from_opt<T: Into<i64>>(v: Option<T>) -> Self {
+        v.map_or(RawField::Absent, |v| RawField::Value(v.into()))
+    }
+}
+
+/// What the tester says about one test execution's result. STDF V4 (PTR): RESULT
+/// "is considered useful only if" TEST_FLG bits 0–5 (alarm, result invalid,
+/// unreliable, timeout, not executed, aborted) and PARM_FLG bits 0–2 (scale,
+/// drift, oscillation error) are all 0. ATDF carries the same flags as letters.
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+pub struct ResultFlags {
+    /// TEST_FLG bit 4 / ATDF `N`: no result and no verdict.
+    pub not_executed: bool,
+    /// Any flag that makes the measured value unusable.
+    pub unusable: bool,
+}
+
+impl ResultFlags {
+    pub fn from_stdf(test_flg: u8, parm_flg: u8) -> Self {
+        Self {
+            not_executed: test_flg & 0x10 != 0,
+            unusable: test_flg & 0x3F != 0 || parm_flg & 0x07 != 0,
+        }
+    }
+
+    /// ATDF "Alarm Flags": `A` alarm, `U` unreliable, `T` timeout, `N` not
+    /// executed, `X` aborted (TEST_FLG), `S` scale, `D` drift, `O` oscillation
+    /// (PARM_FLG). `H`/`L` only say which limit a value is beyond, so they do not
+    /// make it unusable.
+    pub fn from_atdf(alarm_flags: &str) -> Self {
+        let has = |c: char| alarm_flags.chars().any(|f| f.eq_ignore_ascii_case(&c));
+        Self {
+            not_executed: has('N'),
+            unusable: ['A', 'U', 'T', 'N', 'X', 'S', 'D', 'O'].iter().any(|&c| has(c)),
+        }
+    }
+
+    /// The recorded verdict, unless the test was not executed.
+    pub fn verdict(self, pass: Option<bool>) -> Option<bool> {
+        if self.not_executed { None } else { pass }
+    }
+}
+
+fn legal_coord(v: i64) -> bool { (-COORD_MAX..=COORD_MAX).contains(&v) }
+fn legal_bin(v: i64) -> bool { (0..=BIN_MAX).contains(&v) }
+
+/// Applies the rules above and counts every value it had to discard.
+#[derive(Default, Debug)]
+pub struct SpecCheck {
+    hard_bin_missing: usize,
+    hard_bin_invalid: usize,
+    soft_bin_invalid: usize,
+    bin_record_invalid: usize,
+    coord_invalid: usize,
+    prr_malformed: usize,
+    result_flagged: usize,
+    result_not_finite: usize,
+}
+
+impl SpecCheck {
+    pub fn hard_bin(&mut self, raw: RawField) -> Option<u32> {
+        match raw {
+            RawField::Value(v) if legal_bin(v) => Some(v as u32),
+            RawField::Absent => { self.hard_bin_missing += 1; None }
+            _ => { self.hard_bin_invalid += 1; None }
+        }
+    }
+
+    pub fn soft_bin(&mut self, raw: RawField) -> Option<u32> {
+        match raw {
+            RawField::Value(v) if legal_bin(v) => Some(v as u32),
+            RawField::Absent | RawField::Value(SOFT_BIN_MISSING) => None,
+            _ => { self.soft_bin_invalid += 1; None }
+        }
+    }
+
+    /// HBR/SBR bin number. `None` means the record is skipped.
+    pub fn bin_record(&mut self, raw: RawField) -> Option<u32> {
+        match raw {
+            RawField::Value(v) if legal_bin(v) => Some(v as u32),
+            _ => { self.bin_record_invalid += 1; None }
+        }
+    }
+
+    /// A die is positioned only when both coordinates are legal values; one
+    /// missing or invalid coordinate leaves the die unpositioned, never half.
+    pub fn position(&mut self, x: RawField, y: RawField) -> Option<(i32, i32)> {
+        let x = self.coord(x);
+        let y = self.coord(y);
+        x.zip(y)
+    }
+
+    fn coord(&mut self, raw: RawField) -> Option<i32> {
+        match raw {
+            RawField::Value(v) if legal_coord(v) => Some(v as i32),
+            RawField::Absent | RawField::Value(COORD_MISSING) => None,
+            _ => { self.coord_invalid += 1; None }
+        }
+    }
+
+    /// A PRR too short to hold its required fields; the die is dropped.
+    pub fn prr_malformed(&mut self) { self.prr_malformed += 1; }
+
+    /// A measured value, or `None` when there is no usable one. A test that was
+    /// not executed is simply absent and is not counted.
+    pub fn result(&mut self, flags: ResultFlags, value: f64) -> Option<f64> {
+        if flags.not_executed { return None; }
+        if flags.unusable { self.result_flagged += 1; return None; }
+        if !value.is_finite() { self.result_not_finite += 1; return None; }
+        Some(value)
+    }
+
+    /// `error` throughout: each one means a value was dropped.
+    pub fn warnings(&self) -> Vec<ParserWarning> {
+        let mut out = vec![];
+        let mut bins = vec![];
+        if self.hard_bin_missing > 0 {
+            bins.push(format!("{} die(s) had no hard bin, which STDF requires", self.hard_bin_missing));
+        }
+        if self.hard_bin_invalid > 0 {
+            bins.push(format!("{} die(s) had a hard bin outside 0–32767", self.hard_bin_invalid));
+        }
+        if self.soft_bin_invalid > 0 {
+            bins.push(format!("{} die(s) had a soft bin outside 0–32767 that was not the missing value 65535", self.soft_bin_invalid));
+        }
+        if self.bin_record_invalid > 0 {
+            bins.push(format!("{} bin summary record(s) (HBR/SBR) had a bin number outside 0–32767 and were ignored", self.bin_record_invalid));
+        }
+        if !bins.is_empty() {
+            out.push(ParserWarning::error("bin-invalid", format!(
+                "{}. Those bins are treated as missing, so the dies show as no bin and do not count as pass or fail.",
+                bins.join("; ")
+            )));
+        }
+        if self.coord_invalid > 0 {
+            out.push(ParserWarning::error("coordinate-invalid", format!(
+                "{} die coordinate(s) were outside -32767 to 32767; those dies are treated as having no position.",
+                self.coord_invalid
+            )));
+        }
+        let mut results = vec![];
+        if self.result_flagged > 0 {
+            results.push(format!(
+                "{} test result(s) were flagged by the tester as unusable (alarm, timeout, abort, \
+                 unreliable, invalid, or a scale, drift or oscillation error)",
+                self.result_flagged
+            ));
+        }
+        if self.result_not_finite > 0 {
+            results.push(format!("{} test result(s) were not finite numbers", self.result_not_finite));
+        }
+        if !results.is_empty() {
+            out.push(ParserWarning::warning("result-unusable", format!(
+                "{}. Those values are left out; any pass/fail verdict the tester recorded is kept.",
+                results.join("; ")
+            )));
+        }
+        if self.prr_malformed > 0 {
+            out.push(ParserWarning::error("record-malformed", format!(
+                "{} part result record(s) (PRR) were too short to hold a hard bin and were dropped.",
+                self.prr_malformed
+            )));
+        }
+        out
     }
 }
 
@@ -476,7 +660,8 @@ pub fn finish_bin_defs(names: HashMap<u32, String>) -> Vec<BinDef> {
 /// keep their own decode functions since the extraction mechanics genuinely
 /// differ, but produce this same triple.
 pub struct BinRecord {
-    pub bin: u32,
+    /// Unchecked — pass it through `SpecCheck::bin_record` before use.
+    pub bin: RawField,
     pub name: Option<String>,
     pub pass: bool,
 }
@@ -566,9 +751,18 @@ mod tests {
             part_count: None, good_count: None, fail_count: None, fields: vec![],
         };
 
+        let mut invalid = SpecCheck::default();
+        invalid.hard_bin(RawField::Value(40_000));
+        invalid.position(RawField::Value(40_000), RawField::Value(0));
+        invalid.prr_malformed();
+        invalid.result(ResultFlags { not_executed: false, unusable: true }, 1.0);
+
         let all: Vec<ParserWarning> = vec![
             position_warnings(&[wafer("W01", false)]).remove(0),
-            soft_bin_warnings(3).remove(0),
+            invalid.warnings()[0].clone(),
+            invalid.warnings()[1].clone(),
+            invalid.warnings()[2].clone(),
+            invalid.warnings()[3].clone(),
             value_not_numeric_warning("Vdd", 7),
             retests_assumed_warning("Wafer W01", 4),
             wafer_split_warning("Wafer W01", "temp", &["25".into(), "85".into()]),
@@ -580,7 +774,10 @@ mod tests {
         // mislead, because data was dropped or a value was substituted".
         let expected = [
             ("unpositioned-dies",           "error"),
-            ("soft-bin-mirrored",           "error"),
+            ("bin-invalid",                 "error"),
+            ("coordinate-invalid",          "error"),
+            ("result-unusable",             "warning"),
+            ("record-malformed",            "error"),
             ("values-not-numeric",          "error"),
             ("retests-assumed",             "warning"),
             ("wafer-split-by-column",       "warning"),
@@ -608,22 +805,98 @@ mod tests {
     }
 
     #[test]
-    fn soft_bin_warning_is_one_implementation_for_both_formats() {
-        // It was two — the same prose duplicated in parse_stdf.rs and
-        // parse_atdf.rs. A caller cannot tell STDF from ATDF by design, so the
-        // advisory for an identical situation must be identical, and the only
-        // way to guarantee that is for there to be one of it.
-        assert!(soft_bin_warnings(0).is_empty(), "nothing fabricated means no warning at all");
-        let w = soft_bin_warnings(5);
+    fn bins_follow_the_stdf_v4_ranges_and_missing_values() {
+        let mut c = SpecCheck::default();
+        assert_eq!(c.hard_bin(RawField::Value(0)), Some(0), "bin 0 is legal");
+        assert_eq!(c.hard_bin(RawField::Value(32_767)), Some(32_767));
+        assert_eq!(c.soft_bin(RawField::Value(0)), Some(0));
+        assert_eq!(c.soft_bin(RawField::Value(65_535)), None, "65535 is SOFT_BIN's missing value");
+        assert_eq!(c.soft_bin(RawField::Absent), None, "an omitted trailing SOFT_BIN is missing");
+        assert!(c.warnings().is_empty(), "every value so far is legal: {:?}", c.warnings());
+
+        assert_eq!(c.hard_bin(RawField::Value(32_768)), None);
+        assert_eq!(c.hard_bin(RawField::Value(65_535)), None, "HARD_BIN has no missing value; 65535 is invalid");
+        assert_eq!(c.hard_bin(RawField::Absent), None);
+        assert_eq!(c.hard_bin(RawField::Unreadable), None);
+        assert_eq!(c.soft_bin(RawField::Value(40_000)), None);
+        assert_eq!(c.soft_bin(RawField::Value(-1)), None);
+        assert_eq!(c.bin_record(RawField::Value(32_768)), None);
+        assert_eq!(c.bin_record(RawField::Absent), None, "a bin record with no number is skipped, not bin 0");
+
+        let w = c.warnings();
         assert_eq!(w.len(), 1);
-        assert_eq!(w[0].code, "soft-bin-mirrored");
-        assert!(w[0].message.contains('5'), "the count belongs in the message: {}", w[0].message);
+        assert_eq!(w[0].code, "bin-invalid");
+        assert!(w[0].message.contains("1 die(s) had no hard bin"), "{}", w[0].message);
+        assert!(w[0].message.contains("3 die(s) had a hard bin outside"), "{}", w[0].message);
+        assert!(w[0].message.contains("2 die(s) had a soft bin outside"), "{}", w[0].message);
+        assert!(w[0].message.contains("2 bin summary record(s)"), "{}", w[0].message);
+    }
+
+    #[test]
+    fn coordinates_follow_the_stdf_v4_range_and_missing_value() {
+        let mut c = SpecCheck::default();
+        assert_eq!(c.position(RawField::Value(-32_767), RawField::Value(32_767)), Some((-32_767, 32_767)));
+        assert_eq!(c.position(RawField::Value(COORD_MISSING), RawField::Value(3)), None, "-32768 is missing");
+        assert_eq!(c.position(RawField::Absent, RawField::Absent), None);
+        assert!(c.warnings().is_empty(), "missing is not invalid: {:?}", c.warnings());
+        assert_eq!(c.position(RawField::Value(40_000), RawField::Value(3)), None);
+        assert_eq!(c.warnings()[0].code, "coordinate-invalid");
+    }
+
+    #[test]
+    fn result_flags_follow_the_stdf_v4_usefulness_rule() {
+        // TEST_FLG bits 0-5 and PARM_FLG bits 0-2 each make RESULT unusable.
+        for bit in 0..6 {
+            assert!(ResultFlags::from_stdf(1 << bit, 0).unusable, "TEST_FLG bit {bit}");
+        }
+        for bit in 0..3 {
+            assert!(ResultFlags::from_stdf(0, 1 << bit).unusable, "PARM_FLG bit {bit}");
+        }
+        // Bits 6-7 are the verdict; PARM_FLG 3-7 describe the value, not its validity.
+        assert!(!ResultFlags::from_stdf(0xC0, 0xF8).unusable);
+        assert!(ResultFlags::from_stdf(0x10, 0).not_executed);
+
+        for c in ["A", "U", "T", "N", "X", "S", "D", "O", "ad"] {
+            assert!(ResultFlags::from_atdf(c).unusable, "ATDF alarm flag {c}");
+        }
+        for c in ["", "H", "L", "HL"] {
+            assert!(!ResultFlags::from_atdf(c).unusable, "ATDF flag {c:?} is not an alarm");
+        }
+        assert!(ResultFlags::from_atdf("N").not_executed);
+
+        let mut c = SpecCheck::default();
+        let ok = ResultFlags::default();
+        assert_eq!(c.result(ok, 0.0), Some(0.0), "a zero reading is a reading");
+        assert_eq!(c.result(ResultFlags { not_executed: true, unusable: true }, 1.0), None);
+        assert!(c.warnings().is_empty(), "a test that was not executed is not reported");
+        assert_eq!(c.result(ResultFlags { not_executed: false, unusable: true }, 1.0), None);
+        assert_eq!(c.result(ok, f64::NAN), None);
+        assert_eq!(c.result(ok, f64::INFINITY), None);
+        let w = c.warnings();
+        assert_eq!(w[0].code, "result-unusable");
+        assert!(w[0].message.contains("1 test result(s) were flagged"), "{}", w[0].message);
+        assert!(w[0].message.contains("2 test result(s) were not finite"), "{}", w[0].message);
+
+        assert_eq!(ResultFlags { not_executed: true, unusable: true }.verdict(Some(false)), None);
+        assert_eq!(ResultFlags { not_executed: false, unusable: true }.verdict(Some(false)), Some(false),
+            "an unusable value still keeps its verdict");
+    }
+
+    #[test]
+    fn raw_field_from_atdf_text() {
+        assert_eq!(RawField::from_text(""), RawField::Absent);
+        assert_eq!(RawField::from_text("  "), RawField::Absent);
+        assert_eq!(RawField::from_text("7"), RawField::Value(7));
+        assert_eq!(RawField::from_text("-32768"), RawField::Value(-32_768));
+        assert_eq!(RawField::from_text("seven"), RawField::Unreadable);
     }
 
     #[test]
     fn warning_serialises_as_code_message_severity() {
-        let json = serde_json::to_string(&soft_bin_warnings(1)[0]).unwrap();
-        assert!(json.contains("\"code\":\"soft-bin-mirrored\""), "{json}");
+        let mut c = SpecCheck::default();
+        c.hard_bin(RawField::Absent);
+        let json = serde_json::to_string(&c.warnings()[0]).unwrap();
+        assert!(json.contains("\"code\":\"bin-invalid\""), "{json}");
         assert!(json.contains("\"severity\":\"error\""), "{json}");
         assert!(json.contains("\"message\":"), "{json}");
     }
