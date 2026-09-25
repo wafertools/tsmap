@@ -36,6 +36,15 @@ fn field_kind(f: &Field) -> &'static str {
     }
 }
 
+/// No value in the cell: a Parquet null, or text that is empty or only spaces.
+fn is_blank(f: &Field) -> bool {
+    match f {
+        Field::Null => true,
+        Field::Str(s) => s.trim().is_empty(),
+        _ => false,
+    }
+}
+
 /// Coerce a typed Parquet field to `f64` for a numeric role (x/y/bins/site/test
 /// value). Numeric-looking strings still parse (mirrors CSV/JSON's own
 /// string-typed leniency); anything else fails.
@@ -306,6 +315,9 @@ fn row_fields(row: &Row) -> Vec<&Field> {
 /// one per row.
 fn coerce_role_f64(field: Option<&Field>, role_key: &str, mismatches: &mut HashMap<String, u32>) -> Option<f64> {
     let f = field?;
+    // A null, or a blank text cell, is no value — as an empty CSV/JSON cell is —
+    // not a value that failed to coerce.
+    if is_blank(f) { return None; }
     if let Some(v) = field_to_f64(f) {
         return Some(v);
     }
@@ -316,10 +328,17 @@ fn coerce_role_f64(field: Option<&Field>, role_key: &str, mismatches: &mut HashM
 }
 
 /// A whole number from a numeric role, or `None` — never truncated or clamped.
-/// 2.7, −1 for an unsigned role, NaN and out-of-range values are not bins, sites
-/// or coordinates; they are counted with the role's other unusable values.
+/// 2.7, NaN and true/false are not bins, sites or coordinates; they are counted with the
+/// role's other unusable values. STDF's ranges are applied later, for every flat
+/// format alike (`flat_wafers::into_parsed`).
 fn coerce_role_whole<T: TryFrom<i64>>(field: Option<&Field>, role_key: &str,
                                       mismatches: &mut HashMap<String, u32>) -> Option<T> {
+    // true/false is not a bin, a site or a position: read as 1/0 it would put
+    // every die at one of two coordinates, or in bin 1 or 0.
+    if let Some(Field::Bool(_)) = field {
+        *mismatches.entry(role_key.to_string()).or_insert(0) += 1;
+        return None;
+    }
     let v = coerce_role_f64(field, role_key, mismatches)?;
     let whole = (v.is_finite() && v.fract() == 0.0 && v.abs() < 9.0e15)
         .then(|| T::try_from(v as i64).ok())
@@ -382,13 +401,13 @@ fn parse_wide_format(
         for (t, key, i) in &test_i {
             if let Some(v) = coerce_role_f64(cell(*i), key, &mut mismatches) { tests.push((*t, v)); }
         }
-        let hbin = coerce_role_whole::<u32>(hbin_i.and_then(cell), "hbin", &mut mismatches);
-        let sbin = coerce_role_whole::<u32>(sbin_i.and_then(cell), "sbin", &mut mismatches);
-        let site_num = coerce_role_whole::<u32>(site_i.and_then(cell), "site", &mut mismatches);
+        let hbin = coerce_role_whole::<i64>(hbin_i.and_then(cell), "hbin", &mut mismatches);
+        let sbin = coerce_role_whole::<i64>(sbin_i.and_then(cell), "sbin", &mut mismatches);
+        let site_num = coerce_role_whole::<i64>(site_i.and_then(cell), "site", &mut mismatches);
         // No x/y column mapped, or a cell that is not a whole number: the die is
         // kept, coordinate-less, rather than dropped or moved.
-        let x = coerce_role_whole::<i32>(x_i.and_then(cell), "x", &mut mismatches);
-        let y = coerce_role_whole::<i32>(y_i.and_then(cell), "y", &mut mismatches);
+        let x = coerce_role_whole::<i64>(x_i.and_then(cell), "x", &mut mismatches);
+        let y = coerce_role_whole::<i64>(y_i.and_then(cell), "y", &mut mismatches);
 
         rows.push(FlatRow {
             lot: text(lot_i),
@@ -469,6 +488,10 @@ fn parse_long_format(
                     .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let hi_limit = mapping.hi_limit_col.as_deref()
                     .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let lo_spec = mapping.lo_spec_col.as_deref()
+                    .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let hi_spec = mapping.hi_spec_col.as_deref()
+                    .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let units = mapping.units_col.as_deref()
                     .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).cloned();
                 // No name column (or this row's name cell was empty): the
@@ -479,8 +502,8 @@ fn parse_long_format(
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
                     order: Some(order),
-                    lo_spec: None,
-                    hi_spec: None,
+                    lo_spec,
+                    hi_spec,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 });
@@ -510,7 +533,7 @@ mod tests {
             hbin: None, sbin: None, wafer: None, lot: None, site: None,
             tests: vec![], meta: vec![], split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, units_col: None,
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None,
             pass_bins: vec![],
         }
     }
@@ -601,6 +624,112 @@ mod tests {
         assert_eq!(dies[2].hbin, None, "−1 is not a bin");
         assert_eq!((dies[3].y, dies[3].hbin), (None, None), "NaN and 2.7 are not read");
         assert!(r.warnings.iter().any(|w| w.code == "values-not-numeric"));
+    }
+
+    /// A true/false column mapped to a bin or position is a type mismatch, not bin 1/0.
+    #[test]
+    fn bool_bins_and_coordinates_are_mismatches() {
+        use parquet::data_type::BoolType;
+        let schema = Arc::new(parse_message_type(
+            "message schema { REQUIRED INT32 x; REQUIRED INT32 y; REQUIRED BOOLEAN hbin; }",
+        ).unwrap());
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            let mut rg = writer.next_row_group().unwrap();
+            for vals in [[0, 1], [0, 0]] {
+                let mut col = rg.next_column().unwrap().unwrap();
+                col.typed::<Int32Type>().write_batch(&vals, None, None).unwrap();
+                col.close().unwrap();
+            }
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<BoolType>().write_batch(&[true, false], None, None).unwrap();
+            col.close().unwrap();
+            rg.close().unwrap();
+            writer.close().unwrap();
+        }
+        let mut m = basic_mapping("x", "y");
+        m.hbin = Some("hbin".into());
+        let r = parse_parquet_from_bytes(&buf, m).unwrap();
+        assert!(r.wafers[0].results.iter().all(|d| d.hbin.is_none() && d.x.is_some()));
+        assert!(r.warnings.iter().any(|w| w.code == "values-not-numeric"));
+    }
+
+    /// A null or blank cell is no value — the die keeps its other fields and has
+    /// no position — never a value that failed to coerce.
+    #[test]
+    fn null_and_blank_cells_are_missing_not_unusable() {
+        use parquet::data_type::Int32Type;
+        let schema = Arc::new(parse_message_type(
+            "message schema { OPTIONAL INT32 x; OPTIONAL INT32 y; REQUIRED INT32 hbin; OPTIONAL BYTE_ARRAY site (UTF8); }",
+        ).unwrap());
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            let mut rg = writer.next_row_group().unwrap();
+            // Rows: (0,0) positioned; then two dies with null x/y.
+            for _ in 0..2 {
+                let mut col = rg.next_column().unwrap().unwrap();
+                col.typed::<Int32Type>().write_batch(&[0], Some(&[1, 0, 0]), None).unwrap();
+                col.close().unwrap();
+            }
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<Int32Type>().write_batch(&[1, 2, 1], None, None).unwrap();
+            col.close().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            let sites = [ByteArray::from("3"), ByteArray::from(" "), ByteArray::from("")];
+            col.typed::<ByteArrayType>().write_batch(&sites, Some(&[1, 1, 1]), None).unwrap();
+            col.close().unwrap();
+            rg.close().unwrap();
+            writer.close().unwrap();
+        }
+        let mut m = basic_mapping("x", "y");
+        m.hbin = Some("hbin".into());
+        m.site = Some("site".into());
+        let r = parse_parquet_from_bytes(&buf, m).unwrap();
+        let dies = &r.wafers[0].results;
+        assert_eq!(dies.len(), 3);
+        assert_eq!((dies[0].x, dies[0].site_num), (Some(0), Some(3)));
+        assert!(dies[1..].iter().all(|d| d.x.is_none() && d.y.is_none() && d.site_num.is_none()));
+        assert!(!r.warnings.iter().any(|w| w.code == "values-not-numeric"), "{:?}", r.warnings);
+        assert!(r.warnings.iter().any(|w| w.code == "unpositioned-dies"));
+    }
+
+    /// STDF's ranges apply to Parquet as to every other format: a whole number
+    /// outside them is missing, and reported under the same codes.
+    #[test]
+    fn values_outside_stdf_ranges_are_missing_and_reported() {
+        let schema = Arc::new(parse_message_type(
+            "message schema { REQUIRED DOUBLE x; REQUIRED DOUBLE y; REQUIRED DOUBLE hbin; REQUIRED DOUBLE site; REQUIRED DOUBLE t1; }",
+        ).unwrap());
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            let mut rg = writer.next_row_group().unwrap();
+            for vals in [[0.0, 40000.0, 1.0], [0.0, 0.0, 0.0], [40000.0, 2.0, 1.0], [300.0, 1.0, 255.0], [f64::INFINITY, 1.0, 2.0]] {
+                let mut col = rg.next_column().unwrap().unwrap();
+                col.typed::<DoubleType>().write_batch(&vals, None, None).unwrap();
+                col.close().unwrap();
+            }
+            rg.close().unwrap();
+            writer.close().unwrap();
+        }
+        let mut m = basic_mapping("x", "y");
+        m.hbin = Some("hbin".into());
+        m.site = Some("site".into());
+        m.tests = vec![CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string() }];
+        let r = parse_parquet_from_bytes(&buf, m).unwrap();
+        let dies = &r.wafers[0].results;
+        assert_eq!((dies[0].x, dies[0].hbin, dies[0].site_num), (Some(0), None, None), "bin 40000 and site 300 are missing");
+        assert!(dies[0].test_values.is_empty(), "an infinite value is left out");
+        assert_eq!((dies[1].x, dies[1].y, dies[1].hbin), (None, None, Some(2)), "x 40000: no position, in neither axis");
+        assert_eq!((dies[2].x, dies[2].hbin, dies[2].site_num), (Some(1), Some(1), Some(255)), "legal values kept");
+        for code in ["bin-invalid", "coordinate-invalid", "site-invalid", "result-unusable"] {
+            assert!(r.warnings.iter().any(|w| w.code == code), "no {code} in {:?}", r.warnings);
+        }
     }
 
     fn wide_mapping() -> CsvMapping {
@@ -908,6 +1037,8 @@ mod tests {
         assert_eq!(w03.results.len(), 3);
         assert!(w03.results.iter().all(|d| d.x.is_none() && d.y.is_none()));
         assert!(w03.results.iter().all(|d| d.hbin.is_some() && !d.test_values.is_empty()));
+        // Its missing coordinates are real Parquet nulls: no value, not a bad one.
+        assert!(!result.warnings.iter().any(|w| w.code == "values-not-numeric"), "{:?}", result.warnings);
     }
     /// Parquet's counterpart to `bench_parse_csv`/`bench_parse_json`, on the same
     /// logical data (10 wafers x 5000 dies x 50 tests) so the flat formats are
@@ -936,7 +1067,7 @@ mod tests {
             }).collect(),
             meta: vec![], split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, units_col: None,
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None,
             pass_bins: vec![1],
         };
 

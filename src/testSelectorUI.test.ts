@@ -114,14 +114,14 @@ describe('parseTestListFile', () => {
   });
 
   it('parses a header with columns in a non-default order', () => {
-    const text = 'type,num,usl,lsl,name\nP,1001,3.0,1.0,Vdd Test';
+    const text = 'type,num,hi_limit,lo_limit,name\nP,1001,3.0,1.0,Vdd Test';
     expect(parseTestListFile(text)).toEqual([
       { num: 1001, name: 'Vdd Test', loLimit: 1.0, hiLimit: 3.0, testType: 'P' },
     ]);
   });
 
   it('parses a header with only a subset of columns (no name)', () => {
-    const text = 'num,lsl,usl\n1001,1.0,3.0\n1002,,5.0';
+    const text = 'num,lo_limit,hi_limit\n1001,1.0,3.0\n1002,,5.0';
     expect(parseTestListFile(text)).toEqual([
       { num: 1001, loLimit: 1.0, hiLimit: 3.0 },
       { num: 1002, hiLimit: 5.0 },
@@ -129,7 +129,7 @@ describe('parseTestListFile', () => {
   });
 
   it('matches header aliases case-insensitively and with separators', () => {
-    const text = 'NUM,LSL,USL,TYPE\n1001,1.0,3.0,f';
+    const text = 'NUM,Lo Limit,HI-LIMIT,TYPE\n1001,1.0,3.0,f';
     expect(parseTestListFile(text)).toEqual([{ num: 1001, loLimit: 1.0, hiLimit: 3.0, testType: 'F' }]);
   });
 
@@ -148,7 +148,7 @@ describe('parseTestListFile', () => {
 
   it('a later header line resets the active column mapping', () => {
     const text = [
-      'num,lsl,usl',
+      'num,lo_limit,hi_limit',
       '1001,1.0,3.0',
       'num,name',
       '1002,Idd',
@@ -157,6 +157,43 @@ describe('parseTestListFile', () => {
       { num: 1001, loLimit: 1.0, hiLimit: 3.0 },
       { num: 1002, name: 'Idd' },
     ]);
+  });
+
+  // ── Test limits and spec limits: two families, never paired across ───────────
+
+  it('reads LSL/USL as spec limits, and says so', () => {
+    const notes: string[] = [];
+    const text = 'num,lsl,usl\n1001,1.0,3.0';
+    expect(parseTestListFile(text, undefined, m => notes.push(m))).toEqual([{ num: 1001, loSpec: 1.0, hiSpec: 3.0 }]);
+    expect(notes.some(n => /LSL\/USL columns were read as spec limits/.test(n))).toBe(true);
+  });
+
+  it('reads every spec-limit spelling, and keeps each family to its own pair', () => {
+    for (const [lo, hi] of [['lo_spec', 'hi_spec'], ['Spec Low', 'Spec High'], ['lower_spec', 'upper_spec'], ['min_spec', 'max_spec']]) {
+      expect(parseTestListFile(`num,${lo},${hi}\n1001,1,3`)).toEqual([{ num: 1001, loSpec: 1, hiSpec: 3 }]);
+    }
+    // One spec limit and one test limit: two one-sided limits, not a pair.
+    expect(parseTestListFile('num,lsl,hi_limit\n1001,1,3')).toEqual([{ num: 1001, loSpec: 1, hiLimit: 3 }]);
+  });
+
+  it('reads neither of two columns naming the same limit', () => {
+    const notes: string[] = [];
+    const rows = parseTestListFile('num,lsl,spec_lo,usl\n1001,1,2,3', undefined, m => notes.push(m));
+    expect(rows).toEqual([{ num: 1001, hiSpec: 3 }]);
+    expect(notes.some(n => /"lsl" and "spec_lo" both name the low spec limit/.test(n))).toBe(true);
+  });
+
+  it('ignores a limit column that does not say which family, and says so', () => {
+    const notes: string[] = [];
+    const rows = parseTestListFile('num,min,max\n1001,1,3', undefined, m => notes.push(m));
+    expect(rows).toEqual([{ num: 1001 }]);
+    expect(notes.filter(n => /does not say whether it is a test limit or a spec limit/.test(n))).toHaveLength(2);
+  });
+
+  it('drops an inverted pair but keeps the other family', () => {
+    const warnings: string[] = [];
+    const rows = parseTestListFile('num,lo_limit,hi_limit,lsl,usl\n1001,5,1,2,4', m => warnings.push(String(m)), () => {});
+    expect(rows).toEqual([{ num: 1001, loSpec: 2, hiSpec: 4 }]);
   });
 
   // ── Value edge cases ─────────────────────────────────────────────────────────
@@ -204,6 +241,17 @@ describe('parseTestListFile', () => {
     expect(warnings.filter(w => w.includes('extra column')).length).toBe(2);
   });
 
+  it('reports a column the header names but ignores once, not on every row', () => {
+    const warnings: string[] = [];
+    const notes: string[] = [];
+    const text = 'num,comment,lsl,spec_lo,max\n1001,a,1,2,3\n1002,b,1,2,3';
+    const result = parseTestListFile(text, (_line, msg) => warnings.push(msg), m => notes.push(m));
+    expect(result).toEqual([{ num: 1001 }, { num: 1002 }]);
+    expect(warnings).toEqual(['Unrecognized column "comment" ignored']);
+    expect(notes.filter(n => n.includes('"lsl" and "spec_lo"'))).toHaveLength(1);
+    expect(notes.filter(n => n.includes('"max"'))).toHaveLength(1);
+  });
+
   it('does not throw on garbage input', () => {
     expect(() => parseTestListFile('\0,,,\ngarbage\n,,,,,,,,\n1001,,,,,,,,')).not.toThrow();
   });
@@ -225,13 +273,18 @@ describe('formatTestListCsv / parseTestListFile round-trip', () => {
   it('quotes commas in name/units on save, so they round-trip exactly', () => {
     const entries = [{ num: 1001, name: 'Vdd, Core', units: 'mA, RMS' }];
     const csv = formatTestListCsv(entries);
-    expect(csv).toContain('1001,"Vdd, Core",,,"mA, RMS",,');
+    expect(csv).toContain('1001,"Vdd, Core",,,,,"mA, RMS",,');
     expect(parseTestListFile(csv)).toEqual(entries);
   });
 
   it('writes the canonical header, expression last', () => {
     const csv = formatTestListCsv([{ num: 1001, name: 'Vdd' }]);
-    expect(csv).toContain('num,name,loLimit,hiLimit,units,testType,expression');
+    expect(csv).toContain('num,name,loLimit,hiLimit,loSpec,hiSpec,units,testType,expression');
+  });
+
+  it('round-trips spec limits separately from test limits', () => {
+    const entries = [{ num: 1001, name: 'Vth', loLimit: 0.2, hiLimit: 0.4, loSpec: 0.25, hiSpec: 0.35, units: 'V', testType: 'P' as const }];
+    expect(parseTestListFile(formatTestListCsv(entries))).toEqual(entries);
   });
 
   it('round-trips a derived test, quoting an expression only when it has a comma', () => {

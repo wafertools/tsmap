@@ -9,6 +9,7 @@
 // arbitrary-column die-data imports, not this.
 
 import type { BinDef } from '@wafertools/wafermap';
+import { normalizeHeaderKey } from './headerKey';
 
 export interface BinDefEntry {
   bin: number;
@@ -50,10 +51,6 @@ const HEADER_IMPLIED_TYPE: Record<string, 'hard' | 'soft'> = {
   hbin: 'hard', hardbin: 'hard',
   sbin: 'soft', softbin: 'soft',
 };
-
-function normalizeHeaderKey(s: string): string {
-  return s.trim().toLowerCase().replace(/[\s_-]+/g, '');
-}
 
 const PASS_TOKENS = new Set(['p', 'pass', 'y', 'yes', 'true', '1']);
 const FAIL_TOKENS = new Set(['f', 'fail', 'n', 'no', 'false', '0']);

@@ -179,10 +179,38 @@ for (const name of expected) {
   }
 }
 
+// ── Warning and error text ───────────────────────────────────────────────────
+// The log's warning/error lines sit on --bg-toolbar, and the Log toggle's
+// new-problem badges, the append-warning strip and the mapping hints put the same
+// text on its own --warn-bg/--error-bg. A token a theme does not declare is
+// inherited from the dark default (`:root` always applies), so that is what is
+// measured — the same inheritance the browser applies.
+const SEMANTIC_PAIRS = [
+  ['--warn-text', ['--warn-bg', '--bg-toolbar', '--bg-app']],
+  ['--error-text', ['--error-bg', '--bg-toolbar', '--bg-app']],
+];
+const darkBody = found.get('dark') ?? '';
+for (const name of expected) {
+  const body = found.get(name);
+  if (!body) continue;
+  const tokenOf = t => (declared(body, t) !== undefined ? colorOf(body, t, name) : colorOf(darkBody, t, 'dark'));
+  for (const [text, grounds] of SEMANTIC_PAIRS) {
+    const fg = tokenOf(text);
+    if (!fg) { if (fg === undefined) problems.push(`${name}: no ${text}, declared or inherited — nothing to measure.`); continue; }
+    for (const ground of grounds) {
+      const bg = tokenOf(ground);
+      if (!bg) continue;
+      const r = contrast(fg, bg);
+      if (r < AA_TEXT) problems.push(`${name}: ${text} on ${ground} measures ${r.toFixed(2)}:1, under AA's ${AA_TEXT}:1`);
+    }
+  }
+}
+
 if (problems.length) {
   console.error(`theme contrast FAILED (${problems.length}):\n  ` + problems.join('\n  '));
-  console.error('\nFix by adjusting that theme\'s --accent (darker on light grounds, lighter on dark),');
-  console.error('not by changing the ground — the accent is the token chosen for looks, the ground is shared.');
+  console.error('\nFix by adjusting that theme\'s text token (--accent, --warn-text or --error-text: darker on');
+  console.error('light grounds, lighter on dark), not the ground — the text colour is the token chosen for looks,');
+  console.error('the ground is shared.');
   process.exit(1);
 }
-console.log(`theme contrast OK — --accent clears AA as text on every ground in all ${expected.length} theme blocks (from THEME_GROUPS)`);
+console.log(`theme contrast OK — --accent, --warn-text and --error-text clear AA as text on every ground in all ${expected.length} theme blocks (from THEME_GROUPS)`);

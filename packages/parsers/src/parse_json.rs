@@ -127,11 +127,11 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
             wafer: opt_text(&mapping.wafer),
             split_parts: split_parts(&mapping.split_by, text),
             meta: mapping.meta.iter().map(|c| text(c)).collect(),
-            x: int(&mapping.x).and_then(|v| i32::try_from(v).ok()),
-            y: int(&mapping.y).and_then(|v| i32::try_from(v).ok()),
-            hbin: int(&mapping.hbin).and_then(|v| u32::try_from(v).ok()),
-            sbin: int(&mapping.sbin).and_then(|v| u32::try_from(v).ok()),
-            site_num: int(&mapping.site).and_then(|v| u32::try_from(v).ok()),
+            x: int(&mapping.x),
+            y: int(&mapping.y),
+            hbin: int(&mapping.hbin),
+            sbin: int(&mapping.sbin),
+            site_num: int(&mapping.site),
             tests: Vec::new(),
         };
 
@@ -166,6 +166,8 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                 next_order += 1;
                 let lo_limit = mapping.lo_limit_col.as_deref().and_then(|c| cell_f64(row, c));
                 let hi_limit = mapping.hi_limit_col.as_deref().and_then(|c| cell_f64(row, c));
+                let lo_spec = mapping.lo_spec_col.as_deref().and_then(|c| cell_f64(row, c));
+                let hi_spec = mapping.hi_spec_col.as_deref().and_then(|c| cell_f64(row, c));
                 let units = mapping.units_col.as_deref()
                     .map(|c| cell_text(row, c)).filter(|s| !s.is_empty());
                 // No name column (or this row's name cell was empty): the
@@ -176,8 +178,8 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
                     order: Some(order),
-                    lo_spec: None,
-                    hi_spec: None,
+                    lo_spec,
+                    hi_spec,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 });
@@ -214,11 +216,11 @@ fn parse_json_wide(
             wafer: opt_text(&mapping.wafer),
             split_parts: split_parts(&mapping.split_by, text),
             meta: mapping.meta.iter().map(|c| text(c)).collect(),
-            x: int(&mapping.x).and_then(|v| i32::try_from(v).ok()),
-            y: int(&mapping.y).and_then(|v| i32::try_from(v).ok()),
-            hbin: int(&mapping.hbin).and_then(|v| u32::try_from(v).ok()),
-            sbin: int(&mapping.sbin).and_then(|v| u32::try_from(v).ok()),
-            site_num: int(&mapping.site).and_then(|v| u32::try_from(v).ok()),
+            x: int(&mapping.x),
+            y: int(&mapping.y),
+            hbin: int(&mapping.hbin),
+            sbin: int(&mapping.sbin),
+            site_num: int(&mapping.site),
             tests: test_cols.iter()
                 .filter_map(|(t, c)| cell_f64(row, c).map(|v| (*t, v)))
                 .collect(),
@@ -435,7 +437,7 @@ mod tests {
             hbin: None, sbin: None, wafer: None, lot: None, site: None,
             tests: vec![], meta: vec![], split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, units_col: None,
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None,
             pass_bins: vec![],
         }
     }

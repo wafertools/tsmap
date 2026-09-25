@@ -42,7 +42,10 @@ Reading this outside the app (e.g. the docs site), see the
 | Zip | `.zip` | All contained files extracted and loaded as a batch |
 
 STDF and ATDF are always parsed natively — never attempt to open them in a text editor
-or spreadsheet. CSV, JSON, and Parquet require a [column mapping step](#3-column-mapping-csv-json-and-parquet)
+or spreadsheet. **Multiple-result parametric records (MPR)**, which some testers use for tests
+that return several values at once (a pin group, a sweep), are not read yet: those tests do not
+appear, and the log says how many such records a file had
+([troubleshooting](troubleshooting.md#a-file-has-multiple-result-parametric-records-mpr)). CSV, JSON, and Parquet require a [column mapping step](#3-column-mapping-csv-json-and-parquet)
 before the data is parsed.
 
 ---
@@ -482,6 +485,14 @@ lot ID (`LOT-A · W01`) so wafers stay distinct within and across lots without y
 to edit anything; with neither, it falls back to the file name. Edit any label that needs
 changing, then click **Continue →**.
 
+**Files that record a test in a different unit prefix.** If one file gives a test in mV and
+another in V, tsmap converts the later file's values and limits to the unit the first file
+uses, and says so in the log, so the test stays comparable across every wafer. Only a
+difference of prefix on the same unit is converted (mV and V, nA and µA, kHz and MHz). Any
+other disagreement, including one of letter case alone such as `mV` and `MV`, means the files
+may describe different measurements: that test is left out of every view that compares
+wafers, and the log names the files.
+
 ---
 
 ## 3. Column mapping (CSV, JSON, and Parquet)
@@ -516,8 +527,10 @@ or wrong results.
 | **Test name (long format)** | Column containing the test name in a long/pivot layout. Optional if **Test number** is set instead — a file with only real test numbers and no descriptive names is fully supported; the number is used as the display name in that case |
 | **Test number (long format)** | Column containing the test's real number in a long/pivot layout. Optional alongside **Test name** — set alone (no name column at all) or together (real number, given name). At least one of **Test name**/**Test number** is required, along with **Test result** |
 | **Test result (long format)** | Column containing the numeric result in a long/pivot layout |
-| **Low limit (long format)** | Low test limit in a long-format file |
-| **High limit (long format)** | High test limit in a long-format file |
+| **Low test limit (long format)** | Low test limit in a long-format file — the limit the tester judged pass/fail by |
+| **High test limit (long format)** | High test limit in a long-format file |
+| **Low spec limit / LSL (long format)** | Low spec limit in a long-format file — the process specification that Process Capability is measured against. Kept separate from the test limits: a low limit only ever pairs with a high limit of the same kind |
+| **High spec limit / USL (long format)** | High spec limit in a long-format file |
 | **Units (long format)** | Units string in a long-format file |
 | **Display info** | Additional metadata captured for grouping/comparison (and shown in tooltips). Values are recorded **per wafer**, so a file mixing temperatures or test programs labels each wafer with its own. If the same wafer appears more than once — tested at two temperatures, say — and one of these columns tells the passes apart, each pass becomes its own wafer map, and the log says which column did it; with nothing to tell them apart the repeats are treated as retests. A column whose value changes *within* a wafer (a per-die timestamp) is not shown as a wafer property, and the log says so. The **Subdivide file by this column** checkbox is a structural escape hatch for flat files that pack several wafers into one file with no wafer column — it subdivides the file into one wafer map per distinct value of the column. (Do not use it for parallel-test sites — map those to **Test site** instead.) |
 | **— ignore —** | Column is not imported |
@@ -541,8 +554,10 @@ The overlay pre-fills a role for any column whose header exactly matches one of 
 | **Test name (long format)** | `test_name`, `testname`, `param`, `parameter`, `param_name`, `measurement`, `test_item` |
 | **Test number (long format)** | `test_num`, `testnum`, `tnum`, `test_number`, `testnumber`, `testno`, `test_no`, `t_num` |
 | **Test result (long format)** | `result`, `value`, `val`, `measured`, `meas`, `reading`, `test_value`, `test_result`, `meas_value`, `meas_val` |
-| **Low limit (long format)** | `lo_limit`, `low_limit`, `lolimit`, `lower_limit`, `ll`, `lsl`, `spec_lo`, `spec_low`, `min_limit`, `lo_lim` |
-| **High limit (long format)** | `hi_limit`, `high_limit`, `hilimit`, `upper_limit`, `ul`, `usl`, `spec_hi`, `spec_high`, `max_limit`, `hi_lim` |
+| **Low test limit (long format)** | `lo_limit`, `low_limit`, `lower_limit`, `lo_lim`, `low_lim`, `lower_lim`, `l_limit`, `l_lim`, `min_limit`, `min_lim`, `ll`, `test_lo`, `test_low` |
+| **High test limit (long format)** | `hi_limit`, `high_limit`, `higher_limit`, `upper_limit`, `hi_lim`, `high_lim`, `upper_lim`, `h_limit`, `h_lim`, `max_limit`, `max_lim`, `ul`, `test_hi`, `test_high` |
+| **Low spec limit / LSL (long format)** | `lo_spec`, `low_spec`, `lower_spec`, `lo_spec_limit`, `low_spec_limit`, `lower_spec_limit`, `spec_lo`, `spec_low`, `min_spec`, `lsl` |
+| **High spec limit / USL (long format)** | `hi_spec`, `high_spec`, `higher_spec`, `upper_spec`, `hi_spec_limit`, `high_spec_limit`, `upper_spec_limit`, `spec_hi`, `spec_high`, `max_spec`, `usl` |
 | **Units (long format)** | `units`, `unit`, `uom`, `test_units`, `test_unit` |
 | **Display info** | `testdate`, `test_date`, `date`, `temp`, `temperature`, `tst_temp`, `operator`, `oper`, `testprogram`, `test_program`, `job_nam`, `node`, `node_nam`, `tester`, `tstr_typ`, `part_typ`, `part_type`, `device`, `handler`, `hand_typ`, `sublot`, `sblot_id`, `exec_typ`, `exec_ver`, `serl_num`, `serial` |
 
@@ -733,10 +748,10 @@ The saved format is one test per line, with a header naming the columns:
 
     # tsmap test definitions
     # Saved: 2026-06-15T10:00:00.000Z
-    num,name,loLimit,hiLimit,units,testType
-    1000,Idsat_vg1,0.1,1.5,mA,P
-    1001,Idsat_vg2,,,mA,P
-    1010,Vt_lin,,,,
+    num,name,loLimit,hiLimit,loSpec,hiSpec,units,testType,expression
+    1000,Idsat_vg1,0.1,1.5,0.05,1.8,mA,P,
+    1001,Idsat_vg2,,,,,mA,P,
+    1010,Vt_lin,,,,,,,
 
 - Lines starting with `#` are comments and are ignored on load.
 - **Legacy format** (still fully supported): `<test number> <display name>`, with the number
@@ -744,17 +759,44 @@ The saved format is one test per line, with a header naming the columns:
   line with just a number selects that test without overriding its name. Old saved files keep
   working unchanged.
 - **Extended format**: comma-separated, optionally starting with a header row that names each
-  column. Column names are matched case-insensitively, and common synonyms are recognized —
-  `lsl`/`usl` (or `lo`/`hi`, `low`/`high`) for the limit columns, `type` for test type. A
-  header lets you list columns in any order, and omit ones you don't need — for example a
-  pure limits file with no name column at all, `num,lsl,usl`, is valid. Without a header,
+  column. Column names are matched ignoring case, spaces, `_` and `-`, and common synonyms
+  are recognized — `type` for test type, and for the limits the names below. A header lets
+  you list columns in any order, and omit ones you don't need — for example a pure limits
+  file with no name column at all, `num,lo_limit,hi_limit`, is valid. Without a header,
   comma-separated rows are read positionally as
   `num,name,loLimit,hiLimit,units,testType`.
+- **Two kinds of limit, never mixed.** *Test limits* are what the tester judged each die
+  pass/fail by (STDF `LO_LIMIT`/`HI_LIMIT`); they drive pass/fail colouring, spec yield and
+  the out-of-limit markers. *Spec limits* are the process specification (STDF
+  `LO_SPEC`/`HI_SPEC`); Process Capability is measured against them when a test has both.
+  Every column name belongs to exactly one kind, and a low limit only ever pairs with a high
+  limit of the same kind:
+
+    <!-- BEGIN LIMIT-NAMES (checked against src/limitNames.ts by scripts/check-mapping-docs.mjs) -->
+    | Kind | Low | High |
+    |---|---|---|
+    | Test limits | `lo_limit`, `low_limit`, `lower_limit`, `lo_lim`, `low_lim`, `lower_lim`, `l_limit`, `l_lim`, `min_limit`, `min_lim`, `ll`, `test_lo`, `test_low`, and bare `lo`, `low` | `hi_limit`, `high_limit`, `higher_limit`, `upper_limit`, `hi_lim`, `high_lim`, `upper_lim`, `h_limit`, `h_lim`, `max_limit`, `max_lim`, `ul`, `test_hi`, `test_high`, and bare `hi`, `high` |
+    | Spec limits | `lo_spec`, `low_spec`, `lower_spec`, `lo_spec_limit`, `low_spec_limit`, `lower_spec_limit`, `spec_lo`, `spec_low`, `min_spec`, `lsl` | `hi_spec`, `high_spec`, `higher_spec`, `upper_spec`, `hi_spec_limit`, `high_spec_limit`, `upper_spec_limit`, `spec_hi`, `spec_high`, `max_spec`, `usl` |
+    | Neither kind (ignored, with a warning) | `min`, `max`, `lower`, `upper`, `limit`, `limits`, `spec`, `lower_bound`, `upper_bound`, `lo_bound`, `hi_bound`, `low_bound`, `high_bound`, `lo_threshold`, `hi_threshold`, `low_threshold`, `high_threshold` | |
+    <!-- END LIMIT-NAMES -->
+
+  Names are matched ignoring case, spaces, `_` and `-`, so `Lo Limit` and `LoLimit` are
+  `lo_limit`. The same names are recognized by the column mapping for long-format data
+  files, except the bare `lo`/`hi`/`low`/`high`, which are too loose to claim in a data file.
+  `lsl`/`usl` are spec limits (lower/upper *spec* limit), and the log says so when a file
+  uses them. A column that doesn't say which kind is ignored with a warning. Two columns naming the same limit (`lsl`
+  and `spec_lo`) are both ignored with a warning naming them; tsmap never guesses which
+  one was meant. A row whose low limit is above its high limit has that pair dropped with
+  a warning; the other pair still applies.
 - `testType` accepts `P`/`p` (parametric) or `F`/`f` (functional).
 - Limits only make sense for parametric tests — a functional test is pass/fail with no
-  measured value to check a limit against. A `loLimit`/`hiLimit` given for a test that is
+  measured value to check a limit against. A test or spec limit given for a test that is
   (or is being reclassified to) functional is dropped with a warning; the rest of that row's
   overrides (name, units, type) still apply.
+- A `units` value that differs from the data's only by prefix (the file says mV, the data
+  is in V) converts that row's test and spec limits to the data's unit, and the log says so. A unit that
+  differs in any other way is applied as written, with a warning to check the limits: they
+  are judged against the data as recorded.
 - A blank field means "don't override this" — it leaves the parsed value (or an override
   already loaded earlier in the session) alone. It never clears an existing value back to
   blank/zero. There's no way to *revert* an override from inside the app short of editing the
@@ -778,8 +820,8 @@ You can hand-edit a list file to rename tests, or add/adjust limits, without cha
 in the original data file — e.g. `1000,Threshold Voltage,0.2,1.2,mA,P`. Those names, limits,
 and type appear in the selector, on the map tooltip, in chart axis labels, and — for
 limits — as histogram "Lo limit"/"Hi limit" lines and in the Process Capability panel. Spec limits (LSL/USL)
-read from STDF or ATDF are used by the Process Capability panel when a test has both;
-a definitions file sets test limits only.
+read from STDF or ATDF, or set by a definitions file's spec-limit columns, are used by the
+Process Capability panel when a test has both.
 
 #### Derived tests
 
@@ -1191,16 +1233,15 @@ from the parser and renderer: file load events, parse warnings, and any errors.
 ![Log panel expanded, after a normal load](images/log-panel.png)
 
 - Click **Log** to expand or collapse the panel.
-- If any errors occurred, the button label changes to **Log (N errors)** and the panel
-  expands automatically.
-- Parser warnings (e.g. fabricated soft bin numbers from sentinel values, unrecognised
-  records) appear here rather than blocking the load.
+- An error opens the panel automatically.
+- Warnings and errors logged while the panel is closed are counted on the **Log** button —
+  for example **▲ 3 new warnings** — so a problem is never waiting unseen. Opening the
+  panel clears the count; the next problem shows it again.
+- Parser warnings (e.g. values outside the STDF ranges, unrecognised records) appear here
+  rather than blocking the load.
 
-**Soft bin 65535** is a sentinel value in the STDF spec meaning "no soft bin assigned to
-this die". When the parser encounters it, it maps those dies to a fabricated soft bin so
-the wafer map can render — the hard bin value is unaffected. The number in the warning
-(e.g. "fabricated bin 2 for 14 dies") is the count of dies where this substitution was
-applied. If soft bin data is not meaningful for your product, this warning can be ignored.
+**Soft bin 65535** is the STDF value for "no soft bin assigned to this die". Those dies have
+no soft bin: they render as no-data in soft-bin views, and their hard bin is unaffected.
 
 ---
 

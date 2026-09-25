@@ -61,6 +61,12 @@ pub struct CsvMapping {
     pub testvalue_col: Option<String>,
     pub lo_limit_col: Option<String>,
     pub hi_limit_col: Option<String>,
+    /// Long-format only: columns holding each test's spec limits (STDF
+    /// `LO_SPEC`/`HI_SPEC`) — a separate pair from the test limits above.
+    #[serde(default)]
+    pub lo_spec_col: Option<String>,
+    #[serde(default)]
+    pub hi_spec_col: Option<String>,
     pub units_col: Option<String>,
     pub pass_bins: Vec<u32>,
 }
@@ -275,6 +281,10 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let hi_limit = mapping.hi_limit_col.as_deref()
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let lo_spec = mapping.lo_spec_col.as_deref()
+                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let hi_spec = mapping.hi_spec_col.as_deref()
+                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let units = mapping.units_col.as_deref()
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty());
                 // No name column (or this row's name cell was empty): the
@@ -285,8 +295,8 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
                     test_type: "P".to_string(),
                     lo_limit, hi_limit, units,
                     order: Some(order),
-                    lo_spec: None,
-                    hi_spec: None,
+                    lo_spec,
+                    hi_spec,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 });
@@ -340,9 +350,9 @@ fn parse_csv_wide(
         meta: meta_i.iter().map(|i| cell_opt(rec, *i).to_string()).collect(),
         x: x_i.and_then(|i| cell(rec, i).parse().ok()),
         y: y_i.and_then(|i| cell(rec, i).parse().ok()),
-        hbin: hbin_i.and_then(|i| cell(rec, i).parse::<u32>().ok()),
-        sbin: sbin_i.and_then(|i| cell(rec, i).parse::<u32>().ok()),
-        site_num: site_i.and_then(|i| cell(rec, i).parse::<u32>().ok()),
+        hbin: hbin_i.and_then(|i| cell(rec, i).parse().ok()),
+        sbin: sbin_i.and_then(|i| cell(rec, i).parse().ok()),
+        site_num: site_i.and_then(|i| cell(rec, i).parse().ok()),
         tests: test_i.iter()
             .filter_map(|(t, i)| {
                 let s = cell(rec, *i);
@@ -423,6 +433,8 @@ mod tests {
             testvalue_col: None,
             lo_limit_col: None,
             hi_limit_col: None,
+            lo_spec_col: None,
+            hi_spec_col: None,
             units_col: None,
             pass_bins: vec![],
         }
@@ -774,6 +786,25 @@ mod tests {
     }
 
     #[test]
+    fn long_format_reads_spec_limits_as_their_own_pair() {
+        // One-sided of each family: a spec low limit never pairs with a test high limit.
+        let csv = "x,y,test_name,test_val,hi_limit,lsl\n\
+                   0,0,Vt,1.1,2.0,0.4\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test_name".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        m.hi_limit_col = Some("hi_limit".to_string());
+        m.lo_spec_col = Some("lsl".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        let vt = result.test_defs.values().find(|d| d.name == "Vt").unwrap();
+        assert_eq!(vt.lo_limit, None);
+        assert_eq!(vt.hi_limit, Some(2.0));
+        assert_eq!(vt.lo_spec, Some(0.4));
+        assert_eq!(vt.hi_spec, None);
+    }
+
+    #[test]
     fn lot_id_extracted_from_first_row() {
         let csv = "x,y,lot\n0,0,LOT-99\n1,0,LOT-99\n";
         let path = tmp(csv);
@@ -995,6 +1026,7 @@ mod mapping_shape_tests {
         assert!(m.wafer.is_none() && m.lot.is_none() && m.site.is_none());
         assert!(m.testname_col.is_none() && m.testnumber_col.is_none() && m.testvalue_col.is_none());
         assert!(m.lo_limit_col.is_none() && m.hi_limit_col.is_none() && m.units_col.is_none());
+        assert!(m.lo_spec_col.is_none() && m.hi_spec_col.is_none());
 
         for key in ["tests", "meta", "splitBy", "passBins"] {
             let mut v = base();

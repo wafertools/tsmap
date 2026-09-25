@@ -7,6 +7,8 @@ import { attachTooltip } from './tooltip';
 import { buildToggleGroup } from './toggleGroup';
 import { makeLoadDefinitionsButton, type RecentLoadRow } from './recentDefinitionsUI';
 import { errMsg } from './lib';
+import { normalizeHeaderKey } from './headerKey';
+import { LIMIT_FIELD_LABEL, isAmbiguousLimitHeader, isLslUslHeader, limitFieldForHeader } from './limitNames';
 
 export interface CapacityInfo {
   /** Total dies across all files being loaded. */
@@ -101,24 +103,23 @@ export interface DerivedSelection {
   selected: number[];
 }
 
-type TestListField = 'num' | 'name' | 'loLimit' | 'hiLimit' | 'units' | 'testType' | 'expression';
+type TestListField = 'num' | 'name' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'units' | 'testType' | 'expression';
 
 /** Header cell (normalized: trimmed, lowercased, spaces/dashes/underscores
  * collapsed) -> canonical column. Lets a hand-authored or externally-exported
- * file spell columns as "LSL"/"USL"/"Test Type" etc. */
+ * file spell columns as "Test Name"/"Test Type" etc. Limit columns are not
+ * here: limitNames.ts owns them, shared with the column mapping. */
 const HEADER_FIELD_ALIASES: Record<string, TestListField> = {
   num: 'num', number: 'num', testnum: 'num', testnumber: 'num',
   name: 'name', testname: 'name',
-  lolimit: 'loLimit', lo: 'loLimit', lsl: 'loLimit', low: 'loLimit', lowlimit: 'loLimit',
-  hilimit: 'hiLimit', hi: 'hiLimit', usl: 'hiLimit', high: 'hiLimit', highlimit: 'hiLimit',
   units: 'units', unit: 'units',
   testtype: 'testType', type: 'testType',
   // "Derived from" is the column wmap's own CSV exports carry for a derived test.
   expression: 'expression', expr: 'expression', formula: 'expression', derivedfrom: 'expression',
 };
 
-function normalizeHeaderKey(s: string): string {
-  return s.trim().toLowerCase().replace(/[\s_-]+/g, '');
+function headerField(raw: string): TestListField | undefined {
+  return HEADER_FIELD_ALIASES[normalizeHeaderKey(raw)] ?? limitFieldForHeader(raw, { bare: true });
 }
 
 /** Column order assumed for a comma-delimited file with no header row —
@@ -196,6 +197,7 @@ function restOfLine(line: string, fields: CsvField[], index: number): string {
 export function parseTestListFile(
   text: string,
   onWarn?: (lineNo: number, message: string) => void,
+  onHeaderNote?: (message: string, level: 'info' | 'warn') => void,
 ): TestListEntry[] {
   const results: TestListEntry[] = [];
   let columns: Array<TestListField | undefined> = DEFAULT_COLUMNS;
@@ -234,19 +236,40 @@ export function parseTestListFile(
       const unmatchedRaw: string[] = [];
       let matchedAny = false;
       for (const raw of fields) {
-        const field = HEADER_FIELD_ALIASES[normalizeHeaderKey(raw)];
+        const field = headerField(raw);
         mapping.push(field);
         if (field) matchedAny = true;
         else if (raw) unmatchedRaw.push(raw);
       }
       if (matchedAny) {
+        // Two columns naming the same field (`lsl` and `spec_lo`): never guess
+        // which one the file meant — neither is read.
+        for (const field of new Set(mapping.filter((f): f is TestListField => f !== undefined))) {
+          const at = mapping.flatMap((f, k) => (f === field ? [k] : []));
+          if (at.length < 2) continue;
+          for (const k of at) mapping[k] = undefined;
+          const label = (LIMIT_FIELD_LABEL as Partial<Record<TestListField, string>>)[field] ?? field;
+          onHeaderNote?.(`Columns ${at.map(k => `"${fields[k]}"`).join(' and ')} both name the ${label}; neither was read`, 'warn');
+        }
+        for (const raw of unmatchedRaw) {
+          if (isAmbiguousLimitHeader(raw)) {
+            onHeaderNote?.(`Column "${raw}" does not say whether it is a test limit or a spec limit, so it was ignored — `
+              + 'name it lo_limit/hi_limit (test limits) or lo_spec/hi_spec (spec limits)', 'warn');
+          }
+        }
+        if (fields.some(isLslUslHeader)) {
+          onHeaderNote?.('LSL/USL columns were read as spec limits (what capability is measured against); '
+            + 'use lo_limit/hi_limit for the test limits dies are judged pass/fail by', 'info');
+        }
         const exprIdx = mapping.indexOf('expression');
         if (exprIdx >= 0 && exprIdx !== mapping.length - 1) {
           mapping[exprIdx] = undefined;
           onWarn?.(lineNo, 'The expression column must be the last column — it was ignored');
         }
         columns = mapping;
-        for (const raw of unmatchedRaw) onWarn?.(lineNo, `Unrecognized column "${raw}" ignored`);
+        for (const raw of unmatchedRaw) {
+          if (!isAmbiguousLimitHeader(raw)) onWarn?.(lineNo, `Unrecognized column "${raw}" ignored`);
+        }
       }
       continue;
     }
@@ -261,7 +284,9 @@ export function parseTestListFile(
       }
       const raw = fields[c];
       if (!field || field === 'num') {
-        if (field !== 'num' && raw) onWarn?.(lineNo, `Unrecognized extra column ${c + 1} ("${raw}") ignored`);
+        // A column the header named but ignored was reported once, at the
+        // header; only a cell beyond the header's columns is news per row.
+        if (field !== 'num' && raw && c >= columns.length) onWarn?.(lineNo, `Unrecognized extra column ${c + 1} ("${raw}") ignored`);
         continue;
       }
       if (!raw) continue; // blank field => no override for this field
@@ -270,10 +295,12 @@ export function parseTestListFile(
           row.name = raw;
           break;
         case 'loLimit':
-        case 'hiLimit': {
+        case 'hiLimit':
+        case 'loSpec':
+        case 'hiSpec': {
           const n = Number(raw);
           if (Number.isFinite(n)) row[field] = n;
-          else onWarn?.(lineNo, `Invalid ${field === 'loLimit' ? 'loLimit' : 'hiLimit'} value "${raw}" ignored`);
+          else onWarn?.(lineNo, `Invalid ${field} value "${raw}" ignored`);
           break;
         }
         case 'units':
@@ -285,6 +312,15 @@ export function parseTestListFile(
           else onWarn?.(lineNo, `Invalid test type "${raw}" ignored (expected P or F)`);
           break;
         }
+      }
+    }
+    // A pair whose low limit is above its high limit cannot be what was meant;
+    // both halves of that pair are dropped, the other pair is kept.
+    for (const [lo, hi] of [['loLimit', 'hiLimit'], ['loSpec', 'hiSpec']] as const) {
+      if (row[lo] !== undefined && row[hi] !== undefined && row[lo]! > row[hi]!) {
+        onWarn?.(lineNo, `${LIMIT_FIELD_LABEL[lo]} ${row[lo]} is above ${LIMIT_FIELD_LABEL[hi]} ${row[hi]}; both ignored`);
+        delete row[lo];
+        delete row[hi];
       }
     }
     results.push(row);
@@ -305,12 +341,14 @@ export function formatTestListCsv(entries: TestListEntry[]): string {
   const lines = [
     '# tsmap test definitions',
     `# Saved: ${new Date().toISOString()}`,
-    'num,name,loLimit,hiLimit,units,testType,expression',
+    'num,name,loLimit,hiLimit,loSpec,hiSpec,units,testType,expression',
     ...entries.map(e => [
       e.num,
       e.name !== undefined ? quote(e.name) : '',
       e.loLimit !== undefined ? e.loLimit : '',
       e.hiLimit !== undefined ? e.hiLimit : '',
+      e.loSpec !== undefined ? e.loSpec : '',
+      e.hiSpec !== undefined ? e.hiSpec : '',
       e.units !== undefined ? quote(e.units) : '',
       e.testType ?? '',
       e.expression !== undefined ? quote(e.expression) : '',
@@ -398,11 +436,15 @@ export function resolveLoadedTestList(
     // count it rather than carry dead data (applyTestOverrides in lib.ts
     // enforces the same rule as a final safety net).
     const effectiveType = row.testType ?? currentTestDefs[String(num)]?.testType;
-    if (effectiveType === 'F' && (row.loLimit !== undefined || row.hiLimit !== undefined)) {
+    const anyLimit = row.loLimit !== undefined || row.hiLimit !== undefined
+      || row.loSpec !== undefined || row.hiSpec !== undefined;
+    if (effectiveType === 'F' && anyLimit) {
       limitOnFunctionalCount++;
     } else {
       if (row.loLimit !== undefined) ov.loLimit = row.loLimit;
       if (row.hiLimit !== undefined) ov.hiLimit = row.hiLimit;
+      if (row.loSpec !== undefined) ov.loSpec = row.loSpec;
+      if (row.hiSpec !== undefined) ov.hiSpec = row.hiSpec;
     }
     if (row.units !== undefined) ov.units = row.units;
     if (row.testType !== undefined) ov.testType = row.testType;
@@ -576,11 +618,13 @@ export function showTestSelectorOverlay(
     return testOverrides.get(num)?.name ?? def.name;
   }
 
-  function effectiveLimits(num: number, def: TestDef): { loLimit?: number; hiLimit?: number; units?: string; testType: 'P' | 'F' } {
+  function effectiveLimits(num: number, def: TestDef): { loLimit?: number; hiLimit?: number; loSpec?: number; hiSpec?: number; units?: string; testType: 'P' | 'F' } {
     const ov = testOverrides.get(num);
     return {
       loLimit: ov?.loLimit ?? def.loLimit,
       hiLimit: ov?.hiLimit ?? def.hiLimit,
+      loSpec: ov?.loSpec ?? def.loSpec,
+      hiSpec: ov?.hiSpec ?? def.hiSpec,
       units: ov?.units ?? def.units,
       testType: ov?.testType ?? def.testType,
     };
@@ -1072,6 +1116,8 @@ export function showTestSelectorOverlay(
       name: displayName(num, def) || String(num),
       loLimit: eff.loLimit,
       hiLimit: eff.hiLimit,
+      loSpec: eff.loSpec,
+      hiSpec: eff.hiSpec,
       units: eff.units,
       testType: eff.testType,
       ...(derived?.expression !== undefined ? { expression: derived.expression } : {}),
@@ -1083,7 +1129,9 @@ export function showTestSelectorOverlay(
   // parsing, unknown-test validation, and log messages either way.
   function applyLoadedList(text: string): void {
     let malformedCount = 0;
-    const parsed = parseTestListFile(text, () => { malformedCount++; });
+    const headerNotes = new Map<string, 'info' | 'warn'>();
+    const parsed = parseTestListFile(text, () => { malformedCount++; }, (m, level) => headerNotes.set(m, level));
+    for (const [m, level] of headerNotes) options.onLog?.(level, m);
     if (parsed.length === 0) {
       options.onLog?.('warn', 'Test definitions file contained no valid entries');
       return;
@@ -1128,7 +1176,7 @@ export function showTestSelectorOverlay(
       notes.push(`${msg}.`);
     }
     if (result.limitOnFunctionalCount > 0) {
-      const msg = `${result.limitOnFunctionalCount} functional test${result.limitOnFunctionalCount !== 1 ? 's' : ''} had limit values ignored (limits only apply to parametric tests)`;
+      const msg = `${result.limitOnFunctionalCount} functional test${result.limitOnFunctionalCount !== 1 ? 's' : ''} had limit values ignored (test and spec limits only apply to parametric tests)`;
       options.onLog?.('warn', msg);
       notes.push(`${msg}.`);
     }

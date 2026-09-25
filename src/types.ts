@@ -39,6 +39,10 @@ export interface TestOverride {
   name?: string;
   loLimit?: number;
   hiLimit?: number;
+  /** Spec limits — the process specification (STDF `LO_SPEC`/`HI_SPEC`), a
+   *  separate pair from the test limits above; never paired across. */
+  loSpec?: number;
+  hiSpec?: number;
   units?: string;
   testType?: 'P' | 'F';
 }

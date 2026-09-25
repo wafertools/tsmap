@@ -45,11 +45,21 @@ describe('detectRole — wafer / lot', () => {
 });
 
 describe('detectRole — limits / units', () => {
-  it.each(['lo_limit', 'low_limit', 'lsl', 'min_limit'])('detects loLimit: %s', col => {
+  it.each(['lo_limit', 'low_limit', 'min_limit', 'Lower Limit', 'LL'])('detects loLimit: %s', col => {
     expect(detectRole(col, noSample)).toBe('loLimit');
   });
-  it.each(['hi_limit', 'high_limit', 'usl', 'max_limit'])('detects hiLimit: %s', col => {
+  it.each(['hi_limit', 'high_limit', 'max_limit', 'Upper Limit', 'UL'])('detects hiLimit: %s', col => {
     expect(detectRole(col, noSample)).toBe('hiLimit');
+  });
+  // LSL/USL are spec limits by definition — never read as the test limits.
+  it.each(['lsl', 'LSL', 'lo_spec', 'spec_lo', 'min_spec', 'Low Spec Limit', 'loSpec'])('detects loSpec: %s', col => {
+    expect(detectRole(col, noSample)).toBe('loSpec');
+  });
+  it.each(['usl', 'USL', 'hi_spec', 'spec_hi', 'max_spec', 'High Spec Limit', 'hiSpec'])('detects hiSpec: %s', col => {
+    expect(detectRole(col, noSample)).toBe('hiSpec');
+  });
+  it.each(['min', 'max', 'lower', 'upper'])('does not guess a limit family for %s', col => {
+    expect(detectRole(col, noSample)).not.toMatch(/Limit$|Spec$/);
   });
   it.each(['units', 'unit', 'uom'])('detects units: %s', col => {
     expect(detectRole(col, noSample)).toBe('units');
@@ -168,7 +178,7 @@ describe('validateRoleAssignments', () => {
       { col: 'p', role: 'loLimit' },
       { col: 'q', role: 'loLimit' },
     ])!;
-    expect(msg).toContain('Low limit (long format)');
+    expect(msg).toContain('Low test limit (long format)');
   });
 
   it('accepts an empty assignment list', () => {

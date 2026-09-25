@@ -19,7 +19,8 @@ import type { TestListEntry, DerivedSelection } from './testSelectorUI';
 import { parseSweepsFile, formatSweepsFile, type SweepSpec } from './sweeps';
 import type { CsvMapping } from './mappingUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
-import type { PassBinCollision, TestDefCollision, DefinitionsAnchor } from './lib';
+import type { PassBinCollision, TestDefCollision, DefinitionsAnchor, OverrideUnitNote } from './lib';
+import { harmoniseTestUnits, type UnitConversion } from './units';
 import type { FileDefs, ParsedFile, WaferData, TestDef, TestOverride, WaferSource } from './types';
 import { attachTooltip, upgradeTitleTooltips } from './tooltip';
 import { openAnchoredMenu, makeMenuRow } from './anchoredMenu';
@@ -45,6 +46,7 @@ import { storageKey } from './storageKeys';
 import { showResetSettingsDialog } from './resetSettingsUI';
 import { initPwa } from './pwa';
 import { TSMAP_GUIDE_HTML } from './guideExtension';
+import { UnseenProblems } from './logBadge';
 
 const platform = createPlatform();
 
@@ -164,6 +166,42 @@ function logTestDefCollisions(collisions: TestDefCollision[]): void {
       + `comparable so distributions include test ${c.testNumber}, but capability (Cp/Cpk/Pp/Ppk), `
       + 'spec yield and the limit lines are withheld for it — there is no single spec to judge the '
       + 'combined population against.');
+  }
+}
+
+/**
+ * Report tests converted to the lot's unit because a file recorded them in a
+ * different SI prefix (see units.ts). `info`: nothing was lost, but a value in
+ * an export now reads in a unit that file did not write.
+ */
+function logUnitConversions(conversions: UnitConversion[]): void {
+  const byFile = new Map<string, UnitConversion[]>();
+  for (const c of conversions) byFile.set(c.fileName, [...(byFile.get(c.fileName) ?? []), c]);
+  for (const [fileName, list] of byFile) {
+    const tests = list.map(c => `test ${c.testNumber} (${c.from} → ${c.to})`).join(', ');
+    log('info', `${fileName} records ${list.length === 1 ? 'a test' : `${list.length} tests`} in a different unit prefix `
+      + `from the rest of the lot; its values and limits were converted to match: ${tests}.`);
+  }
+}
+
+/**
+ * Report test definitions (a definitions file or the test dialog) that state a
+ * unit the data does not use — once per test, however many files it was applied to.
+ */
+function logOverrideUnitNotes(notes: OverrideUnitNote[]): void {
+  const seen = new Set<string>();
+  for (const n of notes) {
+    const id = `${n.testNumber}|${n.overrideUnit}|${n.dataUnit}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    if (n.converted) {
+      log('info', `The test definitions give test ${n.testNumber} in ${n.overrideUnit}, and the data records it in `
+        + `${n.dataUnit}; its limits were converted to ${n.dataUnit}.`);
+    } else {
+      log('warn', `The test definitions give test ${n.testNumber} in ${n.overrideUnit}, but the data records it in `
+        + `${n.dataUnit}. Its limits are applied as written, so check they are in ${n.dataUnit}: `
+        + 'otherwise every die is judged against the wrong limits.');
+    }
   }
 }
 
@@ -348,9 +386,25 @@ function log(level: LogLevel, msg: string) {
   el.textContent = `${time}  ${msg}`;
   logList.appendChild(el);
   logList.scrollTop = logList.scrollHeight;
+  unseenProblems.record(level, logPanel.classList.contains('open'));
   if (level === 'error') { logPanel.classList.add('open'); syncLogToggle(); }
-  const errors = logList.querySelectorAll('.log-error').length;
-  logToggle.textContent = errors > 0 ? `Log (${errors} error${errors > 1 ? 's' : ''})` : 'Log';
+  else renderLogToggle();
+}
+
+const unseenProblems = new UnseenProblems();
+
+function renderLogToggle(): void {
+  if (logPanel.classList.contains('open')) unseenProblems.clear();
+  const badges = unseenProblems.parts().map(({ level, glyph, text }) => {
+    const badge = document.createElement('span');
+    badge.className = `log-badge log-badge-${level}`;
+    const icon = document.createElement('span');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = `${glyph} `;
+    badge.append(icon, text);
+    return badge;
+  });
+  logToggle.replaceChildren(...badges, 'Log');
 }
 
 /**
@@ -404,6 +458,7 @@ function logWarnings(parsed: ParsedFile) {
  *  getter (logToggleTip) so it tracks the open state without a native title. */
 function syncLogToggle() {
   logToggle.setAttribute('aria-expanded', String(logPanel.classList.contains('open')));
+  renderLogToggle();
 }
 function logToggleTip(): string {
   return logPanel.classList.contains('open') ? 'Hide the log panel' : 'Show the log panel';
@@ -2132,11 +2187,12 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
 
   // ── Full parse for STDF/ATDF, prune/backfill pre-parsed CSV/JSON ──────────
   const entries: FileWaferEntry[] = [];
+  const overrideUnitNotes: OverrideUnitNote[] = [];
 
   try {
     // Finalise pre-parsed CSV/JSON entries — prune to selection.
     for (const [, parsed] of preParsed) {
-      applyTestSelection(parsed, testSelection ?? [], null, overlayTestOverrides);
+      applyTestSelection(parsed, testSelection ?? [], null, overlayTestOverrides, overrideUnitNotes);
     }
 
     for (const file of files) {
@@ -2160,7 +2216,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
             ? platform.parseAtdfFiltered(file, testSelection ?? [])
             : platform.parseStdfFiltered(file, testSelection ?? [])));
         const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
-        applyTestSelection(parsed, testSelection ?? [], firstPassTestDefs, overlayTestOverrides);
+        applyTestSelection(parsed, testSelection ?? [], firstPassTestDefs, overlayTestOverrides, overrideUnitNotes);
         entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
         log('info', `Parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''}`);
         logWarnings(parsed);
@@ -2179,6 +2235,10 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
     abortFreshLoad('Error: no files parsed successfully');
     return;
   }
+  logOverrideUnitNotes(overrideUnitNotes);
+  // Before anything reads the tests: a later file recording a test in another SI
+  // prefix (mV vs V) is converted to the lot's unit rather than withheld as a clash.
+  logUnitConversions(harmoniseTestUnits(entries, isAppend && currentWafers.length > 0 ? currentTestDefs : undefined));
 
   // Rename step — see needsWaferLabelPrompt for when it is shown.
   const allWafers = entries.flatMap(e => e.parsed.wafers);
@@ -2712,6 +2772,7 @@ function filterCapacity(): { dieCount: number; totalTests: number; isWebBuild: b
  *  rather than an inline listener so the menu row can call it directly. */
 async function openFilterTests() {
   if (busy || Object.keys(currentTestDefs).length === 0) return;
+  const overrideUnitNotes: OverrideUnitNote[] = [];
   // For CSV/JSON (no binary files), we only support in-memory filtering — no re-parse available.
   // For STDF/ATDF we use currentTestNames from the first-pass scan (may re-parse if user adds tests).
   const selectorTestDefs: StdfTestNames = currentTestNames ?? currentTestDefs;
@@ -2852,7 +2913,7 @@ async function openFilterTests() {
     for (const key of Object.keys(currentTestDefs)) {
       if (keepSet.has(Number(key))) filteredDefs[key] = currentTestDefs[key];
     }
-    applyTestOverrides(filteredDefs, filterTestOverrides);
+    applyTestOverrides(filteredDefs, filterTestOverrides, overrideUnitNotes);
     log('info', `Test filter: ${testSelection.length} of ${Object.keys(selectorTestDefs).length} tests (in-memory)`);
     // The per-source defs are filtered by the same selection — leaving them
     // whole would hand wmap tests the user has just removed, so the map's mode
@@ -2861,11 +2922,12 @@ async function openFilterTests() {
     for (const [source, fd] of currentDefsBySource) {
       const kept: Record<string, TestDef> = {};
       for (const key of Object.keys(fd.testDefs)) if (keepSet.has(Number(key))) kept[key] = fd.testDefs[key];
-      applyTestOverrides(kept, filterTestOverrides);
+      applyTestOverrides(kept, filterTestOverrides, overrideUnitNotes);
       // passHbins is untouched: which TESTS are selected says nothing about how
       // the file classifies its bins.
       filteredBySource.set(source, { testDefs: kept, passHbins: fd.passHbins });
     }
+    logOverrideUnitNotes(overrideUnitNotes);
     // Bin catalog/pass-bins describe the whole file's HBR/SBR, independent of
     // which tests are selected — carry the existing values through unchanged
     // rather than defaulting to "none" (renderWafers' default for an omitted
@@ -2890,7 +2952,7 @@ async function openFilterTests() {
         ? platform.parseAtdfFiltered(file, testSelection)
         : platform.parseStdfFiltered(file, testSelection));
       const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
-      applyTestSelection(parsed, testSelection, currentTestNames, filterTestOverrides);
+      applyTestSelection(parsed, testSelection, currentTestNames, filterTestOverrides, overrideUnitNotes);
       entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
       log('info', `Re-parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''} (${testSelection.length} tests)`);
       logWarnings(parsed);
@@ -2903,6 +2965,8 @@ async function openFilterTests() {
     endLoad(`${currentWafers.length} wafers loaded`);
     return;
   }
+  logOverrideUnitNotes(overrideUnitNotes);
+  logUnitConversions(harmoniseTestUnits(entries));
 
   // Stamp one WaferSource per entry, shared by reference across that entry's
   // wafers — the same guarantee `buildRenameRows` gives on the load path. This
@@ -3153,7 +3217,8 @@ async function loadRecentDefinition(
  *  pattern-matched so it agrees with what actually gets applied. */
 function definitionsCarryLimits(text: string): boolean {
   try {
-    return parseTestListFile(text).some(e => e.loLimit !== undefined || e.hiLimit !== undefined);
+    return parseTestListFile(text).some(e => e.loLimit !== undefined || e.hiLimit !== undefined
+      || e.loSpec !== undefined || e.hiSpec !== undefined);
   } catch {
     // Unparseable here means the load itself will report it — assume the
     // riskier answer rather than staying quiet.

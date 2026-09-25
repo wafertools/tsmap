@@ -6,6 +6,59 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Added
+
+- **The Log button counts new warnings and errors** logged while the log panel is closed
+  ("▲ 3 new warnings"), so a problem is visible without opening the panel. Opening it clears
+  the count.
+- **Spec limits from a test-definitions file and from CSV, JSON and Parquet columns.** A
+  definitions file can carry `loSpec`/`hiSpec` columns (also `lo_spec`/`hi_spec`, `spec_lo`/
+  `spec_hi`, `lsl`/`usl` and similar), and a long-format data file can map columns to the new
+  **Low spec limit / LSL** and **High spec limit / USL** roles. Process Capability is measured
+  against them. **Save test list** writes both pairs, so a saved file restores test and spec
+  limits alike.
+
+### Changed
+
+- **LSL and USL are read as spec limits.** In a test-definitions file and in the column mapping,
+  `lsl`/`usl`, `spec_lo`/`spec_hi`, `min_spec`/`max_spec` and the other spec names set spec
+  limits; test limits come from `lo_limit`/`hi_limit`, `ll`/`ul`, `lo`/`hi` and the other limit
+  names. A low limit only ever pairs with a high limit of the same kind. Definitions files and
+  the column mapping recognise the same names, ignoring case, spaces, `_` and `-`. The log notes
+  when a definitions file uses `lsl`/`usl`. A column naming no kind (`min`, `max`, `lower`,
+  `upper`, `lo_bound`, `hi_threshold` and similar) is not read as a limit, and a definitions file
+  warns about it. Two columns naming the same limit are both ignored with a warning, and a row
+  whose low limit is above its high limit has that pair dropped.
+
+- **A test that files record in different unit prefixes is converted, not withheld.** When one
+  file gives a test in mV and another in V, the later file's values and limits are converted to
+  the unit the first file uses, and the log says which. Only a prefix difference on the same unit
+  qualifies (mV/V, nA/µA, kHz/MHz; mega and above only for Hz and Ω). Any other disagreement,
+  including letter case alone (`mV`/`MV`), still leaves the test out of cross-wafer views.
+- **A test-definitions file whose unit differs from the data's by prefix has its limits
+  converted** to the data's unit, and the log says so. Any other unit difference is applied as
+  written, with a warning to check the limits.
+
+- **CSV, JSON and Parquet are read to the same STDF V4 value rules as STDF and ATDF.** A hard or
+  soft bin outside 0–32767, an X/Y outside −32767 to 32767, a site number outside 0–255 or a test
+  value that is not finite is treated as missing and reported (`bin-invalid`,
+  `coordinate-invalid`, the new `site-invalid`, `result-unusable`). One illegal coordinate
+  leaves the die with no position. A soft bin of 65535 and a coordinate of −32768, STDF's own
+  "missing" values, mean no value in these files too.
+
+### Fixed
+
+- **Warning and error text meets WCAG AA contrast in every theme.** Solarized Dark and Light
+  use a stronger yellow for warnings, and Catppuccin Latte a deeper red for errors.
+- **A test-definitions column that is ignored is reported once, at the header.** Rows no longer
+  each add an "extra column" warning for it, which counted them as malformed entries.
+
+- **An empty Parquet cell is no value.** A null, or blank text, in a column mapped to a position,
+  bin, site or test is treated as missing, as an empty CSV or JSON cell is, and no longer reported
+  as a value that would not convert (`values-not-numeric`).
+- **A true/false Parquet column mapped to a position, bin or site is reported as a type mismatch**
+  (`values-not-numeric`) and read as no value, rather than as 1 and 0.
+
 ## [0.1.40] — 2026-09-25
 
 ### Added

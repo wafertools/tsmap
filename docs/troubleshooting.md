@@ -106,6 +106,20 @@ definitions. Your current selection is preserved.
 **How to confirm:** the test appears in the list. After load, the same toggle is available via
 **Setup ▾ → Tests…**.
 
+### A file has multiple-result parametric records (MPR)
+
+**Cause:** the log shows *"N multiple-result parametric test record(s) (MPR) are not read; those
+tests are not shown."* MPR records hold several results for one test at once (a pin group, a
+sweep). tsmap does not read them yet, so those tests are missing from the test selector, the map
+and every chart. Everything else in the file — bins, positions, PTR and FTR tests — is read as
+usual, and yield is unaffected.
+
+**Fix:** none within tsmap for now. If you need these tests, say so on the
+[issue tracker](https://github.com/wafertools/tsmap/issues) — it tells us which testers and
+test programs to support first.
+
+**How to confirm:** the message names the count; a file without MPR records never shows it.
+
 ### "Test name scan failed — parsing all tests"
 
 **Cause:** the pre-parse scan that collects test names could not read them, so tsmap fell back

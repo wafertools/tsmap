@@ -33,11 +33,14 @@ pub struct FlatRow {
     pub split_parts: Vec<String>,
     /// One value per `mapping.meta` column, in that order; `""` when blank.
     pub meta: Vec<String>,
-    pub x: Option<i32>,
-    pub y: Option<i32>,
-    pub hbin: Option<u32>,
-    pub sbin: Option<u32>,
-    pub site_num: Option<u32>,
+    /// Whole numbers as read, before STDF's ranges are applied — `into_parsed`
+    /// applies them (`SpecCheck`), so the rule is the same for every flat format
+    /// and for STDF/ATDF. `None` is no usable value in the cell.
+    pub x: Option<i64>,
+    pub y: Option<i64>,
+    pub hbin: Option<i64>,
+    pub sbin: Option<i64>,
+    pub site_num: Option<i64>,
     /// Wide: every mapped test column that parsed. Long: this row's one test.
     pub tests: Vec<(u32, f64)>,
 }
@@ -53,16 +56,20 @@ pub fn split_parts(cols: &[String], mut value_of: impl FnMut(&str) -> String) ->
 }
 
 /// Assemble rows into a `ParsedStdf`. `extra_warnings` (e.g. Parquet's column
-/// type mismatches) are listed first, then position and grouping notes.
+/// type mismatches) are listed first, then values outside STDF's ranges, then
+/// position and grouping notes.
 pub fn into_parsed(
-    rows: Vec<FlatRow>,
+    mut rows: Vec<FlatRow>,
     mapping: &CsvMapping,
     long_format: bool,
     test_defs: HashMap<String, TestDef>,
     extra_warnings: Vec<ParserWarning>,
 ) -> ParsedStdf {
+    let mut check = SpecCheck::default();
+    for r in rows.iter_mut() { apply_stdf_ranges(r, &mut check); }
     let a = assemble(rows, mapping, long_format);
     let mut warnings = extra_warnings;
+    warnings.extend(check.warnings());
     warnings.extend(position_warnings(&a.wafers));
     warnings.extend(a.warnings);
     ParsedStdf {
@@ -78,9 +85,25 @@ struct Assembled {
     warnings: Vec<ParserWarning>,
 }
 
+/// STDF V4's ranges, as for STDF and ATDF: a bin, coordinate or site it cannot
+/// store is missing, a non-finite value is left out, and each is counted.
+/// A row with an illegal hard bin keeps its soft bin; one illegal coordinate
+/// leaves the die with no position, never half of one. An absent hard bin is
+/// normal in a flat file (the column may not be mapped), so it is not counted.
+fn apply_stdf_ranges(r: &mut FlatRow, check: &mut SpecCheck) {
+    r.hbin = r.hbin.and_then(|b| check.hard_bin(RawField::Value(b))).map(i64::from);
+    r.sbin = r.sbin.and_then(|b| check.soft_bin(RawField::Value(b))).map(i64::from);
+    let pos = check.position(RawField::from_opt(r.x), RawField::from_opt(r.y));
+    r.x = pos.map(|p| i64::from(p.0));
+    r.y = pos.map(|p| i64::from(p.1));
+    r.site_num = check.site(r.site_num).map(i64::from);
+    r.tests.retain(|&(_, v)| check.result(ResultFlags::default(), v).is_some());
+}
+
+/// Values here have passed `apply_stdf_ranges`, so they fit their STDF types.
 fn position(r: &FlatRow) -> Option<(i32, i32)> {
     match (r.x, r.y) {
-        (Some(x), Some(y)) => Some((x, y)),
+        (Some(x), Some(y)) => Some((x as i32, y as i32)),
         _ => None,
     }
 }
@@ -234,17 +257,17 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
                 }
             };
             let d = &mut dies[i];
-            d.hbin = d.hbin.or(r.hbin);
-            d.sbin = d.sbin.or(r.sbin);
-            d.site_num = d.site_num.or(r.site_num);
+            d.hbin = d.hbin.or(r.hbin.map(|b| b as u32));
+            d.sbin = d.sbin.or(r.sbin.map(|b| b as u32));
+            d.site_num = d.site_num.or(r.site_num.map(|s| s as u32));
             for (t, v) in &r.tests { d.test_values.insert(test_keys.num(*t), *v); }
         }
     } else {
         for r in rows {
             let mut d = blank(position(r));
-            d.hbin = r.hbin;
-            d.sbin = r.sbin;
-            d.site_num = r.site_num;
+            d.hbin = r.hbin.map(|b| b as u32);
+            d.sbin = r.sbin.map(|b| b as u32);
+            d.site_num = r.site_num.map(|s| s as u32);
             d.test_values = r.tests.iter().map(|(t, v)| (test_keys.num(*t), *v)).collect();
             dies.push(d);
         }
@@ -280,7 +303,7 @@ mod tests {
             wafer: Some("wafer".into()), lot: if lot { Some("lot".into()) } else { None }, site: None,
             tests: vec![], meta: meta.iter().map(|s| s.to_string()).collect(), split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, units_col: None, pass_bins: vec![1],
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None, pass_bins: vec![1],
         }
     }
 
@@ -288,7 +311,7 @@ mod tests {
         FlatRow {
             lot: lot.into(), wafer: wafer.into(), split_parts: vec![],
             meta: meta.iter().map(|s| s.to_string()).collect(),
-            x: Some(x), y: Some(0), hbin: Some(1), sbin: None, site_num: None,
+            x: Some(i64::from(x)), y: Some(0), hbin: Some(1), sbin: None, site_num: None,
             tests: tests.to_vec(),
         }
     }
@@ -426,5 +449,59 @@ mod tests {
         assert_eq!(a.wafers[0].results.len(), 2);
         assert_eq!(a.wafers[0].results[1].die_index, Some(1));
         assert!(a.warnings.is_empty(), "no positions, so nothing to call a repeat: {:?}", a.warnings);
+    }
+
+    // ── STDF V4 ranges, the same for every flat format as for STDF/ATDF ──────
+
+    fn range_mapping() -> CsvMapping {
+        let mut m = mapping(&[], false);
+        m.sbin = Some("sbin".into());
+        m.site = Some("site".into());
+        m.tests = vec![crate::parse_csv::CsvTestCol { col: "t1".into(), test_number: 1, name: "T1".into() }];
+        m
+    }
+
+    fn assert_ranges_applied(r: &ParsedStdf, format: &str) {
+        let dies = &r.wafers[0].results;
+        let at = |x: i32| dies.iter().find(|d| d.x == Some(x));
+        let d0 = at(0).unwrap_or_else(|| panic!("{format}: die at x 0"));
+        assert_eq!((d0.hbin, d0.sbin, d0.site_num), (None, None, None), "{format}: bin 40000, bin -1, site 300 are missing");
+        assert!(d0.test_values.is_empty(), "{format}: an infinite value is left out");
+        assert!(dies.iter().any(|d| d.x.is_none() && d.y.is_none() && d.hbin == Some(2)),
+            "{format}: a die at x 40000 has no position, in neither axis");
+        let d1 = at(1).unwrap_or_else(|| panic!("{format}: die at x 1"));
+        assert_eq!((d1.hbin, d1.sbin, d1.site_num), (Some(1), Some(3), Some(255)), "{format}: legal values kept");
+        for code in ["bin-invalid", "coordinate-invalid", "site-invalid", "result-unusable"] {
+            assert!(r.warnings.iter().any(|w| w.code == code), "{format}: no {code} in {:?}", r.warnings);
+        }
+    }
+
+    #[test]
+    fn csv_values_outside_stdf_ranges_are_missing_and_reported() {
+        let csv = "wafer,x,y,hbin,sbin,site,t1\nW01,0,0,40000,-1,300,inf\nW01,40000,0,2,3,1,1.0\nW01,1,0,1,3,255,2.0\n";
+        let r = crate::parse_csv::parse_csv_from_bytes(csv.as_bytes(), range_mapping()).unwrap();
+        assert_ranges_applied(&r, "CSV");
+    }
+
+    #[test]
+    fn json_values_outside_stdf_ranges_are_missing_and_reported() {
+        let json = r#"[{"wafer":"W01","x":0,"y":0,"hbin":40000,"sbin":-1,"site":300,"t1":"inf"},
+                       {"wafer":"W01","x":40000,"y":0,"hbin":2,"sbin":3,"site":1,"t1":1.0},
+                       {"wafer":"W01","x":1,"y":0,"hbin":1,"sbin":3,"site":255,"t1":2.0}]"#;
+        let r = crate::parse_json::parse_json_from_bytes(json.as_bytes(), range_mapping()).unwrap();
+        assert_ranges_applied(&r, "JSON");
+    }
+
+    #[test]
+    fn stdf_missing_soft_bin_and_coordinate_values_are_silent_in_flat_files_too() {
+        // 65535 (soft bin) and -32768 (coordinate) are STDF's own "missing" values:
+        // an STDF export written to CSV keeps them, and they mean no value, not an error.
+        let csv = "wafer,x,y,hbin,sbin\nW01,-32768,-32768,1,65535\n";
+        let mut m = mapping(&[], false);
+        m.sbin = Some("sbin".into());
+        let r = crate::parse_csv::parse_csv_from_bytes(csv.as_bytes(), m).unwrap();
+        let d = &r.wafers[0].results[0];
+        assert_eq!((d.x, d.sbin, d.hbin), (None, None, Some(1)));
+        assert!(!r.warnings.iter().any(|w| w.code == "bin-invalid" || w.code == "coordinate-invalid"), "{:?}", r.warnings);
     }
 }

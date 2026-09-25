@@ -125,6 +125,7 @@ export type ParserWarningCode =
   | "unpositioned-dies"
   | "bin-invalid"
   | "coordinate-invalid"
+  | "site-invalid"
   | "result-unusable"
   | "records-not-read"
   | "wafer-end-missing"
@@ -231,8 +232,13 @@ export interface CsvMapping {
   testnumberCol?: string | null;
   /** Tall format: the column holding each row's measured value. */
   testvalueCol?: string | null;
+  /** Tall format: the columns holding each test's test limits (STDF LO_LIMIT/HI_LIMIT). */
   loLimitCol?: string | null;
   hiLimitCol?: string | null;
+  /** Tall format: the columns holding each test's spec limits (STDF LO_SPEC/HI_SPEC) —
+   *  a separate pair from the test limits, never mixed with them. */
+  loSpecCol?: string | null;
+  hiSpecCol?: string | null;
   unitsCol?: string | null;
   /** Bins counted as a pass in this file's own pass/fail summary. */
   passBins: number[];

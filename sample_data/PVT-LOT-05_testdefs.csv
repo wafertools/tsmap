@@ -9,10 +9,10 @@
 #   - 1004: name/units/type overridden but *limits left blank* — its parsed
 #     460/840 limits are untouched, demonstrating "blank = don't override".
 #   - 2001: renamed only; still functional (type column reaffirms F).
-# Header columns are deliberately reordered and use the lsl/usl/type
-# synonyms (not the canonical loLimit/hiLimit/testType spelling) to also
-# exercise alias/order-independent header parsing.
-num,name,lsl,usl,units,type
+# Header columns use the lo_limit/hi_limit/type synonyms (not the canonical
+# loLimit/hiLimit/testType spelling) to also exercise alias header parsing.
+# These are TEST limits; lsl/usl would be read as spec limits.
+num,name,lo_limit,hi_limit,units,type
 1001,Vt_N,270,370,mV,p
 1002,Vt_P,270,370,mV,p
 1003,Idsat_N,520,880,uA,P

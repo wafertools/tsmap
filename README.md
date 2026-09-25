@@ -162,13 +162,17 @@ src/
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
   mapColorPrefs.ts    — remembered bin / value colour schemes and "use defined bin colours"
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
+  limitNames.ts       — the one table of limit column names (test vs spec limits), shared by the definitions reader and the column mapping
+  headerKey.ts        — the header normalisation every column-name alias table is keyed by
   sweeps.ts           — parametric sweep definitions (JSON): runs of tests read as curves in Insights → Sweeps
   definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
   wcr.ts              — STDF wafer configuration record code tables, shared by geometry and display
+  units.ts            — converts a test recorded in another SI prefix (mV vs V) to the lot's unit on load
   valueFindings.ts    — cost model deciding whether wmap's regional test-value analysis runs unprompted
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
   storageKeys.ts      — the registry of every persisted preference, + legacy-key migration
+  logBadge.ts         — the Log button's new-warning/new-error counts
   resetSettingsUI.ts  — Help ▸ Reset saved settings… — shows what is stored and forgets it
   recentDefinitions.ts   — recently used definitions files (tests/bins/splits), both platforms
   recentDefinitionsUI.ts — the shared "Load definitions ▾" split button those are offered behind

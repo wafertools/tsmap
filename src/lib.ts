@@ -7,6 +7,7 @@ import type { PlotMode, DerivedTestDef } from '@wafertools/wafermap';
 import type { WaferMetadata } from '@wafertools/wafermap/renderer';
 import type { WaferConfig, DieConfig, BinDef } from '@wafertools/wafermap';
 import { displayValue, isHiddenField } from './metadata';
+import { unitShift, shiftUnit } from './units';
 import { WCR_FLAT_SIDE, WCR_POS_X, WCR_POS_Y, WCR_UNITS, wcrCode } from './wcr';
 
 export function basename(p: string): string {
@@ -378,14 +379,16 @@ export function unionTestDefs(
       // drift between files for what is unambiguously the same test, and
       // treating that as a collision would withhold data over formatting.
       // Units do NOT — SI prefixes carry magnitude, so mV and MV are never the
-      // same unit.
+      // same unit, though they are the same measurement and converted on load.
       const aName = stated(first.name), bName = stated(def.name);
       const aUnit = stated(first.units), bUnit = stated(def.units);
       let kind: TestDefCollision['kind'] | undefined;
       let values: [string, string] | undefined;
       if (aName && bName && aName.toLowerCase() !== bName.toLowerCase()) {
         kind = 'name'; values = [aName, bName];
-      } else if (aUnit && bUnit && aUnit !== bUnit) {
+      } else if (aUnit && bUnit && unitShift(aUnit, bUnit) === undefined) {
+        // A prefix-only difference (mV vs V) is not a clash: the load converts
+        // that file to the lot's unit (units.ts, `harmoniseTestUnits`).
         kind = 'units'; values = [aUnit, bUnit];
       } else if (first.testType !== def.testType) {
         // Parametric vs functional: one records a measurement, the other a
@@ -808,7 +811,7 @@ export function autoPlotMode(wafers: WaferData[]): PlotMode {
 }
 
 /**
- * Merges per-test overrides (name/loLimit/hiLimit/units/testType) onto
+ * Merges per-test overrides (name/loLimit/hiLimit/loSpec/hiSpec/units/testType) onto
  * `testDefs` in place. A field is only overwritten when the override
  * actually specifies it (`!== undefined`) — this is what lets a rename-only
  * override leave limits untouched, a limit-only override leave the name
@@ -818,10 +821,30 @@ export function autoPlotMode(wafers: WaferData[]): PlotMode {
 export function applyTestOverrides(
   testDefs: Record<string, TestDef>,
   overrides: Map<number, TestOverride>,
+  unitNotes?: OverrideUnitNote[],
 ): void {
   for (const [num, ov] of overrides) {
     const key = String(num);
     if (!(key in testDefs)) continue;
+    // An override stating a unit the data does not use. Relabelling alone would
+    // judge every value against limits off by the prefix ratio (200–400 "mV"
+    // applied to readings of 0.3 V), so a prefix-only difference converts the
+    // override's limits to the data's unit and keeps it; any other difference is
+    // applied as given and reported. With no unit in the data, the override's
+    // unit simply names it.
+    let { loLimit, hiLimit, loSpec, hiSpec, units } = ov;
+    const ovUnit = units?.trim(), dataUnit = testDefs[key].units?.trim();
+    if (ovUnit && dataUnit && ovUnit !== dataUnit) {
+      const k = unitShift(ovUnit, dataUnit);
+      if (k !== undefined) {
+        if (loLimit !== undefined) loLimit = shiftUnit(loLimit, k);
+        if (hiLimit !== undefined) hiLimit = shiftUnit(hiLimit, k);
+        if (loSpec !== undefined) loSpec = shiftUnit(loSpec, k);
+        if (hiSpec !== undefined) hiSpec = shiftUnit(hiSpec, k);
+        units = undefined;
+      }
+      unitNotes?.push({ testNumber: key, overrideUnit: ovUnit, dataUnit, converted: k !== undefined });
+    }
     // Functional tests (FTR — pass/fail only) never have a numeric measured
     // value to check a spec limit against, so a loLimit/hiLimit override is
     // meaningless dead data there — silently drop it rather than carry it
@@ -833,12 +856,23 @@ export function applyTestOverrides(
     testDefs[key] = {
       ...testDefs[key],
       ...(ov.name !== undefined ? { name: ov.name } : {}),
-      ...(allowLimits && ov.loLimit !== undefined ? { loLimit: ov.loLimit } : {}),
-      ...(allowLimits && ov.hiLimit !== undefined ? { hiLimit: ov.hiLimit } : {}),
-      ...(ov.units !== undefined ? { units: ov.units } : {}),
+      ...(allowLimits && loLimit !== undefined ? { loLimit } : {}),
+      ...(allowLimits && hiLimit !== undefined ? { hiLimit } : {}),
+      ...(allowLimits && loSpec !== undefined ? { loSpec } : {}),
+      ...(allowLimits && hiSpec !== undefined ? { hiSpec } : {}),
+      ...(units !== undefined ? { units } : {}),
       ...(ov.testType !== undefined ? { testType: ov.testType } : {}),
     };
   }
+}
+
+/** A test-definition override whose unit differs from the data's — see `applyTestOverrides`. */
+export interface OverrideUnitNote {
+  testNumber: string;
+  overrideUnit: string;
+  dataUnit: string;
+  /** The override's limits were converted to the data's unit (a prefix-only difference). */
+  converted: boolean;
 }
 
 /**
@@ -853,6 +887,8 @@ export function diffTestOverride(current: TestDef, original: TestDef): TestOverr
   if (current.name !== original.name) ov.name = current.name;
   if (current.loLimit !== original.loLimit) ov.loLimit = current.loLimit;
   if (current.hiLimit !== original.hiLimit) ov.hiLimit = current.hiLimit;
+  if (current.loSpec !== original.loSpec) ov.loSpec = current.loSpec;
+  if (current.hiSpec !== original.hiSpec) ov.hiSpec = current.hiSpec;
   if (current.units !== original.units) ov.units = current.units;
   if (current.testType !== original.testType) ov.testType = current.testType;
   return Object.keys(ov).length ? ov : undefined;
@@ -874,6 +910,7 @@ export function applyTestSelection(
   selection: number[],
   firstPassDefs: StdfTestNames | null,
   testOverrides: Map<number, TestOverride>,
+  unitNotes?: OverrideUnitNote[],
 ): ParsedFile {
   const selectionSet = new Set(selection.map(String));
 
@@ -907,7 +944,7 @@ export function applyTestSelection(
     }
   }
 
-  applyTestOverrides(parsed.testDefs, testOverrides);
+  applyTestOverrides(parsed.testDefs, testOverrides, unitNotes);
 
   return parsed;
 }

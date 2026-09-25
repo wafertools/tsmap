@@ -272,6 +272,8 @@ pub const BIN_MAX: i64 = 32_767;
 pub const SOFT_BIN_MISSING: i64 = 65_535;
 pub const COORD_MAX: i64 = 32_767;
 pub const COORD_MISSING: i64 = -32_768;
+/// PIR/PRR SITE_NUM is U*1.
+pub const SITE_MAX: i64 = 255;
 
 /// A numeric field as read from a record, before the spec's rules are applied.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -403,6 +405,7 @@ impl ResultFlags {
 
 fn legal_coord(v: i64) -> bool { (-COORD_MAX..=COORD_MAX).contains(&v) }
 fn legal_bin(v: i64) -> bool { (0..=BIN_MAX).contains(&v) }
+fn legal_site(v: i64) -> bool { (0..=SITE_MAX).contains(&v) }
 
 /// Applies the rules above and counts every value it had to discard.
 #[derive(Default, Debug)]
@@ -412,6 +415,7 @@ pub struct SpecCheck {
     soft_bin_invalid: usize,
     bin_record_invalid: usize,
     coord_invalid: usize,
+    site_invalid: usize,
     prr_malformed: usize,
     result_flagged: usize,
     result_not_finite: usize,
@@ -460,6 +464,15 @@ impl SpecCheck {
         }
     }
 
+    /// A site number from a flat source; STDF's own is U*1 and always legal.
+    pub fn site(&mut self, raw: Option<i64>) -> Option<u32> {
+        match raw {
+            Some(v) if legal_site(v) => Some(v as u32),
+            Some(_) => { self.site_invalid += 1; None }
+            None => None,
+        }
+    }
+
     /// A PRR too short to hold its required fields; the die is dropped.
     pub fn prr_malformed(&mut self) { self.prr_malformed += 1; }
 
@@ -504,6 +517,12 @@ impl SpecCheck {
             out.push(ParserWarning::error("coordinate-invalid", format!(
                 "{} die coordinate(s) were outside -32767 to 32767; those dies are treated as having no position.",
                 self.coord_invalid
+            )));
+        }
+        if self.site_invalid > 0 {
+            out.push(ParserWarning::error("site-invalid", format!(
+                "{} die(s) had a site number outside 0–255; those dies are treated as having no site.",
+                self.site_invalid
             )));
         }
         let mut results = vec![];
@@ -961,6 +980,7 @@ mod tests {
         let mut invalid = SpecCheck::default();
         invalid.hard_bin(RawField::Value(40_000));
         invalid.position(RawField::Value(40_000), RawField::Value(0));
+        invalid.site(Some(300));
         invalid.prr_malformed();
         invalid.result(ResultFlags { not_executed: false, unusable: true }, 1.0);
         invalid.mpr_not_read();
@@ -974,6 +994,7 @@ mod tests {
             invalid.warnings()[3].clone(),
             invalid.warnings()[4].clone(),
             invalid.warnings()[5].clone(),
+            invalid.warnings()[6].clone(),
             value_not_numeric_warning("Vdd", 7),
             retests_assumed_warning("Wafer W01", 4),
             wafer_split_warning("Wafer W01", "temp", &["25".into(), "85".into()]),
@@ -994,6 +1015,7 @@ mod tests {
             ("unpositioned-dies",           "error"),
             ("bin-invalid",                 "error"),
             ("coordinate-invalid",          "error"),
+            ("site-invalid",                "error"),
             ("result-unusable",             "warning"),
             ("file-truncated",              "warning"),
             ("records-not-read",            "error"),

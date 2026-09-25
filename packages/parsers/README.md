@@ -116,8 +116,10 @@ interface CsvMapping {
   testnameCol?: string;       // for "tall" CSVs: column holding the test name per row
   testnumberCol?: string;     // for "tall" CSVs: column holding the test's real number per row
   testvalueCol?: string;      // for "tall" CSVs: column holding the test value per row
-  loLimitCol?: string;
+  loLimitCol?: string;        // for "tall" CSVs: test limits (STDF LO_LIMIT/HI_LIMIT) per row
   hiLimitCol?: string;
+  loSpecCol?: string;         // for "tall" CSVs: spec limits (STDF LO_SPEC/HI_SPEC) per row — a separate pair
+  hiSpecCol?: string;
   unitsCol?: string;
   passBins: number[];         // hbin/sbin values treated as a pass for pass/fail summary
 }
@@ -220,6 +222,7 @@ type ParserWarningCode =
   | 'unpositioned-dies'         // dies with no X/Y — real data, not placeable
   | 'bin-invalid'               // a bin outside STDF's 0–32767, or a missing hard bin
   | 'coordinate-invalid'        // an X/Y outside STDF's -32767..32767
+  | 'site-invalid'              // a site number outside STDF's 0–255 (flat formats)
   | 'result-unusable'           // results the tester flagged unusable (value left out, verdict kept)
   | 'records-not-read'          // records this parser does not read yet (MPR)
   | 'wafer-end-missing'         // a wafer had no WRR; closed at the next wafer or end of file
@@ -262,7 +265,7 @@ an empty array, which asserts that nothing passes.
 **`warnings` carries a stable `code`, prose, and a severity** — branch on the code, display
 the message, and never match on the prose. `severity: 'error'` means a number or a plot
 built from this result can mislead, because data was dropped or a value was substituted
-(`unpositioned-dies`, `bin-invalid`, `coordinate-invalid`, `record-malformed`, `records-not-read`, `values-not-numeric`); `'warning'` means the
+(`unpositioned-dies`, `bin-invalid`, `coordinate-invalid`, `site-invalid`, `record-malformed`, `records-not-read`, `values-not-numeric`); `'warning'` means the
 parse applied a documented rule or interpretation — one you may want to change, or, like
 `result-unusable`, the spec's own rule for leaving out values the tester flagged — and the
 result means what the file says. Nothing here is fatal — the parse succeeded. Surface them: a silently discarded
@@ -375,6 +378,15 @@ pub struct CsvHeadersResult {
 - **Byte readers are panic-free.** STDF/ATDF field readers are bounds-checked and return `Option`/`Result` rather than panicking on truncated input — a panic inside WASM aborts the whole module with no recovery, so this is a hard requirement, not a style preference.
 - **Big-endian and little-endian STDF** are both supported (detected from the FAR record's `CPU_TYPE`).
 - **Gzip is transparent** — every entry point decompresses `.gz` input automatically by sniffing the magic bytes; callers don't need to branch on compression.
+- **MPR records are not read yet.** A multiple-result parametric record (STDF `MPR`, ATDF `MPR:`)
+  carries several results for one test; both parsers skip them — in the full parse and the
+  test-name scan alike — and count them in a `records-not-read` warning, so the missing tests are
+  never silent. PTR and FTR records are read in full.
+- **Every format applies STDF V4's value ranges.** A bin, coordinate or site number STDF cannot
+  store, or a test value that is not finite, is missing in CSV, JSON and Parquet exactly as in
+  STDF and ATDF, and is reported under the same codes (`bin-invalid`, `coordinate-invalid`,
+  `site-invalid`, `result-unusable`). The rule lives in one place (`SpecCheck` in `types.rs`),
+  which the flat formats reach through `flat_wafers::into_parsed`.
 - **CSV/JSON/Parquet test numbers fall back to a deterministic hash only when the file itself carries no real one.** Neither format has a *mandatory* STDF-style test number the way STDF/ATDF do, but a real one is used whenever the source data has it — see "Test identity — real number vs. synthesized one" above for the wide/tall rules. Hashing is the fallback, not the default: it fires per test only when no real number was mapped or the mapped column's value didn't parse (`test_identity::stable_test_number`, FNV-1a with a fixed seed and a reserved floor, collision-probed so two tests in one file can never collide, and never colliding with a genuine numeric-header/`testnumberCol` value either). Deliberately not sequential/encounter-order: a hash means the number for a given test doesn't change if the file is reordered or a column is added — a *hashed* number is otherwise meaningless and callers should never rely on its value, only on it being stable and unique within one parse. `order` (see `TestDef` above) carries the file's own display order instead.
 - **Parquet reads through a row-oriented API, not Arrow.** `parquet::record::Row`/`Field` rather than the `arrow` feature — a closer fit for this crate's row-based `DieResult` model, and a smaller WASM bundle (no Arrow array machinery pulled in). A typed Parquet cell is coerced to `f64` for numeric roles and to a plain string otherwise; a value that fails to coerce (e.g. a numeric role mapped to a genuinely string-typed column) is skipped and surfaced as one summarised entry in `warnings`, not a panic or a silent zero.
 - **Parquet's `zstd` codec is native-only.** `snappy`, `gzip`, `lz4`, and `brotli` build for `wasm32-unknown-unknown` with no extra toolchain; `zstd`'s C library needs a real C cross-compiler targeting wasm32, which a plain `wasm-pack build` doesn't assume is available. A `zstd`-compressed Parquet file parses natively but fails clearly on the WASM build.

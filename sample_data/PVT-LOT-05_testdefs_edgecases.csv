@@ -6,14 +6,14 @@
 #
 # Header: reordered vs. canonical, one genuinely unrecognized column ("foo")
 #   -> warns "Unrecognized column "foo" ignored", rest of header still used.
-num,name,lsl,usl,units,type,foo
+num,name,lo_limit,hi_limit,units,type,foo
 # 1001: valid row, also proves the unrecognized "foo" data cell is ignored.
 1001,Vt_N,270,370,mV,p,ignored-column
 # Legacy (no-comma, whitespace-separated) line mixed into an otherwise
 # header-driven file — proves the two parsing modes coexist; no limits
 # reach 1002 via this line (legacy form never carries limits).
 1002 Vt_P
-# 1003: "notanumber" in the lsl slot -> warns "Invalid loLimit value
+# 1003: "notanumber" in the lo_limit slot -> warns "Invalid loLimit value
 # "notanumber" ignored"; hiLimit/name/units/type on the same row still apply.
 1003,Idsat_N,notanumber,880,uA,P
 # 2001 is the lot's one functional (FTR) test — assigning it limits here is

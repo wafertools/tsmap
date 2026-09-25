@@ -366,6 +366,34 @@ describe('applyTestOverrides', () => {
     expect(testDefs['1001'].testType).toBe('F');
   });
 
+  it('converts an override\'s limits to the data\'s unit when they differ only by prefix', () => {
+    const testDefs: Record<string, TestDef> = { '1001': { name: 'Vth', testType: 'P', units: 'V' } };
+    const notes: import('./lib').OverrideUnitNote[] = [];
+    applyTestOverrides(testDefs, new Map([[1001, { loLimit: 200, hiLimit: 400, units: 'mV' }]]), notes);
+    expect(testDefs['1001']).toEqual({ name: 'Vth', testType: 'P', units: 'V', loLimit: 0.2, hiLimit: 0.4 });
+    expect(notes).toEqual([{ testNumber: '1001', overrideUnit: 'mV', dataUnit: 'V', converted: true }]);
+  });
+
+  it('carries spec limits separately, converted with the test limits', () => {
+    const testDefs: Record<string, TestDef> = { '1001': { name: 'Vth', testType: 'P', units: 'V', loLimit: 0.2, hiLimit: 0.4 } };
+    applyTestOverrides(testDefs, new Map([[1001, { loSpec: 250, hiSpec: 350, units: 'mV' }]]));
+    expect(testDefs['1001']).toEqual({ name: 'Vth', testType: 'P', units: 'V', loLimit: 0.2, hiLimit: 0.4, loSpec: 0.25, hiSpec: 0.35 });
+  });
+
+  it('drops spec limits for a functional test, as it does test limits', () => {
+    const testDefs: Record<string, TestDef> = { '2001': { name: 'Scan', testType: 'F' } };
+    applyTestOverrides(testDefs, new Map([[2001, { loSpec: 0, hiSpec: 1 }]]));
+    expect(testDefs['2001']).toEqual({ name: 'Scan', testType: 'F' });
+  });
+
+  it('applies an override in another unit as given, and notes it', () => {
+    const testDefs: Record<string, TestDef> = { '1001': { name: 'I', testType: 'P', units: 'A' } };
+    const notes: import('./lib').OverrideUnitNote[] = [];
+    applyTestOverrides(testDefs, new Map([[1001, { loLimit: 1, units: 'V' }]]), notes);
+    expect(testDefs['1001']).toMatchObject({ units: 'V', loLimit: 1 });
+    expect(notes[0].converted).toBe(false);
+  });
+
   it('drops loLimit/hiLimit for an already-functional test, but keeps name/units', () => {
     const testDefs: Record<string, TestDef> = { '2001': { name: 'scan', testType: 'F' } };
     applyTestOverrides(testDefs, new Map([[2001, { name: 'Scan Chain', loLimit: 0, hiLimit: 1, units: 'x' }]]));
@@ -814,6 +842,14 @@ describe('unionTestDefs', () => {
       file('b.stdf', { 1001: def({ units: 'MV' }) }),
     ]);
     expect(collisions[0].kind).toBe('units');
+  });
+
+  it('does not report a prefix-only unit difference — the load converts it', () => {
+    const { collisions } = unionTestDefs([
+      file('a.stdf', { 1001: def({ units: 'V' }) }),
+      file('b.stdf', { 1001: def({ units: 'mV' }) }),
+    ]);
+    expect(collisions).toEqual([]);
   });
 
   it('tolerates name case and padding drift', () => {

@@ -632,7 +632,7 @@
         --btn-primary-text: #000;
 
         --warn-bg:         #33321a;
-        --warn-text:       #b58900;
+        --warn-text:       #c99a10;
         --warn-border:     #4a4520;
         --warn-btn-bg:     #b58900;
         --warn-btn-hover:  #c99a10;
@@ -692,7 +692,7 @@
         --btn-primary-text: #000;
 
         --warn-bg:         #faf3d8;
-        --warn-text:       #93700a;
+        --warn-text:       #7f6109;
         --warn-border:     #e6d99a;
         --warn-btn-bg:     #b58900;
         --warn-btn-hover:  #93700a;
@@ -849,7 +849,7 @@
         --info-text:       #0c4fc9;
         --info-border:     #b8cdf5;
         --ok-text:         #297a1a;
-        --error-text:      #d20f39;
+        --error-text:      #c80d36;
         --error-bg:        #fceaee;
         --error-border:    #f0b8c5;
       }
@@ -1672,6 +1672,15 @@
         white-space: pre-wrap; word-break: break-all;
         color: var(--text-muted);
       }
+      /* New-problem count on the Log toggle: problems logged while the panel
+         was closed. The count is text ("3 new warnings"), the colour only
+         reinforces it; the glyph is aria-hidden. */
+      .log-badge {
+        border-radius: var(--radius-pill); padding: 0 var(--space-md);
+        font-size: 12px; font-weight: 600;
+      }
+      .log-badge-warn  { background: var(--warn-bg);  color: var(--warn-text); }
+      .log-badge-error { background: var(--error-bg); color: var(--error-text); }
       .log-error { color: var(--error-text); }
       .log-warn  { color: var(--warn-text); }
       .log-info  { color: var(--text-muted); }
