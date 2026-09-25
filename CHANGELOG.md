@@ -6,8 +6,7 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
-**Needs a `@wafertools/testdata-parser` minor bump (0.12.0) and publish before release** —
-bin and coordinate handling, and the warning codes below.
+## [0.1.40] — 2026-09-25
 
 ### Added
 
