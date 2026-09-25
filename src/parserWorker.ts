@@ -123,7 +123,14 @@ self.onmessage = async (e: MessageEvent<ParserRequest>) => {
   try {
     const wasm = await loadWasm();
     const result = run(wasm, req);
-    post({ id: req.id, ok: true, result });
+    // A parse is a columnar buffer (a fresh copy out of wasm memory, owned by no
+    // one else): transfer it, so it moves to the main thread instead of being
+    // cloned and this worker never holds a second copy.
+    if (result instanceof Uint8Array) {
+      (self as unknown as Worker).postMessage({ id: req.id, ok: true, result } satisfies ParserResponse, [result.buffer]);
+    } else {
+      post({ id: req.id, ok: true, result });
+    }
   } catch (err) {
     // The parser throws a real Error carrying a stable `code`; postMessage
     // cannot clone an Error's own properties, so the code travels as its own

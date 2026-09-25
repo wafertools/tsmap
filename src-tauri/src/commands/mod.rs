@@ -38,4 +38,13 @@ pub use read_text_file::read_text_file;
 pub use respawn_new_instance::respawn_new_instance;
 pub use stdf_file_meta::stdf_file_meta;
 pub use stdf_test_names::stdf_test_names;
+
+/// A parse as the frontend receives it: the columnar buffer (`testdata_parser::columnar`)
+/// as a raw IPC body, which arrives as an `ArrayBuffer` — no JSON on either side.
+/// On a 266k-die STDF that is ~121 MB of bytes instead of ~480 MB of JSON that
+/// serde had to write and the webview had to parse. Called inside each command's
+/// `spawn_blocking`, so encoding stays off the async runtime.
+pub(crate) fn columnar(parsed: testdata_parser::types::ParsedStdf) -> tauri::ipc::Response {
+    tauri::ipc::Response::new(testdata_parser::columnar::encode_columnar(parsed))
+}
 pub use write_temp_html::write_temp_html;

@@ -255,6 +255,20 @@ describe('applyTestSelection', () => {
     expect(parsed.wafers[0].results[0].testValues).toEqual({ 1001: 0.5 });
   });
 
+  it('after a filtered parse, prunes testDefs but leaves the dies alone', () => {
+    // A filtered parse defines every test but carries values only for the
+    // selection, so the per-die prune is skipped. The die here holds a value the
+    // selection excludes, which a filtered parse never produces: it shows the pass
+    // did not run, not that such a value should survive.
+    const parsed = makeParsed(
+      { '1001': { name: 'A', testType: 'P' }, '1002': { name: 'B', testType: 'P' } },
+      { 1001: 0.5, 1002: 1.2 },
+    );
+    applyTestSelection(parsed, [1001], null, new Map(), undefined, true);
+    expect(Object.keys(parsed.testDefs)).toEqual(['1001']);
+    expect(parsed.wafers[0].results[0].testValues).toEqual({ 1001: 0.5, 1002: 1.2 });
+  });
+
   it('prunes per-die testPass to selection', () => {
     const parsed = makeParsed(
       { '1001': { name: 'A', testType: 'P' }, '2001': { name: 'scan', testType: 'F' }, '2002': { name: 'bist', testType: 'F' } },

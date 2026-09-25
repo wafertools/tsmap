@@ -9,7 +9,7 @@ import { estimateValueFindingsMs, lotHasTestValues, describeDuration,
          maxTestCount, VALUE_FINDINGS_AUTO_BUDGET_MS } from './valueFindings';
 import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
-import { createPlatform, isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose } from './platform';
+import { createPlatform, isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose, lastParseDecodeMs } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
 import { basename, rustToLocal, derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
 import { showMappingOverlay } from './mappingUI';
@@ -429,6 +429,11 @@ function toggleLogTimings(): void {
  * transfer, opaque as one call from here) versus `rustToLocal`'s pure-JS
  * reconstruction into wmap's `Die[]` shape — without a bespoke harness.
  */
+/** The decode's share of the parse just logged — the rest is the parse itself and the transfer. */
+function logDecodeTime(): void {
+  if (logTimings) log('info', `⏱     of which decode — ${lastParseDecodeMs().toFixed(0)} ms`);
+}
+
 async function logTimed<T>(label: string, fn: () => Promise<T> | T): Promise<T> {
   if (!logTimings) return await fn();
   const start = performance.now();
@@ -1274,8 +1279,8 @@ async function renderWaferView(wafers: WaferData[]) {
   // must not outlive the container it was mounted in.
   container.innerHTML = '';
 
-  const findingsNotice = resolveValueFindings(wafers);
-  const plotMode = autoPlotMode(wafers);
+  const findingsNotice = await logTimed('resolveValueFindings', () => resolveValueFindings(wafers));
+  const plotMode = await logTimed('autoPlotMode', () => autoPlotMode(wafers));
   if (wafers.length === 1) {
     container.classList.remove('gallery');
     const singleWcr = wcrGeometryFrom(wafers[0].source);
@@ -2208,15 +2213,17 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
       loadPhase('parsing', `Parsing ${file.name}`);
       try {
         // If scan failed (firstPassTestDefs null), fall back to unfiltered parse.
-        const raw = await logTimed('native parse (invoke: Rust parse + serde + IPC)', () => firstPassTestDefs === null
+        const raw = await logTimed('parse (Rust parse, columnar encode, IPC, decode)', () => firstPassTestDefs === null
           ? (isAtdfExt(fileExt)
             ? platform.parseAtdf(file)
             : platform.parseStdf(file))
           : (isAtdfExt(fileExt)
             ? platform.parseAtdfFiltered(file, testSelection ?? [])
             : platform.parseStdfFiltered(file, testSelection ?? [])));
+        logDecodeTime();
         const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
-        applyTestSelection(parsed, testSelection ?? [], firstPassTestDefs, overlayTestOverrides, overrideUnitNotes);
+        // A filtered parse (the scan succeeded) already holds exactly the selection.
+        await logTimed('applyTestSelection', () => applyTestSelection(parsed, testSelection ?? [], firstPassTestDefs, overlayTestOverrides, overrideUnitNotes, firstPassTestDefs !== null));
         entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
         log('info', `Parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''}`);
         logWarnings(parsed);
@@ -2948,11 +2955,12 @@ async function openFilterTests() {
     const fileExt = effectiveFileExtension(file.name);
     loadPhase('parsing', `Parsing ${file.name}`);
     try {
-      const raw = await logTimed('native parse (invoke: Rust parse + serde + IPC)', () => isAtdfExt(fileExt)
+      const raw = await logTimed('parse (Rust parse, columnar encode, IPC, decode)', () => isAtdfExt(fileExt)
         ? platform.parseAtdfFiltered(file, testSelection)
         : platform.parseStdfFiltered(file, testSelection));
+      logDecodeTime();
       const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
-      applyTestSelection(parsed, testSelection, currentTestNames, filterTestOverrides, overrideUnitNotes);
+      applyTestSelection(parsed, testSelection, currentTestNames, filterTestOverrides, overrideUnitNotes, true);
       entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
       log('info', `Re-parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''} (${testSelection.length} tests)`);
       logWarnings(parsed);

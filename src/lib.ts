@@ -911,6 +911,13 @@ export function applyTestSelection(
   firstPassDefs: StdfTestNames | null,
   testOverrides: Map<number, TestOverride>,
   unitNotes?: OverrideUnitNote[],
+  /**
+   * The parse was already filtered to exactly `selection` (`parseStdfFiltered` /
+   * `parseAtdfFiltered` with this selection), so no die carries another test and
+   * the per-die prune has nothing to remove. It walked every key of every die —
+   * 3.9 s on a 266k-die lot in the desktop webview — to delete nothing.
+   */
+  valuesAlreadySelected = false,
 ): ParsedFile {
   const selectionSet = new Set(selection.map(String));
 
@@ -920,7 +927,7 @@ export function applyTestSelection(
   }
 
   // Prune per-die testValues and testPass to selection.
-  for (const wafer of parsed.wafers) {
+  if (!valuesAlreadySelected) for (const wafer of parsed.wafers) {
     for (const die of wafer.results) {
       if (die.testValues) {
         for (const key of Object.keys(die.testValues)) {

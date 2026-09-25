@@ -4,6 +4,45 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [Unreleased]
+
+### Breaking
+
+- **`@wafertools/testdata-parser`: the parse functions return a columnar buffer.**
+  `parse_stdf`, `parse_atdf`, `parse_csv`, `parse_json`, `parse_parquet`,
+  `parse_stdf_filtered` and `parse_atdf_filtered` return a `Uint8Array`: a JSON header holding
+  everything a `ParsedStdf` holds except the dies, followed by typed columns (positions, bins,
+  site, one column per test), each on an 8-byte boundary. `decodeParsed` from
+  `@wafertools/testdata-parser/columnar.js`, shipped in the package, turns it back into a
+  `ParsedStdf`. The Rust API still returns `ParsedStdf`, and `columnar::encode_columnar`
+  produces the buffer. Test values are sent as 32-bit floats when every value in the column is
+  exactly representable as one (STDF readings are), and as 64-bit otherwise, so no value
+  changes.
+
+### Changed
+
+- **Large lots load in the browser build.** The parser worker transfers the columnar buffer to
+  the page instead of copying the parsed lot, so a lot is held once rather than twice. A 341 MB
+  STDF of 266,325 dies parses in about 10 s and holds about 1.1 GB in Chrome. The
+  `WEB_DIE_BUDGET` warning threshold is unchanged.
+- **The desktop app receives a parse as raw bytes.** Each parse command returns the columnar
+  buffer as a Tauri IPC response, with no JSON on either side. The same 341 MB STDF crosses the
+  bridge as 71 MB, where JSON was 480 MB.
+- **Faster loading after a parse.** Selecting tests after a filtered parse no longer revisits
+  every die, and the test-value analysis estimate samples dies rather than counting every
+  die's tests. On the 266k-die lot in the desktop app these took 3.9 s and 3.3 s, now 1 ms and
+  80 ms.
+- **"Log phase timings" names the parse's parts:** the parse line lists what it covers, a
+  second line gives the decode's share, and new lines time test selection and the
+  test-value analysis estimate.
+
+### Added
+
+- **`npm run profile:web`** times the heavy flows in Chrome on a large fixture (parse,
+  load-time analysis, gallery mount, plot-mode changes, the single-wafer map), with the same
+  options the app uses. `--profile` adds the top functions per flow and DevTools
+  `.cpuprofile` files; `--save`/`--compare` record and compare baselines.
+
 ## [0.1.41] — 2026-09-25
 
 ### Added

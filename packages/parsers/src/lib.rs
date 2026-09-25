@@ -3,6 +3,7 @@ pub mod types;
 pub mod read_file;
 pub mod test_identity;
 pub mod flat_wafers;
+pub mod columnar;
 pub mod parse_stdf;
 pub mod parse_atdf;
 pub mod parse_csv;
@@ -273,8 +274,6 @@ export interface ParserError extends Error {
     // reinterpretation, not a conversion or a check.
     #[wasm_bindgen]
     extern "C" {
-        #[wasm_bindgen(typescript_type = "ParsedStdf")]
-        pub type TsParsedStdf;
         #[wasm_bindgen(typescript_type = "ScanResult")]
         pub type TsScanResult;
         #[wasm_bindgen(typescript_type = "FileMeta")]
@@ -336,33 +335,39 @@ export interface ParserError extends Error {
             .map_err(|e| to_js_error(ParseError::mapping_invalid(e)))
     }
 
+    // The parse exports return a parse as a columnar buffer (`columnar.rs`), not as
+    // objects: a buffer is produced by copying rather than by building an object per
+    // die, and a worker transfers it instead of structured-cloning it — which is what
+    // made a large lot crash the tab. `decodeParsed` in `columnar.js`, shipped in this
+    // package, turns it back into a `ParsedStdf`.
+
     #[wasm_bindgen]
-    pub fn parse_stdf(bytes: &[u8]) -> Result<TsParsedStdf, JsValue> {
+    pub fn parse_stdf(bytes: &[u8]) -> Result<Vec<u8>, JsValue> {
         crate::parse_stdf::parse_stdf_from_bytes(bytes)
-            .map(|r| to_js(&r))
+            .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_atdf(bytes: &[u8]) -> Result<TsParsedStdf, JsValue> {
+    pub fn parse_atdf(bytes: &[u8]) -> Result<Vec<u8>, JsValue> {
         crate::parse_atdf::parse_atdf_from_bytes(bytes)
-            .map(|r| to_js(&r))
+            .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_csv(bytes: &[u8], mapping: &TsCsvMapping) -> Result<TsParsedStdf, JsValue> {
+    pub fn parse_csv(bytes: &[u8], mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
         let mapping = mapping_from_js(AsRef::<JsValue>::as_ref(mapping))?;
         crate::parse_csv::parse_csv_from_bytes(bytes, mapping)
-            .map(|r| to_js(&r))
+            .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_json(bytes: &[u8], mapping: &TsCsvMapping) -> Result<TsParsedStdf, JsValue> {
+    pub fn parse_json(bytes: &[u8], mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
         let mapping = mapping_from_js(AsRef::<JsValue>::as_ref(mapping))?;
         crate::parse_json::parse_json_from_bytes(bytes, mapping)
-            .map(|r| to_js(&r))
+            .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
@@ -383,10 +388,10 @@ export interface ParserError extends Error {
     }
 
     #[wasm_bindgen]
-    pub fn parse_parquet(bytes: &[u8], mapping: &TsCsvMapping) -> Result<TsParsedStdf, JsValue> {
+    pub fn parse_parquet(bytes: &[u8], mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
         let mapping = mapping_from_js(AsRef::<JsValue>::as_ref(mapping))?;
         crate::parse_parquet::parse_parquet_from_bytes(bytes, mapping)
-            .map(|r| to_js(&r))
+            .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
@@ -405,10 +410,10 @@ export interface ParserError extends Error {
     }
 
     #[wasm_bindgen]
-    pub fn parse_stdf_filtered(bytes: &[u8], selected: &TsNumberArray) -> Result<TsParsedStdf, JsValue> {
+    pub fn parse_stdf_filtered(bytes: &[u8], selected: &TsNumberArray) -> Result<Vec<u8>, JsValue> {
         let set = selected_set(selected)?;
         crate::parse_stdf::parse_stdf_from_bytes_filtered(bytes, &set)
-            .map(|r| to_js(&r))
+            .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
@@ -427,10 +432,10 @@ export interface ParserError extends Error {
     }
 
     #[wasm_bindgen]
-    pub fn parse_atdf_filtered(bytes: &[u8], selected: &TsNumberArray) -> Result<TsParsedStdf, JsValue> {
+    pub fn parse_atdf_filtered(bytes: &[u8], selected: &TsNumberArray) -> Result<Vec<u8>, JsValue> {
         let set = selected_set(selected)?;
         crate::parse_atdf::parse_atdf_from_bytes_filtered(bytes, &set)
-            .map(|r| to_js(&r))
+            .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 

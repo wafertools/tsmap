@@ -30,7 +30,12 @@ export const src = resolve(root, 'packages/parsers');
 export const pkg = resolve(src, 'pkg');
 
 // Extra files to publish alongside the wasm-bindgen output, source -> published name.
-export const EXTRAS = [['llms.txt', 'llms.txt']];
+export const EXTRAS = [
+  ['llms.txt', 'llms.txt'],
+  // The decoder for the columnar buffer the parse functions return (src/columnar.rs).
+  ['js/columnar.js', 'columnar.js'],
+  ['js/columnar.d.ts', 'columnar.d.ts'],
+];
 
 // Importing this module must not sync anything — publish-parser.mjs imports it
 // only for the list above.

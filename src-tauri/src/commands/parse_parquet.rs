@@ -1,8 +1,9 @@
 pub use testdata_parser::parse_csv::CsvMapping;
 pub use testdata_parser::parse_parquet::ParquetHeadersResult;
 use testdata_parser::parse_parquet::{parquet_distinct_count_inner, parquet_headers_inner, parse_parquet_inner};
-use testdata_parser::types::ParsedStdf;
 use testdata_parser::error::ParseError;
+use tauri::ipc::Response;
+use super::columnar;
 
 #[tauri::command]
 pub async fn parquet_headers(path: String) -> Result<ParquetHeadersResult, ParseError> {
@@ -20,8 +21,8 @@ pub async fn parquet_distinct_count(path: String, columns: Vec<String>) -> Resul
 }
 
 #[tauri::command]
-pub async fn parse_parquet(path: String, mapping: CsvMapping) -> Result<ParsedStdf, ParseError> {
-    tokio::task::spawn_blocking(move || parse_parquet_inner(path, mapping))
+pub async fn parse_parquet(path: String, mapping: CsvMapping) -> Result<Response, ParseError> {
+    tokio::task::spawn_blocking(move || parse_parquet_inner(path, mapping).map(columnar))
         .await
         .map_err(ParseError::internal)?
 }

@@ -6,6 +6,23 @@ import { DATA_FILE_EXTENSIONS } from './lib';
 import type { LotMeta, WaferData, TestDef, ParserWarning } from './types';
 import type { BinDef } from '@wafertools/wafermap';
 import { openModal } from './modal';
+// Parses cross into the app as a columnar buffer, decoded here into the same
+// `ParsedStdf` shape as before: from the worker it is transferred rather than
+// structured-cloned, and from Tauri it is a raw IPC body rather than JSON.
+import { decodeParsed } from '@wafertools/testdata-parser/columnar.js';
+
+let lastDecodeMs = 0;
+
+/** How long the most recent parse spent decoding its buffer, for the load's phase timings. */
+export function lastParseDecodeMs(): number { return lastDecodeMs; }
+
+/** `decodeParsed`, timed. The rest of a parse's time is the parse itself and getting its bytes here. */
+function decodeTimed(buffer: ArrayBuffer | Uint8Array): RustParsedFile {
+  const start = performance.now();
+  const parsed = decodeParsed(buffer) as RustParsedFile;
+  lastDecodeMs = performance.now() - start;
+  return parsed;
+}
 
 export interface RustParsedFile {
   meta: LotMeta;
@@ -409,27 +426,27 @@ function makeTauriPlatform(): Platform {
 
     async parseStdf(file) {
       const invoke = await getInvoke();
-      return invoke<RustParsedFile>('parse_stdf', { path: file.path });
+      return decodeTimed(await invoke<ArrayBuffer>('parse_stdf', { path: file.path }));
     },
 
     async parseAtdf(file) {
       const invoke = await getInvoke();
-      return invoke<RustParsedFile>('parse_atdf', { path: file.path });
+      return decodeTimed(await invoke<ArrayBuffer>('parse_atdf', { path: file.path }));
     },
 
     async parseCsv(file, mapping) {
       const invoke = await getInvoke();
-      return invoke<RustParsedFile>('parse_csv', { path: file.path, mapping });
+      return decodeTimed(await invoke<ArrayBuffer>('parse_csv', { path: file.path, mapping }));
     },
 
     async parseJson(file, mapping) {
       const invoke = await getInvoke();
-      return invoke<RustParsedFile>('parse_json', { path: file.path, mapping });
+      return decodeTimed(await invoke<ArrayBuffer>('parse_json', { path: file.path, mapping }));
     },
 
     async parseParquet(file, mapping) {
       const invoke = await getInvoke();
-      return invoke<RustParsedFile>('parse_parquet', { path: file.path, mapping });
+      return decodeTimed(await invoke<ArrayBuffer>('parse_parquet', { path: file.path, mapping }));
     },
 
     async csvHeaders(file) {
@@ -502,12 +519,12 @@ function makeTauriPlatform(): Platform {
 
     async parseStdfFiltered(file, selected) {
       const invoke = await getInvoke();
-      return invoke<RustParsedFile>('parse_stdf_filtered', { path: file.path, selected });
+      return decodeTimed(await invoke<ArrayBuffer>('parse_stdf_filtered', { path: file.path, selected }));
     },
 
     async parseAtdfFiltered(file, selected) {
       const invoke = await getInvoke();
-      return invoke<RustParsedFile>('parse_atdf_filtered', { path: file.path, selected });
+      return decodeTimed(await invoke<ArrayBuffer>('parse_atdf_filtered', { path: file.path, selected }));
     },
 
     async saveTextFile(content, defaultName, purpose, title) {
@@ -1078,23 +1095,23 @@ function makeWebPlatform(): Platform {
     },
 
     async parseStdf(file) {
-      return await callWorker('parseStdf', file.bytes) as RustParsedFile;
+      return decodeTimed(await callWorker('parseStdf', file.bytes) as Uint8Array);
     },
 
     async parseAtdf(file) {
-      return await callWorker('parseAtdf', file.bytes) as RustParsedFile;
+      return decodeTimed(await callWorker('parseAtdf', file.bytes) as Uint8Array);
     },
 
     async parseCsv(file, mapping) {
-      return await callWorker('parseCsv', file.bytes, { mapping }) as RustParsedFile;
+      return decodeTimed(await callWorker('parseCsv', file.bytes, { mapping }) as Uint8Array);
     },
 
     async parseJson(file, mapping) {
-      return await callWorker('parseJson', file.bytes, { mapping }) as RustParsedFile;
+      return decodeTimed(await callWorker('parseJson', file.bytes, { mapping }) as Uint8Array);
     },
 
     async parseParquet(file, mapping) {
-      return await callWorker('parseParquet', file.bytes, { mapping }) as RustParsedFile;
+      return decodeTimed(await callWorker('parseParquet', file.bytes, { mapping }) as Uint8Array);
     },
 
     async csvHeaders(file) {
@@ -1163,11 +1180,11 @@ function makeWebPlatform(): Platform {
     },
 
     async parseStdfFiltered(file, selected) {
-      return await callWorker('parseStdfFiltered', file.bytes, { selected }) as RustParsedFile;
+      return decodeTimed(await callWorker('parseStdfFiltered', file.bytes, { selected }) as Uint8Array);
     },
 
     async parseAtdfFiltered(file, selected) {
-      return await callWorker('parseAtdfFiltered', file.bytes, { selected }) as RustParsedFile;
+      return decodeTimed(await callWorker('parseAtdfFiltered', file.bytes, { selected }) as Uint8Array);
     },
 
     async saveTextFile(content, defaultName) {

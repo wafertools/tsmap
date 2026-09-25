@@ -196,6 +196,7 @@ packages/parsers/     — shared Rust crate (native + WASM targets), published a
   src/flat_wafers.rs  — the one place CSV/JSON/Parquet rows become wafers (lot + wafer ID)
   src/test_identity.rs — stable test numbering derived from test name / source column
   src/read_file.rs    — read_bytes / read_text, plus maybe_gunzip transparent .gz handling
+  src/columnar.rs     — a parse as one columnar buffer (header + aligned typed columns); js/columnar.js decodes it
   src/bench_fixtures.rs — where the `bench`-feature benches look for generated fixtures;
                         mirrors scripts/fixture_paths.py, which must stay in step
 

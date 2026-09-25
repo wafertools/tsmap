@@ -73,6 +73,7 @@ const GROUPS = [
       ['npm run check:drift', 'Compare agent/tooling config against the config repo'],
       ['npm run check:pwa', 'After a web build: check the offline cache holds the parser'],
       ['npm run ui:surface:check', 'Fail if the interactive surface moved without being re-recorded'],
+      ['npm run profile:web', 'Time/profile parse, analysis and rendering in Chrome on a large fixture'],
     ],
   },
 ];

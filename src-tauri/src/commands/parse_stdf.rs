@@ -1,10 +1,11 @@
 use testdata_parser::parse_stdf::parse_stdf_sync;
-pub use testdata_parser::types::ParsedStdf;
 use testdata_parser::error::ParseError;
+use tauri::ipc::Response;
+use super::columnar;
 
 #[tauri::command]
-pub async fn parse_stdf(path: String) -> Result<ParsedStdf, ParseError> {
-    tokio::task::spawn_blocking(move || parse_stdf_sync(path))
+pub async fn parse_stdf(path: String) -> Result<Response, ParseError> {
+    tokio::task::spawn_blocking(move || parse_stdf_sync(path).map(columnar))
         .await
         .map_err(ParseError::internal)?
 }
