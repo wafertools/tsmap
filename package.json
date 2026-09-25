@@ -65,8 +65,8 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
-    "@wafertools/testdata-parser": "^0.12.0",
-    "@wafertools/wafermap": "^0.30.4",
+    "@wafertools/testdata-parser": "^0.13.0",
+    "@wafertools/wafermap": "^0.31.0",
     "fflate": "^0.8.3"
   },
   "devDependencies": {
