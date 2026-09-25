@@ -4,7 +4,7 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
-## [Unreleased]
+## [0.1.41] — 2026-09-25
 
 ### Added
 
