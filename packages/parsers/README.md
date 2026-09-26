@@ -4,7 +4,7 @@
 
 Rust/WASM parsers for semiconductor test data formats: **STDF**, **ATDF**, **CSV**, **JSON**, and **Parquet**. Compiled to a single WASM module via `wasm-bindgen`; the same Rust source also builds natively (used by [tsmap](https://github.com/wafertools/tsmap)'s Tauri backend).
 
-All formats parse to one shared shape (`ParsedStdf` / `ScanResult`) — there is no format-specific output type on the JS side.
+All formats parse to one shared shape (`ParsedStdf` / `ScanResult`) — there is no format-specific output type on the JS side. A full parse returns it as a compact columnar buffer, which `decodeParsed` (rows) or `decodeColumns` (columns) from `@wafertools/testdata-parser/columnar.js` turns into that shape.
 
 ## Install
 
@@ -18,10 +18,11 @@ The module must be initialized once before calling any parse function — it loa
 
 ```js
 import init, { parse_stdf } from '@wafertools/testdata-parser';
+import { decodeParsed } from '@wafertools/testdata-parser/columnar.js';
 
 await init(); // fetches testdata_parser_bg.wasm relative to the module URL
 const bytes = new Uint8Array(await file.arrayBuffer());
-const parsed = parse_stdf(bytes); // ParsedStdf, or throws a ParserError
+const parsed = decodeParsed(parse_stdf(bytes)); // ParsedStdf; parse_stdf throws a ParserError
 ```
 
 **Import `init` as the default export, not by name.** There is also a named `init`
@@ -34,7 +35,7 @@ code, display the message — messages are prose and may be reworded.
 
 ```js
 try {
-  const parsed = parse_stdf(bytes);
+  const parsed = decodeParsed(parse_stdf(bytes));
 } catch (err) {
   if (err.code === 'not-stdf') {  // the file is not the format its name claims
     // ...offer to try another parser
@@ -69,23 +70,44 @@ and this README to each other.
 
 ## API
 
-Every parse function takes raw file bytes (`Uint8Array`) and returns a plain JS object (via `serde-wasm-bindgen`), or throws a `ParserError` (see above). Gzip-compressed input (`.gz`) is transparently decompressed for every format.
+Every parse function takes raw file bytes (`Uint8Array`), or throws a `ParserError` (see above). The full parses (`parse_*`) return a columnar buffer (`Uint8Array`) to decode as below; the scans and header reads return a plain JS object (via `serde-wasm-bindgen`). Gzip-compressed input (`.gz`) is transparently decompressed for every format.
 
 | Function | Signature | Returns |
 | --- | --- | --- |
-| `parse_stdf` | `(bytes: Uint8Array) => ParsedStdf` | Full parse of an STDF file |
-| `parse_atdf` | `(bytes: Uint8Array) => ParsedStdf` | Full parse of an ATDF file |
-| `parse_csv` | `(bytes: Uint8Array, mapping: CsvMapping) => ParsedStdf` | Full parse of a CSV, using an explicit column mapping |
-| `parse_json` | `(bytes: Uint8Array, mapping: CsvMapping) => ParsedStdf` | Full parse of a JSON array-of-records file, using the same mapping shape as CSV |
+| `parse_stdf` | `(bytes: Uint8Array) => Uint8Array` | Full parse of an STDF file, as a columnar buffer |
+| `parse_atdf` | `(bytes: Uint8Array) => Uint8Array` | Full parse of an ATDF file, as a columnar buffer |
+| `parse_csv` | `(bytes: Uint8Array, mapping: CsvMapping) => Uint8Array` | Full parse of a CSV, using an explicit column mapping |
+| `parse_json` | `(bytes: Uint8Array, mapping: CsvMapping) => Uint8Array` | Full parse of a JSON array-of-records file, using the same mapping shape as CSV |
 | `parquet_headers` | `(bytes: Uint8Array) => ParquetHeadersResult` | Schema + a sample of rows, for a column-mapping UI (see below — unlike CSV/JSON, this one *is* a WASM export) |
-| `parse_parquet` | `(bytes: Uint8Array, mapping: CsvMapping) => ParsedStdf` | Full parse of a Parquet file, using the same mapping shape as CSV/JSON |
+| `parse_parquet` | `(bytes: Uint8Array, mapping: CsvMapping) => Uint8Array` | Full parse of a Parquet file, using the same mapping shape as CSV/JSON |
 | `stdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Fast first-pass scan: test definitions + die count, no die accumulation |
 | `atdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Same first-pass scan for ATDF |
 | `stdf_file_meta` | `(bytes: Uint8Array) => FileMeta` | Lot metadata, wafer count, first/last timestamps and site count from an MIR/SDR/WIR/WRR-only scan — no PTR/FTR/PIR/PRR walk, so it stays cheap across a batch of files |
 | `atdf_file_meta` | `(bytes: Uint8Array) => FileMeta` | Same metadata-only scan for ATDF |
 | `parquet_distinct_count` | `(bytes: Uint8Array, columns: string[]) => number` | How many distinct combinations of those columns the file holds — a wafer count from `['lot','wafer']` without a full parse, read as a column projection. A column missing from the schema is an error, not a count of zero. Parquet only: CSV/JSON have no equivalent shortcut |
-| `parse_stdf_filtered` | `(bytes: Uint8Array, selected: number[]) => ParsedStdf` | Full parse, skipping per-site accumulation for test numbers not in `selected` |
-| `parse_atdf_filtered` | `(bytes: Uint8Array, selected: number[]) => ParsedStdf` | Same filtered parse for ATDF |
+| `parse_stdf_filtered` | `(bytes: Uint8Array, selected: number[]) => Uint8Array` | Full parse, skipping per-site accumulation for test numbers not in `selected` |
+| `parse_atdf_filtered` | `(bytes: Uint8Array, selected: number[]) => Uint8Array` | Same filtered parse for ATDF |
+
+### Decoding a parse: `decodeParsed` and `decodeColumns`
+
+A full parse returns one `Uint8Array`: typed columns, one per field and one per test, followed by
+a JSON header (everything in `ParsedStdf` except the dies) and its length. It is small, and it transfers from a
+Worker without a copy (`postMessage(buf, [buf.buffer])`). Decode it with one of two functions
+from `@wafertools/testdata-parser/columnar.js`, which ships in the package:
+
+- **`decodeParsed(buf)`** gives the `ParsedStdf` described below, with one `DieResult` object
+  per die.
+- **`decodeColumns(buf)`** gives the same `ParsedStdf`, except that each wafer's `results`
+  stays columns: positions, bins and site as typed arrays (−32768 = no position, 65535 = no
+  bin or site), and test values and verdicts as `{ indices, values }` per test number (only the
+  records that have one). That is the shape `@wafertools/wafermap`'s `buildWaferMap` accepts as
+  `results` (`DieColumns`), so a large lot is built without an object per die: pass
+  `wafer.results` as it is.
+  Within a wafer, tests with values (or verdicts) on the same records share one `indices`
+  array, so treat the arrays as read-only.
+
+Test values are sent as 32-bit floats when every value in the column is exactly representable
+as one (STDF readings are), and as 64-bit otherwise, so no value changes.
 
 ### Two-pass parsing (STDF/ATDF)
 
@@ -228,6 +250,7 @@ type ParserWarningCode =
   | 'wafer-end-missing'         // a wafer had no WRR; closed at the next wafer or end of file
   | 'file-truncated'            // the file ends part-way through a record
   | 'record-malformed'          // a PRR too short to hold its required fields
+  | 'test-number-invalid'       // an ATDF test number that is not a u32 (record left out)
   | 'values-not-numeric'        // a mapped column held values that would not coerce
   | 'retests-assumed'           // repeated positions read as retests
   | 'wafer-split-by-column'     // one wafer per value of a mapped column
@@ -265,7 +288,7 @@ an empty array, which asserts that nothing passes.
 **`warnings` carries a stable `code`, prose, and a severity** — branch on the code, display
 the message, and never match on the prose. `severity: 'error'` means a number or a plot
 built from this result can mislead, because data was dropped or a value was substituted
-(`unpositioned-dies`, `bin-invalid`, `coordinate-invalid`, `site-invalid`, `record-malformed`, `records-not-read`, `values-not-numeric`); `'warning'` means the
+(`unpositioned-dies`, `bin-invalid`, `coordinate-invalid`, `site-invalid`, `record-malformed`, `records-not-read`, `test-number-invalid`, `values-not-numeric`); `'warning'` means the
 parse applied a documented rule or interpretation — one you may want to change, or, like
 `result-unusable`, the spec's own rule for leaving out values the tester flagged — and the
 result means what the file says. Nothing here is fatal — the parse succeeded. Surface them: a silently discarded

@@ -3,32 +3,33 @@
 // in this package so they cannot drift apart.
 
 /** The format this decoder reads — `FORMAT` in `src/columnar.rs`. */
-const FORMAT = 1;
+const FORMAT = 2;
 
 const MISSING_I32 = -2147483648;
 const MISSING_U32 = 4294967295;
 const SUPERSEDES = [undefined, 'partId', 'position'];
 
 /**
- * @param {Uint8Array | ArrayBuffer} input
- * @returns {import('./testdata_parser.js').ParsedStdf}
+ * The buffer's header, and each wafer's columns as typed-array views over the
+ * buffer (no copy). Shared by `decodeParsed` and `decodeColumns`.
  */
-export function decodeParsed(input) {
+function readColumns(input) {
   let bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : input;
   // Typed-array views need aligned offsets; a buffer that is itself a view at an
   // odd offset is copied once so every column below can be viewed in place.
   if (bytes.byteOffset % 8 !== 0) bytes = bytes.slice();
   const { buffer, byteOffset } = bytes;
 
-  const headerLen = new DataView(buffer, byteOffset, 4).getUint32(0, true);
-  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + headerLen)));
+  // Columns first, then the JSON header, then its length: see `src/columnar.rs`.
+  const headerLen = new DataView(buffer, byteOffset + bytes.length - 4, 4).getUint32(0, true);
+  const header = JSON.parse(new TextDecoder().decode(bytes.subarray(bytes.length - 4 - headerLen, bytes.length - 4)));
   if (header.columnarFormat !== FORMAT) {
     throw new Error(`testdata-parser: columnar format ${header.columnarFormat} is not the format ${FORMAT} this decoder reads — the parser and its decoder come from different versions`);
   }
   delete header.columnarFormat;
-  const body = byteOffset + Math.ceil((4 + headerLen) / 8) * 8;
+  const body = byteOffset;
 
-  for (const wafer of header.wafers) {
+  const wafers = header.wafers.map((wafer) => {
     const n = wafer.dieCount;
     const view = (c) => {
       const at = body + c.offset;
@@ -50,8 +51,23 @@ export function decodeParsed(input) {
       else if (c.field === 'testPass') verdicts.push([c.test, view(c)]);
       else col[c.field] = view(c);
     }
-    const { x, y, dieIndex, hbin, sbin, siteNum, supersedes } = col;
     const partIds = wafer.partIds;
+    delete wafer.dieCount;
+    delete wafer.columns;
+    delete wafer.partIds;
+    return { wafer, n, col, values, verdicts, partIds };
+  });
+  return { header, wafers };
+}
+
+/**
+ * @param {Uint8Array | ArrayBuffer} input
+ * @returns {import('./testdata_parser.js').ParsedStdf}
+ */
+export function decodeParsed(input) {
+  const { header, wafers } = readColumns(input);
+  for (const { wafer, n, col, values, verdicts, partIds } of wafers) {
+    const { x, y, dieIndex, hbin, sbin, siteNum, supersedes } = col;
 
     // Fields assigned in one fixed order, so every die shares a shape.
     const results = new Array(n);
@@ -78,13 +94,101 @@ export function decodeParsed(input) {
     verdicts.sort(byKeyDesc);
     attachValues(results, values);
     attachVerdicts(results, verdicts);
-
-    delete wafer.dieCount;
-    delete wafer.columns;
-    delete wafer.partIds;
     wafer.results = results;
   }
   return header;
+}
+
+/**
+ * Like `decodeParsed`, but each wafer's `results` stays columns: the shape
+ * `@wafertools/wafermap`'s `buildWaferMap` accepts as `results` (`DieColumns`),
+ * with no object per die. Positions, bins and site are per-record typed
+ * arrays with STDF's missing values (−32768 for coordinates, 65535 for bins and
+ * site); test values and verdicts are sparse (`indices` of the records that
+ * have one, and the `values`), values at the precision they were sent.
+ *
+ * Nothing refers to the input buffer afterwards, so it can be freed.
+ *
+ * @param {Uint8Array | ArrayBuffer} input
+ */
+export function decodeColumns(input) {
+  const { header, wafers } = readColumns(input);
+  for (const { wafer, n, col, values, verdicts, partIds } of wafers) {
+    const results = { count: n };
+    if (col.x) results.x = stdfInts(col.x, MISSING_I32, COORD_MISSING, Int32Array);
+    if (col.y) results.y = stdfInts(col.y, MISSING_I32, COORD_MISSING, Int32Array);
+    if (col.hbin) results.hbin = stdfInts(col.hbin, MISSING_U32, U16_MISSING, Uint32Array);
+    if (col.sbin) results.sbin = stdfInts(col.sbin, MISSING_U32, U16_MISSING, Uint32Array);
+    if (col.siteNum) results.siteNum = stdfInts(col.siteNum, MISSING_U32, U16_MISSING, Uint32Array);
+    if (partIds) results.partId = partIds.map(v => (v == null ? undefined : v));
+    if (col.supersedes) results.supersedes = Array.from(col.supersedes, c => SUPERSEDES[c]);
+    const shared = sharedIndices(n);
+    if (values.length) {
+      results.testValues = {};
+      for (const [key, dense] of values) results.testValues[key] = sparse(dense, v => v === v, shared);  // NaN is missing
+    }
+    if (verdicts.length) {
+      results.testPass = {};
+      for (const [key, dense] of verdicts) results.testPass[key] = sparse(dense, v => v !== -1, shared);
+    }
+    wafer.results = results;
+  }
+  return header;
+}
+
+const COORD_MISSING = -32768;
+const U16_MISSING = 65535;
+
+/** A copy of an integer column with the wire's missing value replaced by STDF's. */
+function stdfInts(column, wireMissing, stdfMissing, Type) {
+  const out = new Type(column.length);
+  for (let i = 0; i < column.length; i++) out[i] = column[i] === wireMissing ? stdfMissing : column[i];
+  return out;
+}
+
+/**
+ * A dense column as `{ indices, values }` of the entries `present` accepts,
+ * values in the column's own type. Columns with the same entries present share
+ * one `indices` array (from `shared`): in most lots every die has every test,
+ * so a wafer's columns all hold the same indices, and one copy of them about halves
+ * the memory the columns take. Nothing writes to an `indices` array.
+ */
+function sparse(dense, present, shared) {
+  const scratch = shared.scratch;
+  let k = 0;
+  let hash = 0;
+  for (let i = 0; i < dense.length; i++) {
+    if (present(dense[i])) { scratch[k++] = i; hash = (Math.imul(hash, 31) + i) | 0; }
+  }
+  const values = new dense.constructor(k);
+  for (let j = 0; j < k; j++) values[j] = dense[scratch[j]];
+  return { indices: shared.get(k, hash), values };
+}
+
+/**
+ * The index arrays of one wafer's columns: `get` returns an earlier array
+ * holding the same indices as `scratch[0..count)`, or a copy of them.
+ */
+function sharedIndices(n) {
+  const scratch = new Int32Array(n);
+  const seen = new Map();  // `${count}:${hash}` → arrays with that count and hash
+  return {
+    scratch,
+    get(count, hash) {
+      const key = `${count}:${hash}`;
+      const candidates = seen.get(key);
+      if (candidates) {
+        for (const c of candidates) {
+          let same = true;
+          for (let j = 0; j < count; j++) if (c[j] !== scratch[j]) { same = false; break; }
+          if (same) return c;
+        }
+      }
+      const indices = scratch.slice(0, count);
+      if (candidates) candidates.push(indices); else seen.set(key, [indices]);
+      return indices;
+    },
+  };
 }
 
 // Each die's map is built in one go, not a column at a time reaching back into

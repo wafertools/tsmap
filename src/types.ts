@@ -1,4 +1,4 @@
-import type { DieResult, BinDef } from '@wafertools/wafermap';
+import type { DieColumns, BinDef } from '@wafertools/wafermap';
 import type { ParserWarning } from '@wafertools/testdata-parser';
 
 export interface TestDef {
@@ -63,7 +63,12 @@ export interface WaferData {
   waferId: string;
   /** `waferId` is a placeholder (`W1`…) from the parser: the file gave this wafer no ID. */
   waferIdPlaceholder?: boolean;
-  results: DieResult[];
+  /**
+   * The wafer's records as columns, straight from the parser (`decodeColumns`):
+   * passed to `buildWaferMap` as they are, with no object per die. Read and edit
+   * them through `columns.ts`.
+   */
+  results: DieColumns;
   partCount?: number;
   goodCount?: number;
   failCount?: number;

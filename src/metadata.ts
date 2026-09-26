@@ -232,7 +232,7 @@ export function buildFacetTable(wafers: WaferData[], facetableOnly = true): Face
       const v = facetValueOf(w, key) ?? NONE_VALUE;
       const entry = byValue.get(v) ?? { waferCount: 0, dieCount: 0 };
       entry.waferCount += 1;
-      entry.dieCount += w.results.length;
+      entry.dieCount += w.results.count;
       byValue.set(v, entry);
     }
     if (byValue.size === 0) continue;

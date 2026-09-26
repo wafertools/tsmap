@@ -1,3 +1,4 @@
+import { columnsFromRows } from './columns';
 import { describe, it, expect } from 'vitest';
 import {
   getSplitLabel, setSplitLabel, clearAllSplits, listSplitValues, parseSplitsCsv, formatSplitsCsv, waferDisplayLabel,
@@ -8,7 +9,7 @@ import {
 import type { WaferData } from './types';
 
 function wafer(id: string, fields?: Array<{ key: string; value: string }>): WaferData {
-  return { waferId: id, results: [], fields };
+  return { waferId: id, results: columnsFromRows([]), fields };
 }
 
 /** A wafer stamped with lot-level provenance (source.fields), as real
@@ -20,7 +21,7 @@ function waferWithLot(id: string, sourceFile: string, lotId?: string, partType?:
     ...(lotId !== undefined ? [{ key: 'lotId', value: lotId }] : []),
     ...(partType !== undefined ? [{ key: 'partType', value: partType }] : []),
   ];
-  return { waferId: id, results: [], source: { sourceFile, fields } };
+  return { waferId: id, results: columnsFromRows([]), source: { sourceFile, fields } };
 }
 
 describe('getSplitLabel / setSplitLabel', () => {
@@ -72,7 +73,7 @@ describe('getSplitLabel / setSplitLabel', () => {
 
   it('never writes to source.fields — only wafer.fields', () => {
     const source = { sourceFile: 'lot.stdf', fields: [] };
-    const w: WaferData = { waferId: 'W1', results: [], source };
+    const w: WaferData = { waferId: 'W1', results: columnsFromRows([]), source };
     setSplitLabel(w, 'TT');
     expect(source.fields).toEqual([]);
     expect(getSplitLabel(w)).toBe('TT');

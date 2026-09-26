@@ -10,24 +10,46 @@ technical record, including internal changes.
 
 - **`@wafertools/testdata-parser`: the parse functions return a columnar buffer.**
   `parse_stdf`, `parse_atdf`, `parse_csv`, `parse_json`, `parse_parquet`,
-  `parse_stdf_filtered` and `parse_atdf_filtered` return a `Uint8Array`: a JSON header holding
-  everything a `ParsedStdf` holds except the dies, followed by typed columns (positions, bins,
-  site, one column per test), each on an 8-byte boundary. `decodeParsed` from
+  `parse_stdf_filtered` and `parse_atdf_filtered` return a `Uint8Array`: typed columns
+  (positions, bins, site, one column per test), each on an 8-byte boundary, followed by a JSON
+  header holding everything a `ParsedStdf` holds except the dies, and its length. `decodeParsed` from
   `@wafertools/testdata-parser/columnar.js`, shipped in the package, turns it back into a
-  `ParsedStdf`. The Rust API still returns `ParsedStdf`, and `columnar::encode_columnar`
+  `ParsedStdf`; `decodeColumns` from the same module keeps each wafer's records as columns,
+  in the shape `@wafertools/wafermap` accepts as `results` (`DieColumns`), with no object per
+  die. The Rust API still returns `ParsedStdf`, and `columnar::encode_columnar`
   produces the buffer. Test values are sent as 32-bit floats when every value in the column is
   exactly representable as one (STDF readings are), and as 64-bit otherwise, so no value
   changes.
 
 ### Changed
 
-- **Large lots load in the browser build.** The parser worker transfers the columnar buffer to
-  the page instead of copying the parsed lot, so a lot is held once rather than twice. A 341 MB
-  STDF of 266,325 dies parses in about 10 s and holds about 1.1 GB in Chrome. The
-  `WEB_DIE_BUDGET` warning threshold is unchanged.
-- **The columnar buffer decodes faster**, each die's test values built in one go: 7.1 s to
-  1.9 s in WebKit (the desktop app on Linux and macOS), 9.8 s to 5.9 s for the whole web parse
-  in Chrome, on the 266k-die STDF.
+- **Large lots load in the browser build, and every lot takes far less memory.** A lot is held
+  as columns from the parser to wmap, with no object per die: the parser worker transfers its
+  buffer to the page instead of copying the lot, and wmap builds the maps from the columns. A
+  341 MB STDF of 266,325 dies parses in about 6 s and holds about 330 MB in Chrome after the
+  load-time analysis; the desktop app's webview holds about 1.2 GB with the gallery shown, where
+  it held 4.1 GB.
+- **A lot's test columns take up to half the memory.** Tests with values on the same dies share
+  one list of those dies, so a lot where every die has every test holds one per wafer instead of
+  one per test: 41.5 MB → 22.6 MB for a 10-wafer ATDF. `decodeColumns` returns the shared arrays,
+  which are read-only.
+- **Large lots load much faster.** On the 266k-die STDF the desktop app on Linux goes from
+  starting the parse to a finished gallery in 15 s, where it took 36 s: parse 9.4 s to 3.4 s,
+  analysis 14.2 s to 2.9 s. In the browser build, parse 8.8 s to 5.7 s and analysis 8.8 s to
+  5.9 s in Chrome.
+- **The browser version opens lots of about 60 million test values** (dies × selected tests), for
+  example 1,200,000 dies with 50 tests; it stopped at about 200,000 dies. The test selector's warning
+  counts test values, so selecting fewer tests clears it. A file past the limit fails with a message
+  saying the browser version ran out of memory and what to do, instead of a parser error.
+- **`@wafertools/testdata-parser` needs about half the memory while it parses**: a die's test
+  values are held as a compact list rather than a hash map, and a CSV is read record by record
+  without copying the file. A 1,000,000-die × 50-test CSV peaks at 2.2 GB of WebAssembly memory,
+  where it needed 4.0 GB, and a 1,500,000-die one now parses.
+- **ATDF test numbers are read as numbers**: `0012` is test 12, for its definition and its
+  values alike. A record whose test number is not a whole number 0–4294967295 is left out and
+  reported as `test-number-invalid`.
+- **Narrowing the test selection without re-parsing removes the deselected tests' pass/fail
+  verdicts as well as their values**, the same as a re-parse does.
 - **The browser build releases the parser's memory after each parse.** WebAssembly memory grows to
   a parse's peak and is never returned, so the parser worker is ended once a parse finishes and
   no other request is waiting, and a new one is started for the next. After the 266k-die STDF
@@ -51,8 +73,8 @@ technical record, including internal changes.
   `.cpuprofile` files; `--save`/`--compare` record and compare baselines.
 - **`npm run profile:webkit`** runs the same flows in WebKitGTK's MiniBrowser, the Linux
   desktop app's engine, with the same `--fixture`, `--runs`, `--save` and `--compare`.
-  `--profile` runs parse, decode, build and analysis in a worker under JavaScriptCore's
-  sampling profiler and lists the top functions.
+  `--profile` lists JavaScriptCore's top functions for the page (every flow, the gallery
+  included) and for parse, decode, build and analysis run in a worker.
 
 ## [0.1.41] — 2026-09-25
 

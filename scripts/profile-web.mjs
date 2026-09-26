@@ -24,7 +24,7 @@
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { argOpt, fixturePathFor, reportTimings, startProfileServer } from './lib/profile.mjs';
 
 const args = process.argv.slice(2);
@@ -50,11 +50,11 @@ try {
     let crashed = false;
     page.on('crash', () => { crashed = true; });
     await page.goto(url);
-    await page.evaluate(async () => {
+    await page.evaluate(async (name) => {
       const m = await import('/scripts/profile-web-flows.ts');
-      await m.prepare('/__profile-fixture');
+      await m.prepare('/__profile-fixture', name);
       window.__profileFlows = m.flows;
-    });
+    }, basename(fixturePath));
     const names = await page.evaluate(() => Object.keys(window.__profileFlows));
     const cdp = await page.context().newCDPSession(page);
     if (profile) {

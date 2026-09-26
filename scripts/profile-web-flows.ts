@@ -10,12 +10,14 @@
 // `buildLotStatsSummary`), or the profile describes something the app does not do.
 import { createPlatform } from '../src/platform';
 import type { RustParsedFile } from '../src/platform';
+import type { CsvMapping } from '../src/mappingUI';
 import { renderWaferGallery, renderWaferMap } from '@wafertools/wafermap/render';
 import type { LotStatsSummary } from '@wafertools/wafermap/stats';
 import { buildAndAnalyse } from './profile-analyse';
 import type { ProfileItem } from './profile-analyse';
 
 const state: {
+  name?: string;
   bytes?: Uint8Array;
   parsed?: RustParsedFile;
   items?: ProfileItem[];
@@ -45,15 +47,33 @@ const firstTest = () => Number(Object.keys(need(state.parsed, 'parse').testDefs)
 const insights = { enabled: true };
 
 /** Untimed setup: fetch the fixture, so `parse` times parsing only. */
-export async function prepare(url: string): Promise<void> {
+export async function prepare(url: string, name = 'fixture.stdf'): Promise<void> {
   state.bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+  state.name = name;
+}
+
+/**
+ * The mapping for the wide-format CSV fixtures (`sweep-*.csv`): wafer, lot,
+ * x, y, hbin, sbin, site, then one column per test named `t<testNumber>`.
+ */
+function sweepMapping(bytes: Uint8Array): CsvMapping {
+  const header = new TextDecoder().decode(bytes.subarray(0, bytes.indexOf(10))).trim().split(',');
+  const tests = header.filter(h => /^t\d+$/.test(h)).map(h => ({ col: h, testNumber: Number(h.slice(1)), name: h }));
+  return {
+    x: 'x', y: 'y', hbin: 'hbin', sbin: 'sbin', wafer: 'wafer', lot: 'lot', site: 'site', tests, meta: [], splitBy: [],
+    testnameCol: null, testnumberCol: null, testvalueCol: null, loLimitCol: null, hiLimitCol: null,
+    loSpecCol: null, hiSpecCol: null, unitsCol: null, passBins: [1],
+  };
 }
 
 export const flows: Record<string, () => Promise<void>> = {
   /** Worker parse, buffer transfer, main-thread decode. */
   async parse() {
     const bytes = need(state.bytes, 'prepare');
-    state.parsed = await createPlatform().parseStdf({ name: 'fixture', bytes });
+    const platform = createPlatform();
+    state.parsed = state.name?.endsWith('.csv')
+      ? await platform.parseCsv({ name: state.name, bytes }, sweepMapping(bytes))
+      : await platform.parseStdf({ name: 'fixture', bytes });
     state.bytes = undefined;
   },
 

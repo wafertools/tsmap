@@ -5,7 +5,7 @@
 // parser worker, so the decode lands in this profile; its WebAssembly frames
 // are left out of the report.
 import init, { parse_stdf } from '@wafertools/testdata-parser';
-import { decodeParsed } from '@wafertools/testdata-parser/columnar.js';
+import { decodeColumns } from '@wafertools/testdata-parser/columnar.js';
 import type { RustParsedFile } from '../src/platform';
 import { buildAndAnalyse } from './profile-analyse';
 
@@ -20,7 +20,7 @@ import { buildAndAnalyse } from './profile-analyse';
     const buffer = parse_stdf(bytes);
     t.parse = Math.round(performance.now() - s);
     s = performance.now();
-    const parsed = decodeParsed(buffer) as RustParsedFile;
+    const parsed = decodeColumns(buffer) as unknown as RustParsedFile;
     t.decode = Math.round(performance.now() - s);
     buildAndAnalyse(parsed, (phase, ms) => { t[phase] = ms; });
     postMessage(t);

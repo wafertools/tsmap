@@ -25,7 +25,7 @@ interface TemplateRow {
 
 function exampleWafers(): WaferData[] {
   const wafer = (waferId: string, split: string): WaferData => {
-    const w: WaferData = { waferId, results: [] };
+    const w: WaferData = { waferId, results: { count: 0 } };
     setSplitLabel(w, split);
     return w;
   };

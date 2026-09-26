@@ -146,6 +146,7 @@ src/
   platform.ts         — platform adapter: Tauri IPC (desktop) or WASM-in-a-Worker (browser)
   parserWorker.ts     — web-only module worker running the WASM parsers off the UI thread
   lib.ts              — pure, DOM-free helpers extracted from main.ts for testability
+  columns.ts          — reads and edits a wafer's records as columns (bins, positions, test selection, unit scaling)
   types.ts            — shared types: ParsedFile, WaferData, TestDef, LotMeta
   guideExtension.ts   — GENERATED (scripts/build-user-guide.mjs): tsmap's own guide
                         content, folded into wmap's guide window via userGuideExtension
@@ -170,6 +171,7 @@ src/
   wcr.ts              — STDF wafer configuration record code tables, shared by geometry and display
   units.ts            — converts a test recorded in another SI prefix (mV vs V) to the lot's unit on load
   valueFindings.ts    — cost model deciding whether wmap's regional test-value analysis runs unprompted
+  webLimits.ts        — the browser build's size limit (test values its WASM parser can hold)
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
   storageKeys.ts      — the registry of every persisted preference, + legacy-key migration
   logBadge.ts         — the Log button's new-warning/new-error counts

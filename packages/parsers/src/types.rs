@@ -1,6 +1,5 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,29 +72,85 @@ pub struct DieResult {
     /// earlier record with the same part ID, `"position"` = the same X/Y.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supersedes: Option<&'static str>,
-    /// Measured values, keyed by test number as a string.
-    ///
-    /// `Arc<str>` rather than `String` because the key is the same handful of
-    /// interned strings repeated for every die: a 51-test, 266k-die lot inserts
-    /// 13.6M of them, and as `String` each insert was a fresh malloc + memcpy of
-    /// a key the parser already had. Cloning an `Arc<str>` is a refcount bump, so
-    /// building this map got ~45% cheaper (it was 62% of a large STDF parse).
-    ///
-    /// It serialises exactly as a `String` key does — `{"1050":0.42}` — and
-    /// `Arc<str>: Borrow<str>`, so `map["1050"]` and `map.get("1050")` still work.
-    /// An integer key would be faster still, and is not an option:
-    /// `serde_wasm_bindgen` rejects non-string map keys outright ("Map key is not
-    /// a string and cannot be an object key") and would panic inside the WASM
-    /// module, aborting it with no recovery.
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub test_values: HashMap<Arc<str>, f64>,
+    /// Measured values, keyed by test number. Serialises as an object keyed by
+    /// the test number as a string, `{"1050":0.42}` (see [`TestMap`]).
+    #[serde(skip_serializing_if = "TestMap::is_empty")]
+    pub test_values: TestMap<f64>,
     /// Recorded per-test pass/fail verdicts (true = pass), keyed like
     /// `test_values`. Functional (FTR) outcomes live here ONLY — they have no
     /// measured value; parametric (PTR) tests get an entry when the tester
     /// recorded a valid pass/fail indication (STDF TEST_FLG bit 6 clear).
     /// Empty map serialises to nothing, so parametric-only files are unchanged.
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub test_pass: HashMap<Arc<str>, bool>,
+    #[serde(skip_serializing_if = "TestMap::is_empty")]
+    pub test_pass: TestMap<bool>,
+}
+
+/// A die's test values or verdicts, keyed by test number: a list of
+/// `(test number, value)` pairs, not a hash map.
+///
+/// A die holds a few dozen of these, and it is the one structure the parser
+/// keeps per test value, so its size is the parser's size: at 16 bytes a value
+/// against ~80 for the `HashMap<Arc<str>, f64>` it replaces, which is what set
+/// the browser build's limit (WebAssembly's 4 GB held ~50M values). A lookup is
+/// a scan, which at this size is as fast as hashing.
+///
+/// Serialises exactly as that map did, an object keyed by the test number as a
+/// string (`{"1050":0.42}`): `serde_wasm_bindgen` rejects non-string keys.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TestMap<V> {
+    entries: Vec<(u32, V)>,
+}
+
+/// What a `TestMap` can be looked up by: a test number, or its text form.
+pub trait TestKey {
+    fn test_num(&self) -> Option<u32>;
+}
+impl TestKey for u32 { fn test_num(&self) -> Option<u32> { Some(*self) } }
+impl TestKey for &u32 { fn test_num(&self) -> Option<u32> { Some(**self) } }
+impl TestKey for str { fn test_num(&self) -> Option<u32> { self.parse().ok() } }
+impl TestKey for &str { fn test_num(&self) -> Option<u32> { self.parse().ok() } }
+impl TestKey for String { fn test_num(&self) -> Option<u32> { self.parse().ok() } }
+impl TestKey for std::sync::Arc<str> { fn test_num(&self) -> Option<u32> { self.parse().ok() } }
+
+impl<V: Copy> TestMap<V> {
+    pub fn new() -> Self { Self { entries: Vec::new() } }
+    pub fn with_capacity(n: usize) -> Self { Self { entries: Vec::with_capacity(n) } }
+    /// From pairs whose test numbers are distinct (a wide row: one per column).
+    pub fn from_distinct(entries: Vec<(u32, V)>) -> Self { Self { entries } }
+    /// Adds or replaces the entry for `test`.
+    pub fn insert(&mut self, test: impl TestKey, v: V) {
+        let Some(t) = test.test_num() else { return };
+        match self.entries.iter_mut().find(|e| e.0 == t) {
+            Some(e) => e.1 = v,
+            None => self.entries.push((t, v)),
+        }
+    }
+    /// Adds an entry the caller knows is not present yet: no scan.
+    pub fn push_new(&mut self, test: u32, v: V) { self.entries.push((test, v)); }
+    pub fn get<K: TestKey + ?Sized>(&self, test: &K) -> Option<&V> {
+        let t = test.test_num()?;
+        self.entries.iter().find(|e| e.0 == t).map(|e| &e.1)
+    }
+    pub fn contains_key<K: TestKey + ?Sized>(&self, test: &K) -> bool { self.get(test).is_some() }
+    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn len(&self) -> usize { self.entries.len() }
+    /// `(test number, value)`, in insertion order.
+    pub fn iter(&self) -> impl Iterator<Item = (u32, V)> + '_ { self.entries.iter().copied() }
+    pub fn keys(&self) -> impl Iterator<Item = u32> + '_ { self.entries.iter().map(|e| e.0) }
+}
+
+impl<V: Copy> std::ops::Index<&str> for TestMap<V> {
+    type Output = V;
+    fn index(&self, test: &str) -> &V { self.get(test).unwrap_or_else(|| panic!("no test {test}")) }
+}
+
+impl<V: Serialize> Serialize for TestMap<V> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut m = s.serialize_map(Some(self.entries.len()))?;
+        for (t, v) in &self.entries { m.serialize_entry(&t.to_string(), v)?; }
+        m.end()
+    }
 }
 
 #[derive(Serialize, Default)]
@@ -186,48 +241,6 @@ impl ParserWarning {
     }
     fn error(code: &'static str, message: String) -> Self {
         Self { code, message, severity: "error" }
-    }
-}
-
-/// Interner for `DieResult::test_values` / `test_pass` keys.
-///
-/// The keys of those maps are the same handful of strings repeated once per die:
-/// a 51-test, 266k-die lot needs 13.6M of them. Building a fresh `String` for
-/// each was a malloc and a memcpy of a string the parser already had, and it was
-/// the single largest cost in a large parse. Handing out `Arc<str>` makes the
-/// per-die clone a refcount bump instead.
-///
-/// Two lookups because the parsers hold a test's identity in two forms — STDF and
-/// the flat formats have a `u32`, ATDF has the raw text field — and converting
-/// one to the other on the hot path would reintroduce the allocation this exists
-/// to remove. One interner either way, so the same test cannot end up with two
-/// separate key allocations in one parse.
-#[derive(Default)]
-pub struct TestKeys {
-    by_text: HashMap<String, Arc<str>>,
-    by_num: HashMap<u32, Arc<str>>,
-}
-
-impl TestKeys {
-    /// Key for a test number already in its text form (ATDF's raw field), kept
-    /// verbatim so it matches the `test_defs` key built from the same field.
-    pub fn text(&mut self, test_num: &str) -> Arc<str> {
-        if let Some(k) = self.by_text.get(test_num) {
-            return Arc::clone(k);
-        }
-        let k: Arc<str> = Arc::from(test_num);
-        self.by_text.insert(test_num.to_string(), Arc::clone(&k));
-        k
-    }
-
-    /// Key for a numeric test number (STDF, CSV/JSON/Parquet).
-    pub fn num(&mut self, test_num: u32) -> Arc<str> {
-        if let Some(k) = self.by_num.get(&test_num) {
-            return Arc::clone(k);
-        }
-        let k: Arc<str> = Arc::from(test_num.to_string().as_str());
-        self.by_num.insert(test_num, Arc::clone(&k));
-        k
     }
 }
 
@@ -420,6 +433,7 @@ pub struct SpecCheck {
     result_flagged: usize,
     result_not_finite: usize,
     mpr_not_read: usize,
+    test_number_invalid: usize,
     truncated: bool,
 }
 
@@ -484,6 +498,15 @@ impl SpecCheck {
 
     /// A measured value, or `None` when there is no usable one. A test that was
     /// not executed is simply absent and is not counted.
+    /// A test number written as text (ATDF): a u32 in STDF V4 and ATDF, so
+    /// `0012` is test 12. Anything else cannot be a test number, and the record
+    /// is left out and counted.
+    pub fn test_number(&mut self, text: &str) -> Option<u32> {
+        let n = text.trim().parse::<u32>().ok();
+        if n.is_none() { self.test_number_invalid += 1; }
+        n
+    }
+
     pub fn result(&mut self, flags: ResultFlags, value: f64) -> Option<f64> {
         if flags.not_executed { return None; }
         if flags.unusable { self.result_flagged += 1; return None; }
@@ -540,6 +563,12 @@ impl SpecCheck {
             out.push(ParserWarning::warning("result-unusable", format!(
                 "{}. Those values are left out; any pass/fail verdict the tester recorded is kept.",
                 results.join("; ")
+            )));
+        }
+        if self.test_number_invalid > 0 {
+            out.push(ParserWarning::error("test-number-invalid", format!(
+                "{} test record(s) had a test number that is not a whole number 0–4294967295; those records were left out.",
+                self.test_number_invalid
             )));
         }
         if self.truncated {
@@ -938,11 +967,11 @@ mod tests {
     fn die_result_serialises_test_pass_camel_case_and_omits_empty() {
         let mut die = DieResult {
             x: Some(1), y: Some(2), die_index: None, hbin: Some(1), sbin: None, site_num: None, part_id: None, supersedes: None,
-            test_values: HashMap::new(), test_pass: HashMap::new(),
+            test_values: TestMap::new(), test_pass: TestMap::new(),
         };
         let json = serde_json::to_string(&die).unwrap();
         assert!(!json.contains("testPass"), "empty map must serialise to nothing: {json}");
-        die.test_pass.insert(Arc::from("2001"), true);
+        die.test_pass.insert("2001", true);
         let json = serde_json::to_string(&die).unwrap();
         assert!(json.contains("\"testPass\":{\"2001\":true}"), "camelCase key expected: {json}");
     }
@@ -951,7 +980,7 @@ mod tests {
     fn die_result_omits_x_y_when_unpositioned_and_serialises_die_index() {
         let die = DieResult {
             x: None, y: None, die_index: Some(3), hbin: Some(1), sbin: None, site_num: None, part_id: None, supersedes: None,
-            test_values: HashMap::new(), test_pass: HashMap::new(),
+            test_values: TestMap::new(), test_pass: TestMap::new(),
         };
         let json = serde_json::to_string(&die).unwrap();
         assert!(!json.contains("\"x\""), "unpositioned die must omit x: {json}");
@@ -972,7 +1001,7 @@ mod tests {
                 y: if positioned { Some(1) } else { None },
                 die_index: if positioned { None } else { Some(0) },
                 hbin: Some(1), sbin: None, site_num: None, part_id: None, supersedes: None,
-                test_values: HashMap::new(), test_pass: HashMap::new(),
+                test_values: TestMap::new(), test_pass: TestMap::new(),
             }],
             part_count: None, good_count: None, fail_count: None, fields: vec![],
         };

@@ -4,6 +4,7 @@ import {
   VALUE_FINDINGS_AUTO_BUDGET_MS, VALUE_FINDINGS_US_PER_DIE_TEST,
 } from './valueFindings';
 import type { WaferData } from './types';
+import { columnsFromRows } from './columns';
 
 /** A wafer of `dieCount` dies each carrying `testCount` test values. */
 function wafer(waferId: string, dieCount: number, testCount: number): WaferData {
@@ -11,11 +12,11 @@ function wafer(waferId: string, dieCount: number, testCount: number): WaferData 
   for (let t = 0; t < testCount; t++) testValues[t] = t;
   return {
     waferId,
-    results: Array.from({ length: dieCount }, (_, i) => ({
-      id: String(i), x: i % 50, y: Math.floor(i / 50), hbin: 1,
+    results: columnsFromRows(Array.from({ length: dieCount }, (_, i) => ({
+      x: i % 50, y: Math.floor(i / 50), hbin: 1,
       testValues: testCount ? { ...testValues } : undefined,
-    })),
-  } as unknown as WaferData;
+    }))),
+  };
 }
 
 describe('test-value analysis cost model', () => {

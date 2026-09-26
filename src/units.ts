@@ -12,6 +12,8 @@
 // unknown unit, a difference of letter case — stays a collision, because a wrong
 // guess rescales real data.
 
+import type { DieColumns } from '@wafertools/wafermap';
+import { mapTestValues } from './columns';
 import type { TestDef } from './types';
 
 /** SI prefixes, as powers of ten. Micro accepts the three ways it is written. */
@@ -89,7 +91,7 @@ export interface UnitConversion {
  * converted, for the log.
  */
 export function harmoniseTestUnits(
-  files: Array<{ fileName: string; parsed: { testDefs: Record<string, TestDef>; wafers: Array<{ results: Array<{ testValues?: Record<number, number> }> }> } }>,
+  files: Array<{ fileName: string; parsed: { testDefs: Record<string, TestDef>; wafers: Array<{ results: DieColumns }> } }>,
   reference: Record<string, TestDef> = {},
 ): UnitConversion[] {
   const stated = (u: string | undefined) => (u?.trim() ? u.trim() : undefined);
@@ -120,14 +122,7 @@ export function harmoniseTestUnits(
     }
     if (scales.size === 0) continue;
     for (const wafer of file.parsed.wafers) {
-      for (const die of wafer.results) {
-        const tv = die.testValues;
-        if (!tv) continue;
-        for (const [n, k] of scales) {
-          const v = tv[n];
-          if (v !== undefined) tv[n] = shiftUnit(v, k);
-        }
-      }
+      for (const [n, k] of scales) mapTestValues(wafer.results, n, v => shiftUnit(v, k));
     }
   }
   return conversions;

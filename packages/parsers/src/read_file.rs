@@ -28,14 +28,6 @@ pub fn maybe_gunzip(bytes: &[u8]) -> ParseResult<Cow<'_, [u8]>> {
     }
 }
 
-/// Owning form of [`maybe_gunzip`], kept for callers that already hold a `Vec`.
-pub fn decompress_if_gzip(bytes: Vec<u8>) -> ParseResult<Vec<u8>> {
-    match maybe_gunzip(&bytes)? {
-        Cow::Owned(out) => Ok(out),
-        Cow::Borrowed(_) => Ok(bytes),
-    }
-}
-
 #[cfg(feature = "native")]
 pub fn read_bytes(path: &str) -> ParseResult<Vec<u8>> {
     use std::path::Path;

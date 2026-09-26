@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::Arc;
 use crate::types::*;
 use crate::error::{ParseError, ParseResult};
 
@@ -133,9 +132,16 @@ fn atdf_verdict(flag: &str) -> Option<bool> {
 /// ATDF record decoding for `TestDefBuilder`, which holds the naming and
 /// limits rule shared with the STDF parser. Used by the full parse and the
 /// first-pass scan alike.
+/// A record's test number as the key its definition and values share: the
+/// number itself, so `0012` and `12` are one test. `None` for text that is not
+/// a u32 (`SpecCheck::test_number` counts those in a full parse).
+fn test_key(raw: &str) -> Option<String> {
+    raw.trim().parse::<u32>().ok().map(|n| n.to_string())
+}
+
 fn define_ptr(defs: &mut TestDefBuilder, f: &[&str]) {
-    let test_num = at(f, PTR_TEST_NUM);
-    if test_num.is_empty() { return; }
+    let Some(key) = test_key(at(f, PTR_TEST_NUM)) else { return };
+    let test_num = key.as_str();
     let num = |i: usize| at(f, i).parse::<f64>().ok().filter(|v| v.is_finite());
     let (lo, hi, lo_spec, hi_spec) = (num(PTR_LO_LIMIT), num(PTR_HI_LIMIT), num(PTR_LO_SPEC), num(PTR_HI_SPEC));
     let units = nonempty(at(f, PTR_UNITS));
@@ -162,8 +168,8 @@ fn define_ptr(defs: &mut TestDefBuilder, f: &[&str]) {
 }
 
 fn define_ftr(defs: &mut TestDefBuilder, f: &[&str]) {
-    let test_num = at(f, FTR_TEST_NUM);
-    if test_num.is_empty() { return; }
+    let Some(key) = test_key(at(f, FTR_TEST_NUM)) else { return };
+    let test_num = key.as_str();
     defs.define(test_num, TestDef {
         name: at(f, FTR_TEST_TXT).to_string(),
         test_type: "F".to_string(),
@@ -172,7 +178,8 @@ fn define_ftr(defs: &mut TestDefBuilder, f: &[&str]) {
 }
 
 fn define_tsr(defs: &mut TestDefBuilder, f: &[&str]) {
-    defs.tsr_name(at(f, TSR_TEST_NUM), at(f, TSR_TEST_NAM));
+    let Some(key) = test_key(at(f, TSR_TEST_NUM)) else { return };
+    defs.tsr_name(&key, at(f, TSR_TEST_NAM));
 }
 
 fn nonempty(s: &str) -> Option<String> {
@@ -341,10 +348,10 @@ pub fn parse_atdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
 /// `format!` string key. Cold records (MIR/WIR/WRR) keep `field_map`.
 fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) -> ParseResult<ParsedStdf> {
     // Accumulate a test value iff there's no filter, or the filter contains it.
-    let want = |test_num: &str| -> bool {
+    let want = |test_num: u32| -> bool {
         match selected {
             None => true,
-            Some(set) => test_num.parse::<u32>().map_or(false, |n| set.contains(&n)),
+            Some(set) => set.contains(&test_num),
         }
     };
     let (records, delim) = split_atdf_records(raw);
@@ -359,11 +366,9 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
     let mut sbin_names: HashMap<u32, String> = HashMap::new();
     let mut pass_hbins: std::collections::HashSet<u32> = std::collections::HashSet::new();
     // Keyed by packed (head,site) u32 (see `site_key`) — avoids a `format!` string
-    // key per PIR/PTR/FTR/PRR. Inner map keyed by test-number string (tsmap identity).
-    let mut pending_values: HashMap<u32, HashMap<Arc<str>, f64>> = HashMap::new();
-    let mut pending_pass: HashMap<u32, HashMap<Arc<str>, bool>> = HashMap::new();
-    // Interned once per test, cloned per die — see TestKeys.
-    let mut test_keys = TestKeys::default();
+    // key per PIR/PTR/FTR/PRR. Inner map keyed by test number.
+    let mut pending_values: HashMap<u32, TestMap<f64>> = HashMap::new();
+    let mut pending_pass: HashMap<u32, TestMap<bool>> = HashMap::new();
     let mut pending_site: HashMap<u32, u32> = HashMap::new();
     let mut spec = SpecCheck::default();
 
@@ -455,11 +460,11 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                 let key = site_key(at(&raw_fields, PIR_HEAD_NUM), at(&raw_fields, PIR_SITE_NUM));
                 let site: u32 = at(&raw_fields, PIR_SITE_NUM).parse().unwrap_or(1);
                 pending_site.insert(key, site);
-                pending_values.insert(key, HashMap::new());
-                pending_pass.insert(key, HashMap::new());
+                pending_values.insert(key, TestMap::new());
+                pending_pass.insert(key, TestMap::new());
             }
             "PTR" => {
-                let test_num = at(&raw_fields, PTR_TEST_NUM);
+                let Some(test_num) = spec.test_number(at(&raw_fields, PTR_TEST_NUM)) else { continue };
                 let key = site_key(at(&raw_fields, PTR_HEAD_NUM), at(&raw_fields, PTR_SITE_NUM));
                 define_ptr(&mut test_defs, &raw_fields);
                 if want(test_num) {
@@ -467,19 +472,19 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     if let Ok(result) = at(&raw_fields, PTR_RESULT).parse::<f64>() {
                         if let Some(v) = spec.result(flags, result) {
                             if let Some(vals) = pending_values.get_mut(&key) {
-                                vals.insert(test_keys.text(test_num), v);
+                                vals.insert(test_num, v);
                             }
                         }
                     }
                     if let Some(p) = flags.verdict(atdf_verdict(at(&raw_fields, PTR_PASS_FAIL))) {
                         if let Some(passes) = pending_pass.get_mut(&key) {
-                            passes.insert(test_keys.text(test_num), p);
+                            passes.insert(test_num, p);
                         }
                     }
                 }
             }
             "FTR" => {
-                let test_num = at(&raw_fields, FTR_TEST_NUM);
+                let Some(test_num) = spec.test_number(at(&raw_fields, FTR_TEST_NUM)) else { continue };
                 let key = site_key(at(&raw_fields, FTR_HEAD_NUM), at(&raw_fields, FTR_SITE_NUM));
                 define_ftr(&mut test_defs, &raw_fields);
                 if want(test_num) {
@@ -488,7 +493,7 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                     let flags = ResultFlags::from_atdf(at(&raw_fields, FTR_ALARM_FLAGS));
                     if let Some(p) = flags.verdict(atdf_verdict(at(&raw_fields, FTR_PASS_FAIL))) {
                         if let Some(passes) = pending_pass.get_mut(&key) {
-                            passes.insert(test_keys.text(test_num), p);
+                            passes.insert(test_num, p);
                         }
                     }
                 }

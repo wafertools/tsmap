@@ -1,5 +1,6 @@
 // Pure, DOM-free utility functions extracted from main.ts for testability.
 
+import { hardBins, hasBins, keepTests, testNumbers } from './columns';
 import type { LotMeta, MetaField, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 import type { RustParsedFile, StdfTestNames } from './platform';
 import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
@@ -239,7 +240,7 @@ export interface PassBinCollision {
 function knownHardBins(file: { wafers: WaferData[]; hbinDefs?: BinDef[] }): Set<number> {
   const bins = new Set<number>();
   for (const d of file.hbinDefs ?? []) bins.add(d.bin);
-  for (const w of file.wafers) for (const r of w.results) if (r.hbin !== undefined) bins.add(r.hbin);
+  for (const w of file.wafers) for (const b of hardBins(w.results)) bins.add(b);
   return bins;
 }
 
@@ -801,12 +802,10 @@ export function toWmapDerivedTests(
 }
 
 export function autoPlotMode(wafers: WaferData[]): PlotMode {
-  const sample = wafers[0]?.results ?? [];
-  const hasHbin = sample.some(d => d.hbin !== undefined);
-  const hasSbin = sample.some(d => d.sbin !== undefined);
-  const hasValues = sample.some(d =>
-    (d.testValues && Object.keys(d.testValues).length > 0) ||
-    (d.testPass && Object.keys(d.testPass).length > 0));
+  const first = wafers[0]?.results;
+  const hasHbin = first !== undefined && hasBins(first, 'hbin');
+  const hasSbin = first !== undefined && hasBins(first, 'sbin');
+  const hasValues = first !== undefined && testNumbers(first, 'all').length > 0;
   return hasHbin ? 'hardBin' : hasSbin ? 'softBin' : hasValues ? 'value' : 'hardBin';
 }
 
@@ -926,20 +925,10 @@ export function applyTestSelection(
     if (!selectionSet.has(key)) delete parsed.testDefs[key];
   }
 
-  // Prune per-die testValues and testPass to selection.
-  if (!valuesAlreadySelected) for (const wafer of parsed.wafers) {
-    for (const die of wafer.results) {
-      if (die.testValues) {
-        for (const key of Object.keys(die.testValues)) {
-          if (!selectionSet.has(key)) delete die.testValues[Number(key)];
-        }
-      }
-      if (die.testPass) {
-        for (const key of Object.keys(die.testPass)) {
-          if (!selectionSet.has(key)) delete die.testPass[Number(key)];
-        }
-      }
-    }
+  // Prune the test columns to selection.
+  if (!valuesAlreadySelected) {
+    const keep = new Set(selection);
+    for (const wafer of parsed.wafers) wafer.results = keepTests(wafer.results, keep);
   }
 
   // Backfill selected tests missing due to stop-on-fail.
@@ -956,49 +945,8 @@ export function applyTestSelection(
   return parsed;
 }
 
-/**
- * Dies the browser build can be relied on to open.
- *
- * Measured in Chrome on 2026-09-19: the web build
- * parses in a Worker and the result is structured-cloned to the main thread, so
- * two copies are live and the ceiling is total heap. A lot is roughly 5 KB of JS
- * heap per die — about 12 KB where the data carries per-test pass/fail verdicts —
- * and the tab dies somewhere above 2 GB per copy.
- *
- * Measured outcomes, which this one number classifies correctly:
- *
- * | lot | result |
- * | --- | --- |
- * | 200,000 dies × 50 tests | loads, 6.3 s |
- * | 200,000 × 100 tests | loads, 13.6 s |
- * | 266,325 × 51 (341 MB STDF) | **tab crashes** |
- * | 400,000 × 50 | **tab crashes** |
- *
- * Thresholded on die count alone, not `dies × tests`: the per-die cost is
- * dominated by the test-value CONTAINER rather than by the values in it, so
- * 200k × 100 tests loads while 400k × 50 — the same cell count — does not. A
- * `dies × tests` budget would get that pair exactly backwards.
- *
- * The "~2.8 KB fixed + ~0.044 KB per test" split this used to quote is not a
- * property of a die; it was one point on a range. `testValues` is a plain
- * object keyed by test number, V8 stores integer-like keys as array indices,
- * and the same 50 readings occupy 6,108 B, 1,560 B or 336 B depending on the
- * representation the object lands in — two files with identical test numbers
- * measured 3.9x apart (2026-09-20, heap snapshot). The threshold above is
- * unaffected, and better
- * explained: die count is the right axis precisely because the container
- * dominates and one more test costs little.
- *
- * **The number 200,000 has NOT been re-derived** against data with realistic
- * test numbers — every fixture behind the table above is synthetic with test
- * numbers near 1,000–2,000. Do not move it without doing that first.
- *
- * Deliberately not a hard block. The edge moves with whatever else the machine is
- * doing: a 143 MB lot that crashed on one run of this machine loaded on another.
- * Refusing a lot that would have worked is worse than warning about one that
- * might not, so the user is told the number and left to decide.
- */
-export const WEB_DIE_BUDGET = 200_000;
+export { WEB_VALUE_BUDGET } from './webLimits';
+import { WEB_VALUE_BUDGET } from './webLimits';
 
 /**
  * Total dies in a lot above which the gallery is mounted **progressively** —
@@ -1057,17 +1005,19 @@ export function shouldMountProgressively(dieCounts: readonly number[]): boolean 
 }
 
 /**
- * Warning to show before loading `dieCount` dies in the browser build, or null
- * when the lot is within budget (or the count is unknown, which is no basis to
- * judge).
+ * Warning to show before loading `dieCount` dies with `testCount` measured
+ * tests in the browser build, or null when the load is within budget (or the
+ * count is unknown, which is no basis to judge). See {@link WEB_VALUE_BUDGET}.
  *
- * Desktop callers should not call this: the native path has no worker, no clone
- * and no ceiling — it opens the 266k-die lot in 1.4 s.
+ * Desktop callers should not call this: the desktop build parses natively.
  */
-export function webDieBudgetWarning(dieCount: number): string | null {
-  if (!Number.isFinite(dieCount) || dieCount <= WEB_DIE_BUDGET) return null;
-  return `This lot has ${dieCount.toLocaleString()} dies. The browser version reliably opens `
-    + `about ${WEB_DIE_BUDGET.toLocaleString()}; above that the tab can run out of memory and `
-    + `reload, losing the load. The desktop app has no such limit — it opens a lot this size in `
-    + `a couple of seconds. Loading fewer wafers, or fewer files at once, also keeps you under it.`;
+export function webValueBudgetWarning(dieCount: number, testCount: number): string | null {
+  const values = dieCount * testCount;
+  if (!Number.isFinite(values) || values <= WEB_VALUE_BUDGET) return null;
+  const millions = (n: number) => `${Math.round(n / 1e6).toLocaleString()} million`;
+  return `This load is ${dieCount.toLocaleString()} dies × ${testCount.toLocaleString()} tests, about `
+    + `${millions(values)} test values. The browser version reliably opens about ${millions(WEB_VALUE_BUDGET)} `
+    + `(for example 1,200,000 dies with 50 tests); above that the parse can run out of memory and fail. `
+    + `Selecting fewer tests, or loading fewer wafers or files at once, keeps you under it. The desktop `
+    + `app has no such limit.`;
 }

@@ -1,5 +1,6 @@
+import { columnsFromRows, recordOf } from './columns';
 import { describe, it, expect } from 'vitest';
-import { derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, webDieBudgetWarning, WEB_DIE_BUDGET, shouldMountProgressively, GALLERY_PROGRESSIVE_DIE_THRESHOLD, errMsg, errCode, basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
+import { derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, webValueBudgetWarning, WEB_VALUE_BUDGET, shouldMountProgressively, GALLERY_PROGRESSIVE_DIE_THRESHOLD, errMsg, errCode, basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -193,27 +194,27 @@ describe('toWmapTestDefs', () => {
 
 describe('autoPlotMode', () => {
   it('prefers hardBin when hbin present', () => {
-    const wafers = [{ waferId: 'W1', results: [{ x: 0, y: 0, hbin: 1, sbin: 2, testValues: { 1: 0.5 } }] }];
+    const wafers = [{ waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, hbin: 1, sbin: 2, testValues: { 1: 0.5 } }]) }];
     expect(autoPlotMode(wafers)).toBe('hardBin');
   });
 
   it('falls back to softBin when no hbin', () => {
-    const wafers = [{ waferId: 'W1', results: [{ x: 0, y: 0, sbin: 2, testValues: { 1: 0.5 } }] }];
+    const wafers = [{ waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, sbin: 2, testValues: { 1: 0.5 } }]) }];
     expect(autoPlotMode(wafers)).toBe('softBin');
   });
 
   it('falls back to value when only testValues', () => {
-    const wafers = [{ waferId: 'W1', results: [{ x: 0, y: 0, testValues: { 1: 0.5 } }] }];
+    const wafers = [{ waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, testValues: { 1: 0.5 } }]) }];
     expect(autoPlotMode(wafers)).toBe('value');
   });
 
   it('falls back to value when only functional verdicts (testPass) exist', () => {
-    const wafers = [{ waferId: 'W1', results: [{ x: 0, y: 0, testPass: { 2001: true } }] }];
+    const wafers = [{ waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, testPass: { 2001: true } }]) }];
     expect(autoPlotMode(wafers)).toBe('value');
   });
 
   it('defaults to hardBin for empty results', () => {
-    expect(autoPlotMode([{ waferId: 'W1', results: [] }])).toBe('hardBin');
+    expect(autoPlotMode([{ waferId: 'W1', results: columnsFromRows([]) }])).toBe('hardBin');
   });
 
   it('defaults to hardBin for empty wafers', () => {
@@ -229,7 +230,7 @@ function makeParsed(testDefs: Record<string, TestDef>, testValues: Record<number
     meta: { fields: [] },
     wafers: [{
       waferId: 'W1',
-      results: [{ x: 0, y: 0, hbin: 1, testValues }],
+      results: columnsFromRows([{ x: 0, y: 0, hbin: 1, testValues }]),
     }],
     testDefs,
   };
@@ -252,7 +253,7 @@ describe('applyTestSelection', () => {
       { 1001: 0.5, 1002: 1.2 },
     );
     applyTestSelection(parsed, [1001], null, new Map());
-    expect(parsed.wafers[0].results[0].testValues).toEqual({ 1001: 0.5 });
+    expect(recordOf(parsed.wafers[0].results, 0).testValues).toEqual({ 1001: 0.5 });
   });
 
   it('after a filtered parse, prunes testDefs but leaves the dies alone', () => {
@@ -266,16 +267,16 @@ describe('applyTestSelection', () => {
     );
     applyTestSelection(parsed, [1001], null, new Map(), undefined, true);
     expect(Object.keys(parsed.testDefs)).toEqual(['1001']);
-    expect(parsed.wafers[0].results[0].testValues).toEqual({ 1001: 0.5, 1002: 1.2 });
+    expect(recordOf(parsed.wafers[0].results, 0).testValues).toEqual({ 1001: 0.5, 1002: 1.2 });
   });
 
   it('prunes per-die testPass to selection', () => {
     const parsed = makeParsed(
       { '1001': { name: 'A', testType: 'P' }, '2001': { name: 'scan', testType: 'F' }, '2002': { name: 'bist', testType: 'F' } },
     );
-    parsed.wafers[0].results[0].testPass = { 2001: true, 2002: false };
+    parsed.wafers[0].results = columnsFromRows([{ x: 0, y: 0, hbin: 1, testPass: { 2001: true, 2002: false } }]);
     applyTestSelection(parsed, [1001, 2001], null, new Map());
-    expect(parsed.wafers[0].results[0].testPass).toEqual({ 2001: true });
+    expect(recordOf(parsed.wafers[0].results, 0).testPass).toEqual({ 2001: true });
   });
 
   it('backfills stop-on-fail tests from firstPassDefs', () => {
@@ -321,7 +322,7 @@ describe('applyTestSelection', () => {
     );
     applyTestSelection(parsed, [], null, new Map());
     expect(Object.keys(parsed.testDefs)).toHaveLength(0);
-    expect(parsed.wafers[0].results[0].testValues).toEqual({});
+    expect(recordOf(parsed.wafers[0].results, 0).testValues).toEqual({});
   });
 
   it('returns the mutated parsed object', () => {
@@ -334,7 +335,7 @@ describe('applyTestSelection', () => {
     const parsed: ParsedFile = {
       fileName: 'test.stdf',
       meta: { fields: [] },
-      wafers: [{ waferId: 'W1', results: [{ x: 0, y: 0, hbin: 1 }] }],
+      wafers: [{ waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]) }],
       testDefs: { '1001': { name: 'A', testType: 'P' } },
     };
     expect(() => applyTestSelection(parsed, [1001], null, new Map())).not.toThrow();
@@ -480,19 +481,19 @@ describe('toWaferData', () => {
     // Regression: the rename/merge flow used to drop `fields`, killing WIR/WRR facets.
     const fields = [{ key: 'frameId', value: 'F1' }, { key: 'maskId', value: 'M1' }];
     const out = toWaferData({
-      waferId: 'W1', results: [{ x: 0, y: 0, hbin: 1 }],
+      waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]),
       partCount: 10, goodCount: 9, failCount: 1, fields, source: src,
     });
     expect(out.fields).toBe(fields);   // same reference, not dropped
     expect(out.source).toBe(src);      // shared provenance reference preserved
     expect(out).toEqual({
-      waferId: 'W1', results: [{ x: 0, y: 0, hbin: 1 }],
+      waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]),
       partCount: 10, goodCount: 9, failCount: 1, fields, source: src,
     });
   });
 
   it('tolerates a minimal wafer (only id + results)', () => {
-    const out = toWaferData({ waferId: 'W1', results: [] });
+    const out = toWaferData({ waferId: 'W1', results: columnsFromRows([]) });
     expect(out.fields).toBeUndefined();
     expect(out.source).toBeUndefined();
   });
@@ -956,7 +957,7 @@ describe('unionTestDefs', () => {
 describe('unionBinInfo', () => {
   const wafer = (hbins: number[]): WaferData => ({
     waferId: 'W1',
-    results: hbins.map((hbin, i) => ({ x: i, y: 0, hbin })),
+    results: columnsFromRows(hbins.map((hbin, i) => ({ x: i, y: 0, hbin }))),
   });
   const file = (
     fileName: string, hbins: number[], passHbins?: number[], hbinDefs?: { bin: number; name: string }[],
@@ -1061,42 +1062,45 @@ describe('errMsg and errCode', () => {
   });
 });
 
-// ── webDieBudgetWarning ───────────────────────────────────────────────────────
+// ── webValueBudgetWarning ─────────────────────────────────────────────────────
 
-describe('webDieBudgetWarning', () => {
-  it('says nothing for a lot within budget', () => {
-    expect(webDieBudgetWarning(1)).toBeNull();
-    expect(webDieBudgetWarning(50_000)).toBeNull();
-    expect(webDieBudgetWarning(WEB_DIE_BUDGET)).toBeNull();
+describe('webValueBudgetWarning', () => {
+  it('says nothing for a load within budget', () => {
+    expect(webValueBudgetWarning(1, 1)).toBeNull();
+    expect(webValueBudgetWarning(266_325, 51)).toBeNull();
+    expect(webValueBudgetWarning(WEB_VALUE_BUDGET / 50, 50)).toBeNull();
   });
 
-  it('warns above budget, naming the count and the limit', () => {
-    const w = webDieBudgetWarning(266_325);
+  it('warns above budget, naming the counts and the limit', () => {
+    const w = webValueBudgetWarning(1_500_000, 50);
     expect(w).not.toBeNull();
-    expect(w).toContain('266,325');
-    expect(w).toContain(WEB_DIE_BUDGET.toLocaleString());
+    expect(w).toContain('1,500,000 dies × 50 tests');
+    expect(w).toContain('75 million');
+    expect(w).toContain('60 million');
   });
 
-  it('points at the desktop app, which has no such limit', () => {
-    // The whole value of the message is offering a way forward rather than just
-    // announcing a wall.
-    expect(webDieBudgetWarning(400_000)).toMatch(/desktop/i);
+  it('offers a way forward: fewer tests, or the desktop app', () => {
+    const w = webValueBudgetWarning(2_000_000, 50)!;
+    expect(w).toMatch(/fewer tests/i);
+    expect(w).toMatch(/desktop/i);
   });
 
-  it('treats an unknown count as no basis to judge', () => {
-    // 0 is what the scan reports when nothing gave a die count; NaN guards a
-    // divide or a failed parse upstream.
-    expect(webDieBudgetWarning(0)).toBeNull();
-    expect(webDieBudgetWarning(NaN)).toBeNull();
+  it('counts values, not dies: fewer tests bring a large lot under it', () => {
+    expect(webValueBudgetWarning(2_000_000, 50)).not.toBeNull();
+    expect(webValueBudgetWarning(2_000_000, 25)).toBeNull();
+    expect(webValueBudgetWarning(400_000, 200)).not.toBeNull();
   });
 
-  it('classifies every measured case correctly', () => {
-    // Measured 2026-09-19 — the point of thresholding on die count
-    // rather than dies x tests is that 200k x 100 loads while 400k x 50 does not.
-    expect(webDieBudgetWarning(200_000)).toBeNull();   // 50 tests: loaded
-    expect(webDieBudgetWarning(200_000)).toBeNull();   // 100 tests: loaded
-    expect(webDieBudgetWarning(266_325)).not.toBeNull(); // crashed
-    expect(webDieBudgetWarning(400_000)).not.toBeNull(); // crashed
+  it('says nothing when a count is unknown', () => {
+    expect(webValueBudgetWarning(NaN, 50)).toBeNull();
+    expect(webValueBudgetWarning(0, 50)).toBeNull();
+  });
+
+  // Measured 2026-09-26 (WEB_VALUE_BUDGET's table): these loaded in Chrome or failed in the parse.
+  it('classifies the measured loads', () => {
+    expect(webValueBudgetWarning(266_325, 51)).toBeNull();     // loads
+    expect(webValueBudgetWarning(1_000_000, 50)).toBeNull();   // loads
+    expect(webValueBudgetWarning(2_000_000, 50)).not.toBeNull(); // parse fails
   });
 });
 

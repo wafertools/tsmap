@@ -1,6 +1,7 @@
 declare const __APP_VERSION__: string;
 declare const __BUILD_DATE__: string;
 
+import { keepTests, testNumbers } from './columns';
 import { buildWaferMap } from '@wafertools/wafermap';
 import type { WaferMapResult, BinDef } from '@wafertools/wafermap';
 import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide, WMAP_VERSION, WMAP_BUILD_TIME } from '@wafertools/wafermap/render';
@@ -1169,7 +1170,7 @@ function renderWafers(
   // it off on every new load so a fresh (possibly large) lot starts on the fast path.
   valueFindings = false;
 
-  const totalDies = wafers.reduce((n, w) => n + w.results.length, 0);
+  const totalDies = wafers.reduce((n, w) => n + w.results.count, 0);
   const loadedMsg = `${label} — ${wafers.length} wafer${wafers.length !== 1 ? 's' : ''}, ${totalDies} dies`;
 
   // buildWaferMap/renderWaferMap run synchronously and can take real time on
@@ -2074,7 +2075,7 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
 
   if (firstPassTestDefs && Object.keys(firstPassTestDefs).length > 0) {
     const csvDieCount = Array.from(preParsed.values())
-      .reduce((s, p) => s + p.wafers.reduce((ws, w) => ws + w.results.length, 0), 0);
+      .reduce((s, p) => s + p.wafers.reduce((ws, w) => ws + w.results.count, 0), 0);
 
     // The selector can be re-entered when the user clicks "scan all files": we
     // widen the scope, re-scan, merge, and re-open with the same selection +
@@ -2767,10 +2768,10 @@ resetBtn.addEventListener('click', () => {
  * rather than showing a meaningless zero.
  */
 function filterCapacity(): { dieCount: number; totalTests: number; isWebBuild: boolean } | undefined {
-  const dieCount = currentWafers.reduce((n, w) => n + w.results.length, 0);
+  const dieCount = currentWafers.reduce((n, w) => n + w.results.count, 0);
   if (dieCount === 0) return undefined;
   const totalTests = Object.keys(currentTestNames ?? currentTestDefs).length;
-  // The die ceiling is a browser-only limit — see webDieBudgetWarning.
+  // The value ceiling is a browser-only limit — see webValueBudgetWarning.
   return { dieCount, totalTests, isWebBuild: !isTauri };
 }
 
@@ -2907,14 +2908,7 @@ async function openFilterTests() {
     const keepSet = new Set(testSelection);
     const filteredWafers = currentWafers.map(w => ({
       ...w,
-      results: w.results.map(d => {
-        if (!d.testValues) return d;
-        const testValues: typeof d.testValues = {};
-        for (const [k, v] of Object.entries(d.testValues)) {
-          if (keepSet.has(Number(k))) testValues[Number(k)] = v;
-        }
-        return { ...d, testValues };
-      }),
+      results: keepTests(w.results, keepSet),
     }));
     const filteredDefs: Record<string, TestDef> = {};
     for (const key of Object.keys(currentTestDefs)) {
@@ -3619,7 +3613,7 @@ function openLotMenu(anchor: HTMLElement) {
       // is room to name the object, and it sits with the other lot-scoped
       // controls instead of beside the file buttons.
       const hasTestValues = currentWafers.some(w =>
-        w.results.some(d => d.testValues && Object.keys(d.testValues).length > 0));
+        testNumbers(w.results).length > 0);
       heading('Analysis');
       popup.appendChild(makeMenuRow(close, {
         label: 'Show test-value findings',
@@ -3700,7 +3694,7 @@ function rerenderCurrentLot(verb: string): void {
   loadPhase('rendering', `${verb} ${label}`);
   requestAnimationFrame(() => requestAnimationFrame(async () => {
     await renderWaferView(currentWafers);
-    const dies = currentWafers.reduce((n, w) => n + w.results.length, 0);
+    const dies = currentWafers.reduce((n, w) => n + w.results.count, 0);
     endLoad(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${dies} dies`);
   }));
 }

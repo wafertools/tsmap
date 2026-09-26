@@ -1,3 +1,4 @@
+import { testNumbers } from './columns';
 import type { WaferData } from './types';
 
 /**
@@ -30,24 +31,12 @@ export const VALUE_FINDINGS_US_PER_DIE_TEST = 1.2;
 export const VALUE_FINDINGS_AUTO_BUDGET_MS = 1000;
 
 /**
- * The largest per-die test count on one wafer, from a sample of its dies: the
- * first 50 and every 100th after. Counting every die's keys cost 3.3 s on a
- * 266k-die lot in the desktop webview, to produce an estimate. A test program
- * writes the same tests for every die (stop-on-fail only shortens the list), so
- * the sample's maximum is the wafer's maximum on any real lot; data where one
- * die in hundreds carries more tests than all the others can be undercounted.
+ * The number of tests with values on one wafer: the most any die can carry. A
+ * test program writes the same tests for every die (stop-on-fail only shortens
+ * the list), so this is the per-die count on any real lot.
  */
 function waferTestCount(w: WaferData): number {
-  let most = 0;
-  const dies = w.results;
-  for (let i = 0; i < dies.length; i += i < 50 ? 1 : 100) {
-    const tv = dies[i].testValues;
-    if (!tv) continue;
-    let n = 0;
-    for (const _ in tv) n++;
-    if (n > most) most = n;
-  }
-  return most;
+  return testNumbers(w.results).length;
 }
 
 /** The largest per-die test count on any wafer — the multiplier in the cost. */
@@ -60,13 +49,13 @@ export function maxTestCount(wafers: WaferData[]): number {
 /** Rough cost of the regional test-value pass over `wafers`, in ms. */
 export function estimateValueFindingsMs(wafers: WaferData[]): number {
   let dieTests = 0;
-  for (const w of wafers) dieTests += w.results.length * waferTestCount(w);
+  for (const w of wafers) dieTests += w.results.count * waferTestCount(w);
   return (dieTests * VALUE_FINDINGS_US_PER_DIE_TEST) / 1000;
 }
 
 /** True when any die anywhere in the lot carries a test value to analyse. */
 export function lotHasTestValues(wafers: WaferData[]): boolean {
-  return wafers.some(w => w.results.some(d => d.testValues && Object.keys(d.testValues).length > 0));
+  return wafers.some(w => testNumbers(w.results).length > 0);
 }
 
 /**

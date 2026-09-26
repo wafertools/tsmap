@@ -1,9 +1,9 @@
 // UI for multi-file loading: rename step + append confirmation with mismatch warnings.
 
+import { hardBins, positions } from './columns';
 import type { FileDefs, ParsedFile, WaferData, WaferSource } from './types';
 import { makeWaferSource, escapeHtml as esc } from './lib';
 import { openModal } from './modal';
-import { hasPosition } from '@wafertools/wafermap';
 import { waferLabels } from './splits';
 
 // ── Rename overlay ────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export function showRenameOverlay(
       <td class="rename-file">${esc(row.fileLabel)}</td>
       <td class="rename-arrow">→</td>
       <td><input type="text" class="rename-input" data-idx="${i}" value="${esc(row.defaultId)}"></td>
-      <td class="rename-count">${row.wafer.results.length.toLocaleString()} dies</td>
+      <td class="rename-count">${row.wafer.results.count.toLocaleString()} dies</td>
     </tr>`).join('');
 
   overlay.innerHTML = `
@@ -294,8 +294,8 @@ export function detectMismatches(incoming: RenamedWafer[], existing: WaferData[]
   const warnings: AppendWarning[] = [];
   if (existing.length === 0) return warnings;
 
-  const existingCounts = existing.map(w => w.results.length);
-  const incomingCounts = incoming.map(w => w.results.length);
+  const existingCounts = existing.map(w => w.results.count);
+  const incomingCounts = incoming.map(w => w.results.count);
   const existingMean = mean(existingCounts);
   const incomingMean = mean(incomingCounts);
 
@@ -314,8 +314,8 @@ export function detectMismatches(incoming: RenamedWafer[], existing: WaferData[]
   // silently under a warning that claimed to cover the grid.
   // Spatial-only heuristic — coordinate-less dies have no grid position to
   // compare, so they're excluded rather than producing a bogus 0-span.
-  const existingRange = coordRange(existing.flatMap(w => w.results).filter(hasPosition));
-  const incomingRange = coordRange(incoming.flatMap(w => w.results).filter(hasPosition));
+  const existingRange = coordRange(existing.flatMap(w => positions(w.results)));
+  const incomingRange = coordRange(incoming.flatMap(w => positions(w.results)));
   if (existingRange && incomingRange) {
     const differing: string[] = [];
     const xSpanExist = existingRange.maxX - existingRange.minX;
@@ -333,14 +333,12 @@ export function detectMismatches(incoming: RenamedWafer[], existing: WaferData[]
     }
   }
 
-  // Hard bin set mismatch. `hbin` is optional on DieResult — a CSV mapped
-  // without a hard-bin column yields undefined for every die, which used to
-  // land in the set and then print literally as "undefined" in the message.
-  // Dies with no bin carry no information about the bin sets, so drop them.
-  const binSet = (dies: { hbin?: number }[]) =>
-    new Set(dies.map(d => d.hbin).filter((b): b is number => b !== undefined));
-  const existingBins = binSet(existing.flatMap(w => w.results));
-  const incomingBins = binSet(incoming.flatMap(w => w.results));
+  // Hard bin set mismatch. Dies with no bin (a CSV mapped without a hard-bin
+  // column has none) carry no information about the bin sets: `hardBins`
+  // leaves them out.
+  const binsOf = (wafers: WaferData[]) => new Set(wafers.flatMap(w => [...hardBins(w.results)]));
+  const existingBins = binsOf(existing);
+  const incomingBins = binsOf(incoming);
   const onlyInExisting = [...existingBins].filter(b => !incomingBins.has(b)).sort((a, b) => a - b);
   const onlyInIncoming = [...incomingBins].filter(b => !existingBins.has(b)).sort((a, b) => a - b);
   if (onlyInExisting.length > 0 || onlyInIncoming.length > 0) {

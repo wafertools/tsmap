@@ -1,3 +1,4 @@
+import { columnsFromRows } from './columns';
 import { describe, it, expect } from 'vitest';
 import { buildFacetTable, displayValue, facetValueOf, isHiddenField, NONE_VALUE } from './metadata';
 import type { MetaField, WaferData, WaferSource } from './types';
@@ -11,7 +12,7 @@ const src = (o: Record<string, string>): WaferSource => ({ sourceFile: 'f.stdf',
 function wafer(waferId: string, dieCount: number, source?: WaferSource, waferFields?: Record<string, string>): WaferData {
   return {
     waferId,
-    results: Array.from({ length: dieCount }, (_, i) => ({ x: i, y: 0, hbin: 1 })),
+    results: columnsFromRows(Array.from({ length: dieCount }, (_, i) => ({ x: i, y: 0, hbin: 1 }))),
     source,
     fields: waferFields ? fields(waferFields) : undefined,
   };

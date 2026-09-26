@@ -72,7 +72,7 @@ pub struct CsvMapping {
 }
 
 pub fn csv_headers_from_bytes(bytes: &[u8]) -> ParseResult<CsvHeadersResult> {
-    let bytes = crate::read_file::decompress_if_gzip(bytes.to_vec())?;
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let mut rdr = build_reader_from_bytes(&bytes);
     let headers: Vec<String> = rdr
         .headers()
@@ -98,7 +98,8 @@ pub fn csv_headers_from_bytes(bytes: &[u8]) -> ParseResult<CsvHeadersResult> {
 }
 
 pub fn parse_csv_from_bytes(bytes: &[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf> {
-    let bytes = crate::read_file::decompress_if_gzip(bytes.to_vec())?;
+    // Borrowed unless it had to be decompressed: the file is not copied.
+    let bytes = crate::read_file::maybe_gunzip(bytes)?;
     parse_csv_from_reader(build_reader_from_bytes(&bytes), mapping)
 }
 
@@ -143,7 +144,7 @@ pub fn parse_csv_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedS
     parse_csv_from_reader(rdr, mapping)
 }
 
-fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
+fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     let headers: Vec<String> = rdr
         .headers()
         .map_err(ParseError::csv_read)?
@@ -197,16 +198,16 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
         })
         .collect();
 
-    let all_rows: Vec<csv::StringRecord> = rdr
-        .records()
-        .collect::<Result<_, _>>()
-        .map_err(ParseError::csv_read)?;
+    // Records are streamed through one buffer, never collected: holding the
+    // whole file as text records beside the rows built from them was most of a
+    // large CSV's parse memory.
+    let mut rec = csv::StringRecord::new();
 
     // ── Wide-format fast path ──────────────────────────────────────────────────
     // The common case (one column per test): values are read by resolved column
     // index and parsed straight to their target type.
     if !is_long_format {
-        return Ok(parse_csv_wide(&all_rows, &col_idx, &mapping, test_defs));
+        return parse_csv_wide(&mut rdr, &col_idx, &mapping, test_defs);
     }
 
     // ── Long-format path: one row per (die, test) ─────────────────────────────
@@ -227,9 +228,10 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
     let name_col = mapping.testname_col.as_deref();
     let num_col = mapping.testnumber_col.as_deref();
     let val_col = mapping.testvalue_col.as_deref().unwrap();
-    let mut rows: Vec<FlatRow> = Vec::with_capacity(all_rows.len());
+    let mut rows: Vec<FlatRow> = Vec::new();
 
-    for rec in &all_rows {
+    while rdr.read_record(&mut rec).map_err(ParseError::csv_read)? {
+        let rec = &rec;
         let opt = |c: &Option<String>| c.as_deref().map(|c| get(rec, c)).unwrap_or_default();
         let mut row = FlatRow {
             lot: opt(&mapping.lot),
@@ -316,12 +318,12 @@ fn parse_csv_from_reader(mut rdr: csv::Reader<Box<dyn Read>>, mapping: CsvMappin
 /// round-trips for x/y/bins, and the per-test `format!` of the original path.
 /// Result shape (wafers grouped by wafer/split key, part/good/fail counts, lot
 /// metadata from the first kept row) matches the long-format path exactly.
-fn parse_csv_wide(
-    all_rows: &[csv::StringRecord],
+fn parse_csv_wide<R: Read>(
+    rdr: &mut csv::Reader<R>,
     col_idx: &HashMap<&str, usize>,
     mapping: &CsvMapping,
     test_defs: HashMap<String, TestDef>,
-) -> ParsedStdf {
+) -> ParseResult<ParsedStdf> {
     // Resolve a mapped column name to its record index once.
     let idx = |name: &str| col_idx.get(name).copied();
     let opt_idx = |c: &Option<String>| c.as_deref().and_then(idx);
@@ -343,25 +345,31 @@ fn parse_csv_wide(
         i.map(|i| cell(rec, i)).unwrap_or("")
     }
 
-    let rows: Vec<FlatRow> = all_rows.iter().map(|rec| FlatRow {
-        lot: cell_opt(rec, lot_i).to_string(),
-        wafer: cell_opt(rec, wafer_i).to_string(),
-        split_parts: split_parts(&mapping.split_by, |c| cell_opt(rec, idx(c)).to_string()),
-        meta: meta_i.iter().map(|i| cell_opt(rec, *i).to_string()).collect(),
-        x: x_i.and_then(|i| cell(rec, i).parse().ok()),
-        y: y_i.and_then(|i| cell(rec, i).parse().ok()),
-        hbin: hbin_i.and_then(|i| cell(rec, i).parse().ok()),
-        sbin: sbin_i.and_then(|i| cell(rec, i).parse().ok()),
-        site_num: site_i.and_then(|i| cell(rec, i).parse().ok()),
-        tests: test_i.iter()
-            .filter_map(|(t, i)| {
-                let s = cell(rec, *i);
-                if s.is_empty() { None } else { s.parse::<f64>().ok().map(|v| (*t, v)) }
-            })
-            .collect(),
-    }).collect();
+    let mut rows: Vec<FlatRow> = Vec::new();
+    let mut record = csv::StringRecord::new();
+    while rdr.read_record(&mut record).map_err(ParseError::csv_read)? {
+        let rec = &record;
+        // Sized to the test columns: one entry each at most, never a doubling's slack.
+        let mut tests = Vec::with_capacity(test_i.len());
+        for (t, i) in &test_i {
+            let s = cell(rec, *i);
+            if !s.is_empty() { if let Ok(v) = s.parse::<f64>() { tests.push((*t, v)); } }
+        }
+        rows.push(FlatRow {
+            lot: cell_opt(rec, lot_i).to_string(),
+            wafer: cell_opt(rec, wafer_i).to_string(),
+            split_parts: split_parts(&mapping.split_by, |c| cell_opt(rec, idx(c)).to_string()),
+            meta: meta_i.iter().map(|i| cell_opt(rec, *i).to_string()).collect(),
+            x: x_i.and_then(|i| cell(rec, i).parse().ok()),
+            y: y_i.and_then(|i| cell(rec, i).parse().ok()),
+            hbin: hbin_i.and_then(|i| cell(rec, i).parse().ok()),
+            sbin: sbin_i.and_then(|i| cell(rec, i).parse().ok()),
+            site_num: site_i.and_then(|i| cell(rec, i).parse().ok()),
+            tests,
+        });
+    }
 
-    into_parsed(rows, mapping, false, test_defs, Vec::new())
+    Ok(into_parsed(rows, mapping, false, test_defs, Vec::new()))
 }
 
 fn detect_delimiter(bytes: &[u8]) -> u8 {
@@ -374,9 +382,9 @@ fn detect_delimiter(bytes: &[u8]) -> u8 {
     if tabs >= commas && tabs >= semis { b'\t' } else if semis > commas { b';' } else { b',' }
 }
 
-fn build_reader_from_bytes(bytes: &[u8]) -> csv::Reader<Box<dyn Read>> {
+fn build_reader_from_bytes(bytes: &[u8]) -> csv::Reader<&[u8]> {
     let delim = detect_delimiter(bytes);
-    let reader: Box<dyn Read> = Box::new(std::io::Cursor::new(bytes.to_vec()));
+    let reader = bytes;
     ReaderBuilder::new()
         .delimiter(delim)
         .trim(csv::Trim::All)

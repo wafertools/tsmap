@@ -8,16 +8,13 @@
 // fires the worker's global 'error' event; the host side rejects all pending
 // promises in that case (see platform.ts).
 //
-// **Per-wafer streaming was tried here and removed** (2026-09-19). The theory was
-// that `postMessage`'s structured clone doubles peak memory, so the worker should
-// post one wafer at a time and release each as it went. It is measurably NOT the
-// constraint: streaming a 400k-die lot and *discarding* on the main thread peaks at
-// 105 MB and works, so the transfer is not what fails — what fails is the main
-// thread holding a whole lot as JS objects (~5 KB/die) while this worker is still
-// resident. Adding backpressure did not change that, and the streaming protocol
-// cost ~12% throughput for no benefit. Measure before trying it again.
+// A parse's result is one columnar buffer, transferred to the page without a
+// copy. The browser build's size limit is this worker's WebAssembly memory:
+// 32-bit, so 4 GB, at ~80 bytes per test value (see `WEB_VALUE_BUDGET` in
+// lib.ts). A parse that exhausts it traps; that is reported as its own error.
 
 import type { CsvMapping } from './mappingUI';
+import { WEB_VALUE_BUDGET } from './webLimits';
 
 type WasmModule = typeof import('@wafertools/testdata-parser');
 
@@ -51,6 +48,8 @@ export type ParserResponse =
   | { id: number; ok: false; error: string; code?: string };
 
 let wasmPromise: Promise<WasmModule> | null = null;
+/** The parser's linear memory, once loaded: its size tells an out-of-memory trap from any other. */
+let wasmMemory: WebAssembly.Memory | undefined;
 
 function loadWasm(): Promise<WasmModule> {
   if (!wasmPromise) {
@@ -65,9 +64,10 @@ function loadWasm(): Promise<WasmModule> {
       );
       const mod = await import('@wafertools/testdata-parser');
       // Pass { module_or_path } — the bare-URL form is deprecated in wasm-bindgen.
-      await (mod.default as (opts: { module_or_path: URL }) => Promise<unknown>)({
+      const exports = await (mod.default as (opts: { module_or_path: URL }) => Promise<{ memory?: WebAssembly.Memory }>)({
         module_or_path: wasmUrl,
       });
+      wasmMemory = exports?.memory;
       return mod;
     })();
   }
@@ -117,6 +117,9 @@ function run(wasm: WasmModule, req: ParserRequest): unknown {
   }
 }
 
+/** Within 64 MB of WebAssembly's 4 GB: memory grows in pages, so a full parser stops just short. */
+const OUT_OF_MEMORY_BYTES = 4 * 2 ** 30 - 64 * 2 ** 20;
+
 self.onmessage = async (e: MessageEvent<ParserRequest>) => {
   const req = e.data;
   const post = (res: ParserResponse) => (self as unknown as Worker).postMessage(res);
@@ -141,6 +144,21 @@ self.onmessage = async (e: MessageEvent<ParserRequest>) => {
     // because that one only comes from a Tauri `invoke` and this worker only
     // ever calls WASM. A narrow conversion over the one shape that can occur,
     // rather than pulling lib.ts into the worker bundle for a case that cannot.
+    // A trap with the parser's memory at WebAssembly's 4 GB limit is this build
+    // running out of room, not a fault in the file: say so, and what to do. A
+    // trap short of the limit is a parser bug (a Rust panic also traps) and keeps
+    // its own message.
+    if (err instanceof WebAssembly.RuntimeError && (wasmMemory?.buffer.byteLength ?? 0) >= OUT_OF_MEMORY_BYTES) {
+      post({
+        id: req.id,
+        ok: false,
+        code: 'wasm-out-of-memory',
+        error: 'The browser version ran out of memory parsing this file: it can hold about '
+          + `${Math.round(WEB_VALUE_BUDGET / 1e6)} million test values (dies × tests). Select fewer tests, `
+          + 'load fewer wafers or files at once, or open it in the desktop app, which has no such limit.',
+      });
+      return;
+    }
     const res: ParserResponse = {
       id: req.id,
       ok: false,

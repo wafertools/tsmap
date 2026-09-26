@@ -166,9 +166,6 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
     }
 
     // 2. Test passes within each wafer.
-    // One interner for every wafer in the file, so a test number has exactly one
-    // key allocation per parse rather than one per wafer.
-    let mut test_keys = TestKeys::default();
     let mut units: Vec<(String, String, Vec<FlatRow>)> = Vec::new();
     for ((lot, wafer_id), rows) in groups {
         let named = describe(&wafer_id, &lot);
@@ -194,12 +191,14 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
     let mut wafers: Vec<WaferData> = Vec::with_capacity(units.len());
     let mut fields: Vec<Vec<MetaField>> = Vec::with_capacity(units.len());
     let mut varies: Vec<Option<String>> = vec![None; meta_cols.len()];
-    for (lot, wafer_id, rows) in &units {
+    // By value: each wafer's rows are consumed as it is built, so a value is
+    // never held twice (row and die) for more than one wafer at a time.
+    for (lot, wafer_id, rows) in units {
         let mut f: Vec<MetaField> = Vec::new();
         if mapping.lot.is_some() { push_field(&mut f, "lotId", Some(lot.clone())); }
         for (ci, col) in meta_cols.iter().enumerate() {
             let mut distinct: Vec<&str> = Vec::new();
-            for r in rows {
+            for r in &rows {
                 let v = r.meta[ci].trim();
                 if !v.is_empty() && !distinct.contains(&v) {
                     distinct.push(v);
@@ -211,13 +210,13 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
                 1 => push_field(&mut f, col, Some(distinct[0].to_string())),
                 _ => {
                     if varies[ci].is_none() {
-                        varies[ci] = Some(format!("{}: {}, {}", describe(wafer_id, lot), distinct[0], distinct[1]));
+                        varies[ci] = Some(format!("{}: {}, {}", describe(&wafer_id, &lot), distinct[0], distinct[1]));
                     }
                 }
             }
         }
         fields.push(f);
-        wafers.push(build_wafer(wafer_id.clone(), rows, long_format, &pass_bins, &mut test_keys));
+        wafers.push(build_wafer(wafer_id.clone(), rows, long_format, &pass_bins));
     }
 
     // A column that varies within any wafer is not a property of wafers at all.
@@ -233,12 +232,12 @@ fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Asse
     Assembled { wafers, meta: LotMeta { fields: common }, warnings }
 }
 
-fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins: &HashSet<u32>,
-               test_keys: &mut TestKeys) -> WaferData {
+fn build_wafer(wafer_id: String, rows: Vec<FlatRow>, long_format: bool, pass_bins: &HashSet<u32>) -> WaferData {
+    let placeholder = rows.first().is_some_and(|r| r.wafer.is_empty());
     let blank = |pos: Option<(i32, i32)>| DieResult {
         x: pos.map(|p| p.0), y: pos.map(|p| p.1), die_index: None,
         hbin: None, sbin: None, site_num: None, part_id: None, supersedes: None,
-        test_values: HashMap::new(), test_pass: HashMap::new(),
+        test_values: TestMap::new(), test_pass: TestMap::new(),
     };
     let mut dies: Vec<DieResult> = Vec::new();
     if long_format {
@@ -246,7 +245,7 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
         // position to pivot by, so it is its own die rather than being merged
         // with unrelated rows under a shared empty key.
         let mut at: HashMap<(i32, i32), usize> = HashMap::new();
-        for r in rows {
+        for r in &rows {
             let pos = position(r);
             let i = match pos.and_then(|p| at.get(&p).copied()) {
                 Some(i) => i,
@@ -260,15 +259,18 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
             d.hbin = d.hbin.or(r.hbin.map(|b| b as u32));
             d.sbin = d.sbin.or(r.sbin.map(|b| b as u32));
             d.site_num = d.site_num.or(r.site_num.map(|s| s as u32));
-            for (t, v) in &r.tests { d.test_values.insert(test_keys.num(*t), *v); }
+            for &(t, v) in &r.tests { d.test_values.insert(t, v); }
         }
     } else {
+        dies.reserve_exact(rows.len());
         for r in rows {
-            let mut d = blank(position(r));
+            let mut d = blank(position(&r));
             d.hbin = r.hbin.map(|b| b as u32);
             d.sbin = r.sbin.map(|b| b as u32);
             d.site_num = r.site_num.map(|s| s as u32);
-            d.test_values = r.tests.iter().map(|(t, v)| (test_keys.num(*t), *v)).collect();
+            // A wide row has one entry per mapped column, so its test numbers are
+            // distinct: its list becomes the die's as it is, with no copy.
+            d.test_values = TestMap::from_distinct(r.tests);
             dies.push(d);
         }
     }
@@ -286,7 +288,7 @@ fn build_wafer(wafer_id: String, rows: &[FlatRow], long_format: bool, pass_bins:
     WaferData {
         wafer_id,
         // No wafer column mapped (or a blank one): `W1` is a placeholder.
-        wafer_id_placeholder: rows.first().is_some_and(|r| r.wafer.is_empty()),
+        wafer_id_placeholder: placeholder,
         results: dies,
         part_count: Some(part), good_count: good, fail_count: good.map(|g| part - g),
         fields: Vec::new(),

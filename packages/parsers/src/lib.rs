@@ -132,6 +132,7 @@ export type ParserWarningCode =
   | "wafer-end-missing"
   | "file-truncated"
   | "record-malformed"
+  | "test-number-invalid"
   | "values-not-numeric"
   | "retests-assumed"
   | "wafer-split-by-column"

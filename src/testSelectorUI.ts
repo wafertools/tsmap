@@ -1,6 +1,6 @@
 import type { TestDef, TestOverride } from './types';
 import { createRangeSelection } from './listSelection';
-import { webDieBudgetWarning } from './lib';
+import { webValueBudgetWarning } from './lib';
 import { ICONS } from '@wafertools/wafermap/render';
 import { DERIVED_MARK, DERIVED_KEY } from '@wafertools/wafermap';
 import { attachTooltip } from './tooltip';
@@ -16,9 +16,8 @@ export interface CapacityInfo {
   /** Total tests found in the scan. */
   totalTests: number;
   /**
-   * True in the browser build. The die ceiling below is a browser-only limit —
-   * the desktop build parses natively with no worker and no structured clone,
-   * and opens a 266k-die lot in about 1.4 s.
+   * True in the browser build. The value ceiling (`WEB_VALUE_BUDGET`) is a
+   * browser-only limit: the desktop build parses natively.
    */
   isWebBuild?: boolean;
 }
@@ -1237,28 +1236,14 @@ export function showTestSelectorOverlay(
 
   // ── Memory advisory ────────────────────────────────────────────────────────
   //
-  // Two different risks, on two different axes, and they must not be conflated:
+  // Two risks, both scaling with the selected die × test pairs:
   //
-  //  - **Time** scales with die×test pairs, and is what the amber notice is for.
-  //  - **The browser's memory ceiling scales with DIES**, near enough regardless
-  //    of test count, because the cost per die is dominated by the test-value
-  //    CONTAINER rather than by the values in it. Measured in Chrome
-  //    2026-09-19: 200k dies × 100 tests loads, while 400k × 50 — the same 20M
-  //    pairs — crashes the tab. A pair-count threshold gets that pair of cases
-  //    exactly backwards.
+  //  - **Time**, which the amber notice is for.
+  //  - **The browser build's memory ceiling** (`WEB_VALUE_BUDGET`): its parser
+  //    runs in 32-bit WebAssembly and needs ~80 bytes per test value, so a load
+  //    past ~40M values can fail. Derived tests do not count: they never reach
+  //    the parser. The desktop build parses natively and has no such ceiling.
   //
-  //    The "~2.8 KB fixed + ~0.044 KB per test" split this comment used to give
-  //    is not a property of a die: it was one point on a range. A die's
-  //    `testValues` is a plain object keyed by test number, V8 stores
-  //    integer-like keys as array indices, and the same 50 readings occupy
-  //    6,108 B, 1,560 B or 336 B depending on which representation the object
-  //    lands in — two files with identical test numbers have been measured 3.9x
-  //    apart (2026-09-20, heap snapshot). The conclusion above is unaffected and if
-  //    anything stronger: per-die cost is the container, the marginal cost of
-  //    one more test is small, so die count is the right axis.
-  //
-  // It did: both crashing cases sit at 20M pairs, under the 50M amber threshold,
-  // so the advisory said nothing at all before either of them killed the tab.
   const WARN_PAIRS   = 50_000_000;   // ~50M die×test pairs — slow, show amber
   const DANGER_PAIRS = 200_000_000;  // ~200M die×test pairs — very slow, confirm
 
@@ -1270,10 +1255,11 @@ export function showTestSelectorOverlay(
     return options.capacity.dieCount * selected.size;
   }
 
-  /** The browser's die ceiling, when this build has one and the lot exceeds it. */
-  function dieBudgetWarning(): string | null {
+  /** The browser's value ceiling, when this build has one and the selection exceeds it. */
+  function valueBudgetWarning(): string | null {
     if (!options.capacity?.isWebBuild) return null;
-    return webDieBudgetWarning(options.capacity.dieCount);
+    const measured = [...selected].filter(n => !isDerivedNum(n)).length;
+    return webValueBudgetWarning(options.capacity.dieCount, measured);
   }
 
   function updateMemAdvisory(): void {
@@ -1281,10 +1267,9 @@ export function showTestSelectorOverlay(
       memAdvisory.style.display = 'none';
       return;
     }
-    // The die ceiling outranks the pair-count notice: one is "this may be slow",
-    // the other is "this may lose the whole load". Selecting fewer tests barely
-    // moves the die ceiling, so the message must not imply that it would.
-    const overBudget = dieBudgetWarning();
+    // The browser's ceiling outranks the pair-count notice: one is "this may be
+    // slow", the other is "this load may fail".
+    const overBudget = valueBudgetWarning();
     if (overBudget) {
       memAdvisory.style.display = '';
       memAdvisory.style.color = 'var(--error-text)';
@@ -1319,7 +1304,7 @@ export function showTestSelectorOverlay(
     if (sel.length === 0) {
       if (!await ask('No tests selected — only bin data will be loaded. Continue?')) return;
     }
-    const overBudget = dieBudgetWarning();
+    const overBudget = valueBudgetWarning();
     if (overBudget) {
       if (!await ask(`${overBudget}\n\nLoad it anyway?`)) return;
     } else if (dieTestPairs() >= DANGER_PAIRS) {

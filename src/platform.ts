@@ -9,17 +9,17 @@ import { openModal } from './modal';
 // Parses cross into the app as a columnar buffer, decoded here into the same
 // `ParsedStdf` shape as before: from the worker it is transferred rather than
 // structured-cloned, and from Tauri it is a raw IPC body rather than JSON.
-import { decodeParsed } from '@wafertools/testdata-parser/columnar.js';
+import { decodeColumns } from '@wafertools/testdata-parser/columnar.js';
 
 let lastDecodeMs = 0;
 
 /** How long the most recent parse spent decoding its buffer, for the load's phase timings. */
 export function lastParseDecodeMs(): number { return lastDecodeMs; }
 
-/** `decodeParsed`, timed. The rest of a parse's time is the parse itself and getting its bytes here. */
+/** `decodeColumns`, timed. The rest of a parse's time is the parse itself and getting its bytes here. */
 function decodeTimed(buffer: ArrayBuffer | Uint8Array): RustParsedFile {
   const start = performance.now();
-  const parsed = decodeParsed(buffer) as RustParsedFile;
+  const parsed = decodeColumns(buffer) as unknown as RustParsedFile;
   lastDecodeMs = performance.now() - start;
   return parsed;
 }

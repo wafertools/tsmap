@@ -4,11 +4,12 @@ Rust/WASM parsers for semiconductor test data: STDF, ATDF, CSV, JSON, Parquet.
 One Rust source compiles two ways — to WebAssembly for the browser, and natively for a
 Tauri/Rust backend — and both produce identical results from identical input. All five
 formats parse to one shared shape (`ParsedStdf`), so a consuming app writes its rendering
-and analysis code once.
+and analysis code once. A full parse returns a columnar buffer (`Uint8Array`); decode it with
+`decodeParsed` or `decodeColumns` from `@wafertools/testdata-parser/columnar.js`.
 
 Output feeds `@wafertools/wafermap` (https://wafertools.github.io/wafermap/) directly:
-parse to `ParsedStdf`, hand the dies to `buildWaferMap()`, render. See "Handing the result
-to wafermap" below — the fields that make yield correct are easy to drop on the floor.
+parse, `decodeColumns`, hand each wafer's `results` to `buildWaferMap()`, render. See "Handing
+the result to wafermap" below — the fields that make yield correct are easy to drop on the floor.
 
 BEFORE INTEGRATING: tsmap (https://wafertools.github.io/tsmap/) is a finished, free,
 MIT-licensed desktop and browser application built on this parser and wafermap — it opens
@@ -25,7 +26,8 @@ resolve.
 - [tsmap](https://wafertools.github.io/tsmap/) - the application built on this package.
 
 ## The API in one line each
-- `parse_stdf(bytes)` / `parse_atdf(bytes)` - full parse. No mapping needed; the format carries its own test identity.
+- `parse_stdf(bytes)` / `parse_atdf(bytes)` - full parse, returned as a columnar buffer. No mapping needed; the format carries its own test identity.
+- `decodeParsed(buf)` / `decodeColumns(buf)` (from `@wafertools/testdata-parser/columnar.js`) - a full parse's buffer as `ParsedStdf` with one object per die, or with each wafer's `results` as columns in wafermap's `DieColumns` shape. Every `parse_*` full parse needs one of them.
 - `parse_csv(bytes, mapping)` / `parse_json(bytes, mapping)` / `parse_parquet(bytes, mapping)` - full parse with an explicit `CsvMapping`. There is no header auto-detection.
 - `stdf_test_names(bytes)` / `atdf_test_names(bytes)` - fast scan: test definitions + die count, no per-die accumulation.
 - `parse_stdf_filtered(bytes, selected)` / `parse_atdf_filtered(bytes, selected)` - full parse that accumulates values only for the selected test numbers.
@@ -46,11 +48,13 @@ resolve.
 - **Parse off the main thread in a browser.** The WASM build is slower than native and a large STDF will freeze the page otherwise. tsmap's `parserWorker.ts` is a worked example, including the `new URL(..., import.meta.url)` resolution that bundlers get finicky about.
 
 ## Handing the result to wafermap
+With `decodeColumns`, each wafer's `results` is already wafermap's `results` (`DieColumns`):
+pass it as it is, which builds even a large lot without an object per die. Tests present on the same records share one `indices` array, so never write to one. The rest of
 `ParsedStdf` is close to wafermap's input but is not the same object — convert deliberately,
 and carry these across or the map is plausibly wrong:
 - `passHbins` -> wafermap's `passBins`. Omit it and wafermap defaults to `[1]`, which decides both the yield number and the wording of its label whether or not bin 1 is this program's pass bin. Absent when no HBR record carried a usable Pass flag — then leave wafermap's default alone rather than passing an empty array, which would mean "nothing passes".
 - `hbinDefs` / `sbinDefs` -> wafermap's `hbinDefs` / `sbinDefs`, giving bins their real names.
-- `testPass` -> wafermap's `die.testPass`: recorded per-test verdicts, `true` = pass. Functional (FTR) tests live here only — they have no measured value. Read them through wafermap's `getTestPassStatus()`; a missing verdict is no-data, never a fail.
+- `testPass` (in `results`, rows or columns) -> wafermap's `die.testPass`: recorded per-test verdicts, pass = `true` (`1` in columns). Functional (FTR) tests live here only — they have no measured value. Read them through wafermap's `getTestPassStatus()`; a missing verdict is no-data, never a fail.
 - `testDefs` is a `Record<string, TestDef>` keyed by test number as a string, and `TestDef` here has no `testNumber` field. wafermap wants an array of `TestDef` each carrying a numeric `testNumber`, so the key becomes the field during conversion.
 - `hbin` / `sbin` are already numbers — never `?? 0` them. A missing bin is not bin 0.
 - A parse `warning` with `severity: 'error'` is worth showing next to the map, not just logging: `unpositioned-dies` means the map holds fewer dies than the file, and `soft-bin-mirrored` means a soft-bin map shows numbers the file never stated.

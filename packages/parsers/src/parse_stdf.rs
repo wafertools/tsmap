@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use crate::types::*;
 use crate::error::{ParseError, ParseResult};
 
@@ -536,13 +535,13 @@ impl TestIndex {
     fn len(&self) -> usize { self.order.len() }
 }
 
-/// Adds a newly seen test to the accumulation index under its string key.
-fn index_test(test_index: &mut TestIndex, index_keys: &mut Vec<Arc<str>>, test_num: u32, key: &str) {
+/// Adds a newly seen test to the accumulation index under its test number.
+fn index_test(test_index: &mut TestIndex, index_keys: &mut Vec<u32>, test_num: u32, _key: &str) {
     let idx = test_index.get_or_insert(test_num);
     while index_keys.len() <= idx {
-        index_keys.push(Arc::from(""));
+        index_keys.push(0);
     }
-    index_keys[idx] = Arc::from(key);
+    index_keys[idx] = test_num;
 }
 
 /// STDF record decoding for `TestDefBuilder`, which holds the rule — one for
@@ -648,29 +647,26 @@ impl SiteAccum {
         self.values.iter_mut().for_each(|v| *v = f32::NAN);
         self.pass.iter_mut().for_each(|p| *p = PASS_ABSENT);
     }
-    fn to_test_values(&self, index: &TestIndex, test_defs_keys: &[Arc<str>]) -> HashMap<Arc<str>, f64> {
-        // Count non-NaN entries first so we can pre-size the HashMap and avoid rehashing.
+    fn to_test_values(&self, index: &TestIndex, test_nums: &[u32]) -> TestMap<f64> {
+        // Counted first so the die's list is allocated at its exact size.
         let cap = self.values.iter().take(index.order.len()).filter(|v| !v.is_nan()).count();
-        let mut out = HashMap::with_capacity(cap);
+        let mut out = TestMap::with_capacity(cap);
         for (i, _) in index.order.iter().enumerate() {
             let v = if i < self.values.len() { self.values[i] } else { f32::NAN };
             if !v.is_nan() {
-                if let Some(key) = test_defs_keys.get(i) {
-                    out.insert(key.clone(), v as f64);
-                }
+                // One slot per test number, so each appears once: no scan.
+                if let Some(&t) = test_nums.get(i) { out.push_new(t, v as f64); }
             }
         }
         out
     }
-    fn to_test_pass(&self, index: &TestIndex, test_defs_keys: &[Arc<str>]) -> HashMap<Arc<str>, bool> {
+    fn to_test_pass(&self, index: &TestIndex, test_nums: &[u32]) -> TestMap<bool> {
         let cap = self.pass.iter().take(index.order.len()).filter(|p| **p != PASS_ABSENT).count();
-        let mut out = HashMap::with_capacity(cap);
+        let mut out = TestMap::with_capacity(cap);
         for (i, _) in index.order.iter().enumerate() {
             let p = if i < self.pass.len() { self.pass[i] } else { PASS_ABSENT };
             if p != PASS_ABSENT {
-                if let Some(key) = test_defs_keys.get(i) {
-                    out.insert(key.clone(), p == PASS_PASS);
-                }
+                if let Some(&t) = test_nums.get(i) { out.push_new(t, p == PASS_PASS); }
             }
         }
         out
@@ -704,7 +700,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
     // test_num → ordered key string (parallel to test_index.order)
-    let mut index_keys: Vec<Arc<str>> = Vec::new();
+    let mut index_keys: Vec<u32> = Vec::new();
 
     while let Some(raw) = iter.next_record() {
         let (typ, sub) = (raw.typ, raw.sub);
@@ -764,7 +760,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
                     (accum.to_test_values(&test_index, &index_keys),
                      accum.to_test_pass(&test_index, &index_keys))
                 } else {
-                    (HashMap::new(), HashMap::new())
+                    (TestMap::new(), TestMap::new())
                 };
                 if unpositioned {
                     site_accums.remove(&key);
@@ -977,7 +973,7 @@ pub fn parse_stdf_from_bytes_filtered(
     let mut open = OpenWafers::default();
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
-    let mut index_keys: Vec<Arc<str>> = Vec::new();
+    let mut index_keys: Vec<u32> = Vec::new();
 
     while let Some(raw) = iter.next_record() {
         let (typ, sub) = (raw.typ, raw.sub);
@@ -1043,7 +1039,7 @@ pub fn parse_stdf_from_bytes_filtered(
                     (accum.to_test_values(&test_index, &index_keys),
                      accum.to_test_pass(&test_index, &index_keys))
                 } else {
-                    (HashMap::new(), HashMap::new())
+                    (TestMap::new(), TestMap::new())
                 };
                 if unpositioned {
                     site_accums.remove(&key);
@@ -1151,7 +1147,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
     let mut open = OpenWafers::default();
     let mut test_index = TestIndex::new();
     let mut site_accums: HashMap<(u8, u8), SiteAccum> = HashMap::new();
-    let mut index_keys: Vec<Arc<str>> = Vec::new();
+    let mut index_keys: Vec<u32> = Vec::new();
 
     let mut p2_hashmap_ns: u128 = 0;
     let mut die_count: usize = 0;
@@ -1203,7 +1199,7 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
                     (accum.to_test_values(&test_index, &index_keys),
                      accum.to_test_pass(&test_index, &index_keys))
                 } else {
-                    (HashMap::new(), HashMap::new())
+                    (TestMap::new(), TestMap::new())
                 };
                 if unpositioned {
                     site_accums.remove(&key);
@@ -1690,9 +1686,9 @@ mod tests {
         // and pass verdicts must always accompany a value.
         for w in &result.wafers {
             for d in &w.results {
-                for (k, pass) in &d.test_pass {
-                    if p_keys.iter().any(|pk| pk.as_str() == &**k) && *pass {
-                        assert!(d.test_values.contains_key(&**k),
+                for (k, pass) in d.test_pass.iter() {
+                    if p_keys.iter().any(|pk| pk.as_str() == k.to_string()) && pass {
+                        assert!(d.test_values.contains_key(&k),
                             "passing parametric test {} should carry its value", k);
                     }
                 }

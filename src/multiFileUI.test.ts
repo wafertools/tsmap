@@ -1,3 +1,4 @@
+import { columnsFromRows } from './columns';
 import { describe, it, expect } from 'vitest';
 import { resolveWaferId, detectMismatches, buildRenameRows, needsWaferLabelPrompt } from './multiFileUI';
 import type { RenamedWafer, FileWaferEntry } from './multiFileUI';
@@ -41,7 +42,7 @@ describe('needsWaferLabelPrompt', () => {
     parsed: {
       fileName,
       meta: { fields: lotId === undefined ? [] : [{ key: 'lotId', value: lotId }] },
-      wafers: waferIds.map(id => ({ waferId: id, results: [{ x: 0, y: 0, hbin: 1 }] })),
+      wafers: waferIds.map(id => ({ waferId: id, results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]) })),
       testDefs: {},
     },
   });
@@ -77,14 +78,14 @@ describe('needsWaferLabelPrompt', () => {
 function makeExisting(dieCount: number, bins: number[], x = 0): WaferData {
   return {
     waferId: 'E1',
-    results: Array.from({ length: dieCount }, (_, i) => ({ x: x + i, y: 0, hbin: bins[i % bins.length] })),
+    results: columnsFromRows(Array.from({ length: dieCount }, (_, i) => ({ x: x + i, y: 0, hbin: bins[i % bins.length] }))),
   };
 }
 
 function makeIncoming(id: string, dieCount: number, bins: number[], x = 0): RenamedWafer {
   return {
     waferId: id,
-    results: Array.from({ length: dieCount }, (_, i) => ({ x: x + i, y: 0, hbin: bins[i % bins.length] })),
+    results: columnsFromRows(Array.from({ length: dieCount }, (_, i) => ({ x: x + i, y: 0, hbin: bins[i % bins.length] }))),
   };
 }
 
@@ -122,8 +123,8 @@ describe('detectMismatches', () => {
 
   it('warns on different X-span', () => {
     // existing span = 9, incoming span = 20 → diff 11 > 4
-    const existing = [{ waferId: 'E1', results: Array.from({ length: 10 }, (_, i) => ({ x: i, y: 0, hbin: 1 })) }];
-    const incoming = [{ waferId: 'W2', results: Array.from({ length: 21 }, (_, i) => ({ x: i, y: 0, hbin: 1 })) }];
+    const existing = [{ waferId: 'E1', results: columnsFromRows(Array.from({ length: 10 }, (_, i) => ({ x: i, y: 0, hbin: 1 }))) }];
+    const incoming = [{ waferId: 'W2', results: columnsFromRows(Array.from({ length: 21 }, (_, i) => ({ x: i, y: 0, hbin: 1 }))) }];
     const warnings = detectMismatches(incoming, existing);
     expect(warnings.some(w => w.message.includes('grid size'))).toBe(true);
   });
@@ -136,16 +137,16 @@ describe('detectMismatches', () => {
   });
 
   it('warns on duplicate wafer IDs', () => {
-    const existing: WaferData[] = [{ waferId: 'W1', results: [{ x: 0, y: 0, hbin: 1 }] }];
-    const incoming: RenamedWafer[] = [{ waferId: 'W1', results: [{ x: 0, y: 0, hbin: 1 }] }];
+    const existing: WaferData[] = [{ waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]) }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W1', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]) }];
     const warnings = detectMismatches(incoming, existing);
     expect(warnings.some(w => w.message.includes('Duplicate'))).toBe(true);
   });
 
   it('says how duplicate IDs from different lots will be told apart', () => {
     const src = (lot: string, file: string) => ({ sourceFile: file, fields: [{ key: 'lotId', value: lot }] });
-    const existing: WaferData[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src('LOT-A', 'a.stdf') }];
-    const incoming: RenamedWafer[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src('LOT-B', 'b.stdf') }];
+    const existing: WaferData[] = [{ waferId: 'W01', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]), source: src('LOT-A', 'a.stdf') }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W01', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]), source: src('LOT-B', 'b.stdf') }];
     const msg = detectMismatches(incoming, existing).find(w => w.message.includes('Duplicate'))!.message;
     expect(msg).toContain('LOT-A · W01, LOT-B · W01');
     expect(msg).not.toContain('load order');
@@ -153,8 +154,8 @@ describe('detectMismatches', () => {
 
   it('flags a duplicate that only load order separates as possibly the same wafer twice', () => {
     const src = { sourceFile: 'a.stdf', fields: [{ key: 'lotId', value: 'LOT-A' }] };
-    const existing: WaferData[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src }];
-    const incoming: RenamedWafer[] = [{ waferId: 'W01', results: [{ x: 0, y: 0, hbin: 1 }], source: src }];
+    const existing: WaferData[] = [{ waferId: 'W01', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]), source: src }];
+    const incoming: RenamedWafer[] = [{ waferId: 'W01', results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]), source: src }];
     const msg = detectMismatches(incoming, existing).find(w => w.message.includes('Duplicate'))!.message;
     expect(msg).toContain('load order');
   });
@@ -184,7 +185,7 @@ describe('buildRenameRows', () => {
     parsed: {
       fileName,
       meta: { fields: [{ key: 'lotId', value: lotId }] },
-      wafers: waferIds.map(id => ({ waferId: id, results: [{ x: 0, y: 0, hbin: 1 }] })),
+      wafers: waferIds.map(id => ({ waferId: id, results: columnsFromRows([{ x: 0, y: 0, hbin: 1 }]) })),
       testDefs: {},
     },
   });
@@ -226,11 +227,11 @@ describe('detectMismatches — optional hbin', () => {
   // print literally as the string "undefined" in the user-facing warning.
   const noBins = (id: string, n: number): RenamedWafer => ({
     waferId: id,
-    results: Array.from({ length: n }, (_, i) => ({ x: i, y: 0 })),
+    results: columnsFromRows(Array.from({ length: n }, (_, i) => ({ x: i, y: 0 }))),
   });
   const noBinsExisting = (n: number): WaferData => ({
     waferId: 'E1',
-    results: Array.from({ length: n }, (_, i) => ({ x: i, y: 0 })),
+    results: columnsFromRows(Array.from({ length: n }, (_, i) => ({ x: i, y: 0 }))),
   });
 
   it('never puts "undefined" in a warning message', () => {
@@ -256,7 +257,7 @@ describe('detectMismatches — Y span', () => {
   // compared, so a lot whose columns matched and whose rows didn't passed
   // silently under a check that claimed to cover the grid.
   const grid = (w: number, h: number) =>
-    Array.from({ length: w * h }, (_, i) => ({ x: i % w, y: Math.floor(i / w), hbin: 1 }));
+    columnsFromRows(Array.from({ length: w * h }, (_, i) => ({ x: i % w, y: Math.floor(i / w), hbin: 1 })));
 
   it('flags a differing row count even when columns match', () => {
     const existing: WaferData[] = [{ waferId: 'E1', results: grid(20, 20) }];

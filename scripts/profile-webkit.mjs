@@ -17,19 +17,20 @@
 // Its timings match the desktop app's (analysis 14.8 s against 14.2 s,
 // gallery 12.8 s against 12.8 s, when measured).
 //
-// `--profile` enables JSC's sampling profiler (JSC_useSamplingProfiler) for a
-// second launch that runs parse, decode, build and analysis in a worker:
-// the profiler writes its report only when a VM is destroyed, which happens
-// for a worker, not reliably for the page. The DOM flows (gallery, map) are
-// timed but not profiled per function. Sampling slows the worker run (its
-// analysis took about 1.5x the page's), so read its times as proportions.
+// `--profile` enables JSC's sampling profiler (JSC_useSamplingProfiler) for the
+// last flows run and for a second launch that runs parse, decode, build and
+// analysis in a worker. The profiler writes a VM's report only when the VM is
+// destroyed: the page closes its own window after reporting, and the harness
+// waits for the web process, which outlives MiniBrowser by seconds, to write
+// it. Sampling slows a run (the worker's analysis took about 1.5x the page's),
+// so read profiled times as proportions.
 //
 // WebKit reports no heap figure, so there is no heap column. Fixtures and
 // baselines as for `profile:web`.
 import { spawn } from 'child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { argOpt, fixturePathFor, reportTimings, startProfileServer } from './lib/profile.mjs';
 
 const args = process.argv.slice(2);
@@ -57,7 +58,7 @@ const PAGES = {
     const out = {};
     try {
       const m = await import('/scripts/profile-web-flows.ts');
-      await m.prepare('/__profile-fixture');
+      await m.prepare('/__profile-fixture', ${JSON.stringify(basename(fixturePath))});
       for (const name of Object.keys(m.flows)) {
         const t = performance.now();
         try { await m.flows[name](); } catch (e) { out[name] = { error: String(e).slice(0, 160) }; break; }
@@ -65,6 +66,9 @@ const PAGES = {
       }
     } catch (e) { out.setup = { error: String(e).slice(0, 160) }; }
     await fetch('/__report', { method: 'POST', body: JSON.stringify(out) });
+    // Closing the window ends the web process cleanly, which is when JavaScriptCore
+    // writes the page's sampling profile.
+    window.close();
   </script>`,
   worker: `<script type=module>
     const w = new Worker('/scripts/profile-webkit-worker.ts', { type: 'module' });
@@ -112,9 +116,23 @@ async function runPage(page, profileDir) {
   const mb = spawn(minibrowser, [`${url}__profile-page/${page}`], { env, stdio: 'ignore' });
   const exited = new Promise(r => mb.on('exit', r));
   const result = await report;
-  mb.kill('SIGINT');
-  if (!await Promise.race([exited.then(() => true), new Promise(r => setTimeout(() => r(false), 10_000).unref())])) {
-    mb.kill('SIGKILL');
+  // A sampled page holding a whole lot takes a while to shut down and write its
+  // report: give it time before insisting.
+  const wait = (ms) => Promise.race([exited.then(() => true), new Promise(r => setTimeout(() => r(false), ms).unref())]);
+  if (!await wait(profileDir ? 60_000 : 2_000)) {
+    mb.kill('SIGINT');
+    if (!await wait(profileDir ? 30_000 : 10_000)) mb.kill('SIGKILL');
+  }
+  // The web process outlives the browser window's process: its report can land
+  // seconds after MiniBrowser exits. Wait until the file count stops growing.
+  if (profileDir) {
+    let last = -1, stable = 0;
+    for (let waited = 0; waited < 120_000 && stable < 3; waited += 2_000) {
+      await new Promise(r => setTimeout(r, 2_000));
+      const n = readdirSync(profileDir).length;
+      stable = n === last ? stable + 1 : 0;
+      last = n;
+    }
   }
   return result;
 }
@@ -135,8 +153,19 @@ function topFunctions(text) {
 
 const results = [];
 let workerRun;
+let pageProfiles = [];
 try {
-  for (let run = 0; run < runs; run++) results.push(await runPage('flows'));
+  for (let run = 0; run < runs; run++) {
+    // With --profile the last flows run is sampled too: the page's VM writes its
+    // report when MiniBrowser shuts down, which is how the DOM flows (gallery,
+    // map) get per-function times.
+    const pageDir = profile && run === runs - 1 ? mkdtempSync(join(tmpdir(), 'tsmap-jsc-page-')) : undefined;
+    results.push(await runPage('flows', pageDir));
+    if (pageDir) {
+      pageProfiles = readdirSync(pageDir).map(f => topFunctions(readFileSync(join(pageDir, f), 'utf8'))).filter(p => p.total >= 100);
+      rmSync(pageDir, { recursive: true, force: true });
+    }
+  }
   if (profile) {
     const dir = mkdtempSync(join(tmpdir(), 'tsmap-jsc-'));
     workerRun = { timings: await runPage('worker', dir), profiles: [] };
@@ -151,6 +180,12 @@ try {
 }
 
 reportTimings(results, { fixturePath, browser: 'WebKitGTK MiniBrowser', save: opt('save'), compare: opt('compare') });
+
+for (const p of pageProfiles.sort((a, b) => b.total - a.total)) {
+  console.log(`\npage (every flow, timed runs above) — JavaScriptCore top functions, excluding WebAssembly (${p.total} samples, 1 ms each)`);
+  for (const [name, n] of p.rows.slice(0, top)) console.log(`  ${`${n} ms`.padStart(9)}  ${name}`);
+}
+if (profile && !pageProfiles.length) console.log('\npage: no sampling profile was written');
 
 if (workerRun) {
   const t = workerRun.timings;

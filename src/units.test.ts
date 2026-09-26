@@ -1,3 +1,4 @@
+import { columnsFromRows } from './columns';
 import { describe, it, expect } from 'vitest';
 import { unitShift, shiftUnit, harmoniseTestUnits } from './units';
 import type { TestDef } from './types';
@@ -41,7 +42,7 @@ describe('harmoniseTestUnits', () => {
   const def = (units: string, lo?: number, hi?: number): TestDef => ({ name: 'Vth', testType: 'P', units, loLimit: lo, hiLimit: hi });
   const file = (fileName: string, units: string, values: number[], lo?: number, hi?: number) => ({
     fileName,
-    parsed: { testDefs: { '1010': def(units, lo, hi) }, wafers: [{ results: values.map(v => ({ testValues: { 1010: v } })) }] },
+    parsed: { testDefs: { '1010': def(units, lo, hi) }, wafers: [{ results: columnsFromRows(values.map(v => ({ testValues: { 1010: v } }))) }] },
   });
 
   it('converts a later file to the first file\'s unit — values, limits and the unit', () => {
@@ -50,7 +51,7 @@ describe('harmoniseTestUnits', () => {
     const conversions = harmoniseTestUnits([a, b]);
     expect(conversions).toEqual([{ testNumber: '1010', fileName: 'b.stdf', from: 'mV', to: 'V' }]);
     expect(b.parsed.testDefs['1010']).toMatchObject({ units: 'V', loLimit: 0.2, hiLimit: 0.4 });
-    expect(b.parsed.wafers[0].results.map(d => d.testValues[1010])).toEqual([0.3, 0.35]);
+    expect(Array.from(b.parsed.wafers[0].results.testValues![1010].values)).toEqual([0.3, 0.35]);
     expect(a.parsed.testDefs['1010'].units).toBe('V');
   });
 
@@ -58,7 +59,7 @@ describe('harmoniseTestUnits', () => {
     const b = file('b.stdf', 'V', [0.3]);
     harmoniseTestUnits([b], { '1010': def('mV') });
     expect(b.parsed.testDefs['1010'].units).toBe('mV');
-    expect(b.parsed.wafers[0].results[0].testValues[1010]).toBe(300);
+    expect(b.parsed.wafers[0].results.testValues![1010].values[0]).toBe(300);
   });
 
   it('leaves a real unit clash, and tests with no unit, alone', () => {
@@ -66,7 +67,7 @@ describe('harmoniseTestUnits', () => {
     const b = file('b.stdf', 'A', [2]);
     const c = file('c.stdf', '', [3]);
     expect(harmoniseTestUnits([a, b, c])).toEqual([]);
-    expect(b.parsed.wafers[0].results[0].testValues[1010]).toBe(2);
+    expect(b.parsed.wafers[0].results.testValues![1010].values[0]).toBe(2);
     expect(b.parsed.testDefs['1010'].units).toBe('A');
   });
 

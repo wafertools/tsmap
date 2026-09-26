@@ -11,15 +11,17 @@
 //! # Layout
 //!
 //! ```text
-//! [u32 LE header length N][N bytes of UTF-8 JSON header][zero padding to 8]
-//! [body: column][padding to 8][column][padding to 8]…
+//! [column][padding to 8][column][padding to 8]…[N bytes of UTF-8 JSON header][u32 LE N]
 //! ```
 //!
-//! The body starts at the first multiple of 8 after the header, and every column
-//! offset in the header is from the start of the body. Every column starts on an
-//! 8-byte boundary: a typed array cannot be created at an offset that is not a
-//! multiple of its element size, so an unpadded buffer would not be readable at
-//! all. All numbers are little-endian.
+//! The columns come first and the header last, so the encoder appends the header
+//! to the buffer it already holds: with the header first, the whole output was
+//! built once and then copied behind it, briefly holding it twice. Every column
+//! offset in the header is from the start of the buffer, and every column starts
+//! on an 8-byte boundary: a typed array cannot be created at an offset that is
+//! not a multiple of its element size, so an unpadded buffer would not be
+//! readable at all. A reader finds the header from the last four bytes. All
+//! numbers are little-endian.
 //!
 //! The header is the whole `ParsedStdf` with each wafer's `results` left empty,
 //! plus `columnarFormat` ([`FORMAT`]) and, per wafer, `dieCount`, a `columns` table and (only when any die has one)
@@ -51,8 +53,6 @@
 //! column whose readings need `f64` stays `f64`.
 
 use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hasher};
-use std::sync::Arc;
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -61,7 +61,7 @@ use crate::types::{DieResult, ParsedStdf};
 
 /// Written to the header as `columnarFormat`. Bump it on any change a decoder
 /// could misread; `columnar.js` refuses a format it does not know.
-pub const FORMAT: u32 = 1;
+pub const FORMAT: u32 = 2;
 
 const MISSING_I32: i32 = i32::MIN;
 const MISSING_U32: u32 = u32::MAX;
@@ -106,53 +106,29 @@ impl Body {
     }
 }
 
-/// Per-test columns being filled, keyed by test key.
-///
-/// The parser interns its keys — one `Arc<str>` per test, cloned into every
-/// die — so a column is found by the `Arc`'s address, which costs a multiply
-/// rather than hashing the string 13.6M times on a large STDF. The string is
-/// consulted only the first time an address is seen, so two `Arc`s holding the
-/// same text still share one column.
-struct Columns<'a, T> {
-    by_ptr: HashMap<usize, usize, BuildHasherDefault<PtrHasher>>,
-    by_key: HashMap<&'a str, usize>,
-    cols: Vec<(&'a str, Vec<T>)>,
+/// Per-test columns being filled, keyed by test number.
+struct Columns<T> {
+    index: HashMap<u32, usize>,
+    cols: Vec<(u32, Vec<T>)>,
 }
 
-impl<T> Default for Columns<'_, T> {
-    fn default() -> Self { Self { by_ptr: HashMap::default(), by_key: HashMap::new(), cols: Vec::new() } }
+impl<T> Default for Columns<T> {
+    fn default() -> Self { Self { index: HashMap::new(), cols: Vec::new() } }
 }
 
-impl<'a, T: Copy> Columns<'a, T> {
-    fn column(&mut self, key: &'a Arc<str>, n: usize, missing: T) -> &mut Vec<T> {
-        let ptr = Arc::as_ptr(key) as *const u8 as usize;
-        let idx = match self.by_ptr.get(&ptr) {
-            Some(&i) => i,
-            None => {
-                let next = self.cols.len();
-                let i = *self.by_key.entry(&**key).or_insert(next);
-                if i == next { self.cols.push((&**key, vec![missing; n])); }
-                self.by_ptr.insert(ptr, i);
-                i
-            }
-        };
-        &mut self.cols[idx].1
+impl<T: Copy> Columns<T> {
+    fn column(&mut self, test: u32, n: usize, missing: T) -> &mut Vec<T> {
+        let next = self.cols.len();
+        let i = *self.index.entry(test).or_insert(next);
+        if i == next { self.cols.push((test, vec![missing; n])); }
+        &mut self.cols[i].1
     }
 
-    fn sorted(mut self) -> Vec<(&'a str, Vec<T>)> {
-        self.cols.sort_unstable_by_key(|(k, _)| *k);
+    /// In test-number order, so the same parse always encodes to the same bytes.
+    fn sorted(mut self) -> Vec<(u32, Vec<T>)> {
+        self.cols.sort_unstable_by_key(|(t, _)| *t);
         self.cols
     }
-}
-
-/// A hasher for addresses: one multiply, no string walk.
-#[derive(Default)]
-struct PtrHasher(u64);
-
-impl Hasher for PtrHasher {
-    fn finish(&self) -> u64 { self.0 }
-    fn write(&mut self, _: &[u8]) { unreachable!("PtrHasher hashes usize keys only") }
-    fn write_usize(&mut self, n: usize) { self.0 = (n as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15); }
 }
 
 fn pad8(v: &mut Vec<u8>) {
@@ -206,23 +182,23 @@ pub fn encode_columnar(mut parsed: ParsedStdf) -> Vec<u8> {
         let mut values: Columns<f64> = Columns::default();
         let mut verdicts: Columns<i8> = Columns::default();
         for (i, d) in dies.iter().enumerate() {
-            for (k, &v) in &d.test_values { values.column(k, n, f64::NAN)[i] = v; }
-            for (k, &p) in &d.test_pass { verdicts.column(k, n, -1)[i] = p as i8; }
+            for (t, v) in d.test_values.iter() { values.column(t, n, f64::NAN)[i] = v; }
+            for (t, p) in d.test_pass.iter() { verdicts.column(t, n, -1)[i] = p as i8; }
         }
         for (key, col) in values.sorted() {
-            // NaN (missing) survives the round trip as NaN; `v == v` skips it.
-            let exact_f32 = col.iter().all(|&v| v != v || (v as f32) as f64 == v);
+            // NaN (missing) survives the round trip as NaN, so it is skipped here.
+            let exact_f32 = col.iter().all(|&v| v.is_nan() || (v as f32) as f64 == v);
             if exact_f32 {
                 let b: Vec<u8> = col.iter().flat_map(|&v| (v as f32).to_le_bytes()).collect();
-                body.push("testValues", Some(key.to_owned()), Kind::F32, &b);
+                body.push("testValues", Some(key.to_string()), Kind::F32, &b);
             } else {
                 let b: Vec<u8> = col.iter().flat_map(|v| v.to_le_bytes()).collect();
-                body.push("testValues", Some(key.to_owned()), Kind::F64, &b);
+                body.push("testValues", Some(key.to_string()), Kind::F64, &b);
             }
         }
         for (key, col) in verdicts.sorted() {
             let b: Vec<u8> = col.iter().map(|&v| v as u8).collect();
-            body.push("testPass", Some(key.to_owned()), Kind::I8, &b);
+            body.push("testPass", Some(key.to_string()), Kind::I8, &b);
         }
 
         let columns: Vec<ColumnDesc> = body.columns.drain(first..).collect();
@@ -244,19 +220,17 @@ pub fn encode_columnar(mut parsed: ParsedStdf) -> Vec<u8> {
     }
 
     let json = serde_json::to_vec(&header).expect("header serialises");
-    let body_start = (4 + json.len()).next_multiple_of(8);
-    let mut out = Vec::with_capacity(body_start + body.bytes.len());
-    out.extend_from_slice(&(json.len() as u32).to_le_bytes());
+    let mut out = body.bytes;
+    out.reserve_exact(json.len() + 4);
     out.extend_from_slice(&json);
-    out.resize(body_start, 0);
-    out.extend_from_slice(&body.bytes);
+    out.extend_from_slice(&(json.len() as u32).to_le_bytes());
     out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{LotMeta, WaferData};
+    use crate::types::{LotMeta, TestMap, WaferData};
     use serde_json::Map;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -265,11 +239,11 @@ mod tests {
     /// the parse. The host's decoder (`tsmap/src/columnar.ts`) follows the same
     /// rules and is tested against the same expectation.
     fn decode(buf: &[u8]) -> Value {
-        let n = u32::from_le_bytes(buf[..4].try_into().unwrap()) as usize;
-        let mut header: Value = serde_json::from_slice(&buf[4..4 + n]).unwrap();
-        let body_start = (4 + n).next_multiple_of(8);
-        assert!(buf[4 + n..body_start].iter().all(|&b| b == 0), "header padding is zeros");
-        let body = &buf[body_start..];
+        let n = u32::from_le_bytes(buf[buf.len() - 4..].try_into().unwrap()) as usize;
+        let header_at = buf.len() - 4 - n;
+        let mut header: Value = serde_json::from_slice(&buf[header_at..buf.len() - 4]).unwrap();
+        let body_start = 0;
+        let body = &buf[..header_at];
         assert_eq!(header.as_object_mut().unwrap().remove("columnarFormat"), Some(FORMAT.into()));
         for w in header["wafers"].as_array_mut().unwrap() {
             let obj = w.as_object_mut().unwrap();
@@ -319,7 +293,7 @@ mod tests {
     fn die(x: Option<i32>) -> DieResult {
         DieResult {
             x, y: x.map(|v| -v), die_index: None, hbin: None, sbin: None, site_num: None,
-            part_id: None, supersedes: None, test_values: HashMap::new(), test_pass: HashMap::new(),
+            part_id: None, supersedes: None, test_values: TestMap::new(), test_pass: TestMap::new(),
         }
     }
 
@@ -371,8 +345,8 @@ mod tests {
             b.test_values.insert(Arc::from("1002"), 0.1);
             lot(vec![vec![a, b]])
         });
-        let n = u32::from_le_bytes(buf[..4].try_into().unwrap()) as usize;
-        let header: Value = serde_json::from_slice(&buf[4..4 + n]).unwrap();
+        let n = u32::from_le_bytes(buf[buf.len() - 4..].try_into().unwrap()) as usize;
+        let header: Value = serde_json::from_slice(&buf[buf.len() - 4 - n..buf.len() - 4]).unwrap();
         let kind = |test: &str| header["wafers"][0]["columns"].as_array().unwrap().iter()
             .find(|c| c["test"] == test).unwrap()["kind"].as_str().unwrap().to_owned();
         assert_eq!(kind("1001"), "f32");
