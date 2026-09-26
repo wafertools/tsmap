@@ -38,6 +38,7 @@
     "release": "npm run tauri build -- --no-bundle && npm run install-bin",
     "preview": "vite preview",
     "profile:web": "node scripts/profile-web.mjs",
+    "profile:webkit": "node scripts/profile-webkit.mjs",
     "tauri": "env -u GTK_PATH -u GTK_EXE_PREFIX -u GDK_PIXBUF_MODULE_FILE -u GDK_PIXBUF_MODULEDIR -u GIO_MODULE_DIR -u GTK_IM_MODULE_FILE -u LOCPATH tauri",
     "postinstall": "rm -rf node_modules/.vite/deps",
     "install-bin": "ln -sf $(cargo metadata --format-version 1 --no-deps | node -pe \"JSON.parse(require('fs').readFileSync(0,'utf8')).target_directory\")/release/tsmap ~/.local/bin/tsmap",

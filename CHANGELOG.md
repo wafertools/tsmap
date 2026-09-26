@@ -25,6 +25,13 @@ technical record, including internal changes.
   the page instead of copying the parsed lot, so a lot is held once rather than twice. A 341 MB
   STDF of 266,325 dies parses in about 10 s and holds about 1.1 GB in Chrome. The
   `WEB_DIE_BUDGET` warning threshold is unchanged.
+- **The columnar buffer decodes faster**, each die's test values built in one go: 7.1 s to
+  1.9 s in WebKit (the desktop app on Linux and macOS), 9.8 s to 5.9 s for the whole web parse
+  in Chrome, on the 266k-die STDF.
+- **The browser build releases the parser's memory after each parse.** WebAssembly memory grows to
+  a parse's peak and is never returned, so the parser worker is ended once a parse finishes and
+  no other request is waiting, and a new one is started for the next. After the 266k-die STDF
+  that frees about 1.1 GB, with no measurable cost to the next parse.
 - **The desktop app receives a parse as raw bytes.** Each parse command returns the columnar
   buffer as a Tauri IPC response, with no JSON on either side. The same 341 MB STDF crosses the
   bridge as 71 MB, where JSON was 480 MB.
@@ -42,6 +49,10 @@ technical record, including internal changes.
   load-time analysis, gallery mount, plot-mode changes, the single-wafer map), with the same
   options the app uses. `--profile` adds the top functions per flow and DevTools
   `.cpuprofile` files; `--save`/`--compare` record and compare baselines.
+- **`npm run profile:webkit`** runs the same flows in WebKitGTK's MiniBrowser, the Linux
+  desktop app's engine, with the same `--fixture`, `--runs`, `--save` and `--compare`.
+  `--profile` runs parse, decode, build and analysis in a worker under JavaScriptCore's
+  sampling profiler and lists the top functions.
 
 ## [0.1.41] — 2026-09-25
 

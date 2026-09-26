@@ -6,23 +6,19 @@
 //
 // Flows run in order and each builds on the last (`analyse` needs `parse`'s
 // lot, `gallery` needs `analyse`'s maps). Keep the options here in step with
-// `main.ts` — `buildLotStatsSummary` and `renderWaferView` — or the profile
-// describes something the app does not do.
+// `main.ts`'s `renderWaferView` (and `profile-analyse.ts`'s with
+// `buildLotStatsSummary`), or the profile describes something the app does not do.
 import { createPlatform } from '../src/platform';
-import { toWmapTestDefs } from '../src/lib';
-import { buildWaferMap } from '@wafertools/wafermap';
-import type { WaferMapResult } from '@wafertools/wafermap';
+import type { RustParsedFile } from '../src/platform';
 import { renderWaferGallery, renderWaferMap } from '@wafertools/wafermap/render';
-import { analyzeWaferMap, analyzeWaferLot } from '@wafertools/wafermap/stats';
-import type { StatsSummary, LotStatsSummary } from '@wafertools/wafermap/stats';
-
-type Parsed = Awaited<ReturnType<ReturnType<typeof createPlatform>['parseStdf']>>;
-type Item = WaferMapResult & { label: string; statsSummary: StatsSummary };
+import type { LotStatsSummary } from '@wafertools/wafermap/stats';
+import { buildAndAnalyse } from './profile-analyse';
+import type { ProfileItem } from './profile-analyse';
 
 const state: {
   bytes?: Uint8Array;
-  parsed?: Parsed;
-  items?: Item[];
+  parsed?: RustParsedFile;
+  items?: ProfileItem[];
   lot?: LotStatsSummary;
   container?: HTMLElement;
   gallery?: ReturnType<typeof renderWaferGallery>;
@@ -46,7 +42,6 @@ function container(): HTMLElement {
 }
 
 const firstTest = () => Number(Object.keys(need(state.parsed, 'parse').testDefs)[0]);
-const analyzeOpts = { enableTestValueAnalysis: false };
 const insights = { enabled: true };
 
 /** Untimed setup: fetch the fixture, so `parse` times parsing only. */
@@ -64,14 +59,7 @@ export const flows: Record<string, () => Promise<void>> = {
 
   /** `buildWaferMap` + `analyzeWaferMap` per wafer, then `analyzeWaferLot` — tsmap's load-time pass. */
   async analyse() {
-    const parsed = need(state.parsed, 'parse');
-    const testDefs = toWmapTestDefs(parsed.testDefs);
-    const passBins = parsed.passHbins?.length ? parsed.passHbins : undefined;
-    state.items = parsed.wafers.map((w, i) => {
-      const map = buildWaferMap({ results: w.results, testDefs, passBins, hbinDefs: parsed.hbinDefs, sbinDefs: parsed.sbinDefs });
-      return { ...map, label: w.waferId || `W${i + 1}`, statsSummary: analyzeWaferMap(map, analyzeOpts) };
-    });
-    state.lot = analyzeWaferLot(state.items, { perWaferSummaries: state.items.map(i => i.statsSummary), ...analyzeOpts });
+    ({ items: state.items, lot: state.lot } = buildAndAnalyse(need(state.parsed, 'parse')));
   },
 
   /** Progressive gallery mount with the lot summary panel, until every card and the panel have settled. */

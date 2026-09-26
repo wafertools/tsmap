@@ -76,17 +76,8 @@ export function decodeParsed(input) {
     const byKeyDesc = (a, b) => Number(b[0]) - Number(a[0]);
     values.sort(byKeyDesc);
     verdicts.sort(byKeyDesc);
-    for (const [key, v] of values) {
-      for (let i = 0; i < n; i++) {
-        const value = v[i];
-        if (value === value) (results[i].testValues ??= {})[key] = value;  // NaN is missing
-      }
-    }
-    for (const [key, v] of verdicts) {
-      for (let i = 0; i < n; i++) {
-        if (v[i] !== -1) (results[i].testPass ??= {})[key] = v[i] === 1;
-      }
-    }
+    attachValues(results, values);
+    attachVerdicts(results, verdicts);
 
     delete wafer.dieCount;
     delete wafer.columns;
@@ -94,4 +85,40 @@ export function decodeParsed(input) {
     wafer.results = results;
   }
   return header;
+}
+
+// Each die's map is built in one go, not a column at a time reaching back into
+// every die once per test, and in functions of their own: as one long loop
+// inside `decodeParsed`, WebKit's engine (the desktop app on Linux and macOS)
+// left the work in its slowest tier and it took ~7 s on a 266k-die lot.
+
+/** A test key as the property key to write: its number when it is one, so no string is parsed per die. */
+const propKey = (key) => (String(Number(key)) === key ? Number(key) : key);
+
+function attachValues(results, columns) {
+  const keys = columns.map(([key]) => propKey(key));
+  const cols = columns.map(([, v]) => v);
+  const t = cols.length;
+  for (let i = 0; i < results.length; i++) {
+    let map;
+    for (let j = 0; j < t; j++) {
+      const value = cols[j][i];
+      if (value === value) (map ??= {})[keys[j]] = value;  // NaN is missing
+    }
+    if (map) results[i].testValues = map;
+  }
+}
+
+function attachVerdicts(results, columns) {
+  const keys = columns.map(([key]) => propKey(key));
+  const cols = columns.map(([, v]) => v);
+  const t = cols.length;
+  for (let i = 0; i < results.length; i++) {
+    let map;
+    for (let j = 0; j < t; j++) {
+      const verdict = cols[j][i];
+      if (verdict !== -1) (map ??= {})[keys[j]] = verdict === 1;
+    }
+    if (map) results[i].testPass = map;
+  }
 }

@@ -703,9 +703,22 @@ function openBlockedLinkNotice(url: string): void {
 type ParserOp = import('./parserWorker').ParserOp;
 
 interface PendingCall {
+  op: ParserOp;
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
 }
+
+/**
+ * Ops after which the worker is retired once idle. WebAssembly memory grows to
+ * the parse's peak and is never returned, so a worker kept alive after parsing a
+ * large lot held that peak for the rest of the session — 1.1 GB after the
+ * 266k-die, 341 MB STDF, on top of the lot itself on the main thread. A fresh
+ * worker costs one re-initialisation of the module on the next call. Scans and
+ * header reads are small and usually come just before a parse, so they keep it.
+ */
+const RETIRES_WORKER: ReadonlySet<ParserOp> = new Set([
+  'parseStdf', 'parseAtdf', 'parseCsv', 'parseJson', 'parseParquet', 'parseStdfFiltered', 'parseAtdfFiltered',
+]);
 
 let parserWorker: Worker | null = null;
 let nextCallId = 0;
@@ -720,6 +733,10 @@ function getWorker(): Worker {
     const call = pendingCalls.get(id);
     if (!call) return;
     pendingCalls.delete(id);
+    if (RETIRES_WORKER.has(call.op) && pendingCalls.size === 0 && parserWorker === w) {
+      w.terminate();
+      parserWorker = null;
+    }
     if (ok) { call.resolve(result); return; }
     // Rebuild the Error the worker caught, and put the parser's stable `code`
     // back on it: postMessage cannot clone an Error's own properties, so the
@@ -759,7 +776,7 @@ function callWorker(
   const id = nextCallId++;
   const copy = bytes.slice();
   return new Promise((resolve, reject) => {
-    pendingCalls.set(id, { resolve, reject });
+    pendingCalls.set(id, { op, resolve, reject });
     getWorker().postMessage(
       { id, op, bytes: copy, mapping: extra?.mapping, selected: extra?.selected, columns: extra?.columns },
       [copy.buffer],
