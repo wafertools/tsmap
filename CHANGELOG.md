@@ -68,13 +68,16 @@ technical record, including internal changes.
 ### Added
 
 - **`npm run profile:web`** times the heavy flows in Chrome on a large fixture (parse,
-  load-time analysis, gallery mount, plot-mode changes, the single-wafer map), with the same
-  options the app uses. `--profile` adds the top functions per flow and DevTools
+  load-time analysis, gallery mount, plot-mode changes, Insights for the lot and for one wafer,
+  the single-wafer map), with the same options the app uses. Fixtures can be STDF, ATDF or the
+  wide-format CSVs. Insights is timed until its charts have finished drawing. `analyse-values`
+  (analysis with test-value findings on) runs only when named with `--flows`. `--profile` adds the top functions per flow and DevTools
   `.cpuprofile` files; `--save`/`--compare` record and compare baselines.
 - **`npm run profile:webkit`** runs the same flows in WebKitGTK's MiniBrowser, the Linux
   desktop app's engine, with the same `--fixture`, `--runs`, `--save` and `--compare`.
   `--profile` lists JavaScriptCore's top functions for the page (every flow, the gallery
-  included) and for parse, decode, build and analysis run in a worker.
+  included) and for parse, decode, build and analysis run in a worker. `--until <flow>` stops
+  after that flow, so two profiles can be compared to see what one flow costs.
 
 ## [0.1.41] — 2026-09-25
 

@@ -91,12 +91,13 @@ export function reportTimings(results, { fixturePath, browser, save, compare }) 
   ].filter(([, key]) => Object.values(summary).some(s => s[key] !== undefined));
 
   const runs = results.length;
+  const nameW = Math.max(18, ...flows.map(f => f.length + 2));
   console.log(`\n${basename(fixturePath)} in ${browser}: ${runs} run${runs === 1 ? '' : 's'}, median\n`);
-  console.log('flow'.padEnd(18) + cols.map(([title, , , w]) => title.padStart(w) + ''.padEnd(9)).join(''));
+  console.log('flow'.padEnd(nameW) + cols.map(([title, , , w]) => title.padStart(w) + ''.padEnd(9)).join(''));
   for (const flow of flows) {
     const s = summary[flow];
-    if (s.error) { console.log(`${flow.padEnd(18)}  ${s.error}`); continue; }
-    console.log(flow.padEnd(18) + cols.map(([, key, unit, w]) =>
+    if (s.error) { console.log(`${flow.padEnd(nameW)}  ${s.error}`); continue; }
+    console.log(flow.padEnd(nameW) + cols.map(([, key, unit, w]) =>
       (s[key] === undefined ? '' : `${s[key]} ${unit}`).padStart(w) + delta(s[key], baseline?.[flow]?.[key]).padEnd(9)).join(''));
   }
   if (save) {

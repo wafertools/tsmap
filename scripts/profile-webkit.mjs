@@ -9,6 +9,10 @@
 //   npm run profile:webkit -- --profile            # + JavaScriptCore's top functions
 //   npm run profile:webkit -- --save base.json     # record a baseline
 //   npm run profile:webkit -- --compare base.json  # and compare against it
+//   npm run profile:webkit -- --profile --until gallery-stacked
+//                                                  # stop after that flow: profile two
+//                                                  #   stopping points and compare them
+//                                                  #   to see what one flow costs
 //
 // The browser is WebKitGTK's MiniBrowser ($MINIBROWSER to override); the
 // WebKit inspector with JS sampling slows the app too much to measure. It has
@@ -59,10 +63,13 @@ const PAGES = {
     try {
       const m = await import('/scripts/profile-web-flows.ts');
       await m.prepare('/__profile-fixture', ${JSON.stringify(basename(fixturePath))});
-      for (const name of Object.keys(m.flows)) {
+      const names = Object.keys(m.flows).filter(n => !m.OPTIONAL_FLOWS.includes(n) || n === ${JSON.stringify(opt('until') ?? null)});
+      const until = ${JSON.stringify(opt('until') ?? null)};
+      for (const name of until ? names.slice(0, names.indexOf(until) + 1) : names) {
         const t = performance.now();
-        try { await m.flows[name](); } catch (e) { out[name] = { error: String(e).slice(0, 160) }; break; }
-        out[name] = { ms: Math.round(performance.now() - t) };
+        let ret;
+        try { ret = await m.flows[name](); } catch (e) { out[name] = { error: String(e).slice(0, 160) }; break; }
+        out[name] = { ms: Math.round((ret?.endedAt ?? performance.now()) - t) };
       }
     } catch (e) { out.setup = { error: String(e).slice(0, 160) }; }
     await fetch('/__report', { method: 'POST', body: JSON.stringify(out) });
@@ -75,6 +82,7 @@ const PAGES = {
     const out = await new Promise(r => {
       w.onmessage = e => r(e.data);
       w.onerror = e => r({ error: String(e.message) });
+      w.postMessage(${JSON.stringify(basename(fixturePath))});
     });
     // Give the closed worker's VM time to be destroyed, which writes the profile.
     await new Promise(r => setTimeout(r, 3000));

@@ -19,6 +19,7 @@ export const analyzeOpts = { enableTestValueAnalysis: false };
 export function buildAndAnalyse(
   parsed: RustParsedFile,
   time?: (phase: 'build' | 'analyseWafers' | 'analyseLot', ms: number) => void,
+  opts: { enableTestValueAnalysis: boolean } = analyzeOpts,
 ): { items: ProfileItem[]; lot: LotStatsSummary } {
   const testDefs = toWmapTestDefs(parsed.testDefs);
   const passBins = parsed.passHbins?.length ? parsed.passHbins : undefined;
@@ -32,9 +33,9 @@ export function buildAndAnalyse(
     buildWaferMap({ results: w.results, testDefs, passBins, hbinDefs: parsed.hbinDefs, sbinDefs: parsed.sbinDefs }));
   lap('build');
   const items = maps.map((map, i) =>
-    ({ ...map, label: parsed.wafers[i].waferId || `W${i + 1}`, statsSummary: analyzeWaferMap(map, analyzeOpts) }));
+    ({ ...map, label: parsed.wafers[i].waferId || `W${i + 1}`, statsSummary: analyzeWaferMap(map, opts) }));
   lap('analyseWafers');
-  const lot = analyzeWaferLot(items, { perWaferSummaries: items.map(i => i.statsSummary), ...analyzeOpts });
+  const lot = analyzeWaferLot(items, { perWaferSummaries: items.map(i => i.statsSummary), ...opts });
   lap('analyseLot');
   return { items, lot };
 }

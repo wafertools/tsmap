@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Times — and optionally CPU-profiles — the app's heavy flows in real Chrome on a
 // large fixture: parse, load-time analysis, gallery mount, plot-mode switches,
-// the single-wafer map. See `profile-web-flows.ts` for what each flow does.
+// Insights (lot and single wafer), the single-wafer map. See `profile-web-flows.ts` for what each flow does.
 //
 //   npm run profile:web                          # large.stdf, every flow, one run
 //   npm run profile:web -- --fixture bench.atdf --runs 3
@@ -55,7 +55,10 @@ try {
       await m.prepare('/__profile-fixture', name);
       window.__profileFlows = m.flows;
     }, basename(fixturePath));
-    const names = await page.evaluate(() => Object.keys(window.__profileFlows));
+    const names = await page.evaluate(async () => {
+      const { OPTIONAL_FLOWS } = await import('/scripts/profile-web-flows.ts');
+      return Object.keys(window.__profileFlows).map(n => [n, OPTIONAL_FLOWS.includes(n)]);
+    }).then(list => list.filter(([n, optional]) => !optional || only?.includes(n)).map(([n]) => n));
     const cdp = await page.context().newCDPSession(page);
     if (profile) {
       await cdp.send('Profiler.enable');
@@ -71,8 +74,9 @@ try {
       try {
         res = await page.evaluate(async (flow) => {
           const t0 = performance.now();
-          await window.__profileFlows[flow]();
-          const ms = performance.now() - t0;
+          // A flow that draws asynchronously returns when its last work ended.
+          const ret = await window.__profileFlows[flow]();
+          const ms = (ret?.endedAt ?? performance.now()) - t0;
           globalThis.gc?.(); globalThis.gc?.();
           return { ms: Math.round(ms), heapMB: Math.round(performance.memory.usedJSHeapSize / 2 ** 20) };
         }, flow);

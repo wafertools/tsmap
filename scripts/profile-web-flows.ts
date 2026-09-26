@@ -35,10 +35,51 @@ const need = <T>(v: T | undefined, what: string): T => {
 /** Two frames: the one the change is drawn in, and the one after it is painted. */
 const painted = () => new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
+/**
+ * Waits until `root` has had no DOM change and the page no long task for
+ * `quietMs`, and returns when the last one ended. Insights draws after the
+ * flow's own call returns (a lazily loaded chunk, then charts drawn from
+ * ResizeObserver and animation-frame callbacks), so "the promise resolved" is
+ * not "the view is drawn". A chart drawn in under 50 ms without touching the
+ * DOM is not seen, so the figure is a slight underestimate, never an overestimate.
+ */
+async function settled(root: HTMLElement, quietMs = 400): Promise<number> {
+  let last = performance.now();
+  const mo = new MutationObserver(() => { last = performance.now(); });
+  mo.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
+  const lt = new PerformanceObserver(l => {
+    for (const e of l.getEntries()) last = Math.max(last, e.startTime + e.duration);
+  });
+  // WebKit reports no long tasks; there, DOM changes alone mark activity.
+  if (PerformanceObserver.supportedEntryTypes.includes('longtask')) lt.observe({ type: 'longtask' });
+  try {
+    while (performance.now() - last < quietMs) {
+      await painted();
+      await new Promise(r => setTimeout(r, 50));
+    }
+  } finally {
+    mo.disconnect();
+    lt.disconnect();
+  }
+  return last;
+}
+
+function click(selector: string): void {
+  const el = need(state.container, 'a mounted view').querySelector<HTMLElement>(selector);
+  if (!el) throw new Error(`profile flow: nothing matches ${selector}`);
+  el.click();
+}
+
+/** Opens an Insights view by its tab and waits for it to be drawn. */
+async function insightsView(view: string): Promise<{ endedAt: number }> {
+  click(`[data-wmap-insights-tab="${view}"]`);
+  return { endedAt: await settled(state.container!) };
+}
+
 function container(): HTMLElement {
   state.container?.remove();
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:var(--bg, #fff)';
+  el.style.cssText = 'position:fixed;inset:0;overflow:auto;z-index:99999;background:var(--bg, #fff)';
   document.body.appendChild(el);
   return (state.container = el);
 }
@@ -66,20 +107,33 @@ function sweepMapping(bytes: Uint8Array): CsvMapping {
   };
 }
 
-export const flows: Record<string, () => Promise<void>> = {
-  /** Worker parse, buffer transfer, main-thread decode. */
+/** Flows run only when asked for by name (`--flows`, or `--until` for WebKit). */
+export const OPTIONAL_FLOWS = ['analyse-values'];
+
+export const flows: Record<string, () => Promise<void | { endedAt: number }>> = {
+  /** Worker parse, buffer transfer, main-thread decode. STDF, ATDF or a `sweep-*.csv`, by extension. */
   async parse() {
     const bytes = need(state.bytes, 'prepare');
     const platform = createPlatform();
-    state.parsed = state.name?.endsWith('.csv')
-      ? await platform.parseCsv({ name: state.name, bytes }, sweepMapping(bytes))
-      : await platform.parseStdf({ name: 'fixture', bytes });
+    const name = state.name ?? 'fixture.stdf';
+    state.parsed = name.endsWith('.csv') ? await platform.parseCsv({ name, bytes }, sweepMapping(bytes))
+      : name.endsWith('.atdf') ? await platform.parseAtdf({ name, bytes })
+      : await platform.parseStdf({ name, bytes });
     state.bytes = undefined;
   },
 
   /** `buildWaferMap` + `analyzeWaferMap` per wafer, then `analyzeWaferLot` — tsmap's load-time pass. */
   async analyse() {
     ({ items: state.items, lot: state.lot } = buildAndAnalyse(need(state.parsed, 'parse')));
+  },
+
+  /**
+   * The load-time pass with test-value analysis on — what tsmap runs when the
+   * user asks for value findings. Opt-in (see `OPTIONAL_FLOWS`): on a large lot
+   * it is much the longest flow. Leaves the other flows' state alone.
+   */
+  async 'analyse-values'() {
+    buildAndAnalyse(need(state.parsed, 'parse'), undefined, { enableTestValueAnalysis: true });
   },
 
   /** Progressive gallery mount with the lot summary panel, until every card and the panel have settled. */
@@ -112,6 +166,19 @@ export const flows: Record<string, () => Promise<void>> = {
     await painted();
   },
 
+  /** The gallery's Insights button: the lot-wide Overview, drawn. Loads the Insights chunk the first time. */
+  async insights() {
+    need(state.gallery, 'gallery');
+    click('[data-wmap-insights-btn]');
+    return { endedAt: await settled(state.container!) };
+  },
+
+  /** Lot-wide Distributions view (capability, boxplot, histogram, trend for the selected test). */
+  async 'insights-distributions'() { return insightsView('distributions'); },
+
+  /** Lot-wide Correlation view. */
+  async 'insights-correlation'() { return insightsView('correlation'); },
+
   /** One wafer, the single-map view tsmap shows for a one-wafer load. */
   async map() {
     const items = need(state.items, 'analyse');
@@ -132,4 +199,13 @@ export const flows: Record<string, () => Promise<void>> = {
     need(state.map, 'map').setOptions({ plotMode: 'value', activeTest: firstTest() });
     await painted();
   },
+
+  /** The single map's Insights: one wafer's Overview, drawn. */
+  async 'map-insights'() {
+    need(state.map, 'map').setInsightsOpen(true);
+    return { endedAt: await settled(state.container!) };
+  },
+
+  /** One wafer's Distributions view. */
+  async 'map-insights-distributions'() { return insightsView('distributions'); },
 };
