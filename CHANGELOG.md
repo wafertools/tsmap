@@ -23,6 +23,11 @@ technical record, including internal changes.
 
 ### Changed
 
+- **Test-value findings are included automatically on larger lots.** tsmap estimates the regional
+  analysis at 0.7µs per wafer × die × test, matching wmap's figure for WebKit (the desktop engine),
+  where the analysis now runs two to three times faster. Lots estimated under about a second get
+  the findings with no prompt; above that the Findings list still offers them with an **Analyse**
+  button.
 - **Large lots load in the browser build, and every lot takes far less memory.** A lot is held
   as columns from the parser to wmap, with no object per die: the parser worker transfers its
   buffer to the page instead of copying the lot, and wmap builds the maps from the columns. A

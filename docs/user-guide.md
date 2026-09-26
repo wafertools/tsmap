@@ -966,12 +966,15 @@ unusually high or low on a specific *test value*, or fail spec more often there 
 - test-value maps or stacked value maps,
 - the [Insights tab](#7-grouping-data-in-the-insights-tab) (boxplots, histograms, scatter, correlation — all independent).
 
-Because this regional value pass scales with regions × tests × dies, it is **off by default**
-to keep loads fast. The item is enabled once a file with test values is loaded; switch it on
-and the maps re-render with the extra findings in the panel — the wafer's data is already in
-memory, so this recomputes in place with no reload. Switch it off to remove them. It resets to
-off each time you load a new file, and is disabled while the Insights tab is open (it only
-affects the map's summary panel).
+Because this regional value pass scales with regions × tests × dies, tsmap estimates its cost
+on every load. If the estimate is under about a second it simply **includes the findings** and
+says so in the log. If it is longer, the Findings list itself shows a row saying test-value
+findings are not included, how much data they would cover and roughly how long they would take,
+with an **Analyse** button — the offer appears where you are already looking. Analysing, or the
+toggle, recomputes in place with no reload: the wafer's data is already in memory. Once you have
+made the choice yourself, tsmap stops deciding it for you. The item is enabled once a file with
+test values is loaded, and is disabled while the Insights tab is open (it only affects the map's
+summary panel).
 
 ---
 

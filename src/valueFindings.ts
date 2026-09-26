@@ -13,14 +13,16 @@ import type { WaferData } from './types';
  */
 
 /**
- * Measured at ~1.2µs per (wafer × die × test) on the reference machine —
- * benchmarked across 5–25 wafers, 10.7k dies and 30–100 tests, where the pass
- * ran 1.9s / 6.7s / 9.7s against a 0.3–1.4s baseline. wmap documents it as
- * scaling with regions × tests × dies, a linear scan, so one coefficient tracks
- * it closely enough to answer "instant or not". It is not a progress bar and
- * does not need to be one; the only decision it feeds is a single threshold.
+ * wmap's documented figure for the slower engine: ~0.65µs per (wafer × die ×
+ * test) in WebKit — the desktop app's engine on Linux and macOS — measured on a
+ * 25-wafer, 266k-die, 51-test lot; Chrome runs it in about half that. Sized for
+ * WebKit and rounded up, because under-estimating is the costly mistake: it
+ * runs the pass unprompted and the app pauses without warning. wmap documents it
+ * as scaling with regions × tests × dies, a linear scan, so one coefficient
+ * tracks it closely enough to answer "instant or not". It is not a progress bar
+ * and does not need to be one; the only decision it feeds is a single threshold.
  */
-export const VALUE_FINDINGS_US_PER_DIE_TEST = 1.2;
+export const VALUE_FINDINGS_US_PER_DIE_TEST = 0.7;
 
 /**
  * How long the analysis may take before we stop running it unprompted. Below
