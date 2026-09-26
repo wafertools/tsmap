@@ -71,7 +71,9 @@ technical record, including internal changes.
   load-time analysis, gallery mount, plot-mode changes, Insights for the lot and for one wafer,
   the single-wafer map), with the same options the app uses. Fixtures can be STDF, ATDF or the
   wide-format CSVs. Insights is timed until its charts have finished drawing. `analyse-values`
-  (analysis with test-value findings on) runs only when named with `--flows`. `--profile` adds the top functions per flow and DevTools
+  (analysis with test-value findings on) runs only when named with `--flows`. `gallery` now ends
+  when the last card is in and `gallery-summary` times the lot panel finishing (the app's
+  "Finishing lot summary"); `report` and `report-render` time the panel's Summary report. `--profile` adds the top functions per flow and DevTools
   `.cpuprofile` files; `--save`/`--compare` record and compare baselines.
 - **`npm run profile:webkit`** runs the same flows in WebKitGTK's MiniBrowser, the Linux
   desktop app's engine, with the same `--fixture`, `--runs`, `--save` and `--compare`.

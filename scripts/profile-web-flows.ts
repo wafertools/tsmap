@@ -24,6 +24,7 @@ const state: {
   lot?: LotStatsSummary;
   container?: HTMLElement;
   gallery?: ReturnType<typeof renderWaferGallery>;
+  gallerySettled?: Promise<void>;
   map?: ReturnType<typeof renderWaferMap>;
 } = {};
 
@@ -136,22 +137,60 @@ export const flows: Record<string, () => Promise<void | { endedAt: number }>> = 
     buildAndAnalyse(need(state.parsed, 'parse'), undefined, { enableTestValueAnalysis: true });
   },
 
-  /** Progressive gallery mount with the lot summary panel, until every card and the panel have settled. */
+  /**
+   * Progressive gallery mount with the lot summary panel, until every card is
+   * in — the app's "Rendering N wafers" phase. `gallery-summary` then waits
+   * for the rest.
+   */
   async gallery() {
     const items = need(state.items, 'analyse');
     state.map?.destroy();
     state.map = undefined;
-    await new Promise<void>(resolve => {
+    let cardsIn!: () => void;
+    const allCards = new Promise<void>(r => { cardsIn = r; });
+    state.gallerySettled = new Promise<void>(settle => {
       state.gallery = renderWaferGallery(container(), items.map(it => () => it), {
         lotStatsSummary: state.lot,
-        onItemsResolved: () => resolve(),
+        onItemResolved: (resolved, total) => { if (resolved === total) cardsIn(); },
+        onItemsResolved: () => { cardsIn(); settle(); },
         summaryPanel: { placement: 'right', defaultOpen: true },
         showHelpButton: false,
         viewOptions: { plotMode: 'hardBin' },
         insights,
       });
     });
+    await allCards;
+  },
+
+  /** The lot summary panel finishing after the last card — the app's "Finishing lot summary" phase. */
+  async 'gallery-summary'() {
+    await need(state.gallerySettled, 'gallery');
     await painted();
+  },
+
+  /**
+   * The lot Summary panel's "Summary report" button: building the report and
+   * opening its window (the click itself, which runs synchronously).
+   */
+  async report() {
+    await need(state.gallerySettled, 'gallery');
+    const button = [...need(state.container, 'gallery').querySelectorAll<HTMLButtonElement>('button')]
+      .find(b => b.textContent?.trim() === 'Summary report');
+    if (!button) throw new Error('profile flow: no "Summary report" button in the lot panel');
+    button.click();
+  },
+
+  /** The report loading and laying out in its window, until painted; then the window is closed. */
+  async 'report-render'() {
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="Summary report"]');
+    if (!frame) throw new Error('profile flow: the report window did not open');
+    if (frame.contentDocument?.readyState !== 'complete' || frame.contentDocument.body?.childElementCount === 0) {
+      await new Promise(r => frame.addEventListener('load', r, { once: true }));
+    }
+    await painted();
+    const ended = performance.now();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return { endedAt: ended };
   },
 
   /** Every card redrawn as the first test's values. */
