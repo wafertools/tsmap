@@ -1850,7 +1850,10 @@ function loadPhaseIfActive(phase: LoadPhase, msg: string, done = 0, total = 0): 
  * whatever identity is already there.
  */
 function endLoad(identity?: string): void {
-  if (logTimings) {
+  // Only a load that is running has a "done": callers also end an idle state
+  // (a preference change, a menu action), which has no start time of its own —
+  // logging then reported the previous load's elapsed time with no label.
+  if (logTimings && loadActive) {
     log('info', `⏱ done: ${identity ?? lastPhase?.msg ?? ''} — +${(performance.now() - loadTimingStart).toFixed(0)} ms`);
   }
   loadActive = false;

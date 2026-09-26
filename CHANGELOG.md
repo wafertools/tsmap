@@ -66,6 +66,8 @@ technical record, including internal changes.
   every die, and the test-value analysis estimate samples dies rather than counting every
   die's tests. On the 266k-die lot in the desktop app these took 3.9 s and 3.3 s, now 1 ms and
   80 ms.
+- **"Log phase timings" logs `done` only for a load that ran**, so switching it on, or a menu
+  action between loads, adds no line.
 - **"Log phase timings" names the parse's parts:** the parse line lists what it covers, a
   second line gives the decode's share, and new lines time test selection and the
   test-value analysis estimate.
