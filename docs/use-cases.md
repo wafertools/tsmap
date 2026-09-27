@@ -35,7 +35,8 @@ configuring for them to appear.
   means the edge dies fail more than the rest — not that the cause is the process. Probe-card
   contact, handling and chuck effects all produce edge signatures too.
 - One bad wafer in thirteen may simply be one bad wafer. Look for whether the pattern repeats
-  across wafers — findings report that as "seen on N/13 wafers".
+  across wafers — a regional finding reports it as "higher on N/13 wafers, all wafers' data
+  combined", and a spatial pattern as "seen on N/13 wafers".
 
 **Next:** if the losses look structured, either group by split to see whether they track an
 experimental variable (below), or move to a parametric view to find which test is failing.
