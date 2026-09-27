@@ -28,6 +28,7 @@ function readColumns(input) {
   }
   delete header.columnarFormat;
   const body = byteOffset;
+  checkLayout(header.wafers, bytes.length - 4 - headerLen);
 
   const wafers = header.wafers.map((wafer) => {
     const n = wafer.dieCount;
@@ -58,6 +59,33 @@ function readColumns(input) {
     return { wafer, n, col, values, verdicts, partIds };
   });
   return { header, wafers };
+}
+
+const WIDTH = { i32: 4, u32: 4, f32: 4, f64: 8, u8: 1, i8: 1 };
+
+/**
+ * Every column must lie inside the body (before the header) and no two may
+ * share bytes. A typed array only refuses a column that runs off the buffer; one
+ * at a wrong offset inside it would decode as plausible, wrong data.
+ */
+function checkLayout(wafers, bodyLen) {
+  if (!(bodyLen >= 0)) throw new Error('testdata-parser: columnar header is longer than the buffer');
+  const spans = [];
+  for (const wafer of wafers) {
+    for (const c of wafer.columns) {
+      const width = WIDTH[c.kind];
+      if (width === undefined) throw new Error(`testdata-parser: unknown column kind ${c.kind}`);
+      const end = c.offset + wafer.dieCount * width;
+      if (!Number.isInteger(c.offset) || c.offset < 0 || end > bodyLen) {
+        throw new Error(`testdata-parser: column ${c.field}${c.test === undefined ? '' : ` ${c.test}`} lies outside the column data`);
+      }
+      spans.push([c.offset, end]);
+    }
+  }
+  spans.sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < spans.length; i++) {
+    if (spans[i][0] < spans[i - 1][1]) throw new Error('testdata-parser: two columns share bytes — the buffer is corrupt');
+  }
 }
 
 /**

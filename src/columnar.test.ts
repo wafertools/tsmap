@@ -40,6 +40,36 @@ describe('decodeParsed', () => {
     patched.set(new TextEncoder().encode(header), at);
     expect(() => decodeParsed(patched)).toThrow(/columnar format 9/);
   });
+
+  /** The golden buffer with its header rewritten by `edit`. */
+  function withHeader(edit: (header: { wafers: { columns: { offset: number }[] }[] }) => void) {
+    const { bin } = CASES['every-field'];
+    const len = new DataView(bin.buffer, bin.byteOffset + bin.length - 4).getUint32(0, true);
+    const bodyLen = bin.length - 4 - len;
+    const header = JSON.parse(new TextDecoder().decode(bin.subarray(bodyLen, bodyLen + len)));
+    edit(header);
+    const json = new TextEncoder().encode(JSON.stringify(header));
+    const out = new Uint8Array(bodyLen + json.length + 4);
+    out.set(bin.subarray(0, bodyLen));
+    out.set(json, bodyLen);
+    new DataView(out.buffer).setUint32(bodyLen + json.length, json.length, true);
+    return { out, bodyLen };
+  }
+
+  it('reads a header rebuilt unchanged', () => {
+    expect(decodeParsed(withHeader(() => {}).out)).toEqual(CASES['every-field'].json);
+  });
+
+  it('refuses a column that overlaps another', () => {
+    const { out } = withHeader((h) => { const c = h.wafers[0].columns; c[1].offset = c[0].offset; });
+    expect(() => decodeParsed(out)).toThrow(/share bytes/);
+  });
+
+  it('refuses a column that runs into the header', () => {
+    const { bodyLen } = withHeader(() => {});
+    const { out } = withHeader((h) => { h.wafers[0].columns[0].offset = bodyLen - 8; });
+    expect(() => decodeParsed(out)).toThrow(/outside the column data/);
+  });
 });
 
 describe('decodeColumns', () => {

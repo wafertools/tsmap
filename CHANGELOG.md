@@ -19,10 +19,22 @@ technical record, including internal changes.
   die. The Rust API still returns `ParsedStdf`, and `columnar::encode_columnar`
   produces the buffer. Test values are sent as 32-bit floats when every value in the column is
   exactly representable as one (STDF readings are), and as 64-bit otherwise, so no value
-  changes.
+  changes. Both decoders refuse a buffer from a different format version, and one whose
+  header places a column outside the column data or across another column.
 
 ### Changed
 
+- **`@wafertools/testdata-parser`: `decodeParsed` checks the buffer's layout.** Every column
+  must lie inside the column data and no two may share bytes; a buffer that breaks either is
+  refused with an error, rather than decoding as plausible but wrong values.
+- **Maps open in select mode, and selections fade the rest of the wafer.** A drag on a map
+  selects dies (hold Space and drag, or choose Pan, to pan); clicking the only selected die
+  again clears the selection. Selected dies and a finding's dies keep their colours while the
+  rest of the wafer fades, with an outline round them. The legend filters to several bins at
+  once with Ctrl/Cmd+click, and a finding about a bin filters the legend to it. (wafermap)
+- **Lot findings test regional patterns on all wafers' data together**, reporting "higher on
+  N/M wafers, all wafers' data combined"; edge-only bins, yield losses under 20 points and
+  fragmented edge rings are reported. Findings and their counts can change. (wafermap)
 - **Test-value findings are included automatically on larger lots.** tsmap estimates the regional
   analysis at 0.7µs per wafer × die × test, matching wmap's figure for WebKit (the desktop engine),
   where the analysis now runs two to three times faster. Lots estimated under about a second get
