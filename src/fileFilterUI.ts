@@ -230,15 +230,16 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
       if (isTesterExt(ext)) return isAtdfExt(ext) ? platform.atdfFileMeta(file) : platform.stdfFileMeta(file);
       if (ext === 'csv' || ext === 'txt' || ext === 'dat') {
         const h = await platform.csvHeaders(file);
-        return headersToFileMeta(h.headers, h.sample);
+        return headersToFileMeta(h.headers, h.sample, h.rowCount);
       }
       if (ext === 'json') {
         const h = await platform.jsonHeaders(file);
-        return headersToFileMeta(h.headers, h.sample);
+        return headersToFileMeta(h.headers, h.sample, h.rowCount);
       }
       if (ext === 'parquet') {
         const h = await platform.parquetHeaders(file);
-        const meta = headersToFileMeta(h.headers, h.sample);
+        const meta = headersToFileMeta(h.headers, h.sample, h.rowCount);
+        if (h.rowCount > h.sample.length) await settleFromColumns(platform, file, meta);
         // Wafers, for Parquet only (see parquetDistinctCount — CSV/JSON would
         // mean reading the whole file): distinct (lot, wafer) pairs, the
         // identity a load gives a wafer. Columns are found with detectRole,
@@ -269,6 +270,11 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
  *  rather than showing an arbitrarily-picked value that could mislead. */
 const VARIES = '(varies)';
 
+/** Appended to a value read from a sample that does not cover the whole file.
+ *  Agreement across a few rows shows the column varies or might not, never that
+ *  it is constant, so the cell says where its value came from. */
+const FIRST_ROWS = ' (first rows)';
+
 /** Column roles that are per-die by definition — a die's position, its bins,
  *  its site, or a long-format test row's identity/value/limits. A file-level
  *  column can never be one of these, whatever the sample shows: the sample is
@@ -286,7 +292,30 @@ const PER_DIE_ROLES = new Set<string>([
   'x', 'y', 'hbin', 'sbin', 'site', 'wafer', 'testname', 'testnumber', 'testvalue', 'loLimit', 'hiLimit', 'units',
 ]);
 
-function headersToFileMeta(headers: string[], sample: Record<string, string>[]): FileMeta {
+/** Columns a Parquet file's own sample cannot settle, checked exactly. Parquet
+ *  stores columns separately, so reading one is far cheaper than reading the
+ *  file (the Wafers count does the same for two). Only a column whose sampled
+ *  rows agree is worth the read — one that already varies is settled — and at
+ *  most `MAX_SETTLED` per file, which in practice is a handful of lot-level
+ *  fields. A column left over keeps its "(first rows)" mark; a failed read
+ *  leaves the sample's answer alone rather than failing the scan. */
+const MAX_SETTLED = 8;
+async function settleFromColumns(platform: Platform, file: FileHandle, meta: FileMeta): Promise<void> {
+  const open = meta.lotMeta.fields.filter(f => f.key !== 'lotId' && (f.value === '' || f.value.endsWith(FIRST_ROWS)));
+  for (const f of open.slice(0, MAX_SETTLED)) {
+    try {
+      const distinct = await platform.parquetDistinctCount(file, [f.key]);
+      if (distinct >= 2) f.value = VARIES;
+      // One value, and every sampled row had it: the column is that value
+      // throughout. One value but blank in the sample means it is mixed.
+      else if (distinct === 1) f.value = f.value === '' ? VARIES : f.value.slice(0, -FIRST_ROWS.length);
+      else f.value = '';
+    } catch { /* keep the sample's answer */ }
+  }
+}
+
+function headersToFileMeta(headers: string[], sample: Record<string, string>[], rowCount: number): FileMeta {
+  const wholeFile = rowCount <= sample.length;
   const fields: { key: string; value: string }[] = [];
   const seen = new Set<string>();
   for (const h of headers) {
@@ -301,7 +330,12 @@ function headersToFileMeta(headers: string[], sample: Record<string, string>[]):
     if (seen.has(key)) continue;
     seen.add(key);
     const values = new Set(sample.map(r => r[h] ?? ''));
-    const value = values.size > 1 ? VARIES : (sample[0]?.[h] ?? '');
+    const first = sample[0]?.[h] ?? '';
+    // The lot column is the file's identity and is what the filter is mostly
+    // used on, so it keeps the bare value; every other column's value is only
+    // vouched for when the sample is the whole file.
+    const proven = wholeFile || role === 'lot' || first === '';
+    const value = values.size > 1 ? VARIES : (proven ? first : first + FIRST_ROWS);
     fields.push({ key, value });
   }
   return { lotMeta: { fields }, waferCount: 0 };
@@ -467,6 +501,11 @@ export async function openFileFilterDialog(
       body.style.cssText += 'padding:16px;display:flex;flex-direction:column;gap:10px;';
       const status = el('div', { fontSize: '12px', color: 'var(--text-muted)' }, `Scanning 0 / ${picked.length}…`);
       body.appendChild(status);
+      // Only for CSV/JSON/Parquet, which have no lot record to read — see
+      // sampleNote below. Hidden until a scan finds such a file.
+      const sampleNote = el('div', { fontSize: '12px', color: 'var(--text-muted)' });
+      sampleNote.hidden = true;
+      body.appendChild(sampleNote);
       // Format quick filter — filled once the scan knows which kinds it holds.
       const formatBar = el('div', { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '12px' });
       formatBar.hidden = true;
@@ -524,6 +563,27 @@ export async function openFileFilterDialog(
         // orderFieldKeys also drops hidden fields (WF_UNITS), so their cells
         // are never built — a cell with no column would still match the search.
         const dynamicKeys = orderFieldKeys(dynamicKeySet);
+
+        // CSV/JSON/Parquet carry no lot record, so their columns are read from
+        // sampled rows and a column the sample finds blank or varying is left
+        // out above. Say so, and name what was left out, so a missing column
+        // reads as "not settled by the sample" rather than "not in the file".
+        const flatKeys = new Set<string>();
+        for (const r of results) {
+          if (isTesterExt(effectiveFileExtension(r.picked.handle.name))) continue;
+          for (const f of r.meta?.lotMeta.fields ?? []) flatKeys.add(f.key);
+        }
+        const notShown = [...flatKeys].filter(k => !dynamicKeySet.has(k) && k !== TESTED_FALLBACK_KEY);
+        if (flatKeys.size > 0) {
+          const SHOWN_NAMES = 8;
+          const names = notShown.slice(0, SHOWN_NAMES).join(', ')
+            + (notShown.length > SHOWN_NAMES ? ` and ${notShown.length - SHOWN_NAMES} more` : '');
+          sampleNote.textContent = 'CSV, JSON and Parquet files have no lot record, so their columns are read from rows '
+            + 'sampled across each file.'
+            + (notShown.length > 0 ? ` Not shown, as blank or varying in those rows: ${names}.` : '');
+          sampleNote.title = notShown.join(', ');
+          sampleNote.hidden = false;
+        }
         const rows = results.map(r => metaToRow(r, dynamicKeys));
 
 

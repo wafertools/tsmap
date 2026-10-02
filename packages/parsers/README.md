@@ -391,7 +391,7 @@ alone. Same codes as the WASM layer above; it is the same error, serialised ther
 ```rust
 pub struct CsvHeadersResult {
     pub headers: Vec<String>,
-    pub sample: Vec<HashMap<String, String>>, // first few rows, for a preview UI
+    pub sample: Vec<HashMap<String, String>>, // the first five rows, then up to twenty spread through the file
     pub row_count: usize,
 }
 ```

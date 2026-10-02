@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use crate::types::*;
+use crate::sample::HEAD_ROWS;
 use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
 use crate::error::{ParseError, ParseResult};
 
@@ -71,8 +72,56 @@ pub struct CsvMapping {
     pub pass_bins: Vec<u32>,
 }
 
+/// One parsed record as a header → value row.
+fn row_from_record(headers: &[String], rec: &csv::StringRecord) -> HashMap<String, String> {
+    headers
+        .iter()
+        .enumerate()
+        .map(|(i, h)| (h.clone(), rec.get(i).unwrap_or("").trim().to_string()))
+        .collect()
+}
+
+/// Longest line the seek-based spread will look for: a row longer than this is
+/// skipped rather than half-read.
+const SPREAD_CHUNK: usize = 64 * 1024;
+
+/// Rows from evenly spaced positions in a `len`-byte file, after the first
+/// `head_end` bytes. `read_at(offset, n)` returns up to `n` bytes from `offset`.
+/// A position that lands inside a quoted multi-line field, or on a comment,
+/// blank or short line, yields no row — a row only counts if it has as many
+/// cells as the header, so a misread line cannot put a made-up value in the
+/// preview.
+fn spread_rows(
+    len: usize,
+    head_end: usize,
+    delim: u8,
+    headers: &[String],
+    mut read_at: impl FnMut(usize, usize) -> Vec<u8>,
+) -> Vec<HashMap<String, String>> {
+    let mut rows = Vec::new();
+    let mut last_line: Option<Vec<u8>> = None;
+    for off in crate::sample::spread_offsets(len, head_end) {
+        let chunk = read_at(off, SPREAD_CHUNK);
+        let at_eof = off + chunk.len() >= len;
+        let Some(line) = crate::sample::line_after(&chunk, at_eof) else { continue };
+        if line.first() == Some(&b'#') || last_line.as_deref() == Some(line) { continue; }
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(delim)
+            .trim(csv::Trim::All)
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(line);
+        if let Some(Ok(rec)) = rdr.records().next() {
+            if rec.len() == headers.len() { rows.push(row_from_record(headers, &rec)); }
+        }
+        last_line = Some(line.to_vec());
+    }
+    rows
+}
+
 pub fn csv_headers_from_bytes(bytes: &[u8]) -> ParseResult<CsvHeadersResult> {
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let delim = detect_delimiter(&bytes);
     let mut rdr = build_reader_from_bytes(&bytes);
     let headers: Vec<String> = rdr
         .headers()
@@ -84,14 +133,15 @@ pub fn csv_headers_from_bytes(bytes: &[u8]) -> ParseResult<CsvHeadersResult> {
     let mut sample: Vec<HashMap<String, String>> = Vec::new();
     for result in rdr.records() {
         let rec = result.map_err(ParseError::csv_read)?;
-        let row: HashMap<String, String> = headers
-            .iter()
-            .enumerate()
-            .map(|(i, h)| (h.clone(), rec.get(i).unwrap_or("").trim().to_string()))
-            .collect();
-        sample.push(row);
-        if sample.len() >= 5 { break; }
+        sample.push(row_from_record(&headers, &rec));
+        if sample.len() >= HEAD_ROWS { break; }
     }
+    let head_end = rdr.position().byte() as usize;
+
+    let len = bytes.len();
+    sample.extend(spread_rows(len, head_end, delim, &headers, |off, n| {
+        bytes[off.min(len)..(off + n).min(len)].to_vec()
+    }));
 
     let row_count = bytes.iter().filter(|&&b| b == b'\n').count().saturating_sub(1);
     Ok(CsvHeadersResult { headers, sample, row_count })
@@ -116,17 +166,29 @@ pub fn csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult> {
     let mut sample: Vec<HashMap<String, String>> = Vec::new();
     for result in rdr.records() {
         let rec = result.map_err(ParseError::csv_read)?;
-        let row: HashMap<String, String> = headers
-            .iter()
-            .enumerate()
-            .map(|(i, h)| (h.clone(), rec.get(i).unwrap_or("").trim().to_string()))
-            .collect();
-        sample.push(row);
-        if sample.len() >= 5 { break; }
+        sample.push(row_from_record(&headers, &rec));
+        if sample.len() >= HEAD_ROWS { break; }
+    }
+    let head_end = rdr.position().byte() as usize;
+
+    // Seek to evenly spaced offsets rather than read through the file. A gzip
+    // stream cannot be seeked, so a .gz file keeps just its head.
+    let is_gz = std::path::Path::new(&path)
+        .extension().and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("gz")).unwrap_or(false);
+    let file_len = std::fs::metadata(&path).ok().map(|m| m.len() as usize);
+    if let (false, Some(len), Ok(mut f)) = (is_gz, file_len, std::fs::File::open(&path)) {
+        sample.extend(spread_rows(len, head_end, b',', &headers, |off, n| {
+            use std::io::{Seek, SeekFrom};
+            let mut buf = vec![0u8; n];
+            if f.seek(SeekFrom::Start(off as u64)).is_err() { return Vec::new(); }
+            let got = f.read(&mut buf).unwrap_or(0);
+            buf.truncate(got);
+            buf
+        }));
     }
 
-    let row_count = std::fs::metadata(&path).ok().map(|m| {
-        let file_bytes = m.len() as usize;
+    let row_count = file_len.map(|file_bytes| {
         if sample.is_empty() { return 0; }
         let sample_bytes: usize = sample.iter()
             .map(|row| row.values().map(|v| v.len() + 2).sum::<usize>())
@@ -470,7 +532,22 @@ mod tests {
         for i in 0..10 { csv += &format!("{i},{i}\n"); }
         let path = tmp(&csv);
         let result = csv_headers_inner(path.to_str().unwrap().to_string()).unwrap();
-        assert!(result.sample.len() <= 5);
+        // The first five rows, then evenly spaced rows from the rest.
+        assert!(result.sample.len() > 5);
+        assert!(result.sample.len() <= 5 + crate::sample::SPREAD_ROWS);
+    }
+
+    #[test]
+    fn sample_reaches_a_value_that_only_appears_late() {
+        let mut csv = "x,temp\n".to_string();
+        for i in 0..2000 { csv += &format!("{i},{}\n", if i < 1500 { "25" } else { "125" }); }
+        let path = tmp(&csv);
+        let result = csv_headers_inner(path.to_str().unwrap().to_string()).unwrap();
+        let temps: HashSet<&str> = result.sample.iter().map(|r| r["temp"].as_str()).collect();
+        assert_eq!(temps.len(), 2, "a late change must show in the preview");
+        let from_bytes = csv_headers_from_bytes(csv.as_bytes()).unwrap();
+        let temps: HashSet<&str> = from_bytes.sample.iter().map(|r| r["temp"].as_str()).collect();
+        assert_eq!(temps.len(), 2);
     }
 
     #[test]

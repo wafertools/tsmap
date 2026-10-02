@@ -831,6 +831,20 @@ async function extractZip(bytes: Uint8Array): Promise<FileHandle[]> {
   return Object.entries(files).map(([name, data]) => ({ name, bytes: data }));
 }
 
+/** Preview rows: the first `HEAD` rows, then up to `SPREAD` more spread evenly
+ *  through the rest. Mirrors `packages/parsers/src/sample.rs`, which does the
+ *  same for the native build — keep the two in step. */
+const SAMPLE_HEAD = 5;
+const SAMPLE_SPREAD = 20;
+export function sampleIndices(total: number): number[] {
+  const idx = Array.from({ length: Math.min(total, SAMPLE_HEAD) }, (_, i) => i);
+  if (total <= SAMPLE_HEAD) return idx;
+  const rest = total - SAMPLE_HEAD;
+  const n = Math.min(SAMPLE_SPREAD, rest);
+  for (let k = 0; k < n; k++) idx.push(SAMPLE_HEAD + Math.floor(k * rest / n));
+  return idx;
+}
+
 /** Parse CSV bytes: detect delimiter, extract headers, sample rows, count rows. */
 function parseCsvHeaders(bytes: Uint8Array): HeadersResult {
   const text = new TextDecoder().decode(bytes);
@@ -843,9 +857,9 @@ function parseCsvHeaders(bytes: Uint8Array): HeadersResult {
 
   const headers = firstLine.split(delim).map(h => h.trim().replace(/^["']|["']$/g, ''));
   const sample: Record<string, string>[] = [];
-  for (let i = 1; i < Math.min(lines.length, 6); i++) {
+  for (const r of sampleIndices(lines.length - 1)) {
     const row: Record<string, string> = {};
-    const cells = lines[i].split(delim);
+    const cells = lines[r + 1].split(delim);
     headers.forEach((h, j) => { row[h] = (cells[j] ?? '').trim().replace(/^["']|["']$/g, ''); });
     sample.push(row);
   }
@@ -866,8 +880,8 @@ function parseJsonHeaders(bytes: Uint8Array): HeadersResult {
       : arr as Record<string, unknown>[];
 
   const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
-  const sample = rows.slice(0, 5).map(r =>
-    Object.fromEntries(headers.map(h => [h, String(r[h] ?? '')]))
+  const sample = sampleIndices(rows.length).map(i =>
+    Object.fromEntries(headers.map(h => [h, String((rows[i] as Record<string, unknown>)[h] ?? '')]))
   );
   return { headers, sample, rowCount: rows.length };
 }

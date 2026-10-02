@@ -4,6 +4,23 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [Unreleased]
+
+### Changed
+
+- **The column mapping dialog shows a value count only when the sample proves one.** The hint beside a metadata column's
+  **Subdivide file by this column** option reads "(N values in sample)" when the sampled rows differ, and is
+  absent otherwise, since a few rows cannot show that a column is constant across the file.
+- **CSV, JSON and Parquet previews read rows from throughout the file.** The column mapping dialog and the file filter
+  see the first five rows and up to twenty more spread evenly through the rest, so a column that changes partway
+  through is no longer taken for a constant one. CSV is read by seeking, so large files cost no more to scan; a gzipped
+  CSV and a Parquet file with a single row group keep just their first rows.
+- **The file filter checks Parquet columns exactly.** A column whose sampled rows agree is confirmed against the whole
+  column, which Parquet can read without reading the rest of the file.
+- **The file filter says where CSV, JSON and Parquet values come from.** A note above the table explains that columns
+  are read from sampled rows and lists the columns left out as blank or varying. A value read from a sample that does
+  not cover the whole file is followed by "(first rows)"; the lot column is shown as before.
+
 ## [0.1.43] — 2026-10-02
 
 ### Added

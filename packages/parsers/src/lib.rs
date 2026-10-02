@@ -1,5 +1,6 @@
 pub mod error;
 pub mod types;
+pub mod sample;
 pub mod read_file;
 pub mod test_identity;
 pub mod flat_wafers;

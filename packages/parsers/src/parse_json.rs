@@ -33,9 +33,11 @@ pub fn json_headers_sync(path: String) -> ParseResult<JsonHeadersResult> {
         }
     }
     let headers: Vec<String> = header_set.into_iter().collect();
-    // The preview is five rows for a mapping UI, so stringify only those — the
-    // rows themselves now hold borrowed `Value`s (see `Row`).
-    let sample: Vec<HashMap<String, String>> = rows.iter().take(5)
+    // The preview is a couple of dozen rows, so stringify only those — the
+    // rows themselves now hold borrowed `Value`s (see `Row`). The first rows,
+    // then evenly spaced ones — see `sample.rs`.
+    let picked = (0..crate::sample::HEAD_ROWS.min(rows.len())).chain(crate::sample::spread_indices(rows.len()));
+    let sample: Vec<HashMap<String, String>> = picked.map(|i| &rows[i])
         .map(|r| r.entries().into_iter().map(|(k, v)| (k, value_to_string(v))).collect())
         .collect();
 

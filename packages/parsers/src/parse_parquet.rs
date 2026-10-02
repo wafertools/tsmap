@@ -1,6 +1,8 @@
 use bytes::Bytes;
 use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::record::reader::RowIter;
 use parquet::record::{Field, Row};
+use crate::sample::{HEAD_ROWS};
 use parquet::schema::types::Type;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -155,8 +157,7 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> ParseResult<ParquetHeadersR
     let mut column_types: HashMap<String, String> = HashMap::new();
     let mut sample: Vec<HashMap<String, String>> = Vec::new();
 
-    for row_result in row_iter.take(5) {
-        let row: Row = row_result.map_err(ParseError::parquet_read)?;
+    let mut add = |row: Row| {
         let mut record: HashMap<String, String> = HashMap::new();
         for (name, field) in row.get_column_iter() {
             if !headers.iter().any(|h| h == name) {
@@ -166,6 +167,21 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> ParseResult<ParquetHeadersR
             record.insert(name.clone(), field_to_string(field));
         }
         sample.push(record);
+    };
+
+    for row_result in row_iter.take(HEAD_ROWS) {
+        add(row_result.map_err(ParseError::parquet_read)?);
+    }
+
+    // Reading row N means decoding every row before it, so the spread is by row
+    // group: the first row of up to SPREAD_ROWS groups, evenly spaced. A file
+    // written as one row group keeps just its head.
+    let groups = reader.num_row_groups();
+    for g in crate::sample::spread_indices(groups + HEAD_ROWS).into_iter().map(|i| i - HEAD_ROWS).filter(|&g| g > 0) {
+        let group = reader.get_row_group(g).map_err(ParseError::parquet_read)?;
+        if let Some(row) = RowIter::from_row_group(None, group.as_ref()).map_err(ParseError::parquet_read)?.next() {
+            add(row.map_err(ParseError::parquet_read)?);
+        }
     }
 
     // A file with zero rows still has a schema — fall back to it so an empty
@@ -754,6 +770,29 @@ mod tests {
         assert_eq!(count(&["wafer", "hbin"]), Ok(2));
         assert_eq!(count(&["hbin", "wafer"]), Ok(2));
         assert!(count(&["no_such_column"]).is_err());
+    }
+
+    #[test]
+    fn sample_reaches_later_row_groups() {
+        // One int32 column, ten row groups of one row each; the value changes
+        // from the sixth group on, so the head (rows 0-4 of group 0) cannot see it.
+        let schema = Arc::new(parse_message_type("message schema { REQUIRED INT32 temp; }").unwrap());
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            for g in 0..10i32 {
+                let mut rg = writer.next_row_group().unwrap();
+                let mut col = rg.next_column().unwrap().unwrap();
+                col.typed::<Int32Type>().write_batch(&[if g < 5 { 25 } else { 125 }], None, None).unwrap();
+                col.close().unwrap();
+                rg.close().unwrap();
+            }
+            writer.close().unwrap();
+        }
+        let result = parquet_headers_from_bytes(&buf).unwrap();
+        let temps: HashSet<&str> = result.sample.iter().map(|r| r["temp"].as_str()).collect();
+        assert!(temps.contains("25") && temps.contains("125"), "{temps:?}");
     }
 
     #[test]

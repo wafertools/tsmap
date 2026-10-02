@@ -585,7 +585,9 @@ export async function showMappingOverlay(
     const savedTest = saved?.tests?.find(t => t.col === h);
     const testName = savedTest?.name ?? h;
     const uniqueVals = new Set(sample.map(r => r[h]).filter(v => v !== '')).size;
-    const cardinalityHint = uniqueVals <= 1 ? '(same for all)' : `(${uniqueVals} values in sample)`;
+    // `sample` is only the first few rows, so it can show that a column varies
+    // but never that it is constant — say nothing rather than claim "same for all".
+    const cardinalityHint = uniqueVals > 1 ? `(${uniqueVals} values in sample)` : '';
     const isSavedSplitBy = saved?.splitBy?.includes(h) ?? false;
 
     const options = ROLE_OPTIONS.map(o =>
