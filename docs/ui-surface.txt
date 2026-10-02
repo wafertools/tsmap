@@ -25,7 +25,7 @@ Controls:
       hint: Help
   · Load sample data
   · Scan a folder…
-      hint: Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load
+      hint: Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load. Folders are read in your browser — no files are uploaded.
   · Log
       hint: Show the log panel
 
@@ -55,7 +55,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help
       hint: Help
-  · +12 more
+  · +11 more
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -77,6 +77,7 @@ Controls:
   · Reset zoom (double-click)   (×13)
   · Pan (drag to move)   (×13)
   · Select (drag to select dies)   (×13)
+  · Chart this wafer (or right-click)  [opens menu]   (×13)
   · W02 · FF▾  [aria="Wafer info for W02 · FF. Click to expand."]
   · W03 · TT▾  [aria="Wafer info for W03 · TT. Click to expand."]
   · W04 · SS▾  [aria="Wafer info for W04 · SS. Click to expand."]
@@ -91,29 +92,30 @@ Controls:
   · W13 · SF▾  [aria="Wafer info for W13 · SF. Click to expand."]
   · Summary report
   · View die list
-  · ▶Findings (4)4
-  · Unusual 1
-  · Notable 3
+  · ▶What stands out
+  · Full report ▸
+  · ▶Findings (3)3
+  · ●●●Unusual 2
+  · ●●○Notable 1
   · Detail ▸
-  · Spatial pattern: edge-local (medium confidence) — 40% of edge dies failing — seen on 4/13 wafers (31%)
-  · Hard bin and soft bin 3 (Fail (multi)) (same dies) occurrence 8.8 percentage points higher than the rest of the map — seen on 2/13 wafers (15%)
-  · Hard bin and soft bin 2 (Fail (1 test)) (same dies) occurrence 8.1 percentage points higher than the rest of the map — seen on 3/13 wafers (23%)
-  · Yield is 22.2 percentage points lower than the rest of the map — seen on 3/13 wafers (23%)
+  · Spatial pattern: edge (edge-local on 4, edge-ring on 1) — seen on 5/13 wafers (38%)
+  · Limit fail rate for idsat_n_uA is 2.0 pp higher than the rest of the wafer — higher on 9/13 wafers, all wafers' data combined
+  · Limit fail rate for idsat_p_uA is 2.9 pp higher than the rest of the wafer — higher on 10/13 wafers, all wafers' data combined
   · ▶Wafer Yield (49.8–98.2%) · median 73.8%
-  · W01 · TT395.5%  [aria="W01 · TT, 95.5% yield, 3 findings — open wafer"]
-  · W02 · FF71.9%  [aria="W02 · FF, 71.9% yield — open wafer"]
-  · W03 · TT195.5%  [aria="W03 · TT, 95.5% yield, 1 finding — open wafer"]
-  · W04 · SS258.4%  [aria="W04 · SS, 58.4% yield, 2 findings — open wafer"]
-  · W05 · TT394.6%  [aria="W05 · TT, 94.6% yield, 3 findings — open wafer"]
-  · W06 · FS873.3%  [aria="W06 · FS, 73.3% yield, 8 findings, 2 unusual — open wafer"]
-  · W07 · TT97.7%  [aria="W07 · TT, 97.7% yield — open wafer"]
-  · W08 · SF971.0%  [aria="W08 · SF, 71.0% yield, 9 findings — open wafer"]
-  · W09 · TT98.2%  [aria="W09 · TT, 98.2% yield — open wafer"]
-  · W10 · FF275.1%  [aria="W10 · FF, 75.1% yield, 2 findings — open wafer"]
-  · W11 · SS349.8%  [aria="W11 · SS, 49.8% yield, 3 findings — open wafer"]
-  · W12 · FS272.9%  [aria="W12 · FS, 72.9% yield, 2 findings — open wafer"]
-  · W13 · SF1373.8%  [aria="W13 · SF, 73.8% yield, 13 findings — open wafer"]
-  · ▶Hard Bin Breakdown — % of dies (N=2873)
+  · W01 · TT995.5%+21.7  [aria="W01 · TT, 95.5% yield, 9 findings, 1 unusual — open wafer"]
+  · W02 · FF71.9%−1.8  [aria="W02 · FF, 71.9% yield — open wafer"]
+  · W03 · TT1095.5%+21.7  [aria="W03 · TT, 95.5% yield, 10 findings, 5 unusual — open wafer"]
+  · W04 · SS258.4%−15.4  [aria="W04 · SS, 58.4% yield, 2 findings — open wafer"]
+  · W05 · TT994.6%+20.8  [aria="W05 · TT, 94.6% yield, 9 findings, 1 unusual — open wafer"]
+  · W06 · FS1073.3%−0.5  [aria="W06 · FS, 73.3% yield, 10 findings, 4 unusual — open wafer"]
+  · W07 · TT397.7%+24.0  [aria="W07 · TT, 97.7% yield, 3 findings — open wafer"]
+  · W08 · SF771.0%−2.7  [aria="W08 · SF, 71.0% yield, 7 findings — open wafer"]
+  · W09 · TT598.2%+24.4  [aria="W09 · TT, 98.2% yield, 5 findings — open wafer"]
+  · W10 · FF375.1%+1.4  [aria="W10 · FF, 75.1% yield, 3 findings — open wafer"]
+  · W11 · SS349.8%−24.0  [aria="W11 · SS, 49.8% yield, 3 findings — open wafer"]
+  · W12 · FS372.9%−0.9  [aria="W12 · FS, 72.9% yield, 3 findings — open wafer"]
+  · W13 · SF1373.8%0.0  [aria="W13 · SF, 73.8% yield, 13 findings, 1 unusual — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=2,873)
   · ▶Ring Yield
   · ▶Test Values (6) — 13 wafers pooled · N=2,873
   · Test values CSV
@@ -126,13 +128,13 @@ Menu — Choose how to pick files to open:
     · Choose files…
         hint: Pick individual files in the usual dialog
     · Scan a folder…
-        hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table
+        hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table Folders are read in your browser — no files are uploaded.
 
 Menu — Choose how to pick files to add:
     · Choose files…
         hint: Pick individual files in the usual dialog
     · Scan a folder…
-        hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table
+        hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table Folders are read in your browser — no files are uploaded.
 
 Menu — Setup ▾:
     · Tests…
@@ -145,9 +147,11 @@ Menu — Setup ▾:
         hint: Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer
     · ☑Show test-value findings  [checked]
         hint: Add regional test-value findings to the summary panel (slower on large loads)
+    · Sweeps…
+        hint: Load a sweeps file: runs of tests read as response curves, in Insights → Sweeps
 
 Menu — Plot mode:
-    · Test Value ▶  [unchecked]
+    · Test Value ▶  [unchecked, opens menu]
     · Hard Bin  [checked]
     · Soft Bin  [unchecked]
     · Stacked Test Values  [unchecked]
@@ -159,21 +163,24 @@ Menu — Colour scheme:
     · ✓Colour-blind safe  [unchecked]
 
 Menu — Overlays:
+    · ✓Compact layout  [unchecked, disabled]
+    · Layout diagnostics
     · ✓Ring boundaries  [unchecked]
     · ✓Quadrant lines  [unchecked]
     · ✓Die labels  [unchecked]
     · ✓XY indicator  [unchecked]
+    · ✓Axis labels  [unchecked]
     · ✓Mark failing dies  [unchecked]
     · Clear overlays  [disabled]
 
 Menu — Legend style:
-    · ✓Default (right)  [checked]
-    · ✓Compact (right)  [unchecked]
-    · ✓Left  [unchecked]
-    · ✓Top  [unchecked]
-    · ✓Bottom  [unchecked]
-    · ✓Floating  [unchecked]
     · ✓Legend on each map  [unchecked]
+    · ✓Default (right)  [unchecked, disabled]
+    · ✓Compact (right)  [unchecked, disabled]
+    · ✓Left  [unchecked, disabled]
+    · ✓Top  [unchecked, disabled]
+    · ✓Bottom  [unchecked, disabled]
+    · ✓Floating  [unchecked, disabled]
 
 Menu — Orientation:
     · ✓Rotate 90° clockwise  [unchecked]
@@ -188,6 +195,58 @@ Menu — Columns:
     · 3 columns  [unchecked]
     · 4 columns  [unchecked]
     · 5 columns  [unchecked]
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
+
+Menu — Chart this wafer (or right-click):
+    · Value histogram
+    · Process capability
 
 Dialog — Splits…
     · Maximize (F)

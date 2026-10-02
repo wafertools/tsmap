@@ -31,9 +31,9 @@ beforeEach(() => store.clear());
 
 describe('addRecentFiles', () => {
   it('records a single file with its basename as the label', () => {
-    addRecentFiles(['/home/paul/lots/WT1234.stdf']);
+    addRecentFiles(['/data/lots/WT1234.stdf']);
     const [entry] = getRecentFiles();
-    expect(entry.paths).toEqual(['/home/paul/lots/WT1234.stdf']);
+    expect(entry.paths).toEqual(['/data/lots/WT1234.stdf']);
     expect(entry.label).toBe('WT1234.stdf');
   });
 

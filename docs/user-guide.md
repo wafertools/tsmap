@@ -544,8 +544,8 @@ The overlay pre-fills a role for any column whose header exactly matches one of 
 
 | Role | Recognised column names |
 |------|--------------------------|
-| **X position** | `x`, `die_x`, `x_loc`, `xloc`, `col`, `column`, `step_x`, `stepx`, `diex`, `xstep`, `x_step`, `xcoord`, `x_coord`, `xpos`, `x_pos` |
-| **Y position** | `y`, `die_y`, `y_loc`, `yloc`, `row`, `step_y`, `stepy`, `diey`, `ystep`, `y_step`, `ycoord`, `y_coord`, `ypos`, `y_pos` |
+| **X position** | `x`, `die_x`, `x_loc`, `xloc`, `col`, `column`, `step_x`, `stepx`, `diex`, `xstep`, `x_step`, `xcoord`, `x_coord`, `xpos`, `x_pos`, `chip_x`, `chipx`, `position_x`, `positionx` |
+| **Y position** | `y`, `die_y`, `y_loc`, `yloc`, `row`, `step_y`, `stepy`, `diey`, `ystep`, `y_step`, `ycoord`, `y_coord`, `ypos`, `y_pos`, `chip_y`, `chipy`, `position_y`, `positiony` |
 | **Hard bin** | `hbin`, `hard_bin`, `h_bin`, `hardbin`, `hb`, `hbn`, `bin`, `hard_bin_num`, `hbin_num` |
 | **Soft bin** | `sbin`, `soft_bin`, `s_bin`, `softbin`, `sb`, `sbn`, `soft_bin_num`, `sbin_num` |
 | **Wafer ID** | `wafer`, `wafer_id`, `waferid`, `wafer_num`, `wafernum`, `wid`, `wafer_no`, `waferno`, `wfr`, `wfr_id`, `wnum` |
@@ -567,8 +567,33 @@ A header that misses this list is still often caught: a regex fallback recognise
 shapes of the same names (different separators/casing — `Test Number`, `t-num`), and
 anything left over falls back to a fuzzy match — a numeric column becomes **Test value**
 unless a fragment of its name (`id`, `index`, `count`, `date`, a unit like `mm`, …) marks it
-as something other than a test. **Test value** itself has no fixed name list for this reason:
+as something other than a test. Run conditions and provenance fields are caught the same way
+even when their values are numbers: a test or chuck temperature (`Test Temp`, `Temp (C)`), operator,
+program, recipe, burn-in or stress time, slot, station, revision and similar come in as **Display
+info**, not as tests. A bare `Temp Sensor 1` or `Frequency` stays a test, since it can be a
+measurement. **Test value** itself has no fixed name list for this reason:
 it's the fallback role for a numeric column nothing else claimed, not a pattern match.
+A role that takes one column (X, Y, bins, wafer, lot, site and the long-format columns) is given to
+the best match only. When two columns look like the same role, the stronger match keeps it, the
+earlier column wins a tie, and the other becomes **Display info** with a note saying why.
+
+**Columns skipped by default.** Some columns are worked out again on every load, so reading them
+would only put a second copy beside the live one: `Ring`, `Quadrant` and `Edge excluded`, and a
+derived test's column (its header ends in `[derived from …]`). These are what a wafer map's die-list
+export writes, and they are matched by their words, so `edge_excluded` and `EdgeExcluded` count too.
+They start as **— ignore —**, and the row says so. To keep one anyway, choose another role (for
+example **Display info**, with **Subdivide file by this column** if it splits the file). The wafer
+geometry columns an export also writes (`Centre die X/Y`, `Die height`, `Wafer diameter` and the
+like) are not skipped: they come in as **Display info**.
+
+A bare `bin` is the weakest claim on **Hard bin**: when a file also has `Hard bin`, `hbin` or
+`h-bin`, that column is the hard bin and `bin` becomes **Display info**. Soft bins work the same way.
+
+**Saved mappings.** The roles you confirm are remembered for that exact set of column headers, and
+the next file with the same headers opens with them; the dialog says so. **Reset to auto-detected**
+returns every column to detection and forgets the saved mapping. It is greyed out while the dialog
+already matches detection.
+
 Nothing in this section is a hard rule — whatever role a column lands on, reassign it in the
 overlay before continuing; no data is imported until you confirm.
 
@@ -919,6 +944,18 @@ For a full walkthrough of toolbar controls, plot modes, overlays, zoom and pan, 
 tooltips, the findings panel, the summary panel, and gallery controls, see the
 [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/) — in the app it
 follows immediately below in this same window, not a separate page.
+
+### Multi-project wafers
+
+On a multi-project wafer each reticle holds only a few of one product's dies, so the map is mostly empty and every die is
+tiny. When the occupied columns and rows repeat at a regular pitch, the map's **Overlays** menu offers **Compact layout**,
+which removes the empty rows and columns and outlines each group of dies; the
+[full wafer map guide](https://wafertools.github.io/wafermap/user-guide/#compact-layout) describes it. Every die is still
+counted, so yield and the findings do not change, and the labels give the original die coordinates.
+
+If a layout is not recognised the way you expect, open **Layout diagnostics** in the same menu. It shows counts and
+scores only, with no die positions, bins, test values or wafer names. **Save as file** writes it with the native save
+dialog, and **Copy** puts it on the clipboard, so it can be sent to whoever supports tsmap without sharing the data.
 
 ### Zooming the interface
 

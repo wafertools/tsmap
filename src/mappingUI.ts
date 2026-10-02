@@ -76,8 +76,8 @@ export function isTypeMismatch(role: ColRole, colType: 'number' | 'bool' | 'stri
 type ColRole = 'x' | 'y' | 'hbin' | 'sbin' | 'wafer' | 'lot' | 'site' | 'testname' | 'testnumber' | 'testvalue' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'units' | 'test' | 'metadata' | '';
 
 const EXACT_ROLES: { role: ColRole; patterns: string[] }[] = [
-  { role: 'x',         patterns: ['x','die_x','x_loc','xloc','col','column','step_x','stepx','diex','xstep','x_step','xcoord','x_coord','xpos','x_pos'] },
-  { role: 'y',         patterns: ['y','die_y','y_loc','yloc','row','step_y','stepy','diey','ystep','y_step','ycoord','y_coord','ypos','y_pos'] },
+  { role: 'x',         patterns: ['x','die_x','x_loc','xloc','col','column','step_x','stepx','diex','xstep','x_step','xcoord','x_coord','xpos','x_pos','chip_x','chipx','position_x','positionx'] },
+  { role: 'y',         patterns: ['y','die_y','y_loc','yloc','row','step_y','stepy','diey','ystep','y_step','ycoord','y_coord','ypos','y_pos','chip_y','chipy','position_y','positiony'] },
   { role: 'hbin',      patterns: ['hbin','hard_bin','h_bin','hardbin','hb','hbn','bin','hard_bin_num','hbin_num'] },
   { role: 'sbin',      patterns: ['sbin','soft_bin','s_bin','softbin','sb','sbn','soft_bin_num','sbin_num'] },
   { role: 'wafer',     patterns: ['wafer','wafer_id','waferid','wafer_num','wafernum','wid','wafer_no','waferno','wfr','wfr_id','wnum'] },
@@ -97,8 +97,8 @@ const EXACT_ROLES: { role: ColRole; patterns: string[] }[] = [
 ];
 
 const REGEX_ROLES: { role: ColRole; re: RegExp }[] = [
-  { role: 'x',     re: /^(?:die[_\s-]?x|x[_\s-]?(?:pos(?:ition)?|loc(?:ation)?|coord|idx|index|step)|col(?:umn)?[_\s-]?(?:idx|index|num|pos)|step[_\s-]?x|chip[_\s-]?x)$/ },
-  { role: 'y',     re: /^(?:die[_\s-]?y|y[_\s-]?(?:pos(?:ition)?|loc(?:ation)?|coord|idx|index|step)|row[_\s-]?(?:idx|index|num|pos)|step[_\s-]?y|chip[_\s-]?y)$/ },
+  { role: 'x',     re: /^(?:die[_\s-]?x|x[_\s-]?(?:pos(?:ition)?|loc(?:ation)?|coord(?:inate)?|idx|index|step|column)|col(?:umn)?[_\s-]?(?:idx|index|num|pos)|step[_\s-]?x|chip[_\s-]?x|position[_\s-]?x)$/ },
+  { role: 'y',     re: /^(?:die[_\s-]?y|y[_\s-]?(?:pos(?:ition)?|loc(?:ation)?|coord(?:inate)?|idx|index|step|row)|row[_\s-]?(?:idx|index|num|pos)|step[_\s-]?y|chip[_\s-]?y|position[_\s-]?y)$/ },
   { role: 'hbin',  re: /^(?:hard[_\s-]?bin(?:[_\s-]?(?:num|no|number))?|h[_\s-]?bin(?:[_\s-]?(?:num|no))?|bin[_\s-]?(?:num|no|number|code|result)|bin(?:_?num)?)$/ },
   { role: 'sbin',    re: /^(?:soft[_\s-]?bin(?:[_\s-]?(?:num|no|number))?|s[_\s-]?bin(?:[_\s-]?(?:num|no))?)$/ },
   { role: 'wafer',   re: /^(?:wafer[_\s-]?(?:id|num|no|number|name|idx|index)?|wfr[_\s-]?(?:id|num|no)?|wid|w[_\s-]?num)$/ },
@@ -117,34 +117,145 @@ const REGEX_ROLES: { role: ColRole; re: RegExp }[] = [
   { role: 'testvalue', re: /^(?:test[_\s-]?(?:val(?:ue)?|result)|result[_\s-]?val(?:ue)?|meas(?:ured)?[_\s-]?(?:val(?:ue)?|result))$/ },
 ];
 
-const STRUCTURAL_DISQUALIFIERS = new Set(['id','idx','index','count','total','num','number','no','diameter','radius','pitch','size','width','height','mm','um','nm','time','sec','ms','us','date','ts','timestamp']);
-const NON_TEST_TOKENS = new Set(['index','idx','num','no','number','id','count','grid','rows','cols','size','width','height','bits','label','class','site','head','seq','order','rank','flag','code','type','ver','rev','mm','um','nm','sec','ms','us','ns','time','duration','elapsed','diameter','radius','pitch']);
+const STRUCTURAL_DISQUALIFIERS = new Set([
+  'id','idx','index','count','total','num','number','no',
+  'diameter','radius','pitch','size','width','height','mm','um','nm',
+  'time','sec','ms','us','date','ts','timestamp',
+  // Terms that indicate a column is NOT a simple position column
+  'centre','center','increases','increase','increments','increment',
+  'delta','change','diff','shift','distance','from',
+  'min','max','range','mean','avg','average','median',
+  'std','stdev','stddev','variance','sum','total',
+  'offset',
+  // Wafer descriptors that are not the wafer's identity
+  'slot','notch','flat','orientation',
+]);
+const BIN_TEXT_TOKENS = new Set(['name','desc','description','label','text','title']);
+const NON_TEST_TOKENS = new Set([
+  'index','idx','num','no','number','id','count','grid','rows','cols','size','width','height','bits','label','class','site','head','seq','order','rank','flag','code','type','ver','rev','mm','um','nm','sec','ms','us','ns','time','duration','elapsed','diameter','radius','pitch',
+  // Structural/derived terms that are never test measurements
+  'centre','center','increases','increase','delta','offset',
+]);
 
 export function tokenize(col: string): string[] {
   return col.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .toLowerCase().split(/[\s_\-./]+/).filter(Boolean);
 }
 
-export function detectRole(col: string, sample: Record<string, string>[]): ColRole {
+// ── Columns the app works out for itself ──────────────────────────────────────
+
+/**
+ * Columns tsmap and wafermap derive from the die positions on every load — the
+ * ones a die-list export writes (Ring, Quadrant, Edge excluded) and a derived
+ * test's `[derived from …]` header. Reading them back in would put a stale copy
+ * beside the live one, so detection leaves them unassigned. The wafer geometry
+ * columns (diameter, die size, centre die, flat, axis directions) are not here:
+ * a file can legitimately supply them, so they stay Display info. Matched on
+ * the column's words, not its exact spelling, and shown in the dialog as skipped
+ * with the way back (any other role, e.g. Display info).
+ */
+const DERIVED_COLUMNS: ReadonlyArray<{ re: RegExp; reason: string }> = [
+  { re: /^(?:ring|quadrant|edge excluded)$/,
+    reason: 'Worked out from the die position, so it is recalculated on load.' },
+];
+
+/** Why this column is skipped by default (it is recalculated on load), or null. */
+export function skipReason(col: string): string | null {
+  if (/\[derived from [^\]]*\]\s*$/i.test(col)) return 'A derived test is recalculated on load from the tests it is built from.';
+  const words = tokenize(col).map(w => (w === 'centre' ? 'center' : w)).join(' ');
+  return DERIVED_COLUMNS.find(d => d.re.test(words))?.reason ?? null;
+}
+
+/**
+ * Words that mark a column as a run condition or provenance field — display
+ * info — even when its values are numbers, which would otherwise make it a test.
+ * Temperature is handled separately (`isTemperatureColumn`): a bare "temp" can
+ * also be a measured value.
+ */
+const CONDITION_TOKENS = new Set([
+  'operator','oper','opr','program','prog','recipe','job','date','burnin','burn','stress','hours','hrs','cycles',
+  'slot','cassette','fab','insertion','stage','station','dut','revision','version',
+  'tester','handler','prober','probe','probecard','loadboard','timestamp',
+  'notch','flow','product','customer','mask','serial',
+]);
+const TEMPERATURE_WORDS = new Set(['temp','temperature','test','chuck','set','setpoint','ambient','wafer','soak','c','f','k','degc','degf','deg','celsius']);
+
+/** A set-point or test temperature ("Test Temp", "Temp (C)", "Chuck Temperature"):
+ *  every word is temperature vocabulary, so a measured "Temp Sensor 1" is not caught. */
+function isTemperatureColumn(col: string): boolean {
+  const t = tokenize(col.replace(/[([][^)\]]*[)\]]/g, ' '));
+  return t.some(w => w === 'temp' || w === 'temperature') && t.every(w => TEMPERATURE_WORDS.has(w));
+}
+
+/** How the column was recognised, strongest first. A role claimed by two columns
+ *  goes to the stronger match; a tie to the earlier column. */
+const RANK = { exact: 0, limit: 1, regex: 2, words: 3, generic: 4, fallback: 5 } as const;
+
+/** Bare names that fit a role without saying which kind of it: `bin` is a hard bin only by default,
+ *  so "Hard bin" or `h-bin` beats it however each is spelled. */
+const GENERIC_NAMES = new Set(['bin', 'col', 'column', 'row', 'value', 'val', 'result']);
+interface Detection { role: ColRole; rank: number }
+
+function classify(col: string, sample: Record<string, string>[]): Detection {
+  if (skipReason(col)) return { role: '', rank: RANK.exact };
   const key = col.toLowerCase().trim();
-  for (const { role, patterns } of EXACT_ROLES) if (patterns.includes(key)) return role;
+  for (const { role, patterns } of EXACT_ROLES) {
+    if (patterns.includes(key)) return { role, rank: GENERIC_NAMES.has(key) ? RANK.generic : RANK.exact };
+  }
   // Limit columns: the one table shared with the test-definitions reader.
   // No bare lo/hi here — in a data file those are too loose to claim.
   const limit = limitFieldForHeader(col, { bare: false });
-  if (limit) return limit;
-  for (const { role, re } of REGEX_ROLES) if (re.test(key)) return role;
+  if (limit) return { role: limit, rank: RANK.limit };
+  for (const { role, re } of REGEX_ROLES) if (re.test(key)) return { role, rank: RANK.regex };
   const t = tokenize(col);
   const noDisq = !t.some(s => STRUCTURAL_DISQUALIFIERS.has(s));
-  if ((t.includes('x') || t.includes('col') || t.includes('column')) && !t.includes('y') && noDisq) return 'x';
-  if ((t.includes('y') || t.includes('row')) && !t.includes('x') && noDisq) return 'y';
-  if ((t.includes('hbin') || (t.includes('bin') && !t.includes('soft') && !t.includes('sbin'))) && noDisq) return 'hbin';
-  if ((t.includes('sbin') || (t.includes('bin') && t.includes('soft'))) && noDisq) return 'sbin';
-  if ((t.includes('wafer') || t.includes('wfr')) && !t.includes('lot') && noDisq) return 'wafer';
-  if (t.includes('lot') && !t.includes('sublot') && noDisq) return 'lot';
+  const words = (role: ColRole): Detection => ({ role, rank: RANK.words });
+  if ((t.includes('x') || t.includes('col') || t.includes('column')) && !t.includes('y') && noDisq) return words('x');
+  if ((t.includes('y') || t.includes('row')) && !t.includes('x') && noDisq) return words('y');
+  // A bin's name or description is text about the bin, not the bin number.
+  const textual = t.some(s => BIN_TEXT_TOKENS.has(s));
+  if ((t.includes('hbin') || (t.includes('bin') && !t.includes('soft') && !t.includes('sbin'))) && noDisq && !textual) return words('hbin');
+  if ((t.includes('sbin') || (t.includes('bin') && t.includes('soft'))) && noDisq && !textual) return words('sbin');
+  if ((t.includes('wafer') || t.includes('wfr')) && !t.includes('lot') && noDisq) return words('wafer');
+  if (t.includes('lot') && !t.includes('sublot') && !t.includes('sub') && noDisq) return words('lot');
+  if (isTemperatureColumn(col) || t.some(s => CONDITION_TOKENS.has(s))) return words('metadata');
   // Numeric → test; otherwise metadata
   const sampleVal = sample.find(r => r[col] !== '')?.[col] ?? '';
   const isNumeric = sampleVal !== '' && !isNaN(Number(sampleVal));
-  return (isNumeric && !t.some(s => NON_TEST_TOKENS.has(s))) ? 'test' : 'metadata';
+  return { role: (isNumeric && !t.some(s => NON_TEST_TOKENS.has(s))) ? 'test' : 'metadata', rank: RANK.fallback };
+}
+
+export function detectRole(col: string, sample: Record<string, string>[]): ColRole {
+  return classify(col, sample).role;
+}
+
+/**
+ * The starting role of every column, with the single-valued roles settled: when
+ * several columns look like the same one (a "Wafer" and a "Wafer Slot", two
+ * "X"-ish headers) the strongest match keeps it, the earliest on a tie, and the
+ * others become Display info with a note saying why. Without this the dialog
+ * opened already in the state `validateRoleAssignments` rejects.
+ */
+export function detectRoles(
+  headers: readonly string[],
+  sample: Record<string, string>[],
+): { roles: Record<string, ColRole>; notes: Record<string, string> } {
+  const found = headers.map((h, i) => ({ h, i, ...classify(h, sample) }));
+  const roles: Record<string, ColRole> = {};
+  const notes: Record<string, string> = {};
+  for (const f of found) roles[f.h] = f.role;
+  for (const role of SINGLE_VALUE_ROLES) {
+    const claim = found.filter(f => f.role === role).sort((a, b) => a.rank - b.rank || a.i - b.i);
+    for (const loser of claim.slice(1)) {
+      roles[loser.h] = 'metadata';
+      notes[loser.h] = `Also looked like “${roleLabel(role)}”; “${claim[0].h}” is the better match, so this is kept as display info.`;
+    }
+  }
+  for (const h of headers) {
+    const why = skipReason(h);
+    if (why) notes[h] = why;
+  }
+  return { roles, notes };
 }
 
 // ── localStorage persistence ──────────────────────────────────────────────────
@@ -441,10 +552,7 @@ export async function showMappingOverlay(
   overlay.id = 'tsmap-mapping-overlay';
 
   // Detect initial roles — use saved mapping if available
-  const detectedRoles: Record<string, ColRole> = {};
-  for (const h of headers) {
-    detectedRoles[h] = detectRole(h, sample);
-  }
+  const { roles: detectedRoles, notes: detectionNotes } = detectRoles(headers, sample);
 
   // Build saved role map
   const savedRoles: Record<string, ColRole> = {};
@@ -486,13 +594,18 @@ export async function showMappingOverlay(
 
     const colType = result.columnTypes?.[h];
     const mismatched = colType === 'string' && NUMERIC_ROLES.has(role);
+    // Why detection chose this role, shown only while the row still has it — a
+    // skipped (recalculated) column says so, and so does a demoted duplicate.
+    const note = detectionNotes[h];
+    const noteShown = note !== undefined && role === detectedRoles[h];
 
     tableRows += `
       <tr data-col="${esc(h)}">
         <td class="col-name">${esc(h)}</td>
         <td class="col-arrow">→</td>
         <td class="role-cell"><select>${options}</select><span class="type-mismatch-hint"${mismatched ? '' : ' hidden'}
-             title="This column's values look like text, not numbers — double-check this mapping.">⚠</span></td>
+             title="This column's values look like text, not numbers — double-check this mapping.">⚠</span>${note !== undefined
+          ? `<span class="role-note" data-detected="${esc(detectedRoles[h])}"${noteShown ? '' : ' hidden'}>${esc(skipReason(h) ? 'Skipped. ' : '')}${esc(note)}</span>` : ''}</td>
         <td><input type="text" class="test-name-input" value="${esc(testName)}" placeholder="Test name"
              style="display:${role === 'test' ? 'inline-block' : 'none'}"></td>
         <td class="split-cell" style="visibility:${role === 'metadata' ? 'visible' : 'hidden'}">
@@ -517,7 +630,9 @@ export async function showMappingOverlay(
         <input id="map-filter" type="search" placeholder="Filter columns…" aria-label="Filter columns by name">
         <button id="map-bulk-test" class="btn-secondary" type="button">Shown → Test value</button>
         <button id="map-bulk-ignore" class="btn-secondary" type="button">Shown → Ignore</button>
-        <button id="map-redetect" class="btn-secondary tool-sep" type="button">Reset to auto-detected</button>
+        <button id="map-redetect" class="btn-secondary tool-sep" type="button" disabled
+                title="Return every column to the role detection chose, and forget the mapping saved for this set of columns">Reset to auto-detected</button>
+        <span id="map-saved-note" class="muted" role="status"${saved ? '' : ' hidden'}>Using the mapping you saved for these columns.</span>
         <span id="map-count" class="tool-count"></span>
       </div>
       <div class="mapping-scroll">
@@ -582,12 +697,14 @@ export async function showMappingOverlay(
     const splitCell = tr.querySelector<HTMLElement>('.split-cell')!;
     const splitCheck = tr.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
     const mismatchHint = tr.querySelector<HTMLElement>('.type-mismatch-hint')!;
+    const roleNote = tr.querySelector<HTMLElement>('.role-note');
     const colType = result.columnTypes?.[tr.dataset.col!];
 
     sel.addEventListener('change', () => {
       nameInput.style.display = sel.value === 'test' ? 'inline-block' : 'none';
       splitCell.style.visibility = sel.value === 'metadata' ? 'visible' : 'hidden';
       mismatchHint.hidden = !(colType === 'string' && NUMERIC_ROLES.has(sel.value as ColRole));
+      if (roleNote) roleNote.hidden = sel.value !== roleNote.dataset.detected;
       if (sel.value !== 'metadata') splitCheck.checked = false;
       validationEl.textContent = ''; // stale clash message — re-checked on Continue
     });
@@ -632,13 +749,27 @@ export async function showMappingOverlay(
   // Re-detect discards the saved mapping for this header set as well as the
   // on-screen state — otherwise the next load of the same file would silently
   // restore what the user just reset.
-  overlay.querySelector('#map-redetect')!.addEventListener('click', () => {
+  const redetectBtn = overlay.querySelector<HTMLButtonElement>('#map-redetect')!;
+  const savedNote = overlay.querySelector<HTMLElement>('#map-saved-note')!;
+  // Nothing to reset until the dialog differs from detection (a saved mapping, or
+  // a role changed here). Evaluated on every role change, bulk assign included.
+  let savedInUse = saved !== null;
+  const refreshReset = (): void => {
+    redetectBtn.disabled = !savedInUse && !rowEls.some(tr =>
+      tr.querySelector<HTMLSelectElement>('select')!.value !== (detectedRoles[tr.dataset.col!] ?? ''));
+  };
+  for (const tr of rowEls) tr.querySelector('select')!.addEventListener('change', refreshReset);
+  refreshReset();
+  redetectBtn.addEventListener('click', () => {
     for (const tr of rowEls) {
       const sel = tr.querySelector<HTMLSelectElement>('select')!;
       sel.value = detectedRoles[tr.dataset.col!] ?? '';
       sel.dispatchEvent(new Event('change'));
     }
     forgetMapping(headers);
+    savedInUse = false;
+    savedNote.hidden = true;
+    refreshReset();
   });
 
   const passBinInput = overlay.querySelector<HTMLInputElement>('#pass-bin-input')!;

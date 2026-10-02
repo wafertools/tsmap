@@ -1488,7 +1488,7 @@ function showEmptyState() {
         <!-- Same wafer glyph as public/tsmap-favicon.ico/tsmap-favicon-*.png
              (the wafertools icon family — wafer body, grid, notch, one
              highlighted "anchor" die), shape data copied verbatim from
-             /home/paul/Pictures/wafertools-icons/wafertools-icon-template.svg.
+             the icon family's template SVG.
              Theme-tinted (var(--border-dim), matching the "Load sample
              data" button's own border right below it), unlike the
              favicon's fixed brand colours — this has to stay legible and

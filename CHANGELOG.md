@@ -4,6 +4,48 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.1.43] — 2026-10-02
+
+### Added
+
+- **Compact layout for multi-project wafers.** The wafer map's **Overlays** menu has a **Compact layout** row, offered
+  when the occupied columns and rows repeat at a regular pitch: the empty rows and columns are removed and each
+  group of dies is outlined, so a sparse reticle layout fills the map. Every die is still drawn and counted, and
+  hover text and axis labels give original die coordinates. In a gallery all cards share one layout and are as tall as
+  it needs. (wafermap)
+- **Layout diagnostics.** A **Layout diagnostics** row in the same menu shows what the layout detector saw as counts and
+  scores only, with **Copy** and **Save as file**; Save as file uses the native save dialog. (wafermap)
+- **An Axis labels row in the Overlays menu** shows the die-coordinate labels all the time or hides them; in the compact
+  layout they mark each group of dies. (wafermap)
+- **Rotating or flipping a map switches the XY indicator on**, so the direction of the die coordinates is visible;
+  it stays on until switched off in the Overlays menu. (wafermap)
+- **A wafer opened in its own window widens for the Summary panel**, so the map keeps its size. (wafermap)
+- **A lot's yield or a test's mean can be flagged as drifting across the wafers**, listed as a **Watch** line in the
+  Summary panel and the lot report for lots of five or more wafers. (wafermap)
+
+### Changed
+
+- **The Summary panel opens with "What stands out"**, a headline and up to three items ranked by the dies each costs,
+  and the HTML reports open with the same section in a new layout; a click on a finding in a report opened from the
+  panel shows it on the map. Findings use "Minor" for the weakest severity. (wafermap)
+- **Lot findings decide a repeated spatial pattern from the whole lot**, merge adjacent regions into one finding
+  ("Sectors E–N"), and name outlier wafers by one rule shared with the Wafer Yield list. Findings and their counts can
+  change. (wafermap)
+- **The report builders load when a report is opened**, taking about 10 KB gzipped out of the initial download. (wafermap)
+
+- **Column mapping skips columns that are recalculated on load.** `Ring`, `Quadrant`, `Edge excluded` and a
+  derived test's `[derived from …]` column start as "— ignore —", and the row says why. They are matched by their
+  words, not an exact spelling, and any other role (for example Display info) can be chosen instead.
+- **A role that takes one column is given to the best match only.** When two columns look like the same role, the
+  stronger match keeps it (the earlier column on a tie; a bare `bin` yields to `Hard bin`, `hbin` or `h-bin`) and the other becomes Display info with a note, so the dialog
+  opens in a state that can be confirmed.
+- **Run conditions and provenance are detected as Display info when numeric.** Test and chuck temperature, operator,
+  program, recipe, burn-in and stress time, slot, station, revision and similar no longer come in as tests.
+  `Sub Lot`, `Wafer Slot`, `Wafer Notch` and a bin's name or description are not taken as lot, wafer or bin columns.
+- **The mapping dialog says when a saved mapping is in use,** and "Reset to auto-detected" is available only when
+  the dialog differs from detection.
+- **More X/Y names are recognised:** `chip_x`, `position_x`, `X Coordinate`, `Y Row` and their Y equivalents.
+
 ## [0.1.42] — 2026-09-27
 
 ### Breaking

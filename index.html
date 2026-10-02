@@ -1410,8 +1410,9 @@
       /* Role cell holds the select plus an optional numeric/string
          type-mismatch hint (Parquet's typed columns only — CSV/JSON never set
          it) — flex so the fixed-width icon doesn't force the select to wrap. */
-      .role-cell { display: flex; align-items: center; gap: 4px; }
+      .role-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
       .role-cell select { flex: 1; width: auto; min-width: 0; }
+      .role-note { flex-basis: 100%; color: var(--text-muted, inherit); font-size: 12px; }
       .type-mismatch-hint { color: var(--warn-text); font-size: 13px; flex-shrink: 0; cursor: help; }
       .test-name-input {
         background: var(--bg-input); border: 1px solid var(--border-mid); color: var(--text-secondary);

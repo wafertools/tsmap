@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tokenize, detectRole, validateRoleAssignments, isTypeMismatch, validateXYAssignment } from './mappingUI';
+import { tokenize, detectRole, detectRoles, skipReason, validateRoleAssignments, isTypeMismatch, validateXYAssignment } from './mappingUI';
 
 const noSample: Record<string, string>[] = [];
 const numericSample = (col: string, val = '1.5'): Record<string, string>[] => [{ [col]: val }];
@@ -18,10 +18,10 @@ describe('tokenize', () => {
 // ── detectRole ────────────────────────────────────────────────────────────────
 
 describe('detectRole — x/y', () => {
-  it.each(['x', 'die_x', 'xloc', 'col', 'column', 'step_x'])('detects x: %s', col => {
+  it.each(['x', 'die_x', 'xloc', 'col', 'column', 'step_x', 'chip_x', 'chipx', 'position_x', 'positionx'])('detects x: %s', col => {
     expect(detectRole(col, noSample)).toBe('x');
   });
-  it.each(['y', 'die_y', 'yloc', 'row', 'step_y'])('detects y: %s', col => {
+  it.each(['y', 'die_y', 'yloc', 'row', 'step_y', 'chip_y', 'chipy', 'position_y', 'positiony'])('detects y: %s', col => {
     expect(detectRole(col, noSample)).toBe('y');
   });
 });
@@ -110,6 +110,32 @@ describe('detectRole — test vs metadata fallback', () => {
   it('classifies empty-sample numeric-looking column as metadata', () => {
     // No sample data — cannot confirm numeric
     expect(detectRole('mystery', noSample)).toBe('metadata');
+  });
+
+  it.each([
+    'Centre die X', 'Centre die Y', 'Center die X', 'Center die Y',
+    'centre_die_x', 'centre_die_y', 'center_die_x', 'center_die_y',
+    'X Min', 'Y Min', 'X Max', 'Y Max',
+    'X Range', 'Y Range', 'X Mean', 'Y Mean',
+    'X Avg', 'Y Avg', 'X StdDev', 'Y StdDev',
+  ])('does not detect %s as position column', col => {
+    expect(detectRole(col, noSample)).not.toBe('x');
+    expect(detectRole(col, noSample)).not.toBe('y');
+  });
+
+  it.each(['delta_x', 'delta_y', 'offset_x', 'offset_y'])('classifies %s as metadata when numeric', col => {
+    expect(detectRole(col, numericSample(col))).toBe('metadata');
+  });
+
+  it.each([
+    'X Y Increases', 'X Y Increase', 'x y increases', 'x y increase',
+    'X Y Delta', 'Y X Delta', 'delta_x', 'delta_y',
+    'X Change', 'Y Change', 'X Offset', 'Y Offset',
+    'X Y Increments', 'delta X', 'delta Y',
+    'change_x', 'change_y', 'diff_x', 'diff_y',
+  ])('does not detect %s as position column', col => {
+    expect(detectRole(col, noSample)).not.toBe('x');
+    expect(detectRole(col, noSample)).not.toBe('y');
   });
 });
 
@@ -221,5 +247,91 @@ describe('validateXYAssignment', () => {
   });
   it('rejects y mapped without x', () => {
     expect(validateXYAssignment({ x: null, y: 'colY' })).toMatch(/both X and Y/);
+  });
+});
+
+// ── Columns recalculated on load ──────────────────────────────────────────────
+
+describe('skipReason — columns the app works out for itself', () => {
+  it.each([
+    'Ring', 'Quadrant', 'Edge excluded', 'edge_excluded', 'EdgeExcluded',
+    'Vth [derived from Vth_n - Vth_p]',
+  ])('skips %s', col => {
+    expect(skipReason(col)).not.toBeNull();
+    expect(detectRole(col, numericSample(col))).toBe('');
+  });
+
+  it.each([
+    'Ring Oscillator', 'ring_freq', 'Quadrant Yield', 'Die Size', 'Wafer', 'Wafer ID', 'Wafer Notch',
+    'Wafer Slot', 'X', 'Y', 'Die X', 'delta_x', 'X Offset', 'Temperature', 'Vth',
+    // wafer geometry a file may supply: kept as display info, not skipped
+    'Centre die X', 'Center die Y', 'X Increases', 'Die Height', 'Die Width', 'Wafer Diameter', 'Wafer Flat',
+  ])('does not skip %s', col => {
+    expect(skipReason(col)).toBeNull();
+  });
+});
+
+// ── Standard run-condition and provenance columns ─────────────────────────────
+
+describe('detectRole — standard condition columns are display info, not tests', () => {
+  it.each([
+    'Temperature', 'Temp', 'Test Temp', 'Test Temperature', 'Temp (C)', 'temp_c', 'Chuck Temp', 'TestTemp', 'Set Temperature',
+    'Operator', 'Operator ID', 'Oper', 'Test Program', 'Program Rev', 'Job Name', 'Recipe',
+    'Burn-in Time', 'burnin_time', 'Burn-in Hours', 'burnin_hrs', 'Stress Hours', 'Stress Cycles',
+    'Tester ID', 'Handler', 'Probe Card', 'Loadboard', 'Product', 'Customer', 'Mask Set',
+    'Slot', 'Wafer Slot', 'Cassette', 'Fab', 'Station', 'DUT', 'Revision', 'Software Version', 'Timestamp', 'Test Date',
+  ])('%s with numeric values is metadata', col => {
+    expect(detectRole(col, numericSample(col, '25'))).toBe('metadata');
+  });
+
+  it.each(['Temp Sensor 1', 'Temperature Coefficient', 'Vth', 'Idsat', 'Frequency'])(
+    '%s with numeric values is still a test', col => {
+      expect(detectRole(col, numericSample(col, '25'))).toBe('test');
+    });
+});
+
+describe('detectRole — near-misses of the main roles', () => {
+  it.each([['Sub Lot', 'metadata'], ['Sublot', 'metadata'], ['Lot ID', 'lot'], ['Lot Number', 'lot'],
+    ['Wafer Notch', 'metadata'], ['Wafer Slot', 'metadata'], ['Wafer ID', 'wafer'], ['Wafer Number', 'wafer'],
+    ['Bin Name', 'metadata'], ['Bin Description', 'metadata'], ['Soft Bin Name', 'metadata'],
+    ['Hard bin', 'hbin'], ['Bin Number', 'hbin']] as const)('%s → %s', (col, role) => {
+    expect(detectRole(col, numericSample(col, 'abc'))).toBe(role);
+  });
+});
+
+// ── One column per main role, settled at detection ────────────────────────────
+
+describe('detectRoles — single-valued roles', () => {
+  it('gives each main role to one column, and says why the others lost it', () => {
+    const headers = ['Wafer', 'Wafer Name', 'Wafer Slot', 'X', 'Die X', 'Y', 'Hard bin', 'HBin'];
+    const { roles, notes } = detectRoles(headers, []);
+    const claimed = (r: string) => headers.filter(h => roles[h] === r);
+    for (const r of ['wafer', 'x', 'y', 'hbin']) expect(claimed(r).length).toBeLessThanOrEqual(1);
+    expect(roles['Wafer']).toBe('wafer');
+    expect(roles['X']).toBe('x');
+    expect(roles['Wafer Name']).toBe('metadata');
+    expect(notes['Wafer Name']).toMatch(/better match/);
+    expect(validateRoleAssignments(headers.map(col => ({ col, role: roles[col] })))).toBeNull();
+  });
+
+  it('prefers the stronger match, then the earlier column', () => {
+    expect(detectRoles(['die_col_number_x', 'X'], []).roles).toMatchObject({ X: 'x' });
+    // a bare `bin` is the weakest claim: a spelled-out hard bin wins in either order
+    for (const specific of ['Hard bin', 'hbin', 'h-bin', 'HardBin', 'hard_bin', 'HBIN_NUM']) {
+      expect(detectRoles([specific, 'bin'], []).roles).toMatchObject({ [specific]: 'hbin', bin: 'metadata' });
+      expect(detectRoles(['bin', specific], []).roles).toMatchObject({ [specific]: 'hbin', bin: 'metadata' });
+    }
+    for (const specific of ['Soft bin', 'sbin', 's-bin', 'SoftBin']) {
+      expect(detectRoles(['bin', specific], []).roles).toMatchObject({ [specific]: 'sbin', bin: 'hbin' });
+    }
+    expect(detectRoles(['bin_a', 'bin_b'], []).roles).toMatchObject({ bin_a: 'hbin', bin_b: 'metadata' });
+  });
+
+  it('notes a skipped column, and detects the same without a note elsewhere', () => {
+    const { roles, notes } = detectRoles(['Wafer', 'X', 'Y', 'Ring', 'Centre Die X', 'vth'], numericSample('vth'));
+    expect(roles['Ring']).toBe('');
+    expect(roles['Centre Die X']).toBe('metadata');
+    expect(notes['Ring']).toMatch(/recalculated/);
+    expect(notes['vth']).toBeUndefined();
   });
 });
