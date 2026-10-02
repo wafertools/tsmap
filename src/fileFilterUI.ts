@@ -587,10 +587,13 @@ export async function openFileFilterDialog(
         const rows = results.map(r => metaToRow(r, dynamicKeys));
 
 
-        // Ordered by the questions asked when triaging a batch: which file,
-        // which lot and how much of it, when it was tested (with Modified
-        // beside Tested, as the two are read together), what was run, then
-        // file-system detail that rarely decides anything. Lot fields use the
+        // Ordered by the questions asked when triaging a batch: which file
+        // (and, in a mixed scan, of what format, beside its name), which lot
+        // and how much of it, when it was tested and when the file was last
+        // written (Modified and Size sit together — a stale or tiny file stands
+        // out when they are read as a pair — and ahead of the lot fields,
+        // which can be wide enough to push them off screen), then what was run.
+        // Lot fields use the
         // facet table's own labels and order (metadata.ts), so the dialog and
         // the gallery's facets name a field the same way.
         const pick = (key: string) => OPTIONAL_COLUMNS.filter(c => c.key === key);
@@ -598,15 +601,15 @@ export async function openFileFilterDialog(
         const LOT = 'lotId';
         const columns: FilterTableColumn[] = [
           { key: '__name', label: 'Name' },
+          // Only worth a column when there's something to distinguish.
+          ...(formats.size > 1 ? [{ key: '__format', label: 'Format' }] : []),
           ...(dynamicKeySet.has(LOT) ? [fieldCol(LOT)] : []),
           ...pick('waferCount'),
           ...pick('__tested'),
           { key: '__modified', label: 'Modified' },
+          { key: '__size', label: 'Size' },
           ...orderFieldKeys(dynamicKeys).filter(k => k !== LOT).map(fieldCol),
           ...pick('siteCount'),
-          { key: '__size', label: 'Size' },
-          // Only worth a column when there's something to distinguish.
-          ...(formats.size > 1 ? [{ key: '__format', label: 'Format' }] : []),
           ...(errorCount > 0 ? [{ key: '__error', label: 'Error' }] : []),
         ];
 

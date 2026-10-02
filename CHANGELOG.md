@@ -8,6 +8,8 @@ technical record, including internal changes.
 
 ### Changed
 
+- **The file filter shows Format beside Name, and Size beside Modified.** Both come ahead of the lot fields, which can
+  be wide enough to push them off screen. Format still appears only when a scan holds more than one.
 - **The column mapping dialog shows a value count only when the sample proves one.** The hint beside a metadata column's
   **Subdivide file by this column** option reads "(N values in sample)" when the sampled rows differ, and is
   absent otherwise, since a few rows cannot show that a column is constant across the file.
