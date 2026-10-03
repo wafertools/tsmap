@@ -147,8 +147,8 @@ cannot leave the machine.
 
 1. Open files directly: `tsmap lot1.stdf lot2.stdf`.
 2. Supply a pre-built test selection with `--tests`. This **pre-fills** the test selector —
-   checkboxes, renames and any limit/type overrides — but the overlay still appears and still
-   needs a confirm click, exactly as it does for any other load. It saves re-picking the
+   checkboxes, renames and any limit/type overrides — and the overlay still appears and still
+   needs a confirm click, even for a small lot. It saves re-picking the
    tests, not the click.
 3. Seed wafer splits with `--splits`, so an experiment's grouping is applied on open, and
    the program's sweep definitions with `--sweeps`, so Insights → Sweeps is ready too.
@@ -157,7 +157,7 @@ cannot leave the machine.
 
 **What you should see:** the lot opens with its files, test selection, splits and sweeps
 already applied — no file picker, and nothing to re-enter. The test selector still appears for you to
-confirm.
+confirm (a `--tests` file always opens it).
 
 **Reading it correctly:**
 

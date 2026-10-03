@@ -65,6 +65,11 @@ export interface OpenModalOptions {
    * which packs cards to fit rather than scrolling itself).
    */
   bodyOverflow?: 'hidden' | 'auto';
+  /**
+   * Show the maximize button (and honour the F key). Default true; a small
+   * confirmation has nothing to gain from filling the window.
+   */
+  maximizable?: boolean;
 }
 
 export interface HeaderAction {
@@ -100,7 +105,7 @@ const btnStyle: Partial<CSSStyleDeclaration> = {
  * keyboard, and lifecycle behaviour; callers supply only content and teardown.
  */
 export function openModal(options: OpenModalOptions): ModalHandle {
-  const { title, mount, onClose, sizing = 'resizable', bodyOverflow = 'hidden', contentSize } = options;
+  const { title, mount, onClose, sizing = 'resizable', bodyOverflow = 'hidden', contentSize, maximizable = true } = options;
   const resizable = sizing === 'resizable';
   const contentBox = contentSize ?? CONTENT;
 
@@ -191,7 +196,7 @@ export function openModal(options: OpenModalOptions): ModalHandle {
   const maxBtn = makeHeaderBtn(ICONS.maximize, () => (maximized ? 'Restore (F)' : 'Maximize (F)'), 'Maximize');
   const closeBtn = makeHeaderBtn(ICONS.close, 'Close (Esc)', 'Close');
 
-  header.append(titleEl, ...actionBtns, maxBtn, closeBtn);
+  header.append(titleEl, ...actionBtns, ...(maximizable ? [maxBtn] : []), closeBtn);
 
   // Body: position:relative anchors any absolute child (e.g. map banner);
   // flex:1/min-height:0 (never height:100%) sizes correctly in WebView2 — see
@@ -302,7 +307,7 @@ export function openModal(options: OpenModalOptions): ModalHandle {
       close();
       return;
     }
-    if ((e.key === 'f' || e.key === 'F') && !inInput) toggleMaximize();
+    if (maximizable && (e.key === 'f' || e.key === 'F') && !inInput) toggleMaximize();
   }
 
   closeBtn.addEventListener('click', close);

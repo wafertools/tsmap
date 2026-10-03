@@ -3,6 +3,7 @@
 
 import { escapeHtml as esc, testNumberForColumn } from './lib';
 import { upgradeTitleTooltips } from './tooltip';
+import { openModal } from './modal';
 import { parseBinDefsFile, type BinDefEntry } from './binDefs';
 import { storageKey } from './storageKeys';
 import { limitFieldForHeader } from './limitNames';
@@ -464,76 +465,56 @@ function detectLongFormat(mapping: CsvMapping, sample: Record<string, string>[])
 }
 
 /**
+ * A two-button confirmation on `openModal`, so it takes focus, traps Tab, hands
+ * focus back and closes on Escape or the header ✕ — all of which resolve `false`,
+ * the same as Cancel. Escape reaches only this dialog: the mapping overlay's own
+ * Escape handler stands down while any app modal is open (see `onKeyDown` there).
+ */
+function confirmModal(opts: { title: string; message: string; confirmLabel: string }): Promise<boolean> {
+  return new Promise(resolve => {
+    let result = false;
+    const handle = openModal({
+      title: opts.title,
+      sizing: 'content',
+      contentSize: { width: 'min(90vw, 480px)', height: 'auto' },
+      maximizable: false,
+      bodyOverflow: 'auto',
+      onClose: () => resolve(result),
+      mount: (body) => {
+        const modal = document.createElement('div');
+        modal.style.padding = '16px';
+        modal.innerHTML = `
+          <p>${esc(opts.message)}</p>
+          <div class="tsmap-modal-buttons">
+            <button type="button" class="btn-secondary" data-act="cancel">Cancel</button>
+            <button type="button" class="btn-primary" data-act="confirm">${esc(opts.confirmLabel)}</button>
+          </div>`;
+        body.appendChild(modal);
+        modal.querySelector('[data-act="cancel"]')!.addEventListener('click', () => handle.close());
+        modal.querySelector('[data-act="confirm"]')!.addEventListener('click', () => { result = true; handle.close(); });
+      },
+    });
+  });
+}
+
+/**
  * Confirmation for proceeding with no X/Y columns mapped at all — every die
  * in the file will have no reported position, so it shows as a die list
- * only, with no wafer map. Mirrors `showLongFormatModal`'s sub-modal pattern
- * (own Escape handler, `stopPropagation` so it only closes itself).
+ * only, with no wafer map.
  */
 function showNoPositionModal(): Promise<boolean> {
-  return new Promise(resolve => {
-    const modal = document.createElement('div');
-    modal.id = 'tsmap-noposition-backdrop';
-    modal.className = 'tsmap-modal-backdrop';
-    modal.innerHTML = `
-      <div class="tsmap-modal" role="dialog" aria-modal="true" aria-labelledby="np-title">
-        <h3 id="np-title">No X/Y columns assigned</h3>
-        <p>Every die in this file will have no reported position, so its card shows a bin/value summary and die list in place of a wafer map. Yield, bin counts, per-test histograms, correlation and other Insights charts, and the exportable die list all work as normal — only spatial analysis (rings, quadrants, clusters) is unavailable for it.</p>
-        <div class="tsmap-modal-buttons">
-          <button id="np-cancel" class="btn-secondary">Cancel</button>
-          <button id="np-confirm" class="btn-primary">Continue without position data</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-
-    const finish = (result: boolean) => {
-      document.removeEventListener('keydown', onKeyDown);
-      modal.remove();
-      resolve(result);
-    };
-    function onKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') { e.stopPropagation(); finish(false); }
-    }
-    document.addEventListener('keydown', onKeyDown);
-
-    modal.querySelector('#np-cancel')!.addEventListener('click', () => finish(false));
-    modal.querySelector('#np-confirm')!.addEventListener('click', () => finish(true));
+  return confirmModal({
+    title: 'No X/Y columns assigned',
+    message: 'Every die in this file will have no reported position, so its card shows a bin/value summary and die list in place of a wafer map. Yield, bin counts, per-test histograms, correlation and other Insights charts, and the exportable die list all work as normal — only spatial analysis (rings, quadrants, clusters) is unavailable for it.',
+    confirmLabel: 'Continue without position data',
   });
 }
 
 function showLongFormatModal(): Promise<boolean> {
-  return new Promise(resolve => {
-    const modal = document.createElement('div');
-    // The id, not just the class, is what the parent overlay's Escape guard
-    // looks for — `.tsmap-modal-backdrop` is now shared with every openModal
-    // dialog, so matching on the class alone would suppress the mapping
-    // overlay's Escape whenever any app modal happened to be open.
-    modal.id = 'tsmap-longformat-backdrop';
-    modal.className = 'tsmap-modal-backdrop';
-    modal.innerHTML = `
-      <div class="tsmap-modal" role="dialog" aria-modal="true" aria-labelledby="lf-title">
-        <h3 id="lf-title">Long-format CSV detected</h3>
-        <p>Multiple rows share the same X/Y coordinates — this looks like long format (one row per test per die). Render will pivot to wide format automatically.</p>
-        <div class="tsmap-modal-buttons">
-          <button id="lf-cancel" class="btn-secondary">Cancel</button>
-          <button id="lf-confirm" class="btn-primary">Render as long format</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-
-    const finish = (result: boolean) => {
-      document.removeEventListener('keydown', onKeyDown);
-      modal.remove();
-      resolve(result);
-    };
-    // Escape closes only this sub-modal (cancel). stopPropagation keeps it from
-    // also reaching the parent mapping overlay's Escape handler.
-    function onKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') { e.stopPropagation(); finish(false); }
-    }
-    document.addEventListener('keydown', onKeyDown);
-
-    modal.querySelector('#lf-cancel')!.addEventListener('click', () => finish(false));
-    modal.querySelector('#lf-confirm')!.addEventListener('click', () => finish(true));
+  return confirmModal({
+    title: 'Long-format CSV detected',
+    message: 'Multiple rows share the same X/Y coordinates — this looks like long format (one row per test per die). Render will pivot to wide format automatically.',
+    confirmLabel: 'Render as long format',
   });
 }
 
@@ -817,21 +798,14 @@ export async function showMappingOverlay(
   };
 
   // Escape cancels the mapping overlay — same path as the Cancel button. Bail
-  // while either nested confirm sub-modal is open (each has its own Escape
-  // handler); we don't want Escape there to also tear down the parent mapping
-  // overlay. Both ids must be checked: `stopPropagation()` in the sub-modals'
-  // own handlers only stops *later* listeners on the same event, not other
-  // listeners already registered on `document` before it (this one, registered
-  // when the overlay opened) — so without this guard, Escape inside either
-  // sub-modal doesn't just dismiss it, it also fires straight through to here
-  // and discards the whole in-progress mapping. showLongFormatModal was
-  // guarded from the start; showNoPositionModal was added later and missed —
-  // that gap is exactly what let this bug through, so if a third sub-modal is
-  // ever added here, it needs the same id added below.
+  // while any app modal is open (the nested confirmations are `openModal`
+  // dialogs, which handle their own Escape): Escape there must dismiss only that
+  // dialog, not also discard the in-progress mapping. This listener was added
+  // when the overlay opened, so it runs before the modal's own and still finds
+  // the modal in the DOM.
   function onKeyDown(e: KeyboardEvent): void {
     if (e.key !== 'Escape') return;
-    if (document.getElementById('tsmap-longformat-backdrop')) return;
-    if (document.getElementById('tsmap-noposition-backdrop')) return;
+    if (document.querySelector('.tsmap-modal-backdrop')) return;
     closeOverlay();
     onCancel();
   }

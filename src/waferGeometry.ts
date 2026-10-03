@@ -100,3 +100,22 @@ export function setWaferGeometry(geometry: WaferGeometry): WaferGeometry {
   setEdgeExclusionMm(normalized.edgeExclusionMm);
   return normalized;
 }
+
+/**
+ * The geometry a launch's `--wafer-diameter` / `--edge-exclusion` give, over the
+ * `current` session values — for this session only. Unlike `setWaferGeometry`
+ * it writes nothing: a command-line flag is the CLI layer, and a layer writes
+ * only to its own level (see the layering note in storageKeys.ts). `current`
+ * supplies whichever of the two the launch did not repeat. `exclusionDropped`
+ * is true when an exclusion was given but no diameter is set to apply it to.
+ */
+export function resolveCliGeometry(
+  args: { waferDiameter?: number | null; edgeExclusion?: number | null },
+  current: WaferGeometry,
+): { geometry: WaferGeometry; exclusionDropped: boolean } {
+  const geometry = normalizeWaferGeometry(
+    args.waferDiameter ?? current.diameterMm,
+    args.edgeExclusion ?? current.edgeExclusionMm,
+  );
+  return { geometry, exclusionDropped: args.edgeExclusion != null && geometry.edgeExclusionMm === undefined };
+}

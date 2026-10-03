@@ -14,7 +14,7 @@
  *
  * Run:  node scripts/check-theme-docs.mjs
  */
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
@@ -79,7 +79,14 @@ checkList('docs/user-guide.md', 'Dark',  /^- \*\*Dark\*\* — ([\s\S]*?)\.$/m);
 // failure, matching check-architecture-docs.mjs. Guarding this was not optional:
 // unguarded, it failed every CI run on v0.1.33.
 const claudePath = resolve(root, 'CLAUDE.md');
-const claude = existsSync(claudePath) ? readFileSync(claudePath, 'utf8') : null;
+// The theming section lives in .claude/rules/ (also local-only), so scan those too.
+const rulesDir = resolve(root, '.claude/rules');
+const claude = existsSync(claudePath)
+  ? [readFileSync(claudePath, 'utf8'),
+     ...(existsSync(rulesDir)
+       ? readdirSync(rulesDir).filter((n) => n.endsWith('.md')).map((n) => readFileSync(resolve(rulesDir, n), 'utf8'))
+       : [])].join('\n')
+  : null;
 const WORDS = ['zero','one','two','three','four','five','six','seven','eight','nine','ten',
                'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
 const countMatch = claude?.match(/([A-Z][a-z]+) themes, grouped for the picker/);

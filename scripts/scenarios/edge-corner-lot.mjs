@@ -146,7 +146,7 @@ export const scenario = {
         // VISIBLE (filtered-to-12) rows — see filterAndSortRows/selectAll.
         ['clickButtonByText', '.tsmap-modal-box', 'Select all'],
         ['wait', 150],
-        ['clickButtonByText', '.tsmap-modal-box', 'Load selection…'],
+        ['clickButtonByText', '.tsmap-modal-box', 'Load selected…'],
         // confirm() is auto-accepted by browser.mjs's newCapturePage.
         ['waitForOverlay', '#tsmap-test-selector-overlay'],
         // 12 files loaded together always triggers the rename overlay

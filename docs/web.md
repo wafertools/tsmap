@@ -18,10 +18,9 @@ lot ID, part type, wafer count and so on — and shows them in a sortable, filte
 you can load only the ones you want. Files are read a few at a time and released again, so
 scanning a big batch doesn't hold it all in memory.
 
-For every STDF and ATDF file, a test selector overlay appears before parsing — pick which
-tests to import, then click **Import**. What varies with size is only whether the tests
-arrive already ticked: a small lot is pre-selected, while a large one starts empty so that
-importing everything can never be the accidental default. A **Setup ▾ → Tests…** entry in the
+For a large STDF or ATDF file, a test selector overlay appears before parsing — pick which
+tests to import, then click **Import**. It starts empty, so that importing everything can
+never be the accidental default. A small lot imports every test straight away. A **Setup ▾ → Tests…** entry in the
 toolbar lets you change your selection at any time after load.
 
 ### "Upload" in the browser's own dialog

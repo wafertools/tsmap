@@ -63,6 +63,9 @@
 import pw from 'playwright';
 const { chromium } = pw;
 
+// A lot over the import-everything budget, so the test selector is offered (testdata/many_tests.stdf is under it).
+const BIG_LOT = process.env.LOAD_CHROME_BIG_LOT
+  || process.env.HOME + '/.cache/wafertools/fixtures/large.stdf';
 const FIX = process.env.LOAD_CHROME_FIXTURE
   || process.env.HOME + '/.cache/wafertools/fixtures/sweep-25000.csv';
 const URL_ = process.env.LOAD_CHROME_URL || 'http://localhost:5301/';
@@ -82,6 +85,8 @@ const page = await br.newPage({ viewport: { width: 1280, height: 800 } });
 page.on('pageerror', e => console.log('PAGE ERROR:', e.message.slice(0, 160)));
 
 await page.goto(URL_, { waitUntil: 'load' });
+// Chromium's showOpenFilePicker does not raise Playwright's filechooser event; the hidden input fallback does.
+await page.evaluate(() => { window.showOpenFilePicker = undefined; });
 
 // Sample from inside the page, so nothing is missed between polls. This scans
 // EVERY visible leaf for busy-looking text, not just #render-progress — the
@@ -143,8 +148,7 @@ const CANCELS = new Set(['cancel-mapping', 'cancel-selector']);
 /** Load the bundled sample lot and wait for it to settle. */
 async function loadSample() {
   await page.getByRole('button', { name: 'Load sample data' }).click();
-  await page.waitForSelector('#tsmap-test-selector-overlay', { timeout: 60000 });
-  await page.getByRole('button', { name: /^Import \d+ tests/ }).click();
+  // The sample is small, so it imports every test with no selector.
   await page.waitForFunction(() => !document.getElementById('render-progress')
     && document.querySelectorAll('.wmap-gallery-card canvas').length > 0, { timeout: 120000 });
   await page.waitForTimeout(1000);
@@ -193,7 +197,9 @@ if (scenario === 'append') {
   await page.click('#map-cancel');
   await page.waitForTimeout(2500);
 } else if (scenario === 'cancel-selector') {
-  await page.getByRole('button', { name: 'Load sample data' }).click();
+  // A lot too big to import without asking: small lots skip the selector.
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#open-btn')]);
+  await chooser.setFiles(BIG_LOT);
   await page.waitForSelector('#tsmap-test-selector-overlay', { timeout: 60000 });
   await page.getByRole('button', { name: 'Cancel' }).click();
   await page.waitForTimeout(2500);
@@ -205,8 +211,7 @@ if (scenario === 'append') {
   // phase then opened a second load nothing would ever close — "Finishing lot
   // summary…" and a sweeping bar forever, toolbar dead behind it.
   await page.getByRole('button', { name: 'Load sample data' }).click();
-  await page.waitForSelector('#tsmap-test-selector-overlay', { timeout: 60000 });
-  await page.getByRole('button', { name: /^Import \d+ tests/ }).click();
+  // The sample is small, so it imports every test with no selector.
   await page.waitForFunction(() => !document.getElementById('render-progress')
     && document.querySelectorAll('.wmap-gallery-card canvas').length > 0, { timeout: 120000 });
   await page.waitForTimeout(1200);
@@ -218,9 +223,8 @@ if (scenario === 'append') {
   // The PRE-BUILT path: 13 wafers is below GALLERY_PROGRESSIVE_DIE_THRESHOLD, so
   // wmap's callbacks land a task after the load has ended. Both 2026-09-20 bugs
   // lived here and in no other scenario.
+  // Small, so it imports every test with no selector.
   await page.getByRole('button', { name: 'Load sample data' }).click();
-  await page.waitForSelector('#tsmap-test-selector-overlay', { timeout: 60000 });
-  await page.getByRole('button', { name: /^Import \d+ tests/ }).click();
 } else {
   // The PROGRESSIVE path, driven through the real button + filechooser so the
   // 'waiting' phase is exercised too (setInputFiles skips the click handler).

@@ -51,7 +51,16 @@ const readArchitecture = (file) => {
   // never a failure — otherwise this guard would fail every CI run.
   const path = resolve(root, file);
   if (!existsSync(path)) return null;
-  const text = readFileSync(path, 'utf8');
+  let text = readFileSync(path, 'utf8');
+  if (file === 'CLAUDE.md') {
+    // The per-area tables live in .claude/rules/ (also local-only); scan them with CLAUDE.md.
+    const rulesDir = resolve(root, '.claude/rules');
+    if (existsSync(rulesDir)) {
+      for (const f of readdirSync(rulesDir).filter((n) => n.endsWith('.md')).sort()) {
+        text += '\n' + readFileSync(resolve(rulesDir, f), 'utf8');
+      }
+    }
+  }
   if (file !== 'README.md') return text;
 
   const section = /^## Architecture\s*$/m.exec(text);

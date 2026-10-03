@@ -77,11 +77,8 @@ const SCENES = [
     dialogs: true,
     setup: async (page) => {
       await page.getByRole('button', { name: 'Load sample data' }).click();
-      await page.waitForSelector('#tsmap-test-selector-overlay', { timeout: 30000 });
-      await page.waitForTimeout(1200);
-      // Import everything, so the loaded scene has test data and its
-      // value-dependent chrome (plot modes, Insights) is present.
-      await page.getByRole('button', { name: /^Import \d+ tests/ }).click();
+      // The sample is small, so every test imports with no selector — the scene
+      // has test data and its value-dependent chrome (plot modes, Insights).
       // Wait for the load to have FINISHED, not for a fixed time. This was a
       // flat 6s, which the 13-wafer sample outgrew once test-value findings
       // began running on their own and bin colours were resolved lot-wide:

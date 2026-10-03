@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   getEdgeExclusionMm, setEdgeExclusionMm,
   getWaferDiameterMm, setWaferDiameterMm,
-  normalizeWaferGeometry, setWaferGeometry,
+  normalizeWaferGeometry, setWaferGeometry, resolveCliGeometry,
 } from './waferGeometry';
 
 const EXCLUSION_KEY = 'tsmap:edge-exclusion-mm';
@@ -168,5 +168,33 @@ describe('setWaferGeometry', () => {
     expect(result).toEqual({ diameterMm: undefined, edgeExclusionMm: undefined });
     expect(getWaferDiameterMm()).toBeUndefined();
     expect(getEdgeExclusionMm()).toBeUndefined();
+  });
+});
+
+describe('resolveCliGeometry', () => {
+  it('uses the CLI values for the session and leaves saved geometry untouched', () => {
+    setWaferGeometry({ diameterMm: 200, edgeExclusionMm: 3 });
+    const before = [...store.entries()];
+    const { geometry, exclusionDropped } = resolveCliGeometry(
+      { waferDiameter: 300, edgeExclusion: 5 },
+      { diameterMm: getWaferDiameterMm(), edgeExclusionMm: getEdgeExclusionMm() },
+    );
+    expect(geometry).toEqual({ diameterMm: 300, edgeExclusionMm: 5 });
+    expect(exclusionDropped).toBe(false);
+    expect([...store.entries()]).toEqual(before);
+    expect(getWaferDiameterMm()).toBe(200);
+    expect(getEdgeExclusionMm()).toBe(3);
+  });
+
+  it('takes the diameter from the current session when only an exclusion is given', () => {
+    expect(resolveCliGeometry({ edgeExclusion: 4 }, { diameterMm: 150, edgeExclusionMm: undefined }).geometry)
+      .toEqual({ diameterMm: 150, edgeExclusionMm: 4 });
+  });
+
+  it('drops an exclusion with no diameter and says so', () => {
+    const r = resolveCliGeometry({ edgeExclusion: 4 }, { diameterMm: undefined, edgeExclusionMm: undefined });
+    expect(r.geometry).toEqual({ diameterMm: undefined, edgeExclusionMm: undefined });
+    expect(r.exclusionDropped).toBe(true);
+    expect(store.size).toBe(0);
   });
 });

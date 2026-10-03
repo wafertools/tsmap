@@ -8,6 +8,15 @@ technical record, including internal changes.
 
 ### Changed
 
+- **The "No X/Y columns assigned" and "Long-format CSV detected" confirmations are standard dialogs.** They take
+  focus when they open, keep Tab inside, return focus on closing, and close on Escape or ✕ (as Cancel) without
+  closing the column mapping dialog behind them.
+- **A small lot imports every test without the test selector.** When tests × dies is within the import-everything
+  budget (the bundled sample is far under it), the selector is skipped and the log reads "N tests imported", with a
+  pointer to **Setup ▾ → Tests…** for filtering afterwards. Larger lots, a `--tests` file, and "scan all files" keep
+  the selector.
+- **`--wafer-diameter` and `--edge-exclusion` apply to the session only.** They no longer overwrite the geometry saved
+  from the Diameter & edge exclusion… dialog, which is used again at the next launch without the flags.
 - **The file filter shows Format beside Name, and Size beside Modified.** Both come ahead of the lot fields, which can
   be wide enough to push them off screen. Format still appears only when a scan holds more than one.
 - **The column mapping dialog shows a value count only when the sample proves one.** The hint beside a metadata column's

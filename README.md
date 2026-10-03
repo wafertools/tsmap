@@ -35,7 +35,7 @@ Discussions](https://github.com/wafertools/.github/discussions).
 - **Coordinate-less dies** — X/Y position is optional; a wafer with no reported position shows a CSV-exportable die list instead of a fabricated map, and a partly-positioned wafer shows both
 - **Charts & Insights** — yield by wafer, bin pareto, per-test box plots and histograms, and a cross-test correlation matrix
 - **Wafer splits** — attach a process corner or experiment group to each wafer, load and save the assignment as CSV, and group every chart by it
-- **Test selector** — for files with many tests, a two-pass flow lets you choose which tests to import before the full parse; the **Lot ▾** menu's "Filter tests…" re-opens the selector after load
+- **Test selector** — for files with many tests, a two-pass flow lets you choose which tests to import before the full parse; **Setup ▾ → Tests…** re-opens the selector after load
 - **Open from a URL** — `tsmap --url <url> --url-format <format>` on desktop, `?dataUrl=&dataFormat=` on the browser build, or a `tsmap://open?url=…` deep link from your own web page. `--url-headers <file>` covers data APIs that authenticate via a header. See [Integrations](https://wafertools.github.io/tsmap/integrating-data-selection/) and the [live demo](https://wafertools.github.io/tsmap/demos/open-from-link.html)
 - **File associations** — **Help → File associations…** (desktop) registers tsmap as the default handler for `.stdf`/`.atdf`/`.parquet`, so double-clicking one in a file manager opens it here
 - **PNG export** — save any wafer map from the toolbar

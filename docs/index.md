@@ -87,7 +87,7 @@ build or the desktop app with a single URL.
 
 | Format | Notes |
 |--------|-------|
-| STDF (`.stdf`, `.std`) | Binary V4 — multi-wafer lots, PTR and FTR tests; test selector always shown |
+| STDF (`.stdf`, `.std`) | Binary V4 — multi-wafer lots, PTR and FTR tests; test selector for large files |
 | ATDF (`.atdf`, `.atd`) | ASCII equivalent of STDF |
 | CSV (`.csv`, `.txt`, `.dat`) | Column mapping step; wide and long (pivot) formats |
 | JSON (`.json`) | Flat array or nested `[{ wafer, results: [{die}] }]` |

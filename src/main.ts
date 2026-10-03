@@ -29,7 +29,7 @@ import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme 
 import { makeMenuSelect } from './menuSelect';
 import { openModal } from './modal';
 import { showSplitsModal } from './splitsUI';
-import { getEdgeExclusionMm, getWaferDiameterMm, normalizeWaferGeometry, setWaferGeometry } from './waferGeometry';
+import { getEdgeExclusionMm, getWaferDiameterMm, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
 import { loadMapColorPrefs, saveMapColorPrefs } from './mapColorPrefs';
 import type { BinDefEntry } from './binDefs';
@@ -2072,7 +2072,8 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
   }
 
   // ── Test selector ─────────────────────────────────────────────────────────
-  // Always shown when any file has test data (non-empty merged testDefs).
+  // Shown when any file has test data (non-empty merged testDefs), unless
+  // importing every test is cheap (see isCheapToImportAll).
   let testSelection: number[] | null = null;
   let overlayTestOverrides: Map<number, TestOverride> = new Map();
 
@@ -2105,10 +2106,14 @@ async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurr
       // Offer "scan all" only with >1 binary file and while still scoped to largest.
       const canScanAll = binaryFiles.length > 1 && scanScope === 'largest';
 
-      // Pre-tick everything when importing the lot is provably cheap. A CLI
-      // --tests preload always wins — it's an explicit instruction.
+      // Skip the selector when importing the lot is provably cheap — there is
+      // nothing to narrow, and a modal that only asks for a click is friction. A
+      // CLI --tests preload always wins: it's an explicit instruction to open it.
+      // Any derived tests already set up stay as they are for the session.
       if (firstOpen && !testListPreload && isCheapToImportAll(allTestNums.size, totalDieCount)) {
-        carrySelection = [...allTestNums];
+        testSelection = [...allTestNums];
+        log('info', `${testSelection.length} test${testSelection.length !== 1 ? 's' : ''} imported — use Setup ▾ → Tests… to filter them`);
+        break;
       }
       firstOpen = false;
 
@@ -2395,16 +2400,13 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
   // session — the gate (normalizeWaferGeometry) only fires when NEITHER
   // source has one, not merely because this launch's argv didn't repeat it.
   if (args.waferDiameter != null || args.edgeExclusion != null) {
-    const normalized = normalizeWaferGeometry(
-      args.waferDiameter ?? waferDiameterMm,
-      args.edgeExclusion ?? edgeExclusionMm,
-    );
-    if (args.edgeExclusion != null && normalized.edgeExclusionMm === undefined) {
+    const { geometry, exclusionDropped } = resolveCliGeometry(args, { diameterMm: waferDiameterMm, edgeExclusionMm });
+    if (exclusionDropped) {
       log('warn', '--edge-exclusion ignored: no wafer diameter is set — pass --wafer-diameter too, or set one via Setup ▾ → Diameter & edge exclusion… first');
     }
-    waferDiameterMm = normalized.diameterMm;
-    edgeExclusionMm = normalized.edgeExclusionMm;
-    setWaferGeometry(normalized);
+    // Session only: not written to storage, so the saved geometry survives the launch.
+    waferDiameterMm = geometry.diameterMm;
+    edgeExclusionMm = geometry.edgeExclusionMm;
   }
   if (args.files.length === 0) {
     if (sweepsChanged && currentWafers.length > 0) rerenderCurrentLot('Rendering');

@@ -36,17 +36,14 @@ the process window, and tsmap labels each one automatically.
 
 ## 3. Import the tests
 
-A **test selector** appears before parsing. This happens for every STDF and ATDF file — it is
-the import step, not a warning.
+The sample lot has 7 tests (six parametric, one functional). A small lot like this imports
+every test straight away, and the log reports "7 tests imported". A large lot instead opens a
+**test selector** before parsing, starting empty, so that "import everything" can never be the
+accidental default. See [Memory advisory](user-guide.md#memory-advisory) for where that line falls.
 
-![Test selector for the sample lot — 7 tests, all pre-ticked](images/tutorial-test-selector.png)
+To choose tests after the load, open **Setup ▾ → Tests…**:
 
-The lot has 7 tests (six parametric, one functional), and all of them are already ticked. Small
-lots arrive pre-selected; a large one starts empty instead, so that "import everything" can
-never be the accidental default. See
-[Memory advisory](user-guide.md#memory-advisory) for where that line falls.
-
-Click **Import 7 tests →**.
+![Test selector for the sample lot — 7 tests, all ticked](images/tutorial-test-selector.png)
 
 **You should now see** a grid of 13 wafer maps, each card titled like `W01 · TT`, with a
 **Summary** panel down the right-hand side, headed *Lot PVT-LOT-05 · 13 wafers* — every wafer

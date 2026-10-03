@@ -12,9 +12,9 @@
  *   testdata/small.stdf         3 wafers, 20 PTR tests — general loading / map flow
  *   testdata/medium.stdf        10 wafers, 100 PTR tests — gallery view
  *   testdata/correlated.stdf    5 wafers, 30 correlated PTR tests — charts
- *   testdata/many_tests.stdf    5 wafers, 250 PTR tests — test selector with nothing
- *                               pre-ticked (over the tests×dies auto-select budget; the
- *                               overlay itself appears for every STDF/ATDF, any size)
+ *   testdata/many_tests.stdf    5 wafers, 250 PTR tests — test selector list (it loads with no
+ *                               selector, being under the tests×dies import-everything budget,
+ *                               so the shot reopens it from Setup ▾ → Tests…)
  *   testdata/small.csv          wide-format CSV — column mapping overlay
  *   testdata/correlated_long.csv  long-format CSV — long-format column mapping
  *
@@ -109,10 +109,15 @@ export const CAPTURES = [
   {
     file: 'test-selector',
     group: 'ui',
-    description: 'Test selector overlay — many_tests.stdf (250 tests)',
+    description: 'Test selector overlay — many_tests.stdf (250 tests), none ticked',
+    // many_tests.stdf is within the import-everything budget, so it loads with no
+    // selector; the shot is the selector reopened from Setup ▾ → Tests…, cleared.
     setup: [
       ['loadFile', TD('many_tests.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
+      ['openTestsDialog'],
+      ['clickButtonByText', '#tsmap-test-selector-overlay', 'Select none'],
+      ['wait', 300],
     ],
     selector: '#tsmap-test-selector-overlay div[role="dialog"]',
   },
@@ -245,18 +250,6 @@ export const CAPTURES = [
     description: 'Single-wafer map — hard bin, summary panel open',
     screenshotFn: async (page, outFile, baseUrl) => {
       await injectFile(page, TD('correlated.stdf'), baseUrl);
-      await waitForSelector(page, '#tsmap-test-selector-overlay');
-      await page.waitForTimeout(400);
-      // Historical behaviour, preserved exactly: this click "Select none" is
-      // superseded a moment later by dismissSelector's own "Select all" —
-      // net effect is all tests selected + imported, same as every other
-      // capture in this file. Kept as-is rather than "fixed" so this image
-      // doesn't change; see M1 harness-extraction notes.
-      await page.evaluate(() => {
-        const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-        btns.find(b => b.textContent?.trim() === 'Select none')?.click();
-      });
-      await page.waitForTimeout(200);
       await dismissSelector(page);
       // Open the summary panel
       await page.evaluate(() => {
@@ -544,19 +537,22 @@ export const CAPTURES = [
   //
   // Deliberately NOT reusing `test-selector` for the tutorial's import step:
   // that one shoots many_tests.stdf (250 tests, nothing pre-ticked) while the
-  // tutorial's lot has 7 tests and arrives fully ticked — the whole point of
+  // tutorial's lot has 7 tests and imports with no selector — the whole point of
   // that paragraph. Showing the 250-test overlay there would contradict the
   // text it illustrates.
 
   {
     file: 'tutorial-test-selector',
     group: 'tutorial',
-    description: 'Test selector for the sample corner lot — 7 tests, all pre-ticked',
+    description: 'Setup ▾ → Tests… for the sample corner lot — 7 tests, all ticked',
     viewport: { width: 1280, height: 800 },
     selector: '#tsmap-test-selector-overlay div[role="dialog"]',
+    // The lot is small, so it imports every test with no selector; the tutorial
+    // shows the selector as reopened from Setup ▾ → Tests… afterwards.
     setup: [
       ['loadFile', SD('PVT-LOT-05.stdf')],
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
+      ['openTestsDialog'],
       ['wait', 400],
     ],
   },

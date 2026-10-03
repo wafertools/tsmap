@@ -226,55 +226,99 @@ async function closeSplitsDialog(page, strict = false) {
 // ─── Test-selector dismissal (also used directly by capture-definitions.mjs's
 // screenshotFn entries — exported, not just switch-case-local) ─────────────
 
-/** Click "Select all" then Import — loads all tests. */
-export async function dismissSelector(page) {
-  await waitForSelector(page, '#tsmap-test-selector-overlay');
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    btns.find(b => b.textContent?.trim() === 'Select all')?.click();
+const SELECTOR_SEL = '#tsmap-test-selector-overlay';
+
+// A small lot imports every test with no selector (main.ts isCheapToImportAll)
+// and says so in the log: "N tests imported". Per page: how many such lines
+// have been accounted for, and whether one was seen by waitForOverlay but not
+// yet consumed by a dismiss step.
+const importState = new WeakMap();
+
+async function importedLineCount(page) {
+  return page.evaluate(() => [...document.querySelectorAll('#log-list *')]
+    .filter(e => !e.children.length && /\d+ tests? imported/.test(e.textContent ?? '')).length);
+}
+
+/**
+ * Wait for the outcome of a load's test step: 'selector' when the selector
+ * overlay is up, 'imported' when a small lot took every test with no selector.
+ * A pending 'imported' outcome is remembered until a dismiss step consumes it,
+ * so `waitForOverlay` followed by `dismissSelector*` sees one event, not two.
+ */
+export async function awaitTestStep(page, { consume = false, timeout = 30000 } = {}) {
+  const st = importState.get(page) ?? { seen: 0, pending: false };
+  importState.set(page, st);
+  const start = Date.now();
+  for (;;) {
+    if (await page.$(SELECTOR_SEL)) return 'selector';
+    if (st.pending) { if (consume) st.pending = false; return 'imported'; }
+    const n = await importedLineCount(page);
+    if (n > st.seen) {
+      st.seen = n;
+      st.pending = !consume;
+      return 'imported';
+    }
+    if (Date.now() - start > timeout) throw new Error('Timeout waiting for the test selector or an automatic test import');
+    await page.waitForTimeout(200);
+  }
+}
+
+/** Open Setup ▾ → Tests… on a loaded lot and wait for the selector overlay. */
+export async function openTestsDialog(page) {
+  await waitForWmapCanvas(page);
+  await page.click('#lot-btn');
+  await page.waitForTimeout(150);
+  const opened = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('button')].find(b => b.textContent?.trim().startsWith('Tests…'));
+    if (!row) return false;
+    row.click();
+    return true;
   });
+  if (!opened) throw new Error('openTestsDialog: no "Tests…" row found in the Setup menu');
+  await waitForSelector(page, SELECTOR_SEL);
+  await page.waitForTimeout(300);
+}
+
+/** Click a selector-overlay button by its exact label, then the confirm button (Import…/Apply…). */
+async function chooseAndConfirm(page, label) {
+  await page.evaluate((label) => {
+    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
+    btns.find(b => b.textContent?.trim() === label)?.click();
+  }, label);
   await page.waitForTimeout(200);
   await page.evaluate(() => {
     const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    const b = btns.find(b => b.textContent?.includes('Import'));
-    if (b) { b.id = '__import-btn__'; }
+    const b = btns.find(b => /^(Import|Apply)/.test(b.textContent?.trim() ?? ''));
+    if (b) b.id = '__import-btn__';
   });
   await page.click('#__import-btn__');
+}
+
+/** Click "Select all" then Import — loads all tests. A small lot has already imported them all. */
+export async function dismissSelector(page) {
+  if (await awaitTestStep(page, { consume: true }) === 'imported') { await waitForWmapCanvas(page); return; }
+  await chooseAndConfirm(page, 'Select all');
   await waitForWmapCanvas(page);
 }
 
 /** Like dismissSelector, but waits for the rename overlay afterward (multi-file loads). */
 export async function dismissSelectorThenRename(page) {
-  await waitForSelector(page, '#tsmap-test-selector-overlay');
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    btns.find(b => b.textContent?.trim() === 'Select all')?.click();
-  });
-  await page.waitForTimeout(200);
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    const b = btns.find(b => b.textContent?.includes('Import'));
-    if (b) { b.id = '__import-btn__'; }
-  });
-  await page.click('#__import-btn__');
+  if (await awaitTestStep(page, { consume: true }) === 'selector') await chooseAndConfirm(page, 'Select all');
   await waitForSelector(page, '#tsmap-rename-overlay');
   await page.waitForTimeout(300);
 }
 
 /** Click "Select none" then Import — loads bin data only, no test values. */
 export async function dismissSelectorSelectNone(page) {
-  await waitForSelector(page, '#tsmap-test-selector-overlay');
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    btns.find(b => b.textContent?.trim() === 'Select none')?.click();
-  });
-  await page.waitForTimeout(200);
-  await page.evaluate(() => {
-    const btns = [...document.querySelectorAll('#tsmap-test-selector-overlay button')];
-    const b = btns.find(b => b.textContent?.includes('Import'));
-    if (b) b.id = '__import-btn__';
-  });
-  await page.click('#__import-btn__');
+  if (await awaitTestStep(page, { consume: true }) === 'imported') {
+    // No selector was offered: take the tests away afterwards, through Setup ▾ → Tests….
+    await openTestsDialog(page);
+    await chooseAndConfirm(page, 'Select none');
+    await page.waitForSelector(SELECTOR_SEL, { state: 'detached', timeout: 30000 });
+    await page.waitForTimeout(1500);
+    return;
+  }
+  await chooseAndConfirm(page, 'Select none');
   await waitForWmapCanvas(page);
 }
 
@@ -355,8 +399,15 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       break;
 
     case 'waitForOverlay':
-      await waitForSelector(page, args[0] ?? '#tsmap-test-selector-overlay');
+      // The test selector is skipped for a small lot, so wait for either outcome
+      // for it; any other overlay is awaited as before.
+      if ((args[0] ?? SELECTOR_SEL) === SELECTOR_SEL) await awaitTestStep(page);
+      else await waitForSelector(page, args[0]);
       await page.waitForTimeout(300);
+      break;
+
+    case 'openTestsDialog':
+      await openTestsDialog(page);
       break;
 
     case 'dismissSelector':

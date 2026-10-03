@@ -14,6 +14,7 @@
  *   node scripts/capture-screenshots.mjs --only loading     # run a named group
  *   node scripts/capture-screenshots.mjs --only empty-state # run a single image by file name
  *   node scripts/capture-screenshots.mjs --list             # print all capture targets
+ *   node scripts/capture-screenshots.mjs --only <name> --out <dir>  # write elsewhere, leaving docs/images alone
  *
  * The script:
  *   1. Starts a local static file server serving the built dist/ directory
@@ -36,14 +37,13 @@
  */
 
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { DIST, ROOT } from './lib/paths.mjs';
 import { startServer } from './lib/server.mjs';
 import { launchBrowser, newCapturePage } from './lib/browser.mjs';
 import { runSetup } from './lib/steps.mjs';
 import { CAPTURES } from './capture-definitions.mjs';
 
-const OUT_IMAGES = join(ROOT, 'docs', 'images');
 
 async function main() {
   if (!existsSync(DIST)) {
@@ -52,6 +52,8 @@ async function main() {
   }
 
   const args = process.argv.slice(2);
+  const outIdx = args.indexOf('--out');
+  const OUT_IMAGES = outIdx !== -1 ? resolve(args[outIdx + 1]) : join(ROOT, 'docs', 'images');
   const listOnly  = args.includes('--list');
   const onlyIdx   = args.indexOf('--only');
   const onlyVal   = onlyIdx !== -1 ? args[onlyIdx + 1] : null;

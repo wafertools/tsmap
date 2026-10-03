@@ -18,6 +18,11 @@
 // here is the desktop's last-used directory, which the Rust side keeps in its
 // own state file (`src-tauri/src/commands/last_dir.rs`) because the file dialog
 // is native and never reaches JavaScript.
+//
+// Layering: built-in defaults → user's saved preferences (this registry) → CLI
+// flags → in-session UI change. A layer writes only to its own level. A CLI flag
+// applies for the session and never touches storage; a change made in the UI
+// writes the saved preference.
 
 export type StorageScope = 'both' | 'desktop';
 

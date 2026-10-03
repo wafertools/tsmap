@@ -196,7 +196,7 @@ straight through.
 ### Loading sample data
 
 The empty state has a **Load sample data** button that loads a bundled synthetic lot — 13
-wafers across 5 process corners — through the normal load flow (test selector included), so
+wafers across 5 process corners — through the normal load flow, so
 you can see tsmap working before opening your own files. Available on both desktop and
 browser. Its process-corner [splits](#6-wafer-splits) apply automatically, so the loaded
 lot is ready to explore with **Group by → Split** right away.
@@ -238,7 +238,7 @@ file pickers do not provide.
 tsmap lot1.stdf lot2.stdf                  # one or more data files
 tsmap --list files.txt                     # a text file of paths, one per line
 cat files.txt | tsmap                      # or piped via stdin
-tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (still shown — see below)
+tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (the selector is still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
 tsmap lot1.stdf --sweeps my-sweeps.json    # sweeps for Insights → Sweeps (see 7.1)
 tsmap --sweeps my-sweeps.json              # sent to a running tsmap: replaces the sweeps of what is open
@@ -254,7 +254,7 @@ renames, and optionally test limits/test type (see
 [Test definitions](#test-definitions-save-load) above) — and `--splits` the same CSV the
 [Splits… dialog](#63-saving-and-loading-split-definitions-csv) saves and loads. `--tests` only
 pre-fills the selector's checkboxes, renames, and limit/type overrides — the overlay still
-always appears and still needs a confirm click, the same as any other load; it just saves
+appears and still needs a confirm click, even for a small lot; it just saves
 re-picking (and re-entering limits for) tests you already set up before.
 
 `--sweeps` takes the same JSON file as **Setup ▾ → Sweeps…** (see [Sweeps](#71-sweeps)) and
@@ -264,7 +264,8 @@ to a tsmap that is already open, it applies to the lot on screen.
 
 `--wafer-diameter`/`--edge-exclusion` set the same values as the
 [Diameter & edge exclusion… dialog](#12-wafer-diameter-and-edge-exclusion) — a bare number in mm,
-not a file path. `--edge-exclusion` only takes effect once a diameter is known, from
+not a file path. They apply to that session only: the geometry saved from the dialog is left as it was.
+`--edge-exclusion` only takes effect once a diameter is known, from
 `--wafer-diameter` in the same launch or one already persisted from a previous session; given
 with no diameter available from either source, it's ignored with a logged warning rather than
 silently applied against whatever tsmap would otherwise infer.
@@ -468,7 +469,7 @@ After selecting files, what happens depends on the format:
 
 | Format | Next step |
 |--------|-----------|
-| STDF / ATDF | [Test selector overlay](#4-test-selector-stdf-and-atdf) always appears first |
+| STDF / ATDF | [Test selector overlay](#4-test-selector-stdf-and-atdf) appears first for large files; small lots import every test directly |
 | CSV / JSON / Parquet | [Column mapping overlay](#3-column-mapping-csv-json-and-parquet) appears first |
 | Multiple files | [Wafer rename overlay](#21-wafer-rename-overlay) appears before rendering |
 
@@ -666,8 +667,11 @@ overlay re-appears with fresh auto-detection.
 ![Test selector overlay — search, type filter, range select, and the test list](images/test-selector.png)
 
 STDF and ATDF files from production testers often contain hundreds of parametric and
-functional tests. tsmap always shows a test selector overlay before the full parse so
-you can choose which tests to import. This keeps memory usage and load time proportional
+functional tests. For a large file tsmap shows a test selector overlay before the full parse so
+you can choose which tests to import. A small lot (a few million test-by-die values or fewer,
+such as the bundled sample) imports every test at once and logs "N tests imported"; **Setup ▾ →
+Tests…** opens the same selector afterwards. The selector also always appears when `--tests` is
+given. This keeps memory usage and load time proportional
 to what you actually need.
 
 tsmap uses a two-pass approach: a fast first pass reads only the test record headers
