@@ -346,6 +346,57 @@ export const CAPTURES = [
     ],
   },
 
+  // ── Your own plots: the Plot sub-tab after "Add examples", and a plot open in its editor. Driven by the real UI. ──
+  {
+    file: 'plots-tab',
+    group: 'plots',
+    description: 'Insights Plot tab with the example plots — correlated.stdf',
+    viewport: { width: 1600, height: 1700 },
+    setup: [
+      ['loadFile', TD('correlated.stdf')],
+      ['waitForOverlay', '#tsmap-test-selector-overlay'],
+      ['dismissSelector'],
+      ['openInsights'],
+      ['selectInsightsTab', 'Plot'],
+    ],
+    screenshotFn: async (page, outFile) => {
+      await page.locator('[data-wmap-plot-examples]').click();
+      await page.waitForSelector('[data-wmap-plot-id] canvas');
+      await page.waitForTimeout(1200);
+      await page.mouse.move(2, 2);
+      const tab = await page.locator('[data-wmap-plot-tab]').boundingBox();
+      const cards = await page.locator('[data-wmap-plot-id]').evaluateAll(els => els.slice(0, 4).map(e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }));
+      const bottom = Math.max(...cards.map(c => c.y + c.h));
+      await page.screenshot({ path: outFile, clip: { x: tab.x - 8, y: tab.y - 8, width: tab.width + 16, height: bottom - tab.y + 16 } });
+    },
+  },
+  {
+    file: 'plots-editor',
+    group: 'plots',
+    description: 'A plot open in its editor — correlated.stdf',
+    viewport: { width: 1600, height: 1100 },
+    setup: [
+      ['loadFile', TD('correlated.stdf')],
+      ['waitForOverlay', '#tsmap-test-selector-overlay'],
+      ['dismissSelector'],
+      ['openInsights'],
+      ['selectInsightsTab', 'Plot'],
+    ],
+    screenshotFn: async (page, outFile) => {
+      await page.locator('[data-wmap-plot-examples]').click();
+      await page.waitForSelector('[data-wmap-plot-id] canvas');
+      await page.locator('[data-wmap-plot-edit]').first().click();
+      await page.waitForSelector('[data-wmap-plot-window] canvas');
+      await page.waitForTimeout(1200);
+      await page.mouse.move(2, 2);
+      await page.evaluate(() => document.activeElement?.blur?.());
+      await page.waitForTimeout(300);
+      const box = await page.locator('.wmap-overlay-box').first().boundingBox();
+      const chart = await page.locator('[data-wmap-plot-window] [data-wmap-chart-card]').first().boundingBox();
+      await page.screenshot({ path: outFile, clip: { x: box.x, y: box.y, width: box.width, height: chart.y + chart.height - box.y + 24 } });
+    },
+  },
+
   // ── §7.1 Yield by wafer — expand modal ───────────────────────────────────
   {
     file: 'chart-yield',

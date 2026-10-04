@@ -722,6 +722,14 @@ yield, or a lot field such as split or temperature) and the titles and axis limi
 and how a plot divides the data (its X, its colour, and the **Show** control above), is in the
 [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/#plots).
 
+![The Plot tab with the example plots](images/plots-tab.png)
+
+*Add examples draws one plot of each chart type from the open lot.*
+
+![A plot open in its editor](images/plots-editor.png)
+
+*Edit opens a plot large, beside its settings.*
+
 What is specific to tsmap is that **your plots are kept**. A plot is a recipe (which fields, which chart
 type), with nothing in it about the lot, so tsmap remembers the list on this machine and draws it again on
 the next lot you open. A plot that needs a test the open lot does not have stays in the list, dimmed, with the
