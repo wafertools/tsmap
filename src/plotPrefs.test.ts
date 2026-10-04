@@ -14,8 +14,8 @@ const store = new Map<string, string>();
   clear: () => { store.clear(); },
 };
 
-const A: PlotSpec = { id: 'a', title: 'Vth vs Idsat', mark: 'scatter', encoding: { x: { test: 1050, name: 'Vth' }, y: { test: 1060 } } };
-const B: PlotSpec = { id: 'b', mark: 'histogram', encoding: { y: { test: 1050 } } };
+const A: PlotSpec = { id: 'a', title: 'Vth vs Idsat', chart: 'scatter', fields: { x: { test: 1050, name: 'Vth' }, y: { test: 1060 } } };
+const B: PlotSpec = { id: 'b', chart: 'histogram', fields: { y: { test: 1050 } } };
 
 beforeEach(() => { store.clear(); resetMigrationForTests(); resetPlotPrefsForTests(); });
 
@@ -51,7 +51,7 @@ describe('saved plots', () => {
   });
 
   it('keeps the readable plots of a damaged value rather than losing them all', () => {
-    store.set('tsmap:plots', JSON.stringify({ format: 'wafermap-plots', version: 1, plots: [A, { id: 'x', encoding: {} }, 7] }));
+    store.set('tsmap:plots', JSON.stringify({ format: 'wafermap-plots', version: 1, plots: [A, { id: 'x', fields: {} }, 7] }));
     expect(loadSavedPlots()).toEqual([A]);
   });
 
