@@ -15,6 +15,9 @@ technical record, including internal changes.
 
 ### Changed
 
+- **A very large table export is written to disk as a stream.** A lot's die list at hundreds of thousands of dies is
+  saved in pieces rather than built as one string in memory, and the page stays responsive while it is prepared. The
+  desktop app's file permissions gain `fs:allow-open` and `fs:allow-write` for this.
 - **The "No X/Y columns assigned" and "Long-format CSV detected" confirmations are standard dialogs.** They take
   focus when they open, keep Tab inside, return focus on closing, and close on Escape or ✕ (as Cancel) without
   closing the column mapping dialog behind them.

@@ -1218,7 +1218,7 @@ const onSaveImage = isTauri
 // native dialog in Tauri; undefined on web uses the default download. Mirrors
 // onSaveImage.
 const onSaveText = isTauri
-  ? (text: string, suggestedName: string) => {
+  ? (text: string | Blob, suggestedName: string) => {
       platform.saveTextFile(text, suggestedName, 'exports', 'Save exported data')
         .then(() => log('info', `Saved: ${suggestedName}`))
         .catch((err: unknown) => log('error', `Save failed: ${err}`));

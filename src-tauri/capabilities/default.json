@@ -13,6 +13,8 @@
     "dialog:default",
     "fs:default",
     "fs:allow-write-file",
+    "fs:allow-open",
+    "fs:allow-write",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",
     "fs:allow-stat",

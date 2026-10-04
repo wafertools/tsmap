@@ -228,7 +228,7 @@ export interface Platform {
   /** Returns what was written, or null if the user cancelled. `path` is desktop-only.
    *  Callers use it to remember a saved definitions file, so a list you just wrote is
    *  one click away next time (see recentDefinitions.ts). */
-  saveTextFile(content: string, defaultName: string, purpose: DialogPurpose, title?: string): Promise<{ name: string; path?: string } | null>;
+  saveTextFile(content: string | Blob, defaultName: string, purpose: DialogPurpose, title?: string): Promise<{ name: string; path?: string } | null>;
   /** `path` is desktop-only — the browser picker exposes none. It is what lets a
    *  remembered definitions file be re-read fresh instead of served from the
    *  copy cached at pick time (see recentDefinitions.ts). */
@@ -529,7 +529,7 @@ function makeTauriPlatform(): Platform {
 
     async saveTextFile(content, defaultName, purpose, title) {
       const { save: dialogSave } = await getDialog();
-      const { writeTextFile } = await getFs();
+      const { writeTextFile, writeFile } = await getFs();
       // Derive the filter from what is actually being saved. This was hardcoded
       // to CSV/TXT back when test definitions were the only caller; the file
       // filter's own `filter.json` now goes through here too, and a native save
@@ -544,7 +544,10 @@ function makeTauriPlatform(): Platform {
       });
       if (!path) return null;
       remember(purpose, path);
-      await writeTextFile(path, content);
+      // A large table arrives as a Blob (wmap writes it in pieces rather than as one
+      // string); stream it to disk instead of reading it back into memory.
+      if (typeof content === 'string') await writeTextFile(path, content);
+      else await writeFile(path, content.stream());
       return { name: path.split(/[\\/]/).pop() ?? path, path };
     },
 
@@ -1219,7 +1222,7 @@ function makeWebPlatform(): Platform {
     },
 
     async saveTextFile(content, defaultName) {
-      const blob = new Blob([content], { type: 'text/plain' });
+      const blob = new Blob([content], { type: 'text/plain' });   // a string or a Blob
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
