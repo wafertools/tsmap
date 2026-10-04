@@ -542,9 +542,9 @@ JSON, or Parquet.
 `sample_data/COORDLESS-LOT-01.stdf` (and `.atdf`) demonstrates all three wafer states in one lot:
 `W01` is fully positioned, `W02` is a mixed wafer (~15% of dies unpositioned), and `W03` is fully
 coordinate-less. `sample_data/TESTNUM-COORDLESS-01.{csv,json,parquet}` is the same three-wafer
-lot in the other formats. A **lot-level die list** combining every wafer (with a wafer-id column)
-is available from the toolbar's **Setup ▾** menu for multi-wafer loads, with its own CSV export
-covering the whole lot.
+lot in the other formats. The Summary panel's **Data tables** button opens every die of the lot in
+one table (with a wafer column), plus a statistics table and a table of wafers, each with its own
+CSV export covering the whole lot.
 
 ### Value findings
 

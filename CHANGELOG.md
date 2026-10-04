@@ -15,6 +15,8 @@ technical record, including internal changes.
 
 ### Changed
 
+- **The user guide names the Summary panel's Data tables button** (wafermap's "View die list" became "Data tables", with
+  Statistics, Dies and Wafers tables and Copy), in place of a Setup ▾ entry the guide described but the app does not have.
 - **A very large table export is written to disk as a stream.** A lot's die list at hundreds of thousands of dies is
   saved in pieces rather than built as one string in memory, and the page stays responsive while it is prepared. The
   desktop app's file permissions gain `fs:allow-open` and `fs:allow-write` for this.
