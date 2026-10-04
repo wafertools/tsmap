@@ -1427,7 +1427,10 @@ A bare `bin` is the weakest claim on **Hard bin**: when a file also has `Hard bi
 tsmap saves a few things between sessions so you don't have to set them up again: your colour
 theme, recently opened files, recently used definitions files, column mappings (per column
 layout), wafer split assignments (per lot), any wafer diameter and edge-exclusion override, and
-the last file filter.
+the last file filter. The desktop app also remembers its window's size, position and whether it was
+maximised, and opens the next launch the same way; a first launch opens centred at 80% of the screen.
+This one is kept in the app's configuration folder rather than in the list below, so **Reset saved
+settings…** does not include it — delete `.window-state.json` there to go back to the default placement.
 
 All of it lives **on this machine only** — in your browser's storage, or the desktop app's own
 copy of it. Nothing is uploaded, and none of it travels with a file you share. Wafer data

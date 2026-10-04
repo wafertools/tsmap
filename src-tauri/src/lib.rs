@@ -64,6 +64,32 @@ fn size_and_show_main_window(window: &tauri::WebviewWindow) {
     }
 }
 
+/// What the window-state plugin keeps for the main window: size, position and
+/// whether it was maximised. Not visibility — `size_and_show_main_window` and the
+/// restore path below decide when the window appears.
+fn window_state_flags() -> tauri_plugin_window_state::StateFlags {
+    use tauri_plugin_window_state::StateFlags;
+    StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED
+}
+
+/// True when a previous session saved a usable size for the main window. The
+/// plugin keeps its cache private, so this reads the same file it loads from.
+/// A first run has no file, and a window that never opened has a zeroed entry —
+/// both mean "use the default placement".
+fn has_saved_window_state(app: &tauri::AppHandle) -> bool {
+    use tauri::Manager;
+    let Ok(dir) = app.path().app_config_dir() else { return false };
+    std::fs::read_to_string(dir.join(tauri_plugin_window_state::DEFAULT_FILENAME))
+        .map(|text| saved_main_window_is_usable(&text))
+        .unwrap_or(false)
+}
+
+fn saved_main_window_is_usable(state_file: &str) -> bool {
+    let Ok(states) = serde_json::from_str::<serde_json::Value>(state_file) else { return false };
+    let size = |axis: &str| states["main"][axis].as_u64().unwrap_or(0);
+    size("width") > 0 && size("height") > 0
+}
+
 /// Strips GTK/GDK/GIO/locale env vars that snap-packaged apps (VS Code's snap
 /// build in particular) inject into every process launched from their
 /// terminal — `GTK_PATH`/`GTK_EXE_PREFIX` point GTK's module loader at the
@@ -195,6 +221,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        // Remembers the main window's size, position and maximised state between
+        // launches. `skip_initial_state` because restoring is done by hand in
+        // `setup` — it has to choose between the saved geometry and the default
+        // placement, which the plugin cannot. Tracking and saving still happen.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(window_state_flags())
+                .skip_initial_state("main")
+                .build(),
+        )
         .setup(|app| {
             // FIRST, before any webview exists: carry across data written under
             // an older bundle identifier or last_dir's old hardcoded path.
@@ -232,7 +268,13 @@ pub fn run() {
             }
 
             if let Some(window) = app.get_webview_window("main") {
-                size_and_show_main_window(&window);
+                if has_saved_window_state(app.handle()) {
+                    use tauri_plugin_window_state::WindowExt;
+                    let _ = window.restore_state(window_state_flags());
+                    let _ = window.show();
+                } else {
+                    size_and_show_main_window(&window);
+                }
 
                 #[cfg(target_os = "linux")]
                 {
@@ -252,4 +294,27 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![atdf_file_meta, atdf_test_names, cleanup_extract, cleanup_url_fetch, csv_headers, extract_archive, get_file_association_status, get_last_dir, get_startup_files, json_headers, list_dir_files, parse_atdf, parse_atdf_filtered, parse_csv, parse_json, parquet_distinct_count, parquet_headers, parse_parquet, parse_stdf, parse_stdf_filtered, read_text_file, respawn_new_instance, set_file_association, set_last_dir, stdf_file_meta, stdf_test_names, write_temp_html])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod window_state_tests {
+    use super::saved_main_window_is_usable;
+
+    #[test]
+    fn a_saved_size_is_used() {
+        assert!(saved_main_window_is_usable(r#"{"main":{"width":1400,"height":900,"x":10,"y":20}}"#));
+    }
+
+    #[test]
+    fn a_zeroed_entry_falls_back_to_default_placement() {
+        assert!(!saved_main_window_is_usable(r#"{"main":{"width":0,"height":0,"x":0,"y":0}}"#));
+    }
+
+    #[test]
+    fn missing_or_unreadable_state_falls_back() {
+        assert!(!saved_main_window_is_usable("{}"));
+        assert!(!saved_main_window_is_usable(r#"{"other":{"width":800,"height":600}}"#));
+        assert!(!saved_main_window_is_usable("not json"));
+        assert!(!saved_main_window_is_usable(""));
+    }
 }

@@ -6,6 +6,13 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Added
+
+- **The desktop window reopens where you left it.** Size, position and maximised state are remembered between launches,
+  using `tauri-plugin-window-state`. A first launch is unchanged (centred, 80% of the screen), and a saved position on a
+  monitor that is no longer connected is ignored. The state is a file in the app's configuration folder, not part of
+  **Reset saved settings…**.
+
 ### Changed
 
 - **The "No X/Y columns assigned" and "Long-format CSV detected" confirmations are standard dialogs.** They take

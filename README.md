@@ -263,6 +263,7 @@ The STDF and ATDF parsers are written in this crate, not taken from a library �
 - [`tauri-plugin-dialog`](https://crates.io/crates/tauri-plugin-dialog) — native file open/save dialogs (all platforms). On Linux its `rfd` backend uses the XDG desktop portal, falling back to `zenity` if present
 - [`tauri-plugin-fs`](https://crates.io/crates/tauri-plugin-fs) · [`tauri-plugin-opener`](https://crates.io/crates/tauri-plugin-opener) — filesystem access and opening files/URLs in the OS default handler
 - [`tauri-plugin-single-instance`](https://crates.io/crates/tauri-plugin-single-instance) — forwards a second launch (file double-click, deep link) into the running window
+- [`tauri-plugin-window-state`](https://crates.io/crates/tauri-plugin-window-state) — remembers the main window's size, position and maximised state between launches (Rust side only; restored by hand in `lib.rs`'s setup so a first run keeps the 80%-of-screen default)
 - [`tauri-plugin-deep-link`](https://crates.io/crates/tauri-plugin-deep-link) — the `tsmap://open?url=…` URL scheme
 - [`reqwest`](https://crates.io/crates/reqwest) — fetches `--url` data (rustls, no OpenSSL system dependency). Deliberately used instead of `tauri-plugin-http`, whose scope system needs a pre-configured allow-list and can't express "fetch whatever URL the caller supplies"
 - [`zip`](https://crates.io/crates/zip) — `.zip` archive extraction
