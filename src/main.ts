@@ -12,14 +12,13 @@ import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/w
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose, lastParseDecodeMs } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
-import { basename, rustToLocal, derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, toWaferData, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, isTesterExt, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
+import { basename, rustToLocal, derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
 import { showMappingOverlay } from './mappingUI';
-import { showRenameOverlay, showAppendConfirm, needsWaferLabelPrompt, markPlaceholder } from './multiFileUI';
+import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
 import type { TestListEntry, DerivedSelection } from './testSelectorUI';
-import { parseSweepsFile, formatSweepsFile, type SweepSpec } from './sweeps';
-import type { CsvMapping } from './mappingUI';
-import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
+import { parseSweepsFile, formatSweepsFile } from './sweeps';
+import type { FileWaferEntry } from './multiFileUI';
 import type { PassBinCollision, TestDefCollision, DefinitionsAnchor, OverrideUnitNote } from './lib';
 import { harmoniseTestUnits, type UnitConversion } from './units';
 import type { FileDefs, ParsedFile, WaferData, TestDef, TestOverride, WaferSource } from './types';
@@ -48,6 +47,8 @@ import { showResetSettingsDialog } from './resetSettingsUI';
 import { initPwa } from './pwa';
 import { TSMAP_GUIDE_HTML } from './guideExtension';
 import { UnseenProblems } from './logBadge';
+import { session } from './session';
+import { runLoad, type LoadDeps, type LoadPhase, type SelectorResult } from './loadPipeline';
 
 const platform = createPlatform();
 
@@ -99,42 +100,7 @@ function setToolbarGroupVisible(visible: boolean): void {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let currentWafers: WaferData[] = [];
-let currentFileName = 'wafermap';
-let currentTestDefs: Record<string, TestDef> = {};
-/**
- * Each loaded file's OWN test definitions, keyed by the `WaferSource` its
- * wafers share by reference (the same key `wcrFor` uses two functions below).
- *
- * `currentTestDefs` above is the lot-wide UNION, and stays that way — the test
- * selector, the test-definitions file and `applyTestSelection` all legitimately
- * need one list. What it must NOT be is the thing handed to wmap: a test number
- * identifies a test within a test program, so across a multi-file load the same
- * number can name different measurements. Flattening the files' lists into one
- * object (`Object.assign`, which is last-wins) silently kept whichever file
- * loaded last, and every wafer was then plotted, normalised and
- * capability-scored against that survivor's limits — a 0-5 nA leakage test
- * judged against a 260-380 mV threshold's spec. wmap reconciles per wafer
- * (`mergeTestDefs`) and withholds any number the files disagree about, which it
- * can only do if each wafer arrives with its own file's defs.
- */
-let currentDefsBySource = new Map<WaferSource, FileDefs>();
-/** Files that disagree about a test number, from the current load — retained so
- *  the test-definitions dialog can refuse an override it cannot apply honestly. */
-let currentTestDefCollisions: TestDefCollision[] = [];
 
-/**
- * Per-source def map for a set of renamed wafers, optionally extending the
- * current one (an Add-files append keeps the already-loaded files' entries).
- */
-function defsBySourceFrom(
-  renamed: RenamedWafer[],
-  base?: Map<WaferSource, FileDefs>,
-): Map<WaferSource, FileDefs> {
-  const map = new Map(base ?? []);
-  for (const r of renamed) if (r.source && r.fileDefs) map.set(r.source, r.fileDefs);
-  return map;
-}
 
 /**
  * Report files that disagree about what a test number means.
@@ -147,7 +113,7 @@ function defsBySourceFrom(
  * hunting for a test that is simply gone.
  */
 function logTestDefCollisions(collisions: TestDefCollision[]): void {
-  currentTestDefCollisions = collisions;
+  session.testDefCollisions = collisions;
   if (collisions.length === 0) return;
   const withheld = collisions.filter(c => c.kind !== 'limits');
   const respec  = collisions.filter(c => c.kind === 'limits');
@@ -227,21 +193,21 @@ function logPassBinCollisions(collisions: PassBinCollision[]): void {
  *  provenance (a path that never stamped a source — the fallback is the old
  *  behaviour, not a new guess). */
 function testDefsForWafer(w: WaferData): Record<string, TestDef> {
-  return (w.source && currentDefsBySource.get(w.source)?.testDefs) ?? currentTestDefs;
+  return (w.source && session.defsBySource.get(w.source)?.testDefs) ?? session.testDefs;
 }
 
 /**
  * This wafer's own file's pass hard bins.
  *
- * A file that stated none inherits the lot-wide union (`currentPassHbins`) —
+ * A file that stated none inherits the lot-wide union (`session.passHbins`) —
  * absent is not an assertion of "only bin 1", and falling through to wmap's own
  * `[1]` default would silently reclassify every one of that file's dies. This is
  * the one place that rule lives; `unionBinInfo` (lib.ts) deliberately does not
  * duplicate it.
  */
 function passBinsForWafer(w: WaferData): number[] | undefined {
-  const own = w.source && currentDefsBySource.get(w.source)?.passHbins;
-  return own?.length ? own : currentPassHbins;
+  const own = w.source && session.defsBySource.get(w.source)?.passHbins;
+  return own?.length ? own : session.passHbins;
 }
 
 /** `toWmapTestDefs` memoised per defs object — one conversion per FILE rather
@@ -260,49 +226,40 @@ function wmapTestDefsForWafer(w: WaferData): ReturnType<typeof toWmapTestDefs> {
 // that had none; buildWaferMap call sites treat undefined the same as
 // "nothing to pass," falling back to wmap's own default (bare bin numbers,
 // passBins [1]).
-let currentHbinDefs: BinDef[] | undefined;
 // Derived tests: the rows of the loaded test-definitions file that carry an
 // expression (see TestListEntry). Handed to every buildWaferMap call, which
 // computes them per die; they then behave as ordinary tests everywhere.
-let currentDerivedTests: TestListEntry[] = [];
 // Which of them the user has selected — the rest stay defined (reopening the
 // selector lists them) but are not computed.
-let currentDerivedSelected = new Set<number>();
 /** Selector input: every defined derived test, and the selection to restore. */
-const derivedForSelector = () => ({ tests: currentDerivedTests, selected: [...currentDerivedSelected] });
+const derivedForSelector = () => ({ tests: session.derivedTests, selected: [...session.derivedSelected] });
 /** Adopt what the selector confirmed. */
 function adoptDerived(d: DerivedSelection): void {
   // New definitions are set up on whichever lot is built next; the same ones
   // carried to another lot keep the lot they were set up on.
   const key = (t: TestListEntry[]) => JSON.stringify(t.map(e => [e.num, e.expression]));
-  if (key(d.tests) !== key(currentDerivedTests)) definitionsAnchor = null;
-  currentDerivedTests = d.tests;
-  currentDerivedSelected = new Set(d.selected);
+  if (key(d.tests) !== key(session.derivedTests)) definitionsAnchor = null;
+  session.derivedTests = d.tests;
+  session.derivedSelected = new Set(d.selected);
 }
 // Parametric sweeps from Setup ▾ → Sweeps… (sweeps.ts) — one card each in the
 // Insights Sweeps tab, which wmap shows only when there is at least one.
-let currentSweeps: SweepSpec[] = [];
 /** Insights options for both mounts, so the map and the gallery offer the same tabs. */
 const insightsOpts = () => ({
   enabled: true,
-  sweeps: currentSweeps.length ? currentSweeps : undefined,
+  sweeps: session.sweeps.length ? session.sweeps : undefined,
   // The Sweeps tab's own notice about sweeps that name none of this lot's tests.
   onRemoveSweeps: (ids: string[]) => {
-    const gone = currentSweeps.filter(s => ids.includes(s.id));
-    currentSweeps = currentSweeps.filter(s => !ids.includes(s.id));
+    const gone = session.sweeps.filter(s => ids.includes(s.id));
+    session.sweeps = session.sweeps.filter(s => !ids.includes(s.id));
     log('info', `Sweep${gone.length !== 1 ? 's' : ''} removed: ${gone.map(s => s.title).join(', ')}`);
     rerenderCurrentLot('Rendering');
   },
 });
-let currentSbinDefs: BinDef[] | undefined;
-let currentPassHbins: number[] | undefined;
 
 // Tracks the most recently loaded STDF/ATDF files so "Tests…" can re-parse them.
-let currentBinaryFiles: FileHandle[] = [];
-let currentTestNames: StdfTestNames | null = null; // first-pass scan result, reused by "Tests…"
 // Whether the current test list came from the largest file only or all files —
 // so "Tests…" can still offer to widen the scan if it wasn't already.
-let binaryScanScope: 'largest' | 'all' = 'largest';
 
 
 // ── App-wide state ────────────────────────────────────────────────────────────
@@ -570,7 +527,7 @@ if (isTauri) {
       // Nothing loaded, or nothing to replace it with: a launch carrying only
       // settings (`--sweeps`, `--wafer-diameter`) applies to what is open. It
       // used to ask to "replace the currently loaded data with 0 files".
-      if (currentWafers.length === 0 || args.files.length === 0) {
+      if (session.wafers.length === 0 || args.files.length === 0) {
         applyCliArgs(args);
         return;
       }
@@ -784,8 +741,8 @@ let definitionsAnchor: DefinitionsAnchor | null = null;
  * A sweep naming none of the lot's tests is said on the Sweeps tab itself.
  */
 function logDefinitionsNotApplying(results: Parameters<typeof definitionsAnchorOf>[0]): void {
-  const hasDerived = currentDerivedTests.length > 0;
-  const hasSweeps = currentSweeps.length > 0;
+  const hasDerived = session.derivedTests.length > 0;
+  const hasSweeps = session.sweeps.length > 0;
   if (!hasDerived && !hasSweeps) { definitionsAnchor = null; return; }
   const once = (key: string, msg: string) => {
     if (loggedWmapWarnings.has(key)) return;
@@ -793,7 +750,7 @@ function logDefinitionsNotApplying(results: Parameters<typeof definitionsAnchorO
     log('warn', msg);
   };
 
-  const requested = currentDerivedTests.filter(d => currentDerivedSelected.has(d.num)).map(d => d.num);
+  const requested = session.derivedTests.filter(d => session.derivedSelected.has(d.num)).map(d => d.num);
   if (derivedNoneBuilt(results, requested)) {
     const n = requested.length;
     once('tsmap:derived-none-built',
@@ -862,13 +819,13 @@ function buildWmapConfig(
     // From this file's HBR/SBR (see ParsedFile.hbinDefs/sbinDefs/passHbins,
     // types.ts) — undefined falls back to wmap's own defaults (bare bin
     // numbers, passBins [1]).
-    hbinDefs: currentHbinDefs,
-    sbinDefs: currentSbinDefs,
+    hbinDefs: session.hbinDefs,
+    sbinDefs: session.sbinDefs,
     // Per FILE, not per lot. Unioning pass bins across files makes a bin one
     // file counts as a fail count as a pass for every wafer in the lot, moving
     // every yield figure, finding and report — see `unionBinInfo` (lib.ts).
     passBins: passBinsForWafer(w),
-    derivedTests: toWmapDerivedTests(currentDerivedTests.filter(d => currentDerivedSelected.has(d.num))),
+    derivedTests: toWmapDerivedTests(session.derivedTests.filter(d => session.derivedSelected.has(d.num))),
   };
 }
 
@@ -1027,31 +984,6 @@ let pendingSampleSplitSeed: SplitRow[] | null = null;
  */
 let pendingTestListPreload: string | null = null;
 
-/**
- * Ceiling on tests × dies for pre-ticking the whole test list in the selector.
- *
- * The selector's default-empty rule exists so a big lot can't blow memory on an
- * accidental "import everything" — it is a proxy for cost, not a preference.
- * Below this budget there is nothing to protect against, and making the user
- * hunt for "Select all" is pure friction (the bundled sample is 7 tests × 2,873
- * dies ≈ 20k, four orders of magnitude under).
- *
- * Budgeted on tests × dies rather than test count, because test count is not
- * the cost driver: values accumulate per test per die, so 20 tests × 500k dies
- * is far heavier than 200 tests × 2k dies. Thresholding on test count alone
- * would auto-load the expensive case and still gate the cheap one. Both numbers
- * are already known at this point from the first-pass scan.
- *
- * Deliberately not user-configurable: it is a setting almost nobody would find
- * or tune, and Select all / Select none already cover whatever it gets wrong.
- */
-const AUTOSELECT_CELL_BUDGET = 2_000_000;
-
-function isCheapToImportAll(testCount: number, dieCount: number): boolean {
-  // dieCount is 0 when nothing reported a die count — no basis to judge, so
-  // fall back to the conservative default rather than guessing.
-  return testCount > 0 && dieCount > 0 && testCount * dieCount <= AUTOSELECT_CELL_BUDGET;
-}
 
 /**
  * Applies any saved splits for this exact wafer set and reports where they came
@@ -1143,14 +1075,14 @@ function renderWafers(
   binInfo: { hbinDefs?: BinDef[]; sbinDefs?: BinDef[]; passHbins?: number[] } = {},
   defsBySource: Map<WaferSource, FileDefs> = new Map(),
 ) {
-  currentWafers = wafers;
-  currentFileName = label;
-  currentTestDefs = testDefs;
-  currentDefsBySource = defsBySource;
+  session.wafers = wafers;
+  session.fileName = label;
+  session.testDefs = testDefs;
+  session.defsBySource = defsBySource;
   wmapDefsCache.clear();
-  currentHbinDefs = binInfo.hbinDefs;
-  currentSbinDefs = binInfo.sbinDefs;
-  currentPassHbins = binInfo.passHbins;
+  session.hbinDefs = binInfo.hbinDefs;
+  session.sbinDefs = binInfo.sbinDefs;
+  session.passHbins = binInfo.passHbins;
   loggedWmapWarnings.clear();
   const restoredSplits = loadSavedSplits(wafers);
   clearLotStatsCache();
@@ -1425,7 +1357,7 @@ async function renderWaferView(wafers: WaferData[]) {
 /**
  * Tear down the current maps/charts view for a fresh (non-append) load that has
  * been committed but may take a while to parse. Unlike `showEmptyState` this does
- * NOT reset load state (`currentBinaryFiles`, `currentTestNames`, button
+ * NOT reset load state (`session.binaryFiles`, `session.testNames`, button
  * visibility) — those are mid-load and still needed; it only blanks the visible
  * container so the user doesn't see stale data while the new file parses.
  * `renderWafers` replaces this once the parse completes.
@@ -1464,17 +1396,17 @@ function clearViewForLoad(): void {
  * not implement — and "Scan a folder…" sits directly below it on both builds.
  */
 function showEmptyState() {
-  currentWafers = [];
-  currentTestDefs = {};
-  currentDefsBySource = new Map();
-  currentTestDefCollisions = [];
+  session.wafers = [];
+  session.testDefs = {};
+  session.defsBySource = new Map();
+  session.testDefCollisions = [];
   wmapDefsCache.clear();
-  currentHbinDefs = undefined;
-  currentSbinDefs = undefined;
-  currentPassHbins = undefined;
-  currentBinaryFiles = [];
-  currentTestNames = null;
-  binaryScanScope = 'largest';
+  session.hbinDefs = undefined;
+  session.sbinDefs = undefined;
+  session.passHbins = undefined;
+  session.binaryFiles = [];
+  session.testNames = null;
+  session.binaryScanScope = 'largest';
   clearLotStatsCache();
   addBtn.disabled = true;
   addMoreBtn.disabled = true;
@@ -1700,13 +1632,6 @@ let busy = false;
  *
  * DO NOT add a fourth surface. That is how it got to three.
  */
-type LoadPhase =
-  | 'waiting'    // a native picker or a dialog is open — the app is blocked on the user
-  | 'reading'    // pulling bytes in
-  | 'parsing'    // decoding them
-  | 'analysing'  // per-wafer statistics
-  | 'rendering'  // cards staging into the gallery
-  | 'finishing'; // cards are all in; the lot Summary panel is still filling
 
 let loadActive = false;
 /** The phase currently on screen, so `clearViewForLoad` can put it back after
@@ -1766,7 +1691,7 @@ function setControlsBusy(isBusy: boolean): void {
   if (isBusy) {
     addBtn.disabled = true;
     addMoreBtn.disabled = true;
-  } else if (currentWafers.length > 0) {
+  } else if (session.wafers.length > 0) {
     addBtn.disabled = false;
     addMoreBtn.disabled = false;
   }
@@ -1912,436 +1837,82 @@ async function scanBinaryTests(filesToScan: FileHandle[]): Promise<{ testDefs: S
   return { testDefs: merged, dieCount };
 }
 
-/**
- * `continuesCurrentLoad` — this call is the next step of a load that is ALREADY
- * running (the file picker opened under `loadPhase('waiting', …)` and is now
- * handing its files on), not a new one. Without it the `busy` guard below would
- * silently no-op the very load that opened the picker.
- *
- * The picker paths used to write `busy = false` directly to get past that
- * guard, which is worse than it looks: `busy` is the flag `setControlsBusy`
- * owns, so clearing it by hand desynchronised the toolbar from the load. The
- * Add buttons re-enabled while the gallery was still rendering (they are also
- * set from the loaded-state path, which reads `busy`), and every `if (busy)`
- * re-entrancy guard in the app went open for the rest of the load — a second
- * load could be started on top of the first. One flag, one owner, and the
- * hand-off says so explicitly instead of faking its precondition.
- */
-async function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurrentLoad = false) {
-  if (files.length === 0) return;
-  if (busy && !continuesCurrentLoad) return;
-
-  // Captured before archive expansion/reassignment below, so a reopened .zip
-  // records (and re-expands) its own path rather than its extracted contents.
-  const originalPaths = files.every(f => f.path) ? files.map(f => f.path as string) : null;
-
-  loadPhase('reading', `Reading ${files.length} file${files.length > 1 ? 's' : ''}`);
-  // Yield two animation frames so the spinner actually paints before the
-  // first platform call (WebKitGTK may not repaint on setTimeout(0) alone).
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-  // Expand archives — .gz and .zip handled per-platform
-  let needsCleanup = false;
-  const anyZip = files.some(f => f.name.toLowerCase().endsWith('.zip'));
-  if (anyZip) {
-    loadPhase('reading', 'Extracting archive');
-    needsCleanup = isTauri && anyZip;
-  }
-  files = await platform.expandArchives(files).catch(e => {
-    log('error', `Archive extraction failed: ${e}`);
-    return files;
-  });
-
-  if (files.length === 0) {
-    endLoad('Error: no files after extraction');
-    return;
-  }
-
-  // Validate all files have the same extension (relaxed for mixed-format zips)
-  // — checkSameExtension/effectiveFileExtension (lib.ts) are shared with the
-  // file-filter table's own picker, so this rule lives in exactly one place.
-  const mixedFormatsError = checkSameExtension(files.map(f => f.name), needsCleanup);
-  if (mixedFormatsError) {
-    log('error', mixedFormatsError);
-    endLoad('Error: mixed formats');
-    return;
-  }
-
-  // For CSV/JSON/Parquet: show mapping overlay once for the first such file, apply to all
-  const needsMapping = (e: string) => e === 'csv' || e === 'txt' || e === 'dat' || e === 'json' || e === 'parquet';
-  const firstMappable = files.find(f => needsMapping(effectiveFileExtension(f.name)));
-
-  let mappingPromise: Promise<{ mapping: CsvMapping; binDefs: BinDefEntry[] } | null> = Promise.resolve(null);
-
-  if (firstMappable) {
-    const firstExt = effectiveFileExtension(firstMappable.name);
-    loadPhase('reading', `Reading ${firstMappable.name}`);
-    const headersResult = await (firstExt === 'json' ? platform.jsonHeaders(firstMappable)
-      : firstExt === 'parquet' ? platform.parquetHeaders(firstMappable)
-      : platform.csvHeaders(firstMappable)
-    ).catch(e => { log('error', `Failed to read headers: ${e}`); return null; });
-
-    if (!headersResult) {
-      if (needsCleanup) platform.expandArchives([]).catch(() => {});
-      endLoad();
-      return;
-    }
-
-    const mappableFiles = files.filter(f => needsMapping(effectiveFileExtension(f.name)));
-    const note = mappableFiles.length > 1 ? ` — mapping applied to all ${mappableFiles.length} CSV/JSON/Parquet files` : '';
-    log('info', `${firstMappable.name}: ${headersResult.rowCount} rows, ${headersResult.headers.length} columns${note}`);
-
-    mappingPromise = new Promise(resolve => {
-      showMappingOverlay(headersResult,
+/** What `runLoad` is given: this module's platform, logger, progress indicator and renderer, and the four dialogs as questions. */
+const loadDeps: LoadDeps = {
+  platform,
+  log,
+  loadPhase,
+  endLoad,
+  isBusy: () => busy,
+  logTimed,
+  logDecodeTime,
+  logWarnings,
+  logOverrideUnitNotes,
+  logUnitConversions,
+  logTestDefCollisions,
+  logPassBinCollisions,
+  scanBinaryTests,
+  takeTestListPreload: () => { const text = pendingTestListPreload; pendingTestListPreload = null; return text; },
+  derivedForSelector,
+  adoptDerived,
+  rememberFiles: addRecentFiles,
+  clearViewForLoad,
+  showEmptyState,
+  renderWafers,
+  ui: {
+    mapping: (headers) => new Promise(resolve => {
+      showMappingOverlay(headers,
         (mapping, binDefs) => resolve({ mapping, binDefs }),
-        () => { endLoad(); resolve(null); },
+        () => resolve(null),
         () => platform.pickTextFile('definitions', 'Select a bin definitions file to load').then(f => f?.content ?? null),
       );
-    });
-  }
-
-  const mappingResult = await mappingPromise;
-  if (mappingResult === null && firstMappable) {
-    return; // cancelled
-  }
-  const mapping = mappingResult?.mapping;
-  const mappingBinDefs = mappingResult?.binDefs ?? [];
-
-  // ── Parse phase ──────────────────────────────────────────────────────────
-  // For STDF/ATDF: first-pass scan to get testDefs cheaply, then filtered parse.
-  // For CSV/JSON/Parquet: parse fully now (fast), use parsed testDefs for the selector.
-  const binaryFiles = files.filter(f => isTesterExt(effectiveFileExtension(f.name)));
-
-  // firstPassTestDefs: merged testDefs from first-pass scan (STDF/ATDF) and/or full parse (CSV/JSON).
-  let firstPassTestDefs: StdfTestNames | null = null;
-  // Pre-parsed CSV/JSON results — reused after the selector so we don't parse twice.
-  const preParsed = new Map<string, ParsedFile>();
-  // Die count from the binary scan (PIR count × file count approximation).
-  let binaryScanDieCount = 0;
-
-  if (binaryFiles.length > 0) {
-    const largestBinary = binaryFiles.reduce((a, b) => {
-      const aSize = a.size ?? a.bytes.length;
-      const bSize = b.size ?? b.bytes.length;
-      return aSize >= bSize ? a : b;
-    });
-    currentBinaryFiles = binaryFiles;
-    binaryScanScope = 'largest';
-
-    // Default scan scope: the largest file only — a fast, representative test
-    // list. The selector offers a "scan all files" toggle to widen this when a
-    // test only appears in a smaller file (see scanBinaryTests / onScanAll).
-    const scan = await scanBinaryTests([largestBinary]);
-    if (scan) {
-      currentTestNames = scan.testDefs;
-      firstPassTestDefs = scan.testDefs;
-      // Largest-file die count extrapolated across all files (exact totals come
-      // from a "scan all"). Only used for the selector's memory advisory.
-      binaryScanDieCount = scan.dieCount * binaryFiles.length;
-    }
-  }
-
-  // Parse CSV/JSON files now; collect their testDefs for the selector.
-  const nonBinaryFiles = files.filter(f => !isTesterExt(effectiveFileExtension(f.name)));
-  for (const file of nonBinaryFiles) {
-    const fileExt = effectiveFileExtension(file.name);
-    loadPhase('parsing', `Parsing ${file.name}`);
-    try {
-      const parsed: ParsedFile = fileExt === 'json' ? rustToLocal(await platform.parseJson(file, mapping!), file.name)
-        : fileExt === 'parquet' ? rustToLocal(await platform.parseParquet(file, mapping!), file.name)
-        : rustToLocal(await platform.parseCsv(file, mapping!), file.name);
-      // CSV/JSON/Parquet have no HBR/SBR-equivalent record — Rust always
-      // stubs hbinDefs/sbinDefs/passHbins empty for these formats, so this is
-      // purely additive, never an override of anything actually parsed.
-      if (mappingBinDefs.length > 0) {
-        const parts = applyBinDefOverrides({}, mappingBinDefs);
-        parsed.hbinDefs = parts.hbinDefs;
-        parsed.sbinDefs = parts.sbinDefs;
-        parsed.passHbins = parts.passHbins;
-      }
-      preParsed.set(file.name, parsed);
-      log('info', `Parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''}`);
-      logWarnings(parsed);
-      // Merge testDefs from this file into firstPassTestDefs for the selector.
-      if (Object.keys(parsed.testDefs).length > 0) {
-        firstPassTestDefs = { ...(firstPassTestDefs ?? {}), ...parsed.testDefs };
-      }
-    } catch (e) {
-      log('error', `Failed to parse ${file.name}: ${errMsg(e)}`);
-    }
-  }
-
-  // ── Test selector ─────────────────────────────────────────────────────────
-  // Shown when any file has test data (non-empty merged testDefs), unless
-  // importing every test is cheap (see isCheapToImportAll).
-  let testSelection: number[] | null = null;
-  let overlayTestOverrides: Map<number, TestOverride> = new Map();
-
-  if (firstPassTestDefs && Object.keys(firstPassTestDefs).length > 0) {
-    const csvDieCount = Array.from(preParsed.values())
-      .reduce((s, p) => s + p.wafers.reduce((ws, w) => ws + w.results.count, 0), 0);
-
-    // The selector can be re-entered when the user clicks "scan all files": we
-    // widen the scope, re-scan, merge, and re-open with the same selection +
-    // test overrides preserved. `scanScope` tracks whether we're still on the
-    // largest file only (so the toggle is offered) or have scanned everything.
-    let scanScope: 'largest' | 'all' = 'largest';
-    let scopedDefs = firstPassTestDefs;
-    let carrySelection: number[] = [];
-    let carryOverrides = new Map<number, TestOverride>();
-    let carryDerived: DerivedSelection = derivedForSelector();
-    // Only the very first open of this load gets the cheap-lot default below —
-    // a "scan all files" re-open must carry the user's actual selection, even
-    // when that selection is deliberately empty.
-    let firstOpen = true;
-    // Consumed once, on the very first open of this load's selector — a
-    // "scan all files" re-open within the same load must not keep re-applying
-    // it over the user's in-progress adjustments (see pendingTestListPreload).
-    let testListPreload = pendingTestListPreload;
-    pendingTestListPreload = null;
-
-    selector: for (;;) {
-      const allTestNums = new Set(Object.keys(scopedDefs).map(Number));
-      const totalDieCount = binaryScanDieCount + csvDieCount;
-      // Offer "scan all" only with >1 binary file and while still scoped to largest.
-      const canScanAll = binaryFiles.length > 1 && scanScope === 'largest';
-
-      // Skip the selector when importing the lot is provably cheap — there is
-      // nothing to narrow, and a modal that only asks for a click is friction. A
-      // CLI --tests preload always wins: it's an explicit instruction to open it.
-      // Any derived tests already set up stay as they are for the session.
-      if (firstOpen && !testListPreload && isCheapToImportAll(allTestNums.size, totalDieCount)) {
-        testSelection = [...allTestNums];
-        log('info', `${testSelection.length} test${testSelection.length !== 1 ? 's' : ''} imported — use Setup ▾ → Tests… to filter them`);
-        break;
-      }
-      firstOpen = false;
-
-      const result = await new Promise<{ kind: 'confirm'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }
-                                     | { kind: 'cancel' }
-                                     | { kind: 'scanAll'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }>(resolve => {
-        showTestSelectorOverlay(
-          scopedDefs,
-          (sel, overrides, derived) => resolve({ kind: 'confirm', selection: sel, overrides, derived }),
-          () => resolve({ kind: 'cancel' }),
-          {
-            scanScope: binaryFiles.length > 1 ? scanScope : undefined,
-            scanFileCount: binaryFiles.length,
-            onScanAll: canScanAll ? (sel, overrides, derived) => resolve({ kind: 'scanAll', selection: sel, overrides, derived }) : undefined,
-            initialSelection: [...carrySelection, ...carryDerived.selected],
-            testOverrides: carryOverrides,
-            derivedTests: carryDerived.tests,
-            preloadListText: testListPreload ?? undefined,
-            capacity: totalDieCount > 0
-              ? { dieCount: totalDieCount, totalTests: allTestNums.size, isWebBuild: !isTauri }
-              : undefined,
-            onSave: async (saveEntries: TestListEntry[]) => {
-              const csv = formatTestListCsv(saveEntries);
-              const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'definitions', 'Save these test definitions to a file');
-              // Remember what was just written: the list you build here is the one
-              // you reload for the next dataset, so saving it should put it a click
-              // away rather than back behind the file picker.
-              if (saved) addRecentDefinition({ kind: 'tests', name: saved.name, path: saved.path, content: csv });
-            },
-            onLoad: () => pickDefinitionsFile('tests', 'Select a test definitions file to load'),
-            recentLoads: () => recentDefinitionRows('tests'),
-            recentNote: recentDefinitionsNote(),
-            onLog: log,
-            onAsk: (msg) => platform.confirm(msg),
+    }),
+    selectTests: (req) => new Promise<SelectorResult>(resolve => {
+      showTestSelectorOverlay(
+        req.scopedDefs,
+        (sel, overrides, derived) => resolve({ kind: 'confirm', selection: sel, overrides, derived }),
+        () => resolve({ kind: 'cancel' }),
+        {
+          scanScope: req.scanScope,
+          scanFileCount: req.scanFileCount,
+          onScanAll: req.canScanAll ? (sel, overrides, derived) => resolve({ kind: 'scanAll', selection: sel, overrides, derived }) : undefined,
+          initialSelection: req.initialSelection,
+          testOverrides: req.testOverrides,
+          derivedTests: req.derivedTests,
+          preloadListText: req.preloadListText,
+          capacity: req.capacity,
+          onSave: async (saveEntries: TestListEntry[]) => {
+            const csv = formatTestListCsv(saveEntries);
+            const saved = await platform.saveTextFile(csv, 'test-definitions.csv', 'definitions', 'Save these test definitions to a file');
+            // Remember what was just written: the list you build here is the one
+            // you reload for the next dataset, so saving it should put it a click
+            // away rather than back behind the file picker.
+            if (saved) addRecentDefinition({ kind: 'tests', name: saved.name, path: saved.path, content: csv });
           },
-        );
-      });
-      testListPreload = null; // only ever applied on the loop's first open
-
-      if (result.kind === 'cancel') { endLoad(); return; }
-
-      if (result.kind === 'scanAll') {
-        // Preserve the user's in-progress selection/overrides across the re-scan.
-        carrySelection = result.selection;
-        carryOverrides = result.overrides;
-        carryDerived = result.derived;
-        const scan = await scanBinaryTests(binaryFiles);
-        if (scan) {
-          scopedDefs = scan.testDefs;
-          firstPassTestDefs = scan.testDefs;   // so the full parse below sees every test
-          currentTestNames = scan.testDefs;    // so "Tests…" re-uses the widened list
-          binaryScanDieCount = scan.dieCount;  // exact total now, not extrapolated
-          binaryScanScope = 'all';
-          scanScope = 'all';
-          log('info', `Scanned all ${binaryFiles.length} files: ${Object.keys(scan.testDefs).length} tests total`);
-        }
-        continue selector; // re-open the selector with the merged list
-      }
-
-      // confirm
-      overlayTestOverrides = result.overrides;
-      adoptDerived(result.derived);
-      testSelection = result.selection;
-      log('info', `Test filter: ${testSelection.length} of ${allTestNums.size} tests selected`);
-      break;
-    }
-  }
-
-  // The load is now committed (the cancellable mapping/test-selector gates have
-  // resolved) and the full parse below can be slow. For a fresh load (not an
-  // "add"), clear the previous maps/charts now so the user isn't left looking at
-  // stale data from the old file while the new one parses. An append keeps the
-  // current view, since the new wafers are added to it. NOTE: the rename overlay
-  // (further down) can still be cancelled — `abortFreshLoad()` resets to the empty
-  // state on any post-clear bail-out so the user is never stranded on a blank view
-  // showing nothing while the old data is silently still in `currentWafers`.
-  const clearedForFreshLoad = !isAppend;
-  if (clearedForFreshLoad) clearViewForLoad();
-  // Return to a clean empty state if a committed fresh load bails out (parse error
-  // or rename cancel); for an append the old view is intact, so just go idle.
-  const abortFreshLoad = (msg?: string) => {
-    if (clearedForFreshLoad) showEmptyState();
-    endLoad(msg);
-  };
-
-  // ── Full parse for STDF/ATDF, prune/backfill pre-parsed CSV/JSON ──────────
-  const entries: FileWaferEntry[] = [];
-  const overrideUnitNotes: OverrideUnitNote[] = [];
-
-  try {
-    // Finalise pre-parsed CSV/JSON entries — prune to selection.
-    for (const [, parsed] of preParsed) {
-      applyTestSelection(parsed, testSelection ?? [], null, overlayTestOverrides, overrideUnitNotes);
-    }
-
-    for (const file of files) {
-      const fileExt = effectiveFileExtension(file.name);
-
-      // CSV/JSON already parsed above — just collect.
-      if (!isTesterExt(fileExt)) {
-        const pre = preParsed.get(file.name);
-        if (pre) entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed: pre });
-        continue;
-      }
-
-      loadPhase('parsing', `Parsing ${file.name}`);
-      try {
-        // If scan failed (firstPassTestDefs null), fall back to unfiltered parse.
-        const raw = await logTimed('parse (Rust parse, columnar encode, IPC, decode)', () => firstPassTestDefs === null
-          ? (isAtdfExt(fileExt)
-            ? platform.parseAtdf(file)
-            : platform.parseStdf(file))
-          : (isAtdfExt(fileExt)
-            ? platform.parseAtdfFiltered(file, testSelection ?? [])
-            : platform.parseStdfFiltered(file, testSelection ?? [])));
-        logDecodeTime();
-        const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
-        // A filtered parse (the scan succeeded) already holds exactly the selection.
-        await logTimed('applyTestSelection', () => applyTestSelection(parsed, testSelection ?? [], firstPassTestDefs, overlayTestOverrides, overrideUnitNotes, firstPassTestDefs !== null));
-        entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
-        log('info', `Parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''}`);
-        logWarnings(parsed);
-      } catch (e) {
-        log('error', `Failed to parse ${file.name}: ${errMsg(e)}`);
-      }
-    }
-  } catch (e) {
-    const msg = errMsg(e);
-    log('error', `Parse failed: ${msg}. Try selecting fewer tests.`);
-    abortFreshLoad('Out of memory — reduce test selection and try again');
-    return;
-  }
-
-  if (entries.length === 0) {
-    abortFreshLoad('Error: no files parsed successfully');
-    return;
-  }
-  logOverrideUnitNotes(overrideUnitNotes);
-  // Before anything reads the tests: a later file recording a test in another SI
-  // prefix (mV vs V) is converted to the lot's unit rather than withheld as a clash.
-  logUnitConversions(harmoniseTestUnits(entries, isAppend && currentWafers.length > 0 ? currentTestDefs : undefined));
-
-  // Rename step — see needsWaferLabelPrompt for when it is shown.
-  const allWafers = entries.flatMap(e => e.parsed.wafers);
-  const needsRename = needsWaferLabelPrompt(entries);
-
-  const getRenamed = (): Promise<RenamedWafer[] | null> => {
-    if (!needsRename) {
-      // needsRename is false only for a single entry, so all wafers share its source.
-      const source = makeWaferSource(entries[0].parsed.meta, entries[0].fileName);
-      return Promise.resolve(allWafers.map(w => ({
-        waferId: markPlaceholder(w.waferId, w.waferIdPlaceholder),
-        results: w.results,
-        partCount: w.partCount,
-        goodCount: w.goodCount,
-        failCount: w.failCount,
-        fields: w.fields,
-        source,
-      })));
-    }
-    // Say so. Without this the indicator kept claiming "Parsing x.csv…" while
-    // the app was actually sitting at a dialog waiting for the user — the same
-    // dishonesty as naming a phase before its work starts. Every other gate in
-    // this file announces `waiting`; these two did not.
-    loadPhase('waiting', 'Waiting for wafer names');
-    return new Promise(resolve => {
-      showRenameOverlay(entries,
-        (renamed) => resolve(renamed),
-        () => { abortFreshLoad(); resolve(null); }
-      );
-    });
-  };
-
-  const renamed = await getRenamed();
-  if (!renamed) return;
-
-  if (isAppend && currentWafers.length > 0) {
-    loadPhase('waiting', 'Waiting for confirmation');
-    await new Promise<void>(resolve => {
-      showAppendConfirm({
-        incoming: renamed,
-        existing: currentWafers,
-        onConfirm: () => {
-          // Shallow spread preserves each wafer's shared `source` reference — do
-          // NOT deep-clone or serialize a stamped wafer (e.g. through the parser
-          // worker), or reference identity breaks and grouping by source fails.
-          const merged = [
-            ...currentWafers,
-            ...renamed.map(toWaferData),
-          ];
-          // The union is for tsmap's own test-picking UI only; each wafer keeps
-          // its own file's defs for wmap (see currentDefsBySource). Appending
-          // re-unions from scratch over the already-loaded files plus the new
-          // ones, so a collision introduced by the append is reported here and
-          // not only on a later reload.
-          const appended = unionTestDefs([
-            { fileName: currentFileName, testDefs: currentTestDefs },
-            ...entries.map(e => ({ fileName: e.fileName, testDefs: e.parsed.testDefs })),
-          ]);
-          logTestDefCollisions(appended.collisions);
-          const appendedBins = unionBinInfo([
-            { fileName: currentFileName, wafers: currentWafers, hbinDefs: currentHbinDefs, sbinDefs: currentSbinDefs, passHbins: currentPassHbins },
-            ...entries.map(e => ({ ...e.parsed, fileName: e.fileName })),
-          ]);
-          logPassBinCollisions(appendedBins.collisions);
-          renderWafers(merged, currentFileName, appended.defs, {
-            hbinDefs: appendedBins.hbinDefs, sbinDefs: appendedBins.sbinDefs, passHbins: appendedBins.passHbins,
-          }, defsBySourceFrom(renamed, currentDefsBySource));
-          log('info', `Added ${renamed.length} wafer${renamed.length !== 1 ? 's' : ''} — gallery now has ${merged.length}`);
-          resolve();
+          onLoad: () => pickDefinitionsFile('tests', 'Select a test definitions file to load'),
+          recentLoads: () => recentDefinitionRows('tests'),
+          recentNote: recentDefinitionsNote(),
+          onLog: log,
+          onAsk: (msg) => platform.confirm(msg),
         },
-        onCancel: () => { endLoad(`${currentWafers.length} wafers loaded`); resolve(); },
-      });
-    });
-  } else {
-    const united = unionTestDefs(entries.map(e => ({ fileName: e.fileName, testDefs: e.parsed.testDefs })));
-    logTestDefCollisions(united.collisions);
-    const bins = unionBinInfo(entries.map(e => ({ ...e.parsed, fileName: e.fileName })));
-    logPassBinCollisions(bins.collisions);
-    renderWafers(
-      renamed.map(toWaferData),
-      entries.length === 1 ? entries[0].fileName : `${entries.length} files`,
-      united.defs,
-      { hbinDefs: bins.hbinDefs, sbinDefs: bins.sbinDefs, passHbins: bins.passHbins },
-      defsBySourceFrom(renamed),
-    );
-    if (originalPaths) addRecentFiles(originalPaths);
-  }
+      );
+    }),
+    renameWafers: (entries) => new Promise(resolve => {
+      showRenameOverlay(entries, (renamed) => resolve(renamed), () => resolve(null));
+    }),
+    confirmAppend: ({ incoming, existing }) => new Promise(resolve => {
+      showAppendConfirm({ incoming, existing, onConfirm: () => resolve(true), onCancel: () => resolve(false) });
+    }),
+  },
+};
+
+/**
+ * Load `files` — see loadPipeline.ts `runLoad` for the flow and `loadDeps` for what it is given.
+ * `continuesCurrentLoad`: this call is the next step of a load that is ALREADY running (the file
+ * picker opened under `loadPhase('waiting', …)` and is now handing its files on), not a new one.
+ */
+function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurrentLoad = false): Promise<void> {
+  return runLoad(files, isAppend, continuesCurrentLoad, loadDeps);
 }
 
 /**
@@ -2409,7 +1980,7 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     edgeExclusionMm = geometry.edgeExclusionMm;
   }
   if (args.files.length === 0) {
-    if (sweepsChanged && currentWafers.length > 0) rerenderCurrentLot('Rendering');
+    if (sweepsChanged && session.wafers.length > 0) rerenderCurrentLot('Rendering');
     return;
   }
   const files: FileHandle[] = args.files.map(p => ({
@@ -2743,7 +2314,7 @@ addMoreBtn.addEventListener('click', () => openPickMenu(addMoreBtn, true));
  *  menu (`openLotMenu`); a named function rather than an inline listener so the
  *  menu row can call it directly. */
 function toggleValueFindings() {
-  if (busy || currentWafers.length === 0) return;
+  if (busy || session.wafers.length === 0) return;
   // Whichever way it goes, the user has now decided — the auto budget must not
   // silently turn it back on for them on the next render.
   valueFindingsChosen = true;
@@ -2758,7 +2329,7 @@ function toggleValueFindings() {
 }
 
 resetBtn.addEventListener('click', () => {
-  if (currentWafers.length === 0) return;
+  if (session.wafers.length === 0) return;
   endLoad();
   showEmptyState();
 });
@@ -2773,9 +2344,9 @@ resetBtn.addEventListener('click', () => {
  * rather than showing a meaningless zero.
  */
 function filterCapacity(): { dieCount: number; totalTests: number; isWebBuild: boolean } | undefined {
-  const dieCount = currentWafers.reduce((n, w) => n + w.results.count, 0);
+  const dieCount = session.wafers.reduce((n, w) => n + w.results.count, 0);
   if (dieCount === 0) return undefined;
-  const totalTests = Object.keys(currentTestNames ?? currentTestDefs).length;
+  const totalTests = Object.keys(session.testNames ?? session.testDefs).length;
   // The value ceiling is a browser-only limit — see webValueBudgetWarning.
   return { dieCount, totalTests, isWebBuild: !isTauri };
 }
@@ -2784,11 +2355,11 @@ function filterCapacity(): { dieCount: number; totalTests: number; isWebBuild: b
  *  re-parse. Reached from the Setup ▾ menu (`openLotMenu`); a named function
  *  rather than an inline listener so the menu row can call it directly. */
 async function openFilterTests() {
-  if (busy || Object.keys(currentTestDefs).length === 0) return;
+  if (busy || Object.keys(session.testDefs).length === 0) return;
   const overrideUnitNotes: OverrideUnitNote[] = [];
   // For CSV/JSON (no binary files), we only support in-memory filtering — no re-parse available.
-  // For STDF/ATDF we use currentTestNames from the first-pass scan (may re-parse if user adds tests).
-  const selectorTestDefs: StdfTestNames = currentTestNames ?? currentTestDefs;
+  // For STDF/ATDF we use session.testNames from the first-pass scan (may re-parse if user adds tests).
+  const selectorTestDefs: StdfTestNames = session.testNames ?? session.testDefs;
 
   // Both of these are assigned exactly once, on the single 'confirm' path that
   // breaks out of filterLoop below — the 'cancel' path returns and 'scanAll'
@@ -2798,14 +2369,14 @@ async function openFilterTests() {
   let filterTestOverrides: Map<number, TestOverride>;
   let testSelection: number[];
   let scopedDefs = selectorTestDefs;
-  let carrySelection: number[] = Object.keys(currentTestDefs).map(Number);
-  // Seed with any overrides already baked into currentTestDefs (from the
+  let carrySelection: number[] = Object.keys(session.testDefs).map(Number);
+  // Seed with any overrides already baked into session.testDefs (from the
   // initial load's rename/limit-load) but not reflected in selectorTestDefs
   // (the original first-pass scan) — otherwise an override applied earlier
   // would appear to have silently reverted when the selector reopens here.
   let carryOverrides = new Map<number, TestOverride>();
   let carryDerived: DerivedSelection = derivedForSelector();
-  for (const [key, def] of Object.entries(currentTestDefs)) {
+  for (const [key, def] of Object.entries(session.testDefs)) {
     const scanned = selectorTestDefs[key];
     if (scanned) {
       const diff = diffTestOverride(def, scanned);
@@ -2815,7 +2386,7 @@ async function openFilterTests() {
 
   filterLoop: for (;;) {
     // Offer "scan all" only if this is a multi-file binary load not already widened.
-    const canScanAll = currentBinaryFiles.length > 1 && binaryScanScope === 'largest';
+    const canScanAll = session.binaryFiles.length > 1 && session.binaryScanScope === 'largest';
     const result = await new Promise<{ kind: 'confirm'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }
                                    | { kind: 'cancel' }
                                    | { kind: 'scanAll'; selection: number[]; overrides: Map<number, TestOverride>; derived: DerivedSelection }>(resolve => {
@@ -2824,8 +2395,8 @@ async function openFilterTests() {
         (sel, overrides, derived) => resolve({ kind: 'confirm', selection: sel, overrides, derived }),
         () => resolve({ kind: 'cancel' }),
         {
-          scanScope: currentBinaryFiles.length > 1 ? binaryScanScope : undefined,
-          scanFileCount: currentBinaryFiles.length,
+          scanScope: session.binaryFiles.length > 1 ? session.binaryScanScope : undefined,
+          scanFileCount: session.binaryFiles.length,
           onScanAll: canScanAll ? (sel, overrides, derived) => resolve({ kind: 'scanAll', selection: sel, overrides, derived }) : undefined,
           initialSelection: [...carrySelection, ...carryDerived.selected],
           testOverrides: carryOverrides,
@@ -2865,12 +2436,12 @@ async function openFilterTests() {
       carrySelection = result.selection;
       carryOverrides = result.overrides;
       carryDerived = result.derived;
-      const scan = await scanBinaryTests(currentBinaryFiles);
+      const scan = await scanBinaryTests(session.binaryFiles);
       if (scan) {
         scopedDefs = scan.testDefs;
-        currentTestNames = scan.testDefs;
-        binaryScanScope = 'all';
-        log('info', `Scanned all ${currentBinaryFiles.length} files: ${Object.keys(scan.testDefs).length} tests total`);
+        session.testNames = scan.testDefs;
+        session.binaryScanScope = 'all';
+        log('info', `Scanned all ${session.binaryFiles.length} files: ${Object.keys(scan.testDefs).length} tests total`);
       }
       endLoad();
       continue filterLoop;
@@ -2889,7 +2460,7 @@ async function openFilterTests() {
     // This guard used to live only in the lightweight "Test definitions…"
     // dialog. Folding that dialog into this one would have dropped it silently,
     // leaving the surviving door the unguarded one.
-    const blocked = new Set(currentTestDefCollisions.filter(c => c.kind !== 'limits').map(c => c.testNumber));
+    const blocked = new Set(session.testDefCollisions.filter(c => c.kind !== 'limits').map(c => c.testNumber));
     const refused = [...result.overrides.keys()].filter(n => blocked.has(String(n)));
     filterTestOverrides = new Map(
       [...result.overrides].filter(([n]) => !blocked.has(String(n))),
@@ -2906,18 +2477,18 @@ async function openFilterTests() {
 
   // If the new selection is a subset of already-loaded tests, filter in memory —
   // no re-parse needed. CSV/JSON always use in-memory path (no re-parse available).
-  const loadedTestNumbers = new Set(Object.keys(currentTestDefs).map(Number));
-  const needsReparse = currentBinaryFiles.length > 0 && testSelection.some(n => !loadedTestNumbers.has(n));
+  const loadedTestNumbers = new Set(Object.keys(session.testDefs).map(Number));
+  const needsReparse = session.binaryFiles.length > 0 && testSelection.some(n => !loadedTestNumbers.has(n));
 
   if (!needsReparse) {
     const keepSet = new Set(testSelection);
-    const filteredWafers = currentWafers.map(w => ({
+    const filteredWafers = session.wafers.map(w => ({
       ...w,
       results: keepTests(w.results, keepSet),
     }));
     const filteredDefs: Record<string, TestDef> = {};
-    for (const key of Object.keys(currentTestDefs)) {
-      if (keepSet.has(Number(key))) filteredDefs[key] = currentTestDefs[key];
+    for (const key of Object.keys(session.testDefs)) {
+      if (keepSet.has(Number(key))) filteredDefs[key] = session.testDefs[key];
     }
     applyTestOverrides(filteredDefs, filterTestOverrides, overrideUnitNotes);
     log('info', `Test filter: ${testSelection.length} of ${Object.keys(selectorTestDefs).length} tests (in-memory)`);
@@ -2925,7 +2496,7 @@ async function openFilterTests() {
     // whole would hand wmap tests the user has just removed, so the map's mode
     // menu and the Insights selectors would still offer them.
     const filteredBySource = new Map<WaferSource, FileDefs>();
-    for (const [source, fd] of currentDefsBySource) {
+    for (const [source, fd] of session.defsBySource) {
       const kept: Record<string, TestDef> = {};
       for (const key of Object.keys(fd.testDefs)) if (keepSet.has(Number(key))) kept[key] = fd.testDefs[key];
       applyTestOverrides(kept, filterTestOverrides, overrideUnitNotes);
@@ -2940,9 +2511,9 @@ async function openFilterTests() {
     // binInfo param).
     renderWafers(
       filteredWafers,
-      currentFileName,
+      session.fileName,
       filteredDefs,
-      { hbinDefs: currentHbinDefs, sbinDefs: currentSbinDefs, passHbins: currentPassHbins },
+      { hbinDefs: session.hbinDefs, sbinDefs: session.sbinDefs, passHbins: session.passHbins },
       filteredBySource,
     );
     return;
@@ -2950,7 +2521,7 @@ async function openFilterTests() {
 
   // New selection adds tests not in the current load — must re-parse.
   const entries: FileWaferEntry[] = [];
-  for (const file of currentBinaryFiles) {
+  for (const file of session.binaryFiles) {
     const fileExt = effectiveFileExtension(file.name);
     loadPhase('parsing', `Parsing ${file.name}`);
     try {
@@ -2959,7 +2530,7 @@ async function openFilterTests() {
         : platform.parseStdfFiltered(file, testSelection));
       logDecodeTime();
       const parsed = await logTimed('rustToLocal (JS reconstruction)', () => rustToLocal(raw, file.name));
-      applyTestSelection(parsed, testSelection, currentTestNames, filterTestOverrides, overrideUnitNotes, true);
+      applyTestSelection(parsed, testSelection, session.testNames, filterTestOverrides, overrideUnitNotes, true);
       entries.push({ filePath: file.path ?? file.name, fileName: file.name, parsed });
       log('info', `Re-parsed ${file.name}: ${parsed.wafers.length} wafer${parsed.wafers.length !== 1 ? 's' : ''} (${testSelection.length} tests)`);
       logWarnings(parsed);
@@ -2969,7 +2540,7 @@ async function openFilterTests() {
   }
 
   if (entries.length === 0) {
-    endLoad(`${currentWafers.length} wafers loaded`);
+    endLoad(`${session.wafers.length} wafers loaded`);
     return;
   }
   logOverrideUnitNotes(overrideUnitNotes);
@@ -3002,20 +2573,20 @@ async function openFilterTests() {
 
 
 function openSplitsDialog() {
-  if (currentWafers.length === 0) return;
-  showSplitsModal(currentWafers, {
+  if (session.wafers.length === 0) return;
+  showSplitsModal(session.wafers, {
     onSave: async (csv) => {
       const saved = await platform.saveTextFile(csv, 'wafer-splits.csv', 'definitions', 'Save wafer splits to a file');
       if (saved) addRecentDefinition({ kind: 'splits', name: saved.name, path: saved.path, content: csv });
     },
     onLoad: () => pickDefinitionsFile('splits', 'Select a wafer splits file to load'),
-    persistable: splitsFingerprint(currentWafers) !== null,
+    persistable: splitsFingerprint(session.wafers) !== null,
     onLog: log,
     onAsk: (msg) => platform.confirm(msg),
     showSplitSuffix,
     onToggleSuffix: (show) => { showSplitSuffix = show; },
     onChange: () => {
-      saveSplits(currentWafers);
+      saveSplits(session.wafers);
       rerenderCurrentLot('Rendering');
     },
   });
@@ -3029,15 +2600,15 @@ function openSplitsDialog() {
 // millimetres (see waferGeometry.ts's module doc), and must never be shown
 // as one.
 function inferredWaferDiameterHint(): InferredDiameterHint {
-  if (currentWafers.length === 0) return { source: 'none' };
-  const wcr = wcrGeometryFrom(currentWafers[0].source);
+  if (session.wafers.length === 0) return { source: 'none' };
+  const wcr = wcrGeometryFrom(session.wafers[0].source);
   if (wcr?.waferConfig.diameter !== undefined) {
     return { source: 'wcr', diameter: wcr.waferConfig.diameter };
   }
   // Throwaway call with no waferConfig override, purely to read back
   // .wafer.diameter/.units/.inference.wafer.confidence — diameter inference
   // only reads die X/Y positions, so testDefs/metadata are irrelevant here.
-  const waferMap = buildWaferMap({ results: currentWafers[0].results });
+  const waferMap = buildWaferMap({ results: session.wafers[0].results });
   if (waferMap.units !== 'mm') return { source: 'none' };
   return {
     source: 'inferred',
@@ -3052,7 +2623,7 @@ function inferredWaferDiameterHint(): InferredDiameterHint {
 // output — must be invalidated before re-rendering, or the gallery path
 // would silently keep showing the pre-change geometry.
 function openWaferGeometryDialog() {
-  if (currentWafers.length === 0) return;
+  if (session.wafers.length === 0) return;
   const current: WaferGeometry = { diameterMm: waferDiameterMm, edgeExclusionMm };
   showWaferGeometryDialog(current, inferredWaferDiameterHint(), (geometry) => {
     const normalized = setWaferGeometry(geometry);
@@ -3264,8 +2835,8 @@ function recentDefinitionRows(kind: DefinitionKind) {
  * sweeps. Loading replaces every sweep.
  */
 function openSweepsDialog(): void {
-  if (currentWafers.length === 0) return;
-  const n = currentSweeps.length;
+  if (session.wafers.length === 0) return;
+  const n = session.sweeps.length;
   openSaveLoadDefinitionsDialog({
     title: 'Sweeps',
     kind: 'sweeps',
@@ -3273,13 +2844,13 @@ function openSweepsDialog(): void {
     savedMessage: 'Sweeps saved',
     description: n === 0
       ? 'A sweep reads a run of tests — the same quantity measured at a series of voltages, temperatures or cycle counts — as a curve, and measures where two such curves cross. Load a sweeps file (JSON) to add them to Insights → Sweeps.'
-      : `${n} sweep${n !== 1 ? 's are' : ' is'} defined: ${currentSweeps.map(s => s.title).join(', ')}. Save them to a file, load a sweeps file to replace them, or clear them.`,
+      : `${n} sweep${n !== 1 ? 's are' : ' is'} defined: ${session.sweeps.map(s => s.title).join(', ')}. Save them to a file, load a sweeps file to replace them, or clear them.`,
     saveDisabled: n === 0,
     saveFileName: 'sweeps.json',
-    onSave: () => formatSweepsFile(currentSweeps),
+    onSave: () => formatSweepsFile(session.sweeps),
     onLoad: adoptSweepsFile,
     onClear: () => {
-      currentSweeps = [];
+      session.sweeps = [];
       log('info', 'Sweeps cleared');
     },
     clearDisabled: n === 0,
@@ -3299,7 +2870,7 @@ function adoptSweepsFile(text: string): boolean {
     return false;
   }
   for (const w of parsed.warnings) log('warn', `Sweeps file: ${w}`);
-  currentSweeps = parsed.sweeps;
+  session.sweeps = parsed.sweeps;
   definitionsAnchor = null;
   log('info', parsed.sweeps.length
     ? `Sweeps loaded: ${parsed.sweeps.map(s => s.title).join(', ')} — see Insights → Sweeps`
@@ -3308,10 +2879,10 @@ function adoptSweepsFile(text: string): boolean {
 }
 
 function openBinDefinitionsDialog(): void {
-  if (currentWafers.length === 0) return;
+  if (session.wafers.length === 0) return;
 
-  const hbinCount = currentHbinDefs?.length ?? 0;
-  const sbinCount = currentSbinDefs?.length ?? 0;
+  const hbinCount = session.hbinDefs?.length ?? 0;
+  const sbinCount = session.sbinDefs?.length ?? 0;
 
   openSaveLoadDefinitionsDialog({
     title: 'Bin definitions',
@@ -3325,10 +2896,10 @@ function openBinDefinitionsDialog(): void {
     saveDisabled: hbinCount === 0 && sbinCount === 0,
     saveFileName: 'bin-definitions.csv',
     onSave: () => {
-      const passSet = new Set(currentPassHbins ?? []);
+      const passSet = new Set(session.passHbins ?? []);
       const entries: BinDefEntry[] = [
-        ...(currentHbinDefs ?? []).map(d => ({ bin: d.bin, type: 'hard' as const, name: d.name, pass: passSet.has(d.bin), color: d.color })),
-        ...(currentSbinDefs ?? []).map(d => ({ bin: d.bin, type: 'soft' as const, name: d.name, color: d.color })),
+        ...(session.hbinDefs ?? []).map(d => ({ bin: d.bin, type: 'hard' as const, name: d.name, pass: passSet.has(d.bin), color: d.color })),
+        ...(session.sbinDefs ?? []).map(d => ({ bin: d.bin, type: 'soft' as const, name: d.name, color: d.color })),
       ];
       return formatBinDefsCsv(entries);
     },
@@ -3336,12 +2907,12 @@ function openBinDefinitionsDialog(): void {
       const parsed = parseBinDefsFile(text, (lineNo, msg) => log('warn', `Bin definitions line ${lineNo}: ${msg}`));
       if (parsed.length === 0) { log('warn', 'Bin definitions file contained no valid rows'); return false; }
       const merged = applyBinDefOverrides(
-        { hbinDefs: currentHbinDefs, sbinDefs: currentSbinDefs, passHbins: currentPassHbins },
+        { hbinDefs: session.hbinDefs, sbinDefs: session.sbinDefs, passHbins: session.passHbins },
         parsed,
       );
-      currentHbinDefs = merged.hbinDefs;
-      currentSbinDefs = merged.sbinDefs;
-      currentPassHbins = merged.passHbins;
+      session.hbinDefs = merged.hbinDefs;
+      session.sbinDefs = merged.sbinDefs;
+      session.passHbins = merged.passHbins;
       log('info', `Bin definitions loaded: ${parsed.length} entr${parsed.length !== 1 ? 'ies' : 'y'} applied`);
       return true;
     },
@@ -3564,7 +3135,7 @@ function openLotMenu(anchor: HTMLElement) {
       onClose: () => { closeLotMenu = null; anchor.setAttribute('aria-expanded', 'false'); },
     },
     (popup, close) => {
-      const hasTests = Object.keys(currentTestDefs).length > 0;
+      const hasTests = Object.keys(session.testDefs).length > 0;
 
       // Grouped, because six unrelated dialogs behind one caret cannot be
       // described by any button label. The headers do the describing the label
@@ -3594,8 +3165,8 @@ function openLotMenu(anchor: HTMLElement) {
       }));
       popup.appendChild(makeMenuRow(close, {
         label: 'Bin definitions…',
-        hint: (currentHbinDefs?.length || currentSbinDefs?.length)
-          ? `${currentHbinDefs?.length ?? 0} hard, ${currentSbinDefs?.length ?? 0} soft bin name${((currentHbinDefs?.length ?? 0) + (currentSbinDefs?.length ?? 0)) !== 1 ? 's' : ''} — save or load hard/soft bin names and pass/fail flags`
+        hint: (session.hbinDefs?.length || session.sbinDefs?.length)
+          ? `${session.hbinDefs?.length ?? 0} hard, ${session.sbinDefs?.length ?? 0} soft bin name${((session.hbinDefs?.length ?? 0) + (session.sbinDefs?.length ?? 0)) !== 1 ? 's' : ''} — save or load hard/soft bin names and pass/fail flags`
           : 'Save or load hard/soft bin names and pass/fail flags (no HBR/SBR record found in this file)',
         enabled: !busy,
         onClick: openBinDefinitionsDialog,
@@ -3617,7 +3188,7 @@ function openLotMenu(anchor: HTMLElement) {
       // findings" with no indication of what it acted on. In a menu row there
       // is room to name the object, and it sits with the other lot-scoped
       // controls instead of beside the file buttons.
-      const hasTestValues = currentWafers.some(w =>
+      const hasTestValues = session.wafers.some(w =>
         testNumbers(w.results).length > 0);
       heading('Analysis');
       popup.appendChild(makeMenuRow(close, {
@@ -3631,8 +3202,8 @@ function openLotMenu(anchor: HTMLElement) {
       }));
       popup.appendChild(makeMenuRow(close, {
         label: 'Sweeps…',
-        hint: currentSweeps.length
-          ? `${currentSweeps.length} sweep${currentSweeps.length !== 1 ? 's' : ''} in Insights → Sweeps — save or load the sweeps file`
+        hint: session.sweeps.length
+          ? `${session.sweeps.length} sweep${session.sweeps.length !== 1 ? 's' : ''} in Insights → Sweeps — save or load the sweeps file`
           : 'Load a sweeps file: runs of tests read as response curves, in Insights → Sweeps',
         enabled: !busy,
         onClick: openSweepsDialog,
@@ -3675,7 +3246,7 @@ if (!isTauri) {
     onLog: log,
     // Read at prompt time, not now — see PwaOptions. A reload discards these,
     // and on web the originals cannot be re-read, so the prompt says so.
-    hasLoadedData: () => currentWafers.length > 0,
+    hasLoadedData: () => session.wafers.length > 0,
   });
 }
 
@@ -3693,20 +3264,20 @@ if (!isTauri) {
  * is the bug; this is the one copy.
  */
 function rerenderCurrentLot(verb: string): void {
-  if (currentWafers.length === 0) return;
+  if (session.wafers.length === 0) return;
   clearLotStatsCache();
-  const label = currentFileName;
+  const label = session.fileName;
   loadPhase('rendering', `${verb} ${label}`);
   requestAnimationFrame(() => requestAnimationFrame(async () => {
-    await renderWaferView(currentWafers);
-    const dies = currentWafers.reduce((n, w) => n + w.results.count, 0);
-    endLoad(`${label} — ${currentWafers.length} wafer${currentWafers.length !== 1 ? 's' : ''}, ${dies} dies`);
+    await renderWaferView(session.wafers);
+    const dies = session.wafers.reduce((n, w) => n + w.results.count, 0);
+    endLoad(`${label} — ${session.wafers.length} wafer${session.wafers.length !== 1 ? 's' : ''}, ${dies} dies`);
   }));
 }
 
 function refreshCurrentView(): void {
-  if (currentWafers.length === 0) return; // empty state: CSS-only, nothing to redraw
-  void renderWaferView(currentWafers);
+  if (session.wafers.length === 0) return; // empty state: CSS-only, nothing to redraw
+  void renderWaferView(session.wafers);
 }
 
 // Grouped theme picker. Uses the custom menuSelect (not a native <select>):

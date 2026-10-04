@@ -174,6 +174,8 @@ src/
   webLimits.ts        — the browser build's size limit (test values its WASM parser can hold)
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
   storageKeys.ts      — the registry of every persisted preference, + legacy-key migration
+  session.ts          — the loaded lot (wafers, test/bin definitions, derived tests, sweeps, scan state) as one object
+  loadPipeline.ts     — the load flow (`runLoad`): archives, mapping, test scan + selector, parse, naming, append, render — dialogs and platform injected
   logBadge.ts         — the Log button's new-warning/new-error counts
   resetSettingsUI.ts  — Help ▸ Reset saved settings… — shows what is stored and forgets it
   recentDefinitions.ts   — recently used definitions files (tests/bins/splits), both platforms
