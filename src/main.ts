@@ -31,6 +31,7 @@ import { showSplitsModal } from './splitsUI';
 import { getEdgeExclusionMm, getWaferDiameterMm, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
 import { loadMapColorPrefs, saveMapColorPrefs } from './mapColorPrefs';
+import { loadSavedPlots, savePlots } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
@@ -255,6 +256,10 @@ const insightsOpts = () => ({
     log('info', `Sweep${gone.length !== 1 ? 's' : ''} removed: ${gone.map(s => s.title).join(', ')}`);
     rerenderCurrentLot('Rendering');
   },
+  // The Plot tab's own list, kept across loads and restarts (plotPrefs.ts). Export plots… goes through onSaveText.
+  plots: loadSavedPlots(),
+  onPlotsChange: savePlots,
+  onPickPlotsFile: () => platform.pickTextFile('definitions', 'Select a plots file to import', ['json']).then(f => f?.content ?? null),
 });
 
 // Tracks the most recently loaded STDF/ATDF files so "Tests…" can re-parse them.

@@ -90,6 +90,12 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     scope: 'both',
   },
   {
+    key: 'tsmap:plots',
+    label: 'Saved plots',
+    description: 'The plots you built on the Insights Plot tab (which fields, which chart type, titles and axis limits), kept for the next lot.',
+    scope: 'both',
+  },
+  {
     key: 'tsmap:file-filter',
     legacyKeys: ['tsmap.fileFilter.lastCriteria'],
     label: 'Last file filter',

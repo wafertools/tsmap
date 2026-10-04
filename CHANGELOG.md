@@ -8,6 +8,11 @@ technical record, including internal changes.
 
 ### Added
 
+- **Your plots are kept.** Insights has a **Plot** tab, a chart builder (see wafermap's guide for how it works), and tsmap
+  remembers the plots you build across loads and restarts, on this machine, and offers them in the right-click menu on a
+  selection or a wafer. A plot is a recipe with no lot in it, so it draws again on the next lot; one whose test is not in
+  the open lot stays in the list, dimmed, with the reason. **Export plots…** and **Import plots…** (the desktop app uses
+  its native dialogs) move a set of plots between machines. They are listed in **Help → Reset saved settings…**.
 - **The desktop window reopens where you left it.** Size, position and maximised state are remembered between launches,
   using `tauri-plugin-window-state`. A first launch is unchanged (centred, 80% of the screen), and a saved position on a
   monitor that is no longer connected is ignored. The state is a file in the app's configuration folder, not part of

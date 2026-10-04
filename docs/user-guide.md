@@ -714,6 +714,24 @@ with one sub-bar per arm, which is the question a split experiment is usually ru
 It reports rates rather than counts, so arms with different wafer counts stay comparable. The
 same comparison is written into the **lot summary report**, so it can leave the app.
 
+### Your own plots
+
+The Insights **Plot** tab is a chart builder: **+ New plot** opens a plot beside a large copy of its chart,
+where you choose the chart type, the fields for X, Y and colour (any test, a die's position, a wafer's
+yield, or a lot field such as split or temperature) and the titles and axis limits. How the controls work,
+and how a plot divides the data (its X, its colour, and the **Show** control above), is in the
+[full wafer map guide](https://wafertools.github.io/wafermap/user-guide/#plots).
+
+What is specific to tsmap is that **your plots are kept**. A plot is a recipe (which fields, which chart
+type), with nothing in it about the lot, so tsmap remembers the list on this machine and draws it again on
+the next lot you open. A plot that needs a test the open lot does not have stays in the list, dimmed, with the
+reason; it is not removed, and draws again on a lot that has the test. Right-click a selection of dies or a
+wafer and your plots are in the menu, drawn over just those dies.
+
+**Export plots…** writes every plot to a file, and **Import plots…** adds the plots of such a file to yours (as
+copies where one already exists, never replacing). That is how a set of plots moves to another machine or to a
+colleague. **Help → Reset saved settings…** lists your saved plots like any other remembered setting.
+
 ### Sweeps
 
 A **sweep** reads a run of tests — one quantity measured at a series of voltages,
@@ -1426,7 +1444,7 @@ A bare `bin` is the weakest claim on **Hard bin**: when a file also has `Hard bi
 
 tsmap saves a few things between sessions so you don't have to set them up again: your colour
 theme, recently opened files, recently used definitions files, column mappings (per column
-layout), wafer split assignments (per lot), any wafer diameter and edge-exclusion override, and
+layout), wafer split assignments (per lot), your saved plots, any wafer diameter and edge-exclusion override, and
 the last file filter. The desktop app also remembers its window's size, position and whether it was
 maximised, and opens the next launch the same way; a first launch opens centred at 80% of the screen.
 This one is kept in the app's configuration folder rather than in the list below, so **Reset saved
