@@ -4,7 +4,7 @@
 them, and how to confirm the fix worked.
 
 Entries are grouped by where the problem shows up. If you don't know which group you're in,
-the [log panel](user-guide.md#8-the-log-panel) is the fastest way to find out — it records
+the [log panel](user-guide.md#the-log-panel) is the fastest way to find out — it records
 every load, every warning, and the reason for every refusal.
 
 ---
@@ -54,7 +54,7 @@ applied on every download, so a second copy behaves identically.
 with an `.stdf` extension, an unsupported Parquet codec, or a CSV whose column mapping was
 cancelled.
 
-**Fix:** open the [log panel](user-guide.md#8-the-log-panel) — each file logs its own failure
+**Fix:** open the [log panel](user-guide.md#the-log-panel) — each file logs its own failure
 reason separately. Load one file on its own to isolate it.
 
 **How to confirm:** the failing file loads alone, or its log line names a specific parse error
@@ -86,11 +86,11 @@ the map. A file can be "mixed", with some positioned wafers and some not.
 
 **Fix:** nothing, if the data really has no coordinates. For CSV/JSON/Parquet, check that the
 X and Y roles were mapped to the right columns in the
-[column-mapping overlay](user-guide.md#3-column-mapping-csv-json-and-parquet) — leaving both
+[column-mapping overlay](user-guide.md#column-mapping-csv-json-and-parquet) — leaving both
 unassigned treats the whole file as coordinate-less.
 
 **How to confirm:** see
-[Dies with no reported position](user-guide.md#51-dies-with-no-reported-position) for how the
+[Dies with no reported position](user-guide.md#dies-with-no-reported-position) for how the
 count is reported. Assigning only one of X/Y is refused outright, so a half-mapped file cannot
 be the cause.
 
@@ -154,7 +154,7 @@ row or the wrong column names.
 
 **Fix:** use **Save** first to write an example file from the currently loaded data, then edit
 that. The format is documented in
-[Definitions file formats](user-guide.md#13-definitions-file-formats).
+[Definitions file formats](user-guide.md#definitions-files).
 
 **How to confirm:** loading reports `Test definitions loaded: N matched`.
 
@@ -175,7 +175,7 @@ means the same thing in both.
 to save.
 
 **Fix:** load a bin-definitions file instead — see
-[Bin definitions](user-guide.md#11-bin-definitions).
+[Bin definitions](user-guide.md#bin-definitions).
 
 **How to confirm:** bin names appear in the legend and the summary panel in place of bare
 numbers.
@@ -202,7 +202,7 @@ the wafer is proof the *geometry* is wrong, not the die — the data is ground t
 **Fix:** set the real diameter in **Setup ▾ → Diameter & edge exclusion…**.
 
 **How to confirm:** every die sits inside the circle. See
-[Wafer diameter and edge exclusion](user-guide.md#12-wafer-diameter-and-edge-exclusion).
+[Wafer diameter and edge exclusion](user-guide.md#wafer-diameter-and-edge-exclusion).
 
 ---
 

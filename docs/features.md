@@ -16,8 +16,8 @@ browser), which is where tsmap's speed comes from: a 341 MB / 266,000-die STDF l
 about 1.4 seconds (~250 MB/s) on a Lenovo ThinkPad T14s laptop. CSV and ATDF parsing saw similar
 jumps in a 2026 rewrite — CSV about 3.4× faster, ATDF about 2.8× faster.
 
-See [Supported file formats](user-guide.md#1-supported-file-formats) and
-[Opening files](user-guide.md#2-opening-files) in the user guide.
+See [Supported file formats](user-guide.md#supported-file-formats) and
+[Opening files](user-guide.md#getting-started) in the user guide.
 
 ## Find the right files before you open them
 
@@ -36,7 +36,7 @@ can be saved to a file and reloaded later, or supplied on the command line.
 
 ![Test selector overlay](images/test-selector.png)
 
-See [Test selector](user-guide.md#4-test-selector-stdf-and-atdf) in the user guide.
+See [Test selector](user-guide.md#test-selector-stdf-and-atdf) in the user guide.
 
 The same definitions file can also define **derived tests**: a row with an `expression`,
 such as `abs(t[1020] - t[1010])` or `log10(t[3115])`, is a test computed on every die from
@@ -53,7 +53,7 @@ statistical outlier detection on top.
 ![Wafer map in test-value mode](images/wafer-map-testvalue.png)
 ![Wafer map in soft-bin mode](images/wafer-map-softbin.png)
 
-See [The wafer map view](user-guide.md#5-the-wafer-map-view) in the user guide.
+See [The wafer map view](user-guide.md#the-wafer-map-view) in the user guide.
 
 ### Dies with no reported position
 
@@ -70,7 +70,7 @@ bin counts, and per-test statistics still count every die either way — only sp
 list, also CSV-exportable, is available from the toolbar's **Setup ▾** menu for any
 multi-wafer load.
 
-See [Dies with no reported position](user-guide.md#51-dies-with-no-reported-position) in the
+See [Dies with no reported position](user-guide.md#dies-with-no-reported-position) in the
 user guide.
 
 ## Wafer splits — compare process corners
@@ -82,7 +82,7 @@ feed straight into every chart's **Group by** control.
 ![Splits dialog with corners loaded](images/splits-modal-loaded.png)
 ![Gallery showing split labels on each card](images/gallery-splits.png)
 
-See [Wafer splits](user-guide.md#6-wafer-splits) in the user guide.
+See [Wafer splits](user-guide.md#wafer-splits) in the user guide.
 
 ## Charts & Insights
 
@@ -111,7 +111,7 @@ own per-wafer view.
 ![Insights Overview grouped by Split](images/charts-grouped-by-split.png)
 ![Yield drilled into a single Split](images/yield-group-drilldown.png)
 
-See [Grouping data in the Insights tab](user-guide.md#7-grouping-data-in-the-insights-tab) in
+See [Grouping data in the Insights tab](user-guide.md#grouping-data-in-the-insights-tab) in
 the user guide.
 
 **Sweeps** read an ordered run of tests — set/reset voltages, bake times, cycle counts,
@@ -119,7 +119,7 @@ resistance thresholds — as a response curve, and measure a pair of curves agai
 other: where they cross, and how far apart they are at a given level. They are defined in a
 small JSON file (Setup ▾ → Sweeps…); the swept value can be given directly or read from the
 test names, and plotted on a log axis when it grows by multiples. See
-[Sweeps](user-guide.md#71-sweeps).
+[Sweeps](user-guide.md#sweeps).
 
 **Chart just the dies you care about.** Select dies on a map and right-click — or
 right-click a wafer card, or one wafer's bar in a chart — for a histogram, process

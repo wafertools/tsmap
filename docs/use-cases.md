@@ -44,8 +44,8 @@ experimental variable (below), or move to a parametric view to find which test i
 ![Multi-wafer gallery](images/gallery.png)
 ![Wafer map in soft-bin mode](images/wafer-map-softbin.png)
 
-See [Opening files](user-guide.md#2-opening-files) and
-[The wafer map view](user-guide.md#5-the-wafer-map-view).
+See [Opening files](user-guide.md#getting-started) and
+[The wafer map view](user-guide.md#the-wafer-map-view).
 
 ---
 
@@ -93,8 +93,8 @@ either shows a genuine trend or reveals that a high *r* came from something else
 ![Test correlation matrix](images/correlation.png)
 ![Test scatter](images/scatter.png)
 
-See [The wafer map view](user-guide.md#5-the-wafer-map-view) and
-[Grouping data in the Insights tab](user-guide.md#7-grouping-data-in-the-insights-tab).
+See [The wafer map view](user-guide.md#the-wafer-map-view) and
+[Grouping data in the Insights tab](user-guide.md#grouping-data-in-the-insights-tab).
 
 ---
 
@@ -134,7 +134,7 @@ whether a parametric test separates cleanly by corner in **Distributions**.
 ![Splits dialog with corners loaded](images/splits-modal-loaded.png)
 ![Insights Overview grouped by Split](images/charts-grouped-by-split.png)
 
-See [Wafer splits](user-guide.md#6-wafer-splits).
+See [Wafer splits](user-guide.md#wafer-splits).
 
 ---
 

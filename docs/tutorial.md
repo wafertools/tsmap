@@ -133,9 +133,9 @@ Any of these work from the lot view:
 
 ## Where to go next
 
-- **Your own data** — [Supported file formats](user-guide.md#1-supported-file-formats) and, for
-  CSV/JSON/Parquet, [Column mapping](user-guide.md#3-column-mapping-csv-json-and-parquet).
+- **Your own data** — [Supported file formats](user-guide.md#supported-file-formats) and, for
+  CSV/JSON/Parquet, [Column mapping](user-guide.md#column-mapping-csv-json-and-parquet).
 - **Splits on your own lots** — the sample's corners were pre-assigned; assign your own in
-  [Wafer splits](user-guide.md#6-wafer-splits).
+  [Wafer splits](user-guide.md#wafer-splits).
 - **Something not working** — [Troubleshooting](troubleshooting.md).
 - **The rest of the interface** — the [user guide](user-guide.md).
