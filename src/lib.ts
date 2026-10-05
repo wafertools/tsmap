@@ -711,10 +711,10 @@ export function derivedNoneBuilt(
 }
 
 /**
- * What a lot's test numbers meant, recorded when derived tests or sweeps were
+ * What a lot's test numbers meant, recorded when derived tests were
  * set up on it. A test number identifies a test only within one test program:
  * a later lot can reuse the numbers for different measurements, and the derived
- * tests and sweeps then compute plausible, wrong values with nothing failing.
+ * tests then compute plausible, wrong values with nothing failing.
  */
 export interface DefinitionsAnchor {
   /** Measured test number → name. */

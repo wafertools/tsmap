@@ -32,7 +32,7 @@ import { join } from 'path';
 import { DIST, ROOT } from './lib/paths.mjs';
 import { startServer } from './lib/server.mjs';
 import { launchBrowser, newCapturePage } from './lib/browser.mjs';
-import { runSetup } from './lib/steps.mjs';
+import { runSetup, removeTempDirs } from './lib/steps.mjs';
 import { scenario } from './scenarios/edge-corner-lot.mjs';
 
 const SHOTS_DIR = join(ROOT, 'demo', 'screenshots');
@@ -82,6 +82,8 @@ async function main() {
     collectDiagnostics: true,
   });
 
+  // Folders a beat's steps stage for the app to scan: a later beat loads from them, so they last the whole run.
+  const scratchDirs = [];
   let exitCode = 0;
   try {
     await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 30_000 });
@@ -94,7 +96,7 @@ async function main() {
       let stepError = null;
       if (beat.steps?.length) {
         try {
-          stepResults = await runSetup(page, beat.steps, base, { strict: true, allowCosmetic: false });
+          stepResults = await runSetup(page, beat.steps, base, { strict: true, allowCosmetic: false, tempDirs: scratchDirs });
         } catch (e) {
           stepError = e;
           stepResults = e.stepResults ?? [];
@@ -145,6 +147,7 @@ async function main() {
       await browser.close();
     }
     server.close();
+    await removeTempDirs(scratchDirs);
   }
 
   console.log(exitCode === 0 ? '\n✓ scenario complete\n' : '\n✗ scenario failed\n');

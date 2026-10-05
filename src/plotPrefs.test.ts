@@ -4,7 +4,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { writePlotsFile } from '@wafertools/wafermap';
 import type { PlotSpec } from '@wafertools/wafermap';
 import { resetMigrationForTests } from './storageKeys';
-import { loadSavedPlots, savePlots, resetPlotPrefsForTests } from './plotPrefs';
+import { loadSavedPlots, savePlots, resetPlotPrefsForTests, importPlotsText, plotsTemplateText } from './plotPrefs';
+import { readPlotsFile } from '@wafertools/wafermap';
 
 const store = new Map<string, string>();
 (globalThis as { localStorage?: unknown }).localStorage = {
@@ -58,5 +59,48 @@ describe('saved plots', () => {
   it('treats text that is not a plots file as nothing saved', () => {
     store.set('tsmap:plots', 'not json');
     expect(loadSavedPlots()).toEqual([]);
+  });
+});
+
+describe('importing a plots file named on the command line', () => {
+  it('adds the plots to the saved ones', () => {
+    savePlots([A]);
+    const r = importPlotsText(writePlotsFile([B]));
+    expect(r).toMatchObject({ added: 1, replaced: 0, titles: ['b'] });
+    expect(loadSavedPlots().map(p => p.id)).toEqual(['a', 'b']);
+  });
+
+  it('replaces a plot with the same id, so the same file twice leaves one copy', () => {
+    savePlots([A]);
+    const edited: PlotSpec = { ...A, title: 'Edited' };
+    const text = writePlotsFile([edited, B]);
+    expect(importPlotsText(text)).toMatchObject({ added: 1, replaced: 1 });
+    expect(importPlotsText(text)).toMatchObject({ added: 0, replaced: 2 });
+    expect(loadSavedPlots().map(p => p.title ?? p.id)).toEqual(['Edited', 'b']);
+  });
+
+  it('reads an older sweeps file too, as sweep plots', () => {
+    const sweeps = JSON.stringify({ format: 'tsmap-sweeps', version: 1, sweeps: [
+      { id: 's1', title: 'Power', series: [{ label: 'Up', tests: [1, 2], xValues: [0, 1] }] },
+    ] });
+    const r = importPlotsText(sweeps);
+    expect(r.error).toBeUndefined();
+    expect(loadSavedPlots()).toMatchObject([{ id: 's1', title: 'Power', chart: 'sweep' }]);
+  });
+
+  it('leaves the saved plots alone when the file cannot be read', () => {
+    savePlots([A]);
+    const r = importPlotsText('{ not json');
+    expect(r.error).toBeDefined();
+    expect(loadSavedPlots()).toEqual([A]);
+  });
+});
+
+describe('the example plots file', () => {
+  it('is a plots file wmap reads without complaint', () => {
+    const read = readPlotsFile(plotsTemplateText());
+    expect(read.error).toBeUndefined();
+    expect(read.warnings).toEqual([]);
+    expect(read.plots).toMatchObject([{ id: 'set-reset', chart: 'sweep' }]);
   });
 });

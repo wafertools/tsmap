@@ -624,7 +624,9 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       // data-wmap-chart-card/data-wmap-chart-title directly — added
       // alongside those hooks, so new steps should
       // prefer them over the heading-text walk.
-      const [wanted, colIdx, numCols] = args;
+      // `plotInset` is the width (px) of the chart's own left margin (its y axis) that
+      // the columns do not use; without it a click lands in the margin, not a column.
+      const [wanted, colIdx, numCols, plotInset = 0] = args;
       const box = await page.evaluate((titleText) => {
         const card = [...document.querySelectorAll('[data-wmap-chart-card]')]
           .find(c => c.dataset.wmapChartTitle === titleText);
@@ -634,7 +636,7 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
         return { x: r.x, y: r.y, width: r.width, height: r.height };
       }, wanted);
       if (!box) throw new Error(`Chart card canvas not found for data-wmap-chart-title: "${wanted}"`);
-      const x = box.x + (colIdx + 0.5) / numCols * box.width;
+      const x = box.x + plotInset + (colIdx + 0.5) / numCols * (box.width - plotInset);
       const y = box.y + box.height / 2;
       await page.mouse.click(x, y);
       await page.mouse.move(2, 2);
@@ -762,12 +764,19 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
  * removed here, on the success and failure paths alike. Run-scoped rather
  * than step-scoped because a step's directory is still being read by the app
  * after the step itself returns.
+ *
+ * A caller whose later steps still read those files passes its own
+ * `opts.tempDirs` list and removes the directories itself (`removeTempDirs`):
+ * a scenario's next beat loads what the previous beat scanned, so removing
+ * them when the first beat's steps end left the app reading deleted files
+ * ("A requested file or directory could not be found").
  */
 export async function runSetup(page, steps, baseUrl, opts = {}) {
   const allowCosmetic = opts.allowCosmetic ?? true;
   const strict = opts.strict ?? false;
   const results = [];
-  const tempDirs = [];
+  const callerOwnsDirs = opts.tempDirs !== undefined;
+  const tempDirs = opts.tempDirs ?? [];
   try {
     for (let i = 0; i < steps.length; i++) {
       const [name, ...args] = steps[i];
@@ -786,15 +795,20 @@ export async function runSetup(page, steps, baseUrl, opts = {}) {
     }
     return results;
   } finally {
-    // Never let teardown mask a step failure: a scratch dir that won't delete
-    // is a disk-space nuisance, not a reason to lose the error that says which
-    // step broke.
-    for (const dir of tempDirs) {
-      try {
-        await rm(dir, { recursive: true, force: true });
-      } catch (err) {
-        console.warn(`warning: could not remove scratch dir ${dir}: ${err.message}`);
-      }
+    if (!callerOwnsDirs) await removeTempDirs(tempDirs);
+  }
+}
+
+/**
+ * Remove scratch directories staged by `runSetup` steps. Never lets teardown mask a step failure: a scratch dir that
+ * won't delete is a disk-space nuisance, not a reason to lose the error that says which step broke.
+ */
+export async function removeTempDirs(dirs) {
+  for (const dir of dirs) {
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch (err) {
+      console.warn(`warning: could not remove scratch dir ${dir}: ${err.message}`);
     }
   }
 }

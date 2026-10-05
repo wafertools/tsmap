@@ -105,10 +105,10 @@ export interface CliStartupArgs {
   files: string[];
   tests?: string;
   splits?: string;
-  /** `--sweeps <FILE>` (cli_files.rs) — a sweeps JSON path, resolved but not
-   *  read on the Rust side. Replaces the session's sweeps (`adoptSweepsFile`
+  /** `--plots <FILE>` (or `--sweeps`; cli_files.rs) — a plots JSON path, resolved
+   *  but not read on the Rust side. Added to the saved plots (`adoptPlotsFile`
    *  in main.ts) rather than seeding the next load, so it also works alone. */
-  sweeps?: string;
+  plots?: string;
   /** `--edge-exclusion <MM>` (cli_files.rs) — a scalar mm value, already
    *  parsed and validated (non-negative, finite) on the Rust side, unlike
    *  `tests`/`splits` which are file paths resolved but not read there.
@@ -159,7 +159,7 @@ export type DialogPurpose =
   | 'images'
   /** Exported CSV/text from the map and Insights. */
   | 'exports'
-  /** Test, bin, splits and sweeps definitions, and their example files. */
+  /** Test, bin and splits definitions, and their example files. */
   | 'definitions'
   /** Saved file-filter criteria. */
   | 'filters';

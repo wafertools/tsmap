@@ -23,11 +23,11 @@
  *     worst capability, driven by SS's real degradation.
  *   - Clicking a test's column there calls onSelectTest, which syncs BOTH
  *     "Test value distribution" (boxplot) and "Value histogram" to that
- *     test — a real, DOM-checkable sync (their <select>s' value becomes
- *     the clicked test's number), not a staged navigation.
+ *     test — a real, DOM-checkable sync (their Test menu buttons read the
+ *     clicked test's name), not a staged navigation.
  *   - Clicking a group's row in the grouped boxplot drills in place to
- *     that group's own wafers; clicking again (same screen position — the
- *     leaf row now occupies where the group row was) opens that wafer in
+ *     that group's own wafers (SS is the third row, after FF and TT); the
+ *     drilled list starts at the top, so clicking its first row opens that wafer in
  *     a modal, PRE-SELECTED to the currently-synced test in Test Value
  *     mode (boxplot.ts's onOpen(waferIndex, testNumber) contract). This is
  *     the actual "back to the map on fmax_MHz" beat — there is no separate
@@ -239,31 +239,29 @@ export const scenario = {
         // column is hardcoded to mean "fmax" — if the data or the sort
         // ever changed, the check below fails loudly instead of silently
         // asserting the wrong test.
-        ['clickChartColumnByTitle', 'Process capability', 0, 6],
+        ['clickChartColumnByTitle', 'Process capability', 0, 6, 42], // 42px: the chart's y-axis margin
       ],
       checks: [
         {
+          // The panels share one Test choice: a menu button whose label is the test's name.
           name: 'worst-capability-column-is-fmax',
-          get: (page) => page.$eval('[data-wmap-chart-card][data-wmap-chart-title="Process capability"]', (el) => {
-            const group = el.querySelector('select')?.value ?? null;
-            return group;
+          get: (page) => page.evaluate(() => {
+            const card = [...document.querySelectorAll('[data-wmap-chart-card]')].find((c) => c.dataset.wmapChartTitle === 'Wafer-to-wafer trend');
+            return card?.querySelector('button[aria-label="Test"]')?.textContent?.trim() ?? null;
           }),
-          expect: (group) => group === 'SS',
-          describe: 'clicking the worst-capability column also confirms the Process capability panel is scoped to the SS group',
+          expect: (label) => !!label && label.startsWith('fmax_MHz'),
+          describe: 'clicking the worst-capability column selects fmax_MHz in the Wafer-to-wafer trend too',
         },
         {
           name: 'boxplot-and-histogram-sync-to-the-clicked-test',
           get: (page) => page.evaluate(() => {
             const cards = [...document.querySelectorAll('[data-wmap-chart-card]')];
-            const boxplot = cards.find((c) => c.dataset.wmapChartTitle === 'Test value distribution');
-            const histogram = cards.find((c) => c.dataset.wmapChartTitle === 'Value histogram');
-            return {
-              boxplot: boxplot?.querySelector('select')?.value ?? null,
-              histogram: histogram?.querySelector('select')?.value ?? null,
-            };
+            const label = (title) => cards.find((c) => c.dataset.wmapChartTitle === title)
+              ?.querySelector('button[aria-label="Test"]')?.textContent?.trim() ?? null;
+            return { boxplot: label('Test value distribution'), histogram: label('Value histogram') };
           }),
-          expect: (v) => v.boxplot === '1006' && v.histogram === '1006',
-          describe: 'both "Test value distribution" and "Value histogram" sync their test select to 1006 (fmax_MHz) — real cross-panel state, not two independent screenshots',
+          expect: (v) => !!v.boxplot && !!v.histogram && v.boxplot.startsWith('fmax_MHz') && v.histogram.startsWith('fmax_MHz'),
+          describe: 'both "Test value distribution" and "Value histogram" sync their test choice to fmax_MHz — real cross-panel state, not two independent screenshots',
         },
       ],
       shot: 'demo-06-capability-synced-to-fmax',
@@ -273,13 +271,12 @@ export const scenario = {
       id: '07-drill-to-ss-wafer-on-fmax',
       title: 'Drill into SS in the boxplot — the opened wafer lands directly on fmax_MHz in Test Value mode',
       steps: [
-        // First click drills the grouped boxplot's row 0 (the SS group,
-        // lowest median — see the module doc) from a pooled group row into
-        // that group's own per-wafer rows. The second click, at the same
-        // screen position, now hits the leaf row that drilling revealed
-        // (row 0 of the drilled list) and calls onOpen — same verified
-        // two-click-same-position sequence as the module doc describes.
-        ['clickChartRowByTitle', 'Test value distribution', 0],
+        // First click drills the grouped boxplot's SS row (third, after FF and
+        // TT — the groups are listed in split order, and the check below fails
+        // if that ever changes) from a pooled group row into that group's own
+        // per-wafer rows. The drilled list starts at the top, so the second
+        // click is on its first row, a leaf that calls onOpen.
+        ['clickChartRowByTitle', 'Test value distribution', 2],
         ['wait', 400],
         ['clickChartRowByTitle', 'Test value distribution', 0],
         ['wait', 800],

@@ -17,7 +17,6 @@ import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
 import type { TestListEntry, DerivedSelection } from './testSelectorUI';
-import { parseSweepsFile, formatSweepsFile } from './sweeps';
 import type { FileWaferEntry } from './multiFileUI';
 import type { PassBinCollision, TestDefCollision, DefinitionsAnchor, OverrideUnitNote } from './lib';
 import { harmoniseTestUnits, type UnitConversion } from './units';
@@ -31,7 +30,7 @@ import { showSplitsModal } from './splitsUI';
 import { getEdgeExclusionMm, getWaferDiameterMm, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
 import { loadMapColorPrefs, saveMapColorPrefs } from './mapColorPrefs';
-import { loadSavedPlots, savePlots } from './plotPrefs';
+import { loadSavedPlots, savePlots, importPlotsText } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
@@ -243,19 +242,9 @@ function adoptDerived(d: DerivedSelection): void {
   session.derivedTests = d.tests;
   session.derivedSelected = new Set(d.selected);
 }
-// Parametric sweeps from Setup ▾ → Sweeps… (sweeps.ts) — one card each in the
-// Insights Sweeps tab, which wmap shows only when there is at least one.
 /** Insights options for both mounts, so the map and the gallery offer the same tabs. */
 const insightsOpts = () => ({
   enabled: true,
-  sweeps: session.sweeps.length ? session.sweeps : undefined,
-  // The Sweeps tab's own notice about sweeps that name none of this lot's tests.
-  onRemoveSweeps: (ids: string[]) => {
-    const gone = session.sweeps.filter(s => ids.includes(s.id));
-    session.sweeps = session.sweeps.filter(s => !ids.includes(s.id));
-    log('info', `Sweep${gone.length !== 1 ? 's' : ''} removed: ${gone.map(s => s.title).join(', ')}`);
-    rerenderCurrentLot('Rendering');
-  },
   // The Plot tab's own list, kept across loads and restarts (plotPrefs.ts). Export plots… goes through onSaveText.
   plots: loadSavedPlots(),
   onPlotsChange: savePlots,
@@ -530,7 +519,7 @@ if (isTauri) {
     listen<CliStartupArgs>('cli-open-files', async event => {
       const args = event.payload;
       // Nothing loaded, or nothing to replace it with: a launch carrying only
-      // settings (`--sweeps`, `--wafer-diameter`) applies to what is open. It
+      // settings (`--plots`, `--wafer-diameter`) applies to what is open. It
       // used to ask to "replace the currently loaded data with 0 files".
       if (session.wafers.length === 0 || args.files.length === 0) {
         applyCliArgs(args);
@@ -726,14 +715,14 @@ function logWmapWarnings(waferLabel: string, waferMap: WaferMapResult, statsSumm
 }
 
 /**
- * The lot the current derived tests and sweeps were set up on — see
+ * The lot the current derived tests were set up on — see
  * `DefinitionsAnchor` (lib.ts). Recorded at the first build after they change,
  * and compared with every later lot.
  */
 let definitionsAnchor: DefinitionsAnchor | null = null;
 
 /**
- * After a build, say when the session's derived tests or sweeps may not fit
+ * After a build, say when the session's derived tests may not fit
  * this lot. Flags only; removing them stays the user's call. Logged once per
  * load, like wmap's own warnings.
  *
@@ -742,13 +731,10 @@ let definitionsAnchor: DefinitionsAnchor | null = null;
  *   up on, or it states a different test program. That is the case nothing
  *   else catches: the numbers exist, so everything computes — from another
  *   program's measurements.
- *
- * A sweep naming none of the lot's tests is said on the Sweeps tab itself.
  */
 function logDefinitionsNotApplying(results: Parameters<typeof definitionsAnchorOf>[0]): void {
   const hasDerived = session.derivedTests.length > 0;
-  const hasSweeps = session.sweeps.length > 0;
-  if (!hasDerived && !hasSweeps) { definitionsAnchor = null; return; }
+  if (!hasDerived) { definitionsAnchor = null; return; }
   const once = (key: string, msg: string) => {
     if (loggedWmapWarnings.has(key)) return;
     loggedWmapWarnings.add(key);
@@ -766,7 +752,6 @@ function logDefinitionsNotApplying(results: Parameters<typeof definitionsAnchorO
   if (!definitionsAnchor) { definitionsAnchor = definitionsAnchorOf(results); return; }
   const mismatch = definitionsAnchorMismatch(definitionsAnchor, results);
   if (!mismatch) return;
-  const what = hasDerived && hasSweeps ? 'The derived tests and sweeps were' : hasDerived ? 'The derived tests were' : 'The sweeps were';
   const parts: string[] = [];
   if (mismatch.program) parts.push(`set up on test program "${mismatch.program.was}"; this lot is "${mismatch.program.now}"`);
   if (mismatch.renamed.length) {
@@ -774,13 +759,9 @@ function logDefinitionsNotApplying(results: Parameters<typeof definitionsAnchorO
     const more = mismatch.renamed.length > 3 ? ` (${mismatch.renamed.length} tests differ)` : '';
     parts.push(`set up on a lot where the same test numbers name different tests: ${shown}${more}`);
   }
-  const remove = [
-    hasDerived ? 'Setup ▾ → Tests… → Remove derived tests' : '',
-    hasSweeps ? 'Setup ▾ → Sweeps… → Clear' : '',
-  ].filter(Boolean).join(', or ');
   once('tsmap:definitions-other-program',
-    `${what} ${parts.join(', and ')}. They may belong to another test program and compute from the wrong tests — `
-    + `check them before relying on them, or remove them: ${remove}.`);
+    `The derived tests were ${parts.join(', and ')}. They may belong to another test program and compute from the wrong tests — `
+    + 'check them before relying on them, or remove them: Setup ▾ → Tests… → Remove derived tests.');
 }
 
 // Return type is inferred (not annotated) so `items[i].label`/`.statsSummary`
@@ -1954,15 +1935,14 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
       log('error', `Failed to read tests file "${args.tests}": ${errMsg(e)}`);
     }
   }
-  // Not seeded for the next load like tests/splits: the session's sweeps are
-  // replaced now, the way Setup ▾ → Sweeps… does. A load below then builds with
-  // them; with no files, whatever is already open is re-rendered to show them.
-  let sweepsChanged = false;
-  if (args.sweeps) {
+  // Not seeded for the next load like tests/splits: the plots join the saved ones now. A load below
+  // then builds with them; with no files, whatever is already open is re-rendered to show them.
+  let plotsChanged = false;
+  if (args.plots) {
     try {
-      sweepsChanged = adoptSweepsFile(await platform.readTextFile(args.sweeps));
+      plotsChanged = adoptPlotsFile(await platform.readTextFile(args.plots));
     } catch (e) {
-      log('error', `Failed to read sweeps file "${args.sweeps}": ${errMsg(e)}`);
+      log('error', `Failed to read plots file "${args.plots}": ${errMsg(e)}`);
     }
   }
   // Unlike splits/tests above, these are scalars applied directly rather than
@@ -1985,7 +1965,7 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     edgeExclusionMm = geometry.edgeExclusionMm;
   }
   if (args.files.length === 0) {
-    if (sweepsChanged && session.wafers.length > 0) rerenderCurrentLot('Rendering');
+    if (plotsChanged && session.wafers.length > 0) rerenderCurrentLot('Rendering');
     return;
   }
   const files: FileHandle[] = args.files.map(p => ({
@@ -2738,8 +2718,7 @@ function openSaveLoadDefinitionsDialog(opts: {
  * picked is exactly the file they are likely to want again next dataset.
  */
 async function pickDefinitionsFile(kind: DefinitionKind, title: string): Promise<string | null> {
-  // A sweeps file is JSON; every other definitions file is CSV.
-  const picked = await platform.pickTextFile('definitions', title, kind === 'sweeps' ? ['json'] : undefined);
+  const picked = await platform.pickTextFile('definitions', title);
   if (!picked) return null;
   addRecentDefinition({ kind, name: picked.name, path: picked.path, content: picked.content });
   return picked.content;
@@ -2836,51 +2815,21 @@ function recentDefinitionRows(kind: DefinitionKind) {
   });
 }
 /**
- * Setup ▾ → Sweeps…: load or save the sweeps file (sweeps.ts), or clear the
- * sweeps. Loading replaces every sweep.
+ * Add a plots file's plots to the saved ones (`--plots`), logging exactly what happened. Returns false (and changes
+ * nothing) when the file cannot be used at all; the caller re-renders on true.
  */
-function openSweepsDialog(): void {
-  if (session.wafers.length === 0) return;
-  const n = session.sweeps.length;
-  openSaveLoadDefinitionsDialog({
-    title: 'Sweeps',
-    kind: 'sweeps',
-    errorLabel: 'sweeps',
-    savedMessage: 'Sweeps saved',
-    description: n === 0
-      ? 'A sweep reads a run of tests — the same quantity measured at a series of voltages, temperatures or cycle counts — as a curve, and measures where two such curves cross. Load a sweeps file (JSON) to add them to Insights → Sweeps.'
-      : `${n} sweep${n !== 1 ? 's are' : ' is'} defined: ${session.sweeps.map(s => s.title).join(', ')}. Save them to a file, load a sweeps file to replace them, or clear them.`,
-    saveDisabled: n === 0,
-    saveFileName: 'sweeps.json',
-    onSave: () => formatSweepsFile(session.sweeps),
-    onLoad: adoptSweepsFile,
-    onClear: () => {
-      session.sweeps = [];
-      log('info', 'Sweeps cleared');
-    },
-    clearDisabled: n === 0,
-  });
-}
-
-/**
- * Parse a sweeps file and make it the session's sweeps, logging exactly what
- * happened. ONE path for Setup ▾ → Sweeps… and `--sweeps`, so a file reads the
- * same whichever way it arrives. Returns false (and changes nothing) when the
- * file cannot be used at all; the caller re-renders on true.
- */
-function adoptSweepsFile(text: string): boolean {
-  const parsed = parseSweepsFile(text);
-  if (parsed.error !== undefined) {
-    log('error', `Sweeps file not loaded: ${parsed.error}`);
+function adoptPlotsFile(text: string): boolean {
+  const r = importPlotsText(text);
+  if (r.error !== undefined) {
+    log('error', `Plots file not loaded: ${r.error}`);
     return false;
   }
-  for (const w of parsed.warnings) log('warn', `Sweeps file: ${w}`);
-  session.sweeps = parsed.sweeps;
-  definitionsAnchor = null;
-  log('info', parsed.sweeps.length
-    ? `Sweeps loaded: ${parsed.sweeps.map(s => s.title).join(', ')} — see Insights → Sweeps`
-    : 'Sweeps cleared — the file defines none');
-  return true;
+  for (const w of r.warnings) log('warn', `Plots file: ${w}`);
+  const count = (n: number, what: string) => `${n} ${what}${n !== 1 ? 's' : ''}`;
+  log('info', r.titles.length
+    ? `Plots loaded: ${r.titles.join(', ')} (${count(r.added, 'added')}${r.replaced ? `, ${r.replaced} replaced` : ''}) — see Insights → Plot`
+    : 'The plots file defines no plots');
+  return r.added + r.replaced > 0;
 }
 
 function openBinDefinitionsDialog(): void {
@@ -3204,14 +3153,6 @@ function openLotMenu(anchor: HTMLElement) {
         enabled: hasTestValues && !busy,
         checked: valueFindings,
         onClick: toggleValueFindings,
-      }));
-      popup.appendChild(makeMenuRow(close, {
-        label: 'Sweeps…',
-        hint: session.sweeps.length
-          ? `${session.sweeps.length} sweep${session.sweeps.length !== 1 ? 's' : ''} in Insights → Sweeps — save or load the sweeps file`
-          : 'Load a sweeps file: runs of tests read as response curves, in Insights → Sweeps',
-        enabled: !busy,
-        onClick: openSweepsDialog,
       }));
     },
   );

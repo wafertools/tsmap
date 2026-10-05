@@ -117,7 +117,7 @@ the user guide.
 **Sweeps** read an ordered run of tests — set/reset voltages, bake times, cycle counts,
 resistance thresholds — as a response curve, and measure a pair of curves against each
 other: where they cross, and how far apart they are at a given level. They are defined in a
-small JSON file (Setup ▾ → Sweeps…); the swept value can be given directly or read from the
+card on the Insights Plot tab (**+ New sweep**), kept with your other plots; the swept value can be given directly or read from the
 test names, and plotted on a log axis when it grows by multiples. See
 [Sweeps](user-guide.md#sweeps).
 

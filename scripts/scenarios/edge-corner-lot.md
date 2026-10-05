@@ -25,7 +25,7 @@ this lot.
 
 ## 3. Open the lot
 
-Select all 12 filtered files and click "Load selection…". Because more than
+Select all 12 filtered files and click "Load selected…". Because more than
 one file is being loaded at once, a rename overlay appears listing every
 wafer — accept the defaults and continue. The gallery renders: 12 wafer
 maps, 2652 dies total.

@@ -12,7 +12,7 @@ import { openModal } from './modal';
 import { formatTestListCsv } from './testSelectorUI';
 import { formatSplitsCsv, setSplitLabel } from './splits';
 import { formatBinDefsCsv } from './binDefs';
-import { formatSweepsFile, SWEEPS_TEMPLATE } from './sweeps';
+import { plotsTemplateText } from './plotPrefs';
 import type { WaferData } from './types';
 import { errMsg } from './lib';
 
@@ -46,10 +46,10 @@ const ROWS: TemplateRow[] = [
     ]),
   },
   {
-    label: 'Sweeps',
-    description: 'Runs of tests read as response curves, with where two curves cross and how far apart they are — see Setup ▾ → Sweeps…. JSON, not CSV: a sweep has series inside it.',
-    fileName: 'sweeps-template.json',
-    content: () => formatSweepsFile(SWEEPS_TEMPLATE),
+    label: 'Plots',
+    description: 'Saved plots, including sweeps (runs of tests read as response curves) — import with Insights → Plot → Import plots…, or launch with --plots. JSON, not CSV: a sweep has series inside it.',
+    fileName: 'plots-template.json',
+    content: plotsTemplateText,
   },
   {
     label: 'Splits',

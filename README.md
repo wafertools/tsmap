@@ -166,7 +166,6 @@ src/
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
   limitNames.ts       — the one table of limit column names (test vs spec limits), shared by the definitions reader and the column mapping
   headerKey.ts        — the header normalisation every column-name alias table is keyed by
-  sweeps.ts           — parametric sweep definitions (JSON): runs of tests read as curves in Insights → Sweeps
   definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
   wcr.ts              — STDF wafer configuration record code tables, shared by geometry and display
@@ -175,7 +174,7 @@ src/
   webLimits.ts        — the browser build's size limit (test values its WASM parser can hold)
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
   storageKeys.ts      — the registry of every persisted preference, + legacy-key migration
-  session.ts          — the loaded lot (wafers, test/bin definitions, derived tests, sweeps, scan state) as one object
+  session.ts          — the loaded lot (wafers, test/bin definitions, derived tests, scan state) as one object
   loadPipeline.ts     — the load flow (`runLoad`): archives, mapping, test scan + selector, parse, naming, append, render — dialogs and platform injected
   logBadge.ts         — the Log button's new-warning/new-error counts
   resetSettingsUI.ts  — Help ▸ Reset saved settings… — shows what is stored and forgets it
@@ -209,7 +208,7 @@ packages/parsers/     — shared Rust crate (native + WASM targets), published a
 src-tauri/src/
   lib.rs              — app setup: single-instance, tsmap:// scheme registration, and
                         --url resolution before the window opens
-  cli_files.rs        — CLI parsing: positional paths, --list/--tests/--splits/--sweeps,
+  cli_files.rs        — CLI parsing: positional paths, --list/--tests/--splits/--plots,
                         --url/--url-format/--url-headers, and the tsmap:// link form
   migrate.rs          — one-time move of app data from an older bundle identifier
                         or last_dir's old hardcoded path, run before the window opens

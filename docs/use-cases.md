@@ -151,11 +151,11 @@ cannot leave the machine.
    needs a confirm click, even for a small lot. It saves re-picking the
    tests, not the click.
 3. Seed wafer splits with `--splits`, so an experiment's grouping is applied on open, and
-   the program's sweep definitions with `--sweeps`, so Insights → Sweeps is ready too.
+   the program's plots and sweeps with `--plots`, so Insights → Plot is ready too.
 4. To launch from another application, use a `tsmap://open?url=…&format=…` link (desktop) or
    `?dataUrl=…&dataFormat=…` (browser). Both parameters are required together.
 
-**What you should see:** the lot opens with its files, test selection, splits and sweeps
+**What you should see:** the lot opens with its files, test selection, splits and plots
 already applied — no file picker, and nothing to re-enter. The test selector still appears for you to
 confirm (a `--tests` file always opens it).
 

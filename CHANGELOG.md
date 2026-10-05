@@ -18,8 +18,21 @@ technical record, including internal changes.
   monitor that is no longer connected is ignored. The state is a file in the app's configuration folder, not part of
   **Reset saved settings…**.
 
+### Breaking
+
+- **Sweeps are plots.** A sweep is a card on Insights' **Plot** tab (**+ New sweep**, with a sweep editor that draws the
+  curve as you type), kept, exported and imported with your other plots, so it stays defined across loads and restarts.
+  The **Sweeps** tab and **Setup ▾ → Sweeps…** (Save, Load, Clear) are gone; a sweeps file loads through **Import
+  plots…** or `--plots`, and Help → Definitions file formats… saves a plots template with an example sweep.
+
 ### Changed
 
+- **The RRAM sample's sweeps are a plots file.** `sample_data/RRAM-LOT-06_plots.json` replaces `RRAM-LOT-06_sweeps.json`
+  (the generator writes it); import it from the Plot tab or open the sample with `--plots`.
+- **`--plots <FILE>` adds a plots file's plots to the saved ones.** It takes what **Export plots…** writes, or a sweeps
+  file, and replaces a saved plot with the same id so launching with the same file twice leaves one copy of each.
+  `--sweeps` is the same flag, and `--s` is still ambiguous between `--splits` and `--sweeps`. A sent-to-a-running-tsmap
+  launch with only `--plots` redraws the lot already open.
 - **The user guide names the Summary panel's Data tables button** (wafermap's "View die list" became "Data tables", with
   Statistics, Dies and Wafers tables and Copy), in place of a Setup ▾ entry the guide described but the app does not have.
 - **A very large table export is written to disk as a stream.** A lot's die list at hundreds of thousands of dies is

@@ -7,10 +7,11 @@ Produces, next to the output path (default sample_data/RRAM-LOT-06.stdf):
   RRAM-LOT-06.stdf           6 wafers, ~220 dies each, 76 PTR tests + 1 FTR
   RRAM-LOT-06_testdefs.csv   readable names for every test, plus 7 DERIVED
                              tests (rows with an expression)
-  RRAM-LOT-06_sweeps.json    2 sweeps for Insights → Sweeps
+  RRAM-LOT-06_plots.json     2 sweeps, as plots for Insights → Plot
 
 Load the .stdf; in the test selector, Load definitions → the _testdefs.csv;
-import; then Setup ▾ → Sweeps… → Load… → the _sweeps.json, and open Insights.
+import; then open Insights → Plot → Import plots… → the _plots.json
+(or launch with --plots).
 
 THE SWEEPS
 ----------
@@ -243,7 +244,7 @@ def generate(stdf_path: Path) -> None:
     stdf_path.write_bytes(buf)
 
     write_testdefs(stdf_path.with_name(f'{LOT}_testdefs.csv'))
-    write_sweeps(stdf_path.with_name(f'{LOT}_sweeps.json'))
+    write_plots(stdf_path.with_name(f'{LOT}_plots.json'))
     print(f'Written {len(buf):,} bytes → {stdf_path}')
     print(f'  {len(WAFERS)} wafers × {len(dies)} dies, {len(TESTS)} PTR + 1 FTR; bins {bins}')
 
@@ -283,43 +284,50 @@ def write_testdefs(path: Path) -> None:
     print(f'Written test definitions → {path}')
 
 
-def write_sweeps(path: Path) -> None:
+def write_plots(path: Path) -> None:
+    """The two sweeps as a wmap plots file: each is a plot with chart "sweep" and its settings under "sweep"."""
     doc = {
-        'format': 'tsmap-sweeps',
+        'format': 'wafermap-plots',
         'version': 1,
-        'sweeps': [
+        'plots': [
             {
                 'id': 'set-reset',
                 'title': 'Set / reset switching',
-                'xLabel': 'Voltage (V)',
-                'yLabel': 'Read current',
-                'separationAt': [10, 50],
-                'series': [
-                    {'label': 'Reset', 'tests': ['3000..3030'], 'xValues': VOLTS},
-                    {'label': 'Set', 'tests': ['3100..3130'], 'xValues': VOLTS},
-                ],
+                'chart': 'sweep',
+                'sweep': {
+                    'xLabel': 'Voltage (V)',
+                    'yLabel': 'Read current',
+                    'separationAt': [10, 50],
+                    'series': [
+                        {'label': 'Reset', 'tests': ['3000..3030'], 'xValues': VOLTS},
+                        {'label': 'Set', 'tests': ['3100..3130'], 'xValues': VOLTS},
+                    ],
+                },
             },
             {
                 'id': 'endurance',
                 'title': 'Endurance — read window vs cycling',
-                'xLabel': 'Cycles',
-                'xScale': 'log',
-                'yLabel': 'Read current',
-                'separationAt': [30],
-                'series': [
-                    {'label': 'LRS', 'tests': ['3200..3206'], 'xFromName': '{x}*cyc'},
-                    {'label': 'HRS', 'tests': ['3300..3306'], 'xFromName': '{x}*cyc'},
-                ],
+                'chart': 'sweep',
+                'sweep': {
+                    'xLabel': 'Cycles',
+                    'xScale': 'log',
+                    'yLabel': 'Read current',
+                    'separationAt': [30],
+                    'series': [
+                        {'label': 'LRS', 'tests': ['3200..3206'], 'xFromName': '{x}*cyc'},
+                        {'label': 'HRS', 'tests': ['3300..3306'], 'xFromName': '{x}*cyc'},
+                    ],
+                },
             },
         ],
     }
-    # One series per line, as tsmap's own Save writes it.
+    # One series per line, so a file reads as a table of curves rather than a column of numbers.
     text = json.dumps(doc, indent=2)
-    for sweep in doc['sweeps']:
-        for s in sweep['series']:
-            text = text.replace(json.dumps(s, indent=2).replace('\n', '\n' + ' ' * 8), json.dumps(s))
+    for plot in doc['plots']:
+        for s in plot['sweep']['series']:
+            text = text.replace(json.dumps(s, indent=2).replace('\n', '\n' + ' ' * 10), json.dumps(s))
     path.write_text(text + '\n')
-    print(f'Written sweeps → {path}')
+    print(f'Written plots → {path}')
 
 
 if __name__ == '__main__':

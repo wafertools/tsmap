@@ -738,7 +738,27 @@ wafer and your plots are in the menu, drawn over just those dies.
 
 **Export plots…** writes every plot to a file, and **Import plots…** adds the plots of such a file to yours (as
 copies where one already exists, never replacing). That is how a set of plots moves to another machine or to a
-colleague. **Help → Reset saved settings…** lists your saved plots like any other remembered setting.
+colleague. To load a file when tsmap starts, name it with [`--plots`](#command-line). **Help → Reset saved settings…** lists your saved plots like any other remembered setting.
+
+### Tables and exports
+
+Every number behind a chart is also a table. Insights' **Data** tab holds three, and the Summary panel's
+**Data tables** button opens the same three in a window, with no Insights needed:
+
+- **Statistics** — per test: min, quartiles, median, mean, max, standard deviation, Ppk, limits and yield within the limits, plus pass and fail counts for functional tests, for the wafer or the whole lot.
+- **Dies** — one row per die with its position, bins and every test value, plus the wafer's lot fields.
+  **Wide** puts one column per test; **Long** puts one row per die and test, the shape JMP, Python and Excel
+  pivot tables expect.
+- **Wafers** — one row per wafer, for a lot: its lot fields (including any split), die counts and yield.
+
+**Copy** puts a table on the clipboard and **Export CSV** saves it. Numbers are written at full precision,
+not as rounded on screen, and a table of hundreds of thousands of dies is written in pieces, so the app stays
+responsive. The desktop app asks where to save; the web app downloads the file. Click a row of the Dies table
+to go back to the map with that die ringed.
+
+To tabulate just some dies, select them on a map (or drag a rectangle on the Insights scatter) and right-click:
+the menu offers the same tables for the selection. With **Select the same dies on every wafer** on in the gallery
+toolbar, one selection covers those positions on every wafer.
 
 ### Sweeps
 
@@ -746,23 +766,25 @@ A **sweep** reads a run of tests — one quantity measured at a series of voltag
 temperatures, load currents or cycle counts — as a curve rather than as separate tests. Two
 series side by side (a rising one and a falling one, typically) are measured against each
 other: where they **cross**, and how far apart they are, horizontally, at given levels (the
-**width** of the V they form). Each sweep gets a card in Insights' **Sweeps** tab, which
-appears once any are defined; the card itself is described in the
+**width** of the V they form). A sweep is a kind of plot: it is a card on Insights' **Plot** tab
+beside your other plots, started with **+ New sweep** and changed in the sweep editor, which
+shows the curve as you type; the card and the editor are described in the
 [wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
 
-Sweeps are defined in a **sweeps file** and loaded through **Setup ▾ → Sweeps…**, which also
-saves the current sweeps back to a file. Loading replaces every sweep. **Clear** removes
-them all; sweeps otherwise stay defined from one load to the next. When a sweep names none
-of a newly loaded lot's tests, the Sweeps tab says so, with a button that removes just
-those sweeps.
+Sweeps are kept, exported and imported with your other plots (see [Your own plots](#your-own-plots)),
+so they stay defined from one load to the next. A sweep that names none of a newly loaded lot's tests
+stays in the list, dimmed, with the reason, and draws again on a lot that has them. A file of sweeps
+can also be loaded at launch with [`--plots`](#command-line); its format is under
+[Sweeps in a plots file](#sweeps-in-a-plots-file) in the reference.
 
 A test number identifies a test only within one test program, so a lot from another program
-can reuse the numbers your derived tests and sweeps read, for different measurements —
+can reuse the numbers your derived tests read, for different measurements —
 everything then computes, from the wrong tests. tsmap remembers the test names and program
 of the lot they were set up on; when a later lot uses the same numbers under different
-names, or states a different program, the log says so, with examples.
-
-The sweeps file format is described under [Sweeps file](#sweeps-file) in the reference.
+names, or states a different program, the log says so, with examples. A sweep records the
+names of its tests when you set it up (or edit it), and on a lot where one of those numbers now
+names a different test it does not draw that test and says so on its card, rather than draw
+another measurement as the same curve. A sweep written by hand without those names is not checked.
 
 ### Derived tests
 
@@ -886,8 +908,8 @@ tsmap --list files.txt                     # a text file of paths, one per line
 cat files.txt | tsmap                      # or piped via stdin
 tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (the selector is still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
-tsmap lot1.stdf --sweeps my-sweeps.json    # sweeps for Insights → Sweeps (see [Sweeps](#sweeps))
-tsmap --sweeps my-sweeps.json              # sent to a running tsmap: replaces the sweeps of what is open
+tsmap lot1.stdf --plots my-plots.json      # adds plots (sweeps included) to Insights → Plot (see [Sweeps](#sweeps))
+tsmap --plots my-plots.json                # sent to a running tsmap: adds them and redraws what is open
 tsmap lot1.stdf --wafer-diameter 300       # sets the wafer diameter (mm) for this launch
 tsmap lot1.stdf --wafer-diameter 300 --edge-exclusion 3   # plus an edge-exclusion band (mm)
 tsmap --url https://.../lot.stdf --url-format stdf   # fetch and open a URL — see below
@@ -903,10 +925,11 @@ pre-fills the selector's checkboxes, renames, and limit/type overrides — the o
 appears and still needs a confirm click, even for a small lot; it just saves
 re-picking (and re-entering limits for) tests you already set up before.
 
-`--sweeps` takes the same JSON file as **Setup ▾ → Sweeps…** (see [Sweeps](#sweeps)) and
-does the same thing: it replaces the session's sweeps, with the same log messages for anything
-in the file it cannot use. Unlike `--tests` and `--splits` it needs no data file with it — sent
-to a tsmap that is already open, it applies to the lot on screen.
+`--plots` takes the file **Export plots…** writes, and adds its plots to the ones tsmap has saved. A plot
+whose id is already saved is replaced, so launching with the same file again leaves one copy of each; the
+log says what was added and replaced, and names anything in the file it cannot use. `--sweeps` is the same
+flag, for a file written as a sweeps file. Unlike `--tests` and `--splits` it needs no data file with it —
+sent to a tsmap that is already open, it applies to the lot on screen.
 
 `--wafer-diameter`/`--edge-exclusion` set the same values as the
 [Diameter & edge exclusion… dialog](#wafer-diameter-and-edge-exclusion) — a bare number in mm,
@@ -920,7 +943,7 @@ If tsmap is already running, launching it again with files hands them to the run
 instead of opening a second blank one: with nothing currently loaded they open right away;
 with data already loaded, a dialog asks whether to replace it. Decline and the new files open
 in a separate, independent tsmap window instead, so nothing is lost either way. A launch with
-no data files — only `--sweeps`, `--wafer-diameter` or `--edge-exclusion` — replaces nothing,
+no data files — only `--plots`, `--wafer-diameter` or `--edge-exclusion` — replaces nothing,
 so it applies to the running window straight away without asking.
 
 ### Opening data from a URL
@@ -1093,15 +1116,16 @@ file type" a web page can register.
 
 ### Definitions files
 
-tsmap has **four kinds of definitions file** — test definitions (including
-[derived tests](#derived-tests)), [wafer splits](#wafer-splits),
-[bin definitions](#bin-definitions) and [sweeps](#sweeps) — each a small round-trip for one axis of a
+tsmap has **three kinds of definitions file** — test definitions (including
+[derived tests](#derived-tests)), [wafer splits](#wafer-splits) and
+[bin definitions](#bin-definitions) — each a small round-trip for one axis of a
 lot's metadata that either isn't in the raw data at all, or that you want to correct or extend
-after parsing. The first three are CSV; sweeps are JSON, because a sweep has series inside it.
+after parsing. All three are CSV. [Plots](#your-own-plots), sweeps included, are kept and shared as JSON
+(a sweep has series inside it) through the Plot tab rather than a Setup ▾ dialog.
 
 **Help → Definitions file formats…** is reachable at any time, including with nothing loaded
 yet — unlike the Setup ▾ dialogs, which need a file open first. Each row (test
-definitions, splits, bin definitions, sweeps) has a **Save template…** button that writes a realistic,
+definitions, splits, bin definitions, plots) has a **Save template…** button that writes a realistic,
 filled-in example of that file, using the exact same formatter its real Save button uses — so
 the column layout is discoverable without reading this guide, and without loading any data
 first. Useful for preparing a definitions file ahead of time (e.g. from a fab's lot traveler or
@@ -1279,38 +1303,45 @@ The file is a CSV with a required header row:
   entirely — a bad `type`, `pass` or `color` cell drops just that field, with a warning, and
   the rest of the row still applies.
 
-#### Sweeps file
+#### Sweeps in a plots file
 
-A sweeps file is JSON:
+A plots file is JSON, the file **Export plots…** writes. A sweep is a plot with `"chart": "sweep"`, its
+definition under `sweep`:
 
 ```json
 {
-  "format": "tsmap-sweeps",
+  "format": "wafermap-plots",
   "version": 1,
-  "sweeps": [
+  "plots": [
     {
       "id": "set-reset",
       "title": "Set / reset switching",
-      "xLabel": "Voltage (V)",
-      "yLabel": "Read current",
-      "separationAt": [10, 50],
-      "series": [
-        {"label": "Reset", "tests": ["3000..3030"], "xValues": [-1.5, -1.4, …, 1.5]},
-        {"label": "Set",   "tests": ["3100..3130"], "xValues": [-1.5, -1.4, …, 1.5]}
-      ]
+      "chart": "sweep",
+      "sweep": {
+        "xLabel": "Voltage (V)",
+        "yLabel": "Read current",
+        "separationAt": [10, 50],
+        "series": [
+          {"label": "Reset", "tests": ["3000..3030"], "xValues": [-1.5, -1.4, …, 1.5]},
+          {"label": "Set",   "tests": ["3100..3130"], "xValues": [-1.5, -1.4, …, 1.5]}
+        ]
+      }
     }
   ]
 }
 ```
 
+A file written as a sweeps file (`"format": "tsmap-sweeps"`, a `sweeps` list with `id` and `title` beside
+each sweep's settings) is read too, so earlier files load unchanged. The fields below are a sweep's
+settings, as the sweep editor sets them; `id` and `title` belong to the plot.
+
 | Field | |
 |---|---|
-| `id` | A short unique name for the sweep |
-| `title` | The card title |
 | `series` | Two or more curves. Crossing and widths are measured between the first two |
 | `series[].tests` | The tests in sweep order: numbers, or ranges like `"3000..3030"` — the same range syntax as a derived test, matching every test in that range that exists |
 | `series[].xValues` | The real swept value for each test (volts, °C, cycles). One per test **after** ranges are expanded. Without it the x axis is simply test order |
 | `series[].xFromName` | Read each test's swept value from its **name** instead, for programs that only write it into the test text — see below |
+| `series[].testNames` | The name each test had when the sweep was set up, by test number (`{"3000": "Iread 0.1V"}`). The sweep editor fills it in. A test whose name now differs is not drawn and the card says why — see above |
 | `separationAt` | Levels, in the tests' own units, at which to report the width between the first two curves |
 | `crossing` | `false` to stop reporting a crossing, for curves that are not meant to meet |
 | `xLabel` / `yLabel` | Axis titles |
@@ -1322,16 +1353,18 @@ text — `Normalized_LRS= LRS_STATS_12K / Total_LRS= …`. `xFromName` reads it 
 
 ```json
 {
-  "id": "lrs-cdf", "title": "LRS CDF — before vs after", "xLabel": "LRS threshold",
-  "xUnit": "Ω", "xScale": "log", "yLabel": "Normalized LRS", "separationAt": [0.5],
-  "series": [
-    {"label": "Before",    "tests": ["31200..31230"], "xFromName": "LRS_STATS_{x}"},
-    {"label": "After 0x5", "tests": ["31300..31330"], "xFromName": "LRS_STATS_{x}"}
-  ]
+  "id": "lrs-cdf", "title": "LRS CDF — before vs after", "chart": "sweep",
+  "sweep": {
+    "xLabel": "LRS threshold", "xUnit": "Ω", "xScale": "log", "yLabel": "Normalized LRS", "separationAt": [0.5],
+    "series": [
+      {"label": "Before",    "tests": ["31200..31230"], "xFromName": "LRS_STATS_{x}"},
+      {"label": "After 0x5", "tests": ["31300..31330"], "xFromName": "LRS_STATS_{x}"}
+    ]
+  }
 }
 ```
 
-- `{x}` marks where the number is and `*` stands for any text; everything else must appear
+- `{x}` marks where the number is, `*` stands for any text and `?` for exactly one character; everything else must appear
   in the name as written, though capitals do not matter. The pattern is found anywhere in
   the name, so it needs only enough text around `{x}` to be unambiguous — `LRS_STATS_{x}`,
   not the whole name.
@@ -1344,7 +1377,7 @@ text — `Normalized_LRS= LRS_STATS_12K / Total_LRS= …`. `xFromName` reads it 
   instead (`V_{x}MV`) and the unit into the axis title. To keep the numbers as the names
   write them (12 rather than 12,000), put the letter in the pattern — `LRS_STATS_{x}K` —
   and the unit in the axis title, `"xLabel": "LRS threshold (kΩ)"`.
-- It is not a regular expression, deliberately: a sweeps file is shared, and a regular
+- It is not a regular expression, deliberately: a plots file is shared, and a regular
   expression can be written so that it freezes the app. This pattern cannot.
 - A test whose name the pattern does not fit is named on the card, and the crossing and
   widths are not measured. Unlike `xValues`, each value stays with its own test, so a
@@ -1361,7 +1394,7 @@ one short of `xValues`. The card then lists the tests it did find and does not m
 crossing or widths, rather than pairing the remaining values with the wrong tests.
 
 A mistake in the file is reported in the log with where it is: a JSON syntax error by line
-and column, a bad sweep or series by its id and label. The good sweeps in the same file still
+and column, a bad plot or series by its id and label. The good plots in the same file still
 load. A sweep can read derived tests — sweeping `log10(t[n])` per step is how to draw a curve
 whose *values* span decades; `"xScale": "log"` is for swept values that do. The RRAM sample's
 endurance sweep does the latter, reading each cycle count (`1e3`) from its test name.

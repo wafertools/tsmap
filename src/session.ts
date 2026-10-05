@@ -1,7 +1,7 @@
 // The lot that is currently loaded, in one place.
 //
 // This used to be fourteen module-level `let`s in main.ts, read and written from
-// the load flow, the Tests…/Splits…/Sweeps… dialogs, the bin definitions dialog and
+// the load flow, the Tests…/Splits… dialogs, the bin definitions dialog and
 // the renderer. One object means a load can be described (and, in a test, set up
 // and checked) as a single value, and a reset is one call, rather than a list of
 // assignments somebody has to remember to keep complete.
@@ -10,7 +10,6 @@ import type { BinDef } from '@wafertools/wafermap';
 import type { FileHandle, StdfTestNames } from './platform';
 import type { TestDefCollision } from './lib';
 import type { TestListEntry } from './testSelectorUI';
-import type { SweepSpec } from './sweeps';
 import type { FileDefs, TestDef, WaferData, WaferSource } from './types';
 
 export interface LotSession {
@@ -51,9 +50,6 @@ export interface LotSession {
   /** Which of them the user has selected — the rest stay defined (reopening the selector
    *  lists them) but are not computed. */
   derivedSelected: Set<number>;
-  /** Parametric sweeps from Setup ▾ → Sweeps… (sweeps.ts) — one card each in the Insights
-   *  Sweeps tab, which wmap shows only when there is at least one. */
-  sweeps: SweepSpec[];
   /** The most recently loaded STDF/ATDF files, so "Tests…" can re-parse them. */
   binaryFiles: FileHandle[];
   /** First-pass scan result, reused by "Tests…". */
@@ -76,7 +72,6 @@ export function emptySession(): LotSession {
     passHbins: undefined,
     derivedTests: [],
     derivedSelected: new Set(),
-    sweeps: [],
     binaryFiles: [],
     testNames: null,
     binaryScanScope: 'largest',
