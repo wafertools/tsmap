@@ -1,6 +1,7 @@
 import { columnsFromRows } from './columns';
 import { describe, it, expect } from 'vitest';
-import { buildFacetTable, displayValue, facetValueOf, isHiddenField, NONE_VALUE } from './metadata';
+import { curatedFields, displayValue, facetValueOf, isHiddenField, labelFor } from './metadata';
+import { wmapAttributes } from './lib';
 import type { MetaField, WaferData, WaferSource } from './types';
 
 const fields = (o: Record<string, string>): MetaField[] =>
@@ -52,16 +53,15 @@ describe('WCR fields', () => {
 
   it('never shows WF_UNITS as a field of its own — the sizes carry it', () => {
     expect(isHiddenField('wfUnits')).toBe(true);
-    const keys = buildFacetTable([wafer('W1', 1, sample)], false).map(f => f.key);
+    const keys = curatedFields().map(f => f.key);
     expect(keys).not.toContain('wfUnits');
     expect(keys).toContain('wafrSiz');
   });
 
   it('labels WCR fields in plain language and keeps them out of the default facets', () => {
-    const all = buildFacetTable([wafer('W1', 1, sample)], false);
-    expect(all.find(f => f.key === 'wfFlat')!.label).toBe('Wafer flat');
-    expect(all.find(f => f.key === 'wafrSiz')!.label).toBe('Wafer diameter');
-    expect(buildFacetTable([wafer('W1', 1, sample)]).map(f => f.key)).not.toContain('wafrSiz');
+    expect(labelFor('wfFlat')).toBe('Wafer flat');
+    expect(labelFor('wafrSiz')).toBe('Wafer diameter');
+    expect(curatedFields().find(f => f.key === 'wafrSiz')!.facet).toBe(false);
   });
 
   it('passes an ordinary field through unchanged', () => {
@@ -87,116 +87,34 @@ describe('facetValueOf', () => {
   });
 });
 
-describe('buildFacetTable', () => {
-  it('omits fields that are absent across all wafers', () => {
-    const keys = buildFacetTable([wafer('W1', 10, src({ lotId: 'A' }))]).map(f => f.key);
-    expect(keys).toContain('lotId');
-    expect(keys).not.toContain('jobName');
-    expect(keys).not.toContain('testTemp');
+describe('wmapAttributes — tsmap\'s curation as wmap\'s `attributes` option', () => {
+  const attrs = wmapAttributes();
+
+  it('re-keys each field the way toWmapWaferMeta sends it, so wmap finds the entry', () => {
+    expect(attrs.lot).toEqual({ label: 'Lot', facet: true });
+    expect(attrs.testProgram).toMatchObject({ label: 'Program', facet: true });
+    expect(attrs.product).toMatchObject({ label: 'Part type' });
+    expect(attrs.operator).toMatchObject({ label: 'Operator' });
+    expect(attrs.split).toMatchObject({ label: 'Split', facet: true });
   });
 
-  it('labels curated fields and marks a single-value field non-splittable', () => {
-    const s = src({ lotId: 'LOT-1' });
-    const lot = buildFacetTable([wafer('W1', 5, s), wafer('W2', 7, s)]).find(f => f.key === 'lotId')!;
-    expect(lot.label).toBe('Lot');
-    expect(lot.values).toHaveLength(1);
-    expect(lot.splittable).toBe(false);
-    expect(lot.values[0]).toEqual({ value: 'LOT-1', waferCount: 2, dieCount: 12 });
+  it('covers both spellings of the temperature, which is a number only when it parses as one', () => {
+    expect(attrs.temperature).toEqual(attrs.testTemp);
+    expect(attrs.temperature.label).toBe('Temperature');
   });
 
-  it('marks a multi-value field splittable with correct wafer/die counts', () => {
-    const table = buildFacetTable([
-      wafer('W1', 10, src({ lotId: 'A', jobName: 'PGM' })),
-      wafer('W2', 20, src({ lotId: 'A', jobName: 'PGM' })),
-      wafer('W3', 5, src({ lotId: 'B', jobName: 'PGM' })),
-    ]);
-    const lot = table.find(f => f.key === 'lotId')!;
-    expect(lot.splittable).toBe(true);
-    expect(lot.values).toEqual([
-      { value: 'A', waferCount: 2, dieCount: 30 },
-      { value: 'B', waferCount: 1, dieCount: 5 },
-    ]);
-    // jobName constant across all three → present but not splittable
-    expect(table.find(f => f.key === 'jobName')!.splittable).toBe(false);
+  it('keeps the low-value and geometry fields out of Group by, and says which field is a date', () => {
+    for (const key of ['jobRev', 'execType', 'waferDiameter', 'dieWidth', 'centreDieX', 'xIncreases']) {
+      expect(attrs[key], key).toBeDefined();
+      expect(attrs[key].facet, key).toBe(false);
+    }
+    expect(attrs.testDate).toMatchObject({ label: 'Test date', date: true });
   });
 
-  it('facets per-wafer fields (e.g. frame id from WRR)', () => {
-    const table = buildFacetTable([
-      wafer('W1', 3, undefined, { frameId: 'FR-1' }),
-      wafer('W2', 4, undefined, { frameId: 'FR-2' }),
-    ]);
-    const frame = table.find(f => f.key === 'frameId')!;
-    expect(frame.label).toBe('Frame');
-    expect(frame.splittable).toBe(true);
-    expect(frame.values.map(v => v.value).sort()).toEqual(['FR-1', 'FR-2']);
-  });
-
-  it('surfaces unknown keys labelled by their raw key', () => {
-    const table = buildFacetTable([
-      wafer('W1', 1, src({ customThing: 'X' })),
-      wafer('W2', 1, src({ customThing: 'Y' })),
-    ]);
-    const custom = table.find(f => f.key === 'customThing')!;
-    expect(custom).toBeDefined();
-    expect(custom.label).toBe('customThing'); // falls back to raw key
-  });
-
-  it('hides curated non-facet fields by default, includes them when asked', () => {
-    const wafers = [wafer('W1', 1, src({ specName: 'S1' })), wafer('W2', 1, src({ specName: 'S2' }))];
-    expect(buildFacetTable(wafers).find(f => f.key === 'specName')).toBeUndefined();
-    expect(buildFacetTable(wafers, false).find(f => f.key === 'specName')).toBeDefined();
-  });
-
-  it('groups a date field by day, not timestamp', () => {
-    const table = buildFacetTable([
-      wafer('W1', 1, src({ startT: '2026-06-23T08:00:00Z' })),
-      wafer('W2', 1, src({ startT: '2026-06-23T17:30:00Z' })), // same day, different time
-      wafer('W3', 1, src({ startT: '2026-06-24T09:00:00Z' })),
-    ]);
-    const date = table.find(f => f.key === 'startT')!;
-    expect(date.values.map(v => v.value).sort()).toEqual(['2026-06-23', '2026-06-24']);
-    expect(date.values.find(v => v.value === '2026-06-23')!.waferCount).toBe(2);
-  });
-
-  it('folds wafers with no source or empty value into an explicit (none) group', () => {
-    // Mixed load: some wafers carry the field, others don't — the value-less
-    // wafers must be counted in a `(none)` bucket, never silently dropped.
-    const table = buildFacetTable([
-      wafer('W1', 2, undefined),        // no source at all
-      wafer('W2', 3, src({ lotId: '' })), // present-but-empty value
-      wafer('W3', 4, src({ lotId: 'A' })),
-    ]);
-    const lot = table.find(f => f.key === 'lotId')!;
-    expect(lot.values).toEqual([
-      { value: 'A', waferCount: 1, dieCount: 4 },
-      { value: NONE_VALUE, waferCount: 2, dieCount: 5 }, // W1 + W2 pooled
-    ]);
-    // Two buckets (A vs none) ⇒ the field can be split on.
-    expect(lot.splittable).toBe(true);
-  });
-
-  it('sorts the (none) bucket last regardless of its size', () => {
-    // `(none)` is the larger bucket here but is still a residual — it sorts last.
-    const table = buildFacetTable([
-      wafer('W1', 1, undefined),
-      wafer('W2', 1, undefined),
-      wafer('W3', 1, undefined),
-      wafer('W4', 1, src({ lotId: 'A' })),
-    ]);
-    const lot = table.find(f => f.key === 'lotId')!;
-    expect(lot.values.map(v => v.value)).toEqual(['A', NONE_VALUE]);
-  });
-
-  it('does not invent a (none) bucket when every wafer has the value', () => {
-    const table = buildFacetTable([
-      wafer('W1', 1, src({ lotId: 'A' })),
-      wafer('W2', 1, src({ lotId: 'B' })),
-    ]);
-    const lot = table.find(f => f.key === 'lotId')!;
-    expect(lot.values.map(v => v.value)).toEqual(['A', 'B']);
-  });
-
-  it('returns an empty table when no wafer has metadata', () => {
-    expect(buildFacetTable([wafer('W1', 1), wafer('W2', 1)])).toEqual([]);
+  it('leaves a hidden field out (WF_UNITS rides inside the sizes), and names every curated field once', () => {
+    expect(attrs.wfUnits).toBeUndefined();
+    const raw = curatedFields();
+    expect(new Set(raw.map(f => f.key)).size).toBe(raw.length);
+    expect(Object.keys(attrs).length).toBeGreaterThanOrEqual(raw.length);
   });
 });

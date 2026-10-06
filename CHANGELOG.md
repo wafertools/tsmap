@@ -6,6 +6,15 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **A wafer attribute has one name, and Group by offers only the worthwhile ones.** tsmap's table of known fields (names, which are
+  worth grouping on, which are dates) now reaches Insights as wafermap's `attributes` option, so the header strip, Group by, the
+  plot fields, the Wafers table and the file filter all call a field the same thing (**Part type**, **Program**, **Test date**…).
+  Fields tsmap lists as reference material (program revision, tester details, the wafer-configuration sizes) are no longer offered as
+  plot fields or Group by choices, though they still show on the strip and in the Wafers table. The duplicate facet table in
+  `metadata.ts` that nothing used is removed.
+
 ### Added
 
 - **Reticle…, in Setup ▾.** Give the stepper field's width and height in dies (and, if die (0, 0) is not at a field corner,

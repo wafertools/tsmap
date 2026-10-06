@@ -12,7 +12,7 @@ import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/w
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose, lastParseDecodeMs } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
-import { basename, rustToLocal, derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
+import { basename, rustToLocal, derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, toWmapTestDefs, toWmapDerivedTests, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, wmapAttributes, errMsg, deriveFileName, isUrlImportFormat, effectiveFileExtension, isAtdfExt, shouldMountProgressively, DATA_PICKER_EXTENSIONS } from './lib';
 import { showMappingOverlay } from './mappingUI';
 import { showRenameOverlay, showAppendConfirm } from './multiFileUI';
 import { showTestSelectorOverlay, formatTestListCsv, parseTestListFile } from './testSelectorUI';
@@ -1242,6 +1242,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // the gap that blocked removing tsmap's own Charts page:
       // single-wafer loads had no chart access at all
       // without this.
+      attributes: wmapAttributes(),
       insights: insightsOpts(),
     });
   } else {
@@ -1338,6 +1339,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // advisory is stated once there; tsmap's log keeps the per-wafer detail.
       // wmap-owned Insights tab — the only chart
       // access now that tsmap's own Charts page has been removed.
+      attributes: wmapAttributes(),
       insights: insightsOpts(),
     });
     // Hold the caller's spinner and busy label until the cards have actually

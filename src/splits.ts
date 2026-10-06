@@ -1,8 +1,8 @@
 // Wafer splits: a user-assigned grouping axis (process corners like TT/FF/FS,
 // or any ad-hoc experiment group) layered on top of the existing metadata
 // faceting system. A split is stored as an ordinary per-wafer MetaField, so
-// `buildFacetTable` (metadata.ts) picks it up for free and every existing
-// grouped chart works with zero changes — this module only owns get/set,
+// wmap's Group by (via `toWmapWaferMeta`'s `split` key) picks it up for free and
+// every existing grouped chart works with zero changes — this module only owns get/set,
 // enumerating known values, and CSV round-trip.
 
 import type { WaferData } from './types';

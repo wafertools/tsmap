@@ -7,7 +7,7 @@ import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
 import type { PlotMode, DerivedTestDef } from '@wafertools/wafermap';
 import type { WaferMetadata } from '@wafertools/wafermap/renderer';
 import type { WaferConfig, DieConfig, BinDef } from '@wafertools/wafermap';
-import { displayValue, isHiddenField } from './metadata';
+import { curatedFields, displayValue, isHiddenField } from './metadata';
 import { unitShift, shiftUnit } from './units';
 import { WCR_FLAT_SIDE, WCR_POS_X, WCR_POS_Y, WCR_UNITS, wcrCode } from './wcr';
 
@@ -622,6 +622,23 @@ export function toWmapWaferMeta(source: WaferSource | undefined, waferId: string
   };
   for (const f of all) applyField(f);
   return meta;
+}
+
+/**
+ * tsmap's own curation as wmap's `attributes` option: what each wafer attribute is called, whether it is a Group by and Compare by
+ * choice, whether it is a date. Built from the one table in `metadata.ts` (`FIELD_META`), re-keyed the way `toWmapWaferMeta` sends
+ * the fields (`lotId` is `lot`, `jobName` is `testProgram`, a numeric `testTemp` is `temperature`), so the strip, Group by, the plot
+ * fields, the Wafers table and the file filter all use the same name and the same idea of which fields are worth grouping on.
+ */
+export function wmapAttributes(): Record<string, { label: string; facet: boolean; date?: boolean }> {
+  const out: Record<string, { label: string; facet: boolean; date?: boolean }> = {};
+  for (const f of curatedFields()) {
+    const entry = { label: f.label, facet: f.facet, ...(f.date ? { date: true } : {}) };
+    // `testTemp` is `temperature` when it is a number and stays `testTemp` when it is not (`toWmapWaferMeta`).
+    if (f.key === 'testTemp') out.temperature = entry;
+    out[WMAP_META_KEY[f.key] ?? f.key] = entry;
+  }
+  return out;
 }
 
 export interface WcrGeometry {

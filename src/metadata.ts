@@ -20,29 +20,6 @@ import { WCR_FLAT_SIDE, WCR_POS_X, WCR_POS_Y, WCR_UNITS, wcrCode } from './wcr';
  */
 export const NONE_VALUE = '(none)';
 
-/** One distinct value of a facet field, with how much data it covers. */
-export interface FacetValue {
-  value: string;
-  waferCount: number;
-  dieCount: number;
-}
-
-/** A metadata field that wafers can be grouped/split on, plus its distinct values. */
-export interface FacetField {
-  /** Raw metadata key (e.g. `lotId`, `testTemp`, or a CSV column name). */
-  key: string;
-  /** Human-readable column label (curated, or the raw key for unknown fields). */
-  label: string;
-  /** Distinct non-empty values, sorted by coverage (wafer count desc, then label). */
-  values: FacetValue[];
-  /**
-   * True when the field has more than one distinct value across the loaded
-   * wafers — i.e. splitting on it actually partitions the data. A single-value
-   * field is kept in the table but flagged so the UI can show "nothing to split".
-   */
-  splittable: boolean;
-}
-
 /** Curation entry for a known metadata key. */
 interface FieldMeta {
   label: string;
@@ -196,58 +173,9 @@ export function facetValueOf(wafer: WaferData, key: string): string | undefined 
   return FIELD_META[key]?.date ? dateOnly(raw) : displayValue(key, raw, k => rawValueOf(wafer, k));
 }
 
-/**
- * Build the distinct-values table over wafer provenance. Reads both lot-level
- * (`source.fields`) and per-wafer (`wafer.fields`) metadata. One entry per field
- * that has at least one non-empty value; curated fields appear first in display
- * order, unknown fields after (labelled by raw key). Counts are exact over the
- * full dataset.
- *
- * `facetableOnly` (default true) restricts to fields curated `facet: true` plus
- * any unknown field (so newly-emitted parser fields surface without curation);
- * pass false to include the low-value curated fields too.
- */
-export function buildFacetTable(wafers: WaferData[], facetableOnly = true): FacetField[] {
-  // Collect every distinct key present, in curated display order then first-seen.
-  const present = new Set<string>();
-  for (const w of wafers) {
-    for (const f of w.source?.fields ?? []) present.add(f.key);
-    for (const f of w.fields ?? []) present.add(f.key);
-  }
-
-  const ordered = orderFieldKeys(present);
-
-  const table: FacetField[] = [];
-  for (const key of ordered) {
-    const known = FIELD_META[key];
-    // Surface curated facet fields and any unknown field; skip curated-but-not-facet
-    // fields unless explicitly asked for.
-    if (facetableOnly && known && !known.facet) continue;
-
-    // Wafers without a value for this field fold into an explicit `(none)` bucket
-    // (the key is in `present`, so at least one wafer DOES have a value) — they are
-    // counted and shown, never dropped from the table or from grouped charts.
-    const byValue = new Map<string, { waferCount: number; dieCount: number }>();
-    for (const w of wafers) {
-      const v = facetValueOf(w, key) ?? NONE_VALUE;
-      const entry = byValue.get(v) ?? { waferCount: 0, dieCount: 0 };
-      entry.waferCount += 1;
-      entry.dieCount += w.results.count;
-      byValue.set(v, entry);
-    }
-    if (byValue.size === 0) continue;
-
-    const values: FacetValue[] = Array.from(byValue, ([value, c]) => ({
-      value, waferCount: c.waferCount, dieCount: c.dieCount,
-    }));
-    // `(none)` always sorts last (it's the residual bucket), regardless of size.
-    values.sort((a, b) =>
-      (a.value === NONE_VALUE ? 1 : 0) - (b.value === NONE_VALUE ? 1 : 0) ||
-      b.waferCount - a.waferCount ||
-      a.value.localeCompare(b.value, undefined, { numeric: true }));
-
-    table.push({ key, label: labelFor(key), values, splittable: values.length > 1 });
-  }
-
-  return table;
+/** One curated field as a host option needs it: tsmap's raw key, its label, whether it is a Group by choice, whether a date. */
+export function curatedFields(): Array<{ key: string; label: string; facet: boolean; date: boolean }> {
+  return Object.entries(FIELD_META)
+    .filter(([, m]) => !m.hidden)
+    .map(([key, m]) => ({ key, label: m.label, facet: m.facet, date: m.date === true }));
 }
