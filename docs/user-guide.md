@@ -699,12 +699,18 @@ the [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/)** 
 further down this same window. This section covers only the two things that are specific to
 how tsmap feeds data into it:
 
-- **Where the "Group by" field list comes from.** Grouping is driven by metadata attached
-  to each wafer at load time, plus any [wafer splits](#wafer-splits) you've assigned.
-  STDF and ATDF contribute every field present in their MIR record — lot, sublot, part
-  type, program, test temperature, test date, tester, node, operator, and more; CSV and
-  JSON contribute the lot column plus any columns you mapped as metadata. Only fields that
-  actually *vary* across the loaded wafers appear in the dropdown.
+- **What "Group by" takes: wafer attributes.** A *wafer attribute* is a fact about a whole wafer: its lot, part type,
+  program, temperature, test date, operator, or a [split](#wafer-splits) you've assigned (a split is one wafer
+  attribute, like any other). They are attached to each wafer at load time. STDF and ATDF contribute every field in
+  their MIR record; CSV and JSON contribute the lot column plus any columns you mapped as metadata. Only attributes that
+  actually *vary* across the loaded wafers appear in the dropdown, and each carries the name it has in the file filter
+  (**Part type**, **Program**, **Test date**). Fields that are reference material rather than something to group on, such
+  as the program revision, tester details and the wafer-configuration sizes, are not offered there or as plot fields,
+  though they still show in the strip above the map and in the Wafers table.
+- **Group by pools wafers; Compare by acts on one plot.** Group by separates whole wafers for every panel at once. A plot's
+  own **Colour** and **Categories** (the *Compare by* choices) can also separate the dies within each wafer: by ring,
+  quadrant, bin, site or a pass/fail test, as well as by a wafer attribute. See
+  [Your own plots](#your-own-plots).
 - A single-wafer load has nothing to group by, so every panel simply shows that one
   wafer's own data and the **Group by** control doesn't appear.
 
@@ -717,8 +723,10 @@ same comparison is written into the **lot summary report**, so it can leave the 
 ### Your own plots
 
 The Insights **Plot** tab is a chart builder: **+ New plot** opens a plot beside a large copy of its chart,
-where you choose the chart type, the fields for X, Y and colour (any test, a die's position, a wafer's
-yield, or a lot field such as split or temperature) and the titles and axis limits. How the controls work,
+where you choose the chart type, the fields for X, Y and colour (any measured test, a die's position, ring,
+quadrant, bin or site, the pass or fail of a functional test, a wafer's yield, or a wafer attribute such as split or
+temperature) and the titles and axis limits. A reticle set in [Setup ▾ → Reticle…](#reticle) adds the reticle cell and
+reticle shot as fields too. How the controls work,
 and how a plot divides the data (its X, its colour, and the **Show** control above), is in the
 [full wafer map guide](https://wafertools.github.io/wafermap/user-guide/#plots).
 
@@ -1455,7 +1463,7 @@ and the header names that are filled in automatically.
 | **Low spec limit / LSL (long format)** | Low spec limit in a long-format file — the process specification that Process Capability is measured against. Kept separate from the test limits: a low limit only ever pairs with a high limit of the same kind |
 | **High spec limit / USL (long format)** | High spec limit in a long-format file |
 | **Units (long format)** | Units string in a long-format file |
-| **Display info** | Additional metadata captured for grouping/comparison (and shown in tooltips). Values are recorded **per wafer**, so a file mixing temperatures or test programs labels each wafer with its own. If the same wafer appears more than once — tested at two temperatures, say — and one of these columns tells the passes apart, each pass becomes its own wafer map, and the log says which column did it; with nothing to tell them apart the repeats are treated as retests. A column whose value changes *within* a wafer (a per-die timestamp) is not shown as a wafer property, and the log says so. The **Subdivide file by this column** checkbox is a structural escape hatch for flat files that pack several wafers into one file with no wafer column — it subdivides the file into one wafer map per distinct value of the column. (Do not use it for parallel-test sites — map those to **Test site** instead.) |
+| **Display info** | An additional wafer attribute, captured for the strip above the map and for Group by and Compare by (and shown in tooltips). Values are recorded **per wafer**, so a file mixing temperatures or test programs labels each wafer with its own. If the same wafer appears more than once — tested at two temperatures, say — and one of these columns tells the passes apart, each pass becomes its own wafer map, and the log says which column did it; with nothing to tell them apart the repeats are treated as retests. A column whose value changes *within* a wafer (a per-die timestamp) is not shown as a wafer property, and the log says so. The **Subdivide file by this column** checkbox is a structural escape hatch for flat files that pack several wafers into one file with no wafer column — it subdivides the file into one wafer map per distinct value of the column. (Do not use it for parallel-test sites — map those to **Test site** instead.) |
 | **— ignore —** | Column is not imported |
 
 #### Auto-detected column names

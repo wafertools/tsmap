@@ -93,7 +93,9 @@ See [Wafer splits](user-guide.md#wafer-splits) in the user guide.
 The Insights tab (wafermap's own built-in chart suite) covers yield, bin pareto, process
 capability, boxplot, histogram, correlation matrix, and scatter — organised into Overview,
 Distributions, and Correlation sub-tabs, with a shared **Group by** control (lot, program,
-tester, node, part type, or any wafer split) and click-through drilldown.
+tester, node, part type, or any wafer split) and click-through drilldown. Group by pools whole wafers; a plot's own
+**Compare by** (its colour and categories) can also separate the dies within each wafer, by ring, quadrant, bin, site
+or a pass/fail test.
 
 ![Insights Overview — yield, bin pareto, ring/quadrant yield, test values](images/charts-overview.png)
 
