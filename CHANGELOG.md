@@ -11,7 +11,8 @@ technical record, including internal changes.
 - **Reticle…, in Setup ▾.** Give the stepper field's width and height in dies (and, if die (0, 0) is not at a field corner,
   the die that is) and every wafer draws the field grid, shows each die's position within its field in the tooltip, and is
   checked for failures that repeat at the same place in every field: reticle-position findings appear in the Summary panel.
-  The grid is on once a reticle is set, and **Overlays ▾ → Reticle grid** hides it. The setting applies to every wafer, is
+  `--reticle 4x3` (or `4x3@1,0`, with die (1, 0) at a field's corner) sets it for one launch, and a launch with only `--reticle`
+  applies it to the open lot. The grid is on once a reticle is set, and **Overlays ▾ → Reticle grid** hides it. The setting applies to every wafer, is
   remembered between sessions, and is listed in **Help → Reset saved settings…**. **Clear** removes it.
 - **Sample files for retests, multi-project wafers and spec limits.** `sample_data/RETEST-LOT-07.csv` (dies probed twice; the
   log says how many positions were retested), `sample_data/MPW-LOT-08.csv` (a multi-project wafer, where **Overlays ▾ →

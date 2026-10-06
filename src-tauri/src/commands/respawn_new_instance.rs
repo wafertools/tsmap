@@ -30,6 +30,10 @@ pub fn respawn_new_instance(args: CliArgs) -> Result<(), String> {
     if let Some(edge_exclusion) = args.edge_exclusion {
         cmd.arg("--edge-exclusion").arg(edge_exclusion.to_string());
     }
+    if let Some(reticle) = &args.reticle {
+        let anchor = reticle.anchor_die.map(|d| format!("@{},{}", d.x, d.y)).unwrap_or_default();
+        cmd.arg("--reticle").arg(format!("{}x{}{anchor}", reticle.width, reticle.height));
+    }
     cmd.args(&args.files);
     cmd.spawn().map(|_| ()).map_err(|e| format!("Failed to launch new tsmap instance: {e}"))
 }

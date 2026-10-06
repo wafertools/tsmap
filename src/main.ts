@@ -34,7 +34,7 @@ import { loadSavedPlots, savePlots, importPlotsText } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
-import { getReticle, setReticle, toWmapReticleConfig, type ReticleSettings } from './reticle';
+import { getReticle, normalizeReticle, setReticle, toWmapReticleConfig, type ReticleSettings } from './reticle';
 import { showReticleDialog } from './reticleUI';
 import type { InferredDiameterHint } from './waferGeometryUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
@@ -1971,8 +1971,16 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     waferDiameterMm = geometry.diameterMm;
     edgeExclusionMm = geometry.edgeExclusionMm;
   }
+  // The stepper field is session-only the same way: normalizeReticle is the one gate, so a value the dialog would refuse is
+  // refused here too, and nothing is written to the saved setting.
+  let reticleChanged = false;
+  if (args.reticle != null) {
+    const given = normalizeReticle(args.reticle);
+    if (given === undefined) log('warn', '--reticle ignored: not a usable stepper field');
+    else { reticle = given; reticleChanged = true; }
+  }
   if (args.files.length === 0) {
-    if (plotsChanged && session.wafers.length > 0) rerenderCurrentLot('Rendering');
+    if ((plotsChanged || reticleChanged) && session.wafers.length > 0) rerenderCurrentLot('Rendering');
     return;
   }
   const files: FileHandle[] = args.files.map(p => ({

@@ -23,6 +23,24 @@ use std::path::Path;
 // added — `f64` implements `PartialEq` but not `Eq` (NaN), so `Eq` no longer
 // derives. Nothing in this codebase relies on `CliArgs: Eq` (only
 // `assert_eq!`, which needs `PartialEq` + `Debug`).
+/// A die position, as `--reticle`'s optional `@X,Y` anchor gives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CliDie {
+    pub x: i32,
+    pub y: i32,
+}
+
+/// The stepper field `--reticle <WxH[@X,Y]>` gives: how many dies one exposure covers, and which die sits at a field's
+/// min-x/min-y corner (die (0, 0) when omitted). The same value **Setup ▾ → Reticle…** sets; validated here as whole
+/// numbers, with the field at least one die each way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliReticle {
+    pub width: u32,
+    pub height: u32,
+    pub anchor_die: Option<CliDie>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CliArgs {
@@ -68,6 +86,9 @@ pub struct CliArgs {
     /// unlike `edge_exclusion`'s `>= 0`) since wmap's `createWafer` throws for
     /// a non-positive diameter.
     pub wafer_diameter: Option<f64>,
+    /// The stepper field (`--reticle <WxH[@X,Y]>`): applies for this session only, like the geometry flags, and is not
+    /// written to the saved setting. Whole numbers, so it is parsed and validated here.
+    pub reticle: Option<CliReticle>,
 }
 
 impl CliArgs {
@@ -95,7 +116,7 @@ impl CliArgs {
     pub fn is_empty(&self) -> bool {
         self.files.is_empty() && self.url.is_none() && self.url_error.is_none()
             && self.wafer_diameter.is_none() && self.edge_exclusion.is_none()
-            && self.plots.is_none()
+            && self.reticle.is_none() && self.plots.is_none()
     }
 }
 
@@ -125,6 +146,11 @@ Options:
   --wafer-diameter <MM> Wafer diameter in mm, applied to every wafer in this
                          launch (same value the Diameter & edge exclusion…
                          dialog's diameter field sets).
+  --reticle <WxH[@X,Y]> The stepper field in dies, applied to every wafer in
+                         this launch (same value the Reticle… dialog sets):
+                         4x3 is a field 4 dies wide and 3 high; @X,Y names
+                         the die at a field's bottom-left corner when it is
+                         not die (0, 0), e.g. 4x3@1,0.
   --edge-exclusion <MM> Edge-exclusion band width in mm, applied to every
                          wafer in this launch (same value that dialog's
                          exclusion field sets). Only takes effect once a
@@ -249,6 +275,7 @@ struct RawArgs {
     plots: Option<String>,
     edge_exclusion: Option<String>,
     wafer_diameter: Option<String>,
+    reticle: Option<String>,
     url: Option<String>,
     url_format: Option<String>,
     url_headers: Option<String>,
@@ -256,11 +283,11 @@ struct RawArgs {
 
 /// Recognized flags that take a value — `--list`/`--tests`/`--splits`/
 /// `--edge-exclusion`/`--wafer-diameter`/`--url`/`--url-format`/`--url-headers`/
-/// `--sweeps`/`--plots` (both fill `plots`). `parse_args` matches on the
+/// `--sweeps`/`--plots` (both fill `plots`)/`--reticle`. `parse_args` matches on the
 /// position, so a new flag is appended.
 const VALUE_FLAGS: &[&str] = &[
     "--list", "--tests", "--splits", "--edge-exclusion", "--wafer-diameter",
-    "--url", "--url-format", "--url-headers", "--sweeps", "--plots",
+    "--url", "--url-format", "--url-headers", "--sweeps", "--plots", "--reticle",
 ];
 /// Recognized flags that take no value — handled elsewhere (`--new-instance`
 /// before this point, `--help`/`-h` and `--version`/`-V` via `wants_help`/
@@ -341,6 +368,31 @@ fn parse_geometry_flag(
     Ok(Some(v))
 }
 
+/// Parses `--reticle`'s value: `WxH` or `WxH@X,Y`, whole numbers, the field at least one die each way. `x` may be
+/// upper- or lower-case, and the anchor may be negative (`4x3@-1,0`). Fails with the value quoted, like the numeric flags.
+fn parse_reticle_flag(raw: Option<String>) -> Result<Option<CliReticle>, String> {
+    let Some(s) = raw else { return Ok(None) };
+    let bad = || format!("--reticle value \"{s}\" must be WxH or WxH@X,Y, whole numbers (for example 4x3 or 4x3@1,0)");
+    let (size, anchor) = match s.split_once('@') {
+        Some((size, anchor)) => (size, Some(anchor)),
+        None => (s.as_str(), None),
+    };
+    let (w, h) = size.split_once(['x', 'X']).ok_or_else(bad)?;
+    let width: u32 = w.trim().parse().map_err(|_| bad())?;
+    let height: u32 = h.trim().parse().map_err(|_| bad())?;
+    if width == 0 || height == 0 {
+        return Err(format!("--reticle value \"{s}\" must be at least 1 die wide and 1 die high"));
+    }
+    let anchor_die = match anchor {
+        None => None,
+        Some(a) => {
+            let (x, y) = a.split_once(',').ok_or_else(bad)?;
+            Some(CliDie { x: x.trim().parse().map_err(|_| bad())?, y: y.trim().parse().map_err(|_| bad())? })
+        }
+    };
+    Ok(Some(CliReticle { width, height, anchor_die }))
+}
+
 /// Splits raw argv (already excluding argv[0]) into its parts. A token
 /// starting with `-` that isn't one of the flags above (including an
 /// unambiguous abbreviation of one, see `resolve_long_flag`) is a hard error
@@ -356,6 +408,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
     let mut plots = None;
     let mut edge_exclusion = None;
     let mut wafer_diameter = None;
+    let mut reticle = None;
     let mut url = None;
     let mut url_format = None;
     let mut url_headers = None;
@@ -379,6 +432,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
                     5 => url = Some(value.clone()),
                     6 => url_format = Some(value.clone()),
                     7 => url_headers = Some(value.clone()),
+                    10 => reticle = Some(value.clone()),
                     _ => plots = Some(value.clone()),
                 }
             }
@@ -410,7 +464,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
             files.push(arg.clone());
         }
     }
-    Ok(RawArgs { files, list, tests, splits, plots, edge_exclusion, wafer_diameter, url, url_format, url_headers })
+    Ok(RawArgs { files, list, tests, splits, plots, edge_exclusion, wafer_diameter, reticle, url, url_format, url_headers })
 }
 
 /// Parses and resolves `args` against `cwd`: `--list`'s lines are folded into
@@ -445,6 +499,7 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
     // never a meaningful value here, unlike edge exclusion where 0 is a
     // legitimate "no exclusion" no-op.
     let wafer_diameter = parse_geometry_flag("--wafer-diameter", raw.wafer_diameter, 0.0, false)?;
+    let reticle = parse_reticle_flag(raw.reticle)?;
     Ok(CliArgs {
         files,
         tests: raw.tests.map(|t| resolve_path(&t, cwd)),
@@ -452,6 +507,7 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
         plots: raw.plots.map(|s| resolve_path(&s, cwd)),
         edge_exclusion,
         wafer_diameter,
+        reticle,
         // Not resolved against cwd like the file-path flags above — a URL
         // (and its format tag) is not a local path.
         url: raw.url,
@@ -586,6 +642,38 @@ mod tests {
         let cwd = Path::new("/cwd");
         let err = resolve(&args(&["--wafer-diameter", "-1"]), cwd).unwrap_err();
         assert!(err.contains("positive"), "error was: {err}");
+    }
+
+    #[test]
+    fn reticle_flag_gives_a_field_and_an_optional_anchor() {
+        let cwd = Path::new("/cwd");
+        let plain = resolve(&args(&["--reticle", "4x3"]), cwd).unwrap();
+        assert_eq!(plain.reticle, Some(CliReticle { width: 4, height: 3, anchor_die: None }));
+        assert!(!plain.is_empty(), "a reticle-only launch is a real payload, applied to the open window");
+        let anchored = resolve(&args(&["--reticle", "4X3@-1,2", "a.stdf"]), cwd).unwrap();
+        assert_eq!(anchored.reticle, Some(CliReticle { width: 4, height: 3, anchor_die: Some(CliDie { x: -1, y: 2 }) }));
+    }
+
+    #[test]
+    fn reticle_flag_rejects_what_is_not_a_whole_field() {
+        let cwd = Path::new("/cwd");
+        for bad in ["4", "4x", "x3", "4x3@1", "4x3@a,b", "4.5x3", "0x3", "4x0", "-4x3"] {
+            let err = resolve(&args(&["--reticle", bad]), cwd).unwrap_err();
+            assert!(err.contains("--reticle"), "{bad}: error was: {err}");
+        }
+    }
+
+    #[test]
+    fn reticle_flag_needs_a_value_and_does_not_swallow_the_next_flag() {
+        let cwd = Path::new("/cwd");
+        let err = resolve(&args(&["--reticle", "--splits", "s.csv"]), cwd).unwrap_err();
+        assert!(err.contains("--reticle requires a value"), "error was: {err}");
+    }
+
+    #[test]
+    fn reticle_flag_can_be_abbreviated_but_not_ambiguously() {
+        let cwd = Path::new("/cwd");
+        assert_eq!(resolve(&args(&["--ret", "2x2"]), cwd).unwrap().reticle, Some(CliReticle { width: 2, height: 2, anchor_die: None }));
     }
 
     #[test]

@@ -917,7 +917,8 @@ With a reticle set:
   every field, which points at the stepper (alignment drift, a mask defect) rather than at the wafer.
 
 Like the [diameter](#wafer-diameter-and-edge-exclusion), the reticle is one value for every wafer loaded, is remembered
-between sessions, and stays in effect for the next file you open. **Help → Reset saved settings…** lists it.
+between sessions, and stays in effect for the next file you open. **Help → Reset saved settings…** lists it. `--reticle`
+sets it for one launch from the [command line](#command-line).
 
 ## Reference
 
@@ -935,6 +936,8 @@ tsmap lot1.stdf --plots my-plots.json      # adds plots (sweeps included) to Ins
 tsmap --plots my-plots.json                # sent to a running tsmap: adds them and redraws what is open
 tsmap lot1.stdf --wafer-diameter 300       # sets the wafer diameter (mm) for this launch
 tsmap lot1.stdf --wafer-diameter 300 --edge-exclusion 3   # plus an edge-exclusion band (mm)
+tsmap lot1.stdf --reticle 4x3              # sets the stepper field (dies wide x high) for this launch
+tsmap lot1.stdf --reticle 4x3@1,0          # the same, with die (1, 0) at a field's bottom-left corner
 tsmap --url https://.../lot.stdf --url-format stdf   # fetch and open a URL — see below
 tsmap --help                               # full usage
 tsmap --version                            # print the version and exit
@@ -962,11 +965,16 @@ not a file path. They apply to that session only: the geometry saved from the di
 with no diameter available from either source, it's ignored with a logged warning rather than
 silently applied against whatever tsmap would otherwise infer.
 
+`--reticle` sets the same value as the [Reticle… dialog](#reticle): `WxH` is the field's width and height in dies,
+and an optional `@X,Y` names the die at a field's bottom-left corner when it is not die (0, 0). Both are whole numbers
+and the field is at least one die each way; anything else is refused when you launch. Like the geometry flags it
+applies to that session only, and the setting saved from the dialog is left as it was.
+
 If tsmap is already running, launching it again with files hands them to the running window
 instead of opening a second blank one: with nothing currently loaded they open right away;
 with data already loaded, a dialog asks whether to replace it. Decline and the new files open
 in a separate, independent tsmap window instead, so nothing is lost either way. A launch with
-no data files — only `--plots`, `--wafer-diameter` or `--edge-exclusion` — replaces nothing,
+no data files — only `--plots`, `--wafer-diameter`, `--edge-exclusion` or `--reticle` — replaces nothing,
 so it applies to the running window straight away without asking.
 
 ### Opening data from a URL

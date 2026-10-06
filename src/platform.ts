@@ -121,6 +121,9 @@ export interface CliStartupArgs {
   /** `--wafer-diameter <MM>` (cli_files.rs) — a scalar mm value, validated
    *  `> 0` (strict, unlike `edgeExclusion`'s `>= 0`) on the Rust side. */
   waferDiameter?: number;
+  /** `--reticle <WxH[@X,Y]>` (cli_files.rs) — the stepper field, already parsed and validated (whole numbers, at least one
+   *  die each way) on the Rust side. Applied for the session only, like the geometry flags; the saved setting is not touched. */
+  reticle?: { width: number; height: number; anchorDie?: { x: number; y: number } };
   /** Set when `--url`/`--url-format` (cli_files.rs) failed to fetch — the
    *  Rust side resolves the URL to a real local file *before* the frontend
    *  ever runs (see fetch_url.rs's module doc for why), so `files` already
