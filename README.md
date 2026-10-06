@@ -161,6 +161,7 @@ src/
   fileAssociationsUI.ts — "File associations…" dialog (Tauri only)
   splits.ts / splitsUI.ts — wafer splits: a user-assigned grouping axis over metadata
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
+  reticle.ts / reticleUI.ts — the stepper field size (dies) behind the reticle grid and reticle-position findings
   mapColorPrefs.ts    — remembered bin / value colour schemes and "use defined bin colours"
   plotPrefs.ts        — the saved plots behind Insights' Plot tab, kept as wmap's own plots file
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet

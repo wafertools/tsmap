@@ -34,6 +34,8 @@ import { loadSavedPlots, savePlots, importPlotsText } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
+import { getReticle, setReticle, toWmapReticleConfig, type ReticleSettings } from './reticle';
+import { showReticleDialog } from './reticleUI';
 import type { InferredDiameterHint } from './waferGeometryUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
 import { showFileAssociationsModal } from './fileAssociationsUI';
@@ -291,6 +293,10 @@ let showSplitSuffix = true;
 // to a confirmed diameter).
 let waferDiameterMm: number | undefined = getWaferDiameterMm();
 let edgeExclusionMm: number | undefined = getEdgeExclusionMm();
+// The stepper field (width/height in dies, optional corner die): `reticleConfig` on every buildWaferMap
+// call, which draws the field grid and adds reticle-position findings. Unset means neither — nothing
+// in a wafer file says how many dies make a field. See reticle.ts.
+let reticle: ReticleSettings | undefined = getReticle();
 
 let cachedLotStats: NonNullable<Awaited<ReturnType<typeof buildLotStatsSummary>>> | null = null;
 // The wmap controller for the map currently rendered into the main `container`
@@ -802,6 +808,7 @@ function buildWmapConfig(
       edgeExclusion: edgeExclusionMm,
     },
     dieConfig: wcr?.dieConfig,
+    reticleConfig: toWmapReticleConfig(reticle),
     // From this file's HBR/SBR (see ParsedFile.hbinDefs/sbinDefs/passHbins,
     // types.ts) — undefined falls back to wmap's own defaults (bare bin
     // numbers, passBins [1]).
@@ -1223,7 +1230,7 @@ async function renderWaferView(wafers: WaferData[]) {
       onSaveText,
       // The colour choices persist across loads and restarts (mapColorPrefs.ts);
       // the plot mode is per-load, derived from the data.
-      viewOptions: { plotMode, ...loadMapColorPrefs() },
+      viewOptions: { plotMode, ...loadMapColorPrefs(), ...reticleViewOption() },
       onViewOptionsChange: saveMapColorPrefs,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default). It and tsmap's log deliberately show the same advisories:
@@ -1323,7 +1330,7 @@ async function renderWaferView(wafers: WaferData[]) {
       onSaveImage,
       onSaveText,
       // Same persisted colour choices as the single-wafer call above.
-      viewOptions: { plotMode, ...loadMapColorPrefs() },
+      viewOptions: { plotMode, ...loadMapColorPrefs(), ...reticleViewOption() },
       onViewOptionsChange: saveMapColorPrefs,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default) — see the note on the single-wafer call above. The gallery
@@ -2618,6 +2625,21 @@ function openWaferGeometryDialog() {
   });
 }
 
+/** A reticle that has been set is drawn: the field grid is what the setting is for, and the Overlays menu still hides it. */
+function reticleViewOption(): { showReticle?: boolean } {
+  return reticle === undefined ? {} : { showReticle: true };
+}
+
+// Same invalidation as openWaferGeometryDialog: the reticle feeds buildWaferMap at both call sites, so
+// cachedLotStats must not survive the change (rerenderCurrentLot drops it).
+function openReticleDialog() {
+  if (session.wafers.length === 0) return;
+  showReticleDialog(reticle, (next) => {
+    reticle = setReticle(next);
+    rerenderCurrentLot('Rendering');
+  });
+}
+
 /**
  * Shared shell for the Setup ▾ "definitions" dialogs (Test/Bin definitions) —
  * same modal chrome, button layout, save/load try-catch-log wrapping, and
@@ -3138,6 +3160,13 @@ function openLotMenu(anchor: HTMLElement) {
           ? `${waferDiameterMm} mm wafer${edgeExclusionMm !== undefined ? `, ${edgeExclusionMm} mm exclusion` : ''}`
           : 'Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer',
         onClick: openWaferGeometryDialog,
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Reticle…',
+        hint: reticle !== undefined
+          ? `${reticle.width} × ${reticle.height} dies per field`
+          : 'Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field',
+        onClick: openReticleDialog,
       }));
       // Moved out of the app bar, where it was a bare switch reading "Value
       // findings" with no indication of what it acted on. In a menu row there

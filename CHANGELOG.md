@@ -4,6 +4,20 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [Unreleased]
+
+### Added
+
+- **Reticle…, in Setup ▾.** Give the stepper field's width and height in dies (and, if die (0, 0) is not at a field corner,
+  the die that is) and every wafer draws the field grid, shows each die's position within its field in the tooltip, and is
+  checked for failures that repeat at the same place in every field: reticle-position findings appear in the Summary panel.
+  The grid is on once a reticle is set, and **Overlays ▾ → Reticle grid** hides it. The setting applies to every wafer, is
+  remembered between sessions, and is listed in **Help → Reset saved settings…**. **Clear** removes it.
+- **Sample files for retests, multi-project wafers and spec limits.** `sample_data/RETEST-LOT-07.csv` (dies probed twice; the
+  log says how many positions were retested), `sample_data/MPW-LOT-08.csv` (a multi-project wafer, where **Overlays ▾ →
+  Compact layout** is offered) and `sample_data/PVT-LOT-05_testdefs_spec.csv` (test limits and spec limits on the same tests,
+  loaded from Setup ▾ → Tests…). `scripts/generate_retest_csv.py` and `scripts/generate_mpw_csv.py` write the first two.
+
 ## [0.1.44] — 2026-10-06
 
 ### Added

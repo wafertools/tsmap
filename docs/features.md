@@ -50,6 +50,10 @@ Yield, soft-bin, and per-test parametric heat-map views, with zoom, pan, and hov
 findings (edge effects, clustering) are always computed; an optional value-findings mode adds
 statistical outlier detection on top.
 
+Give tsmap the **reticle** (stepper field) size in dies and it draws the field grid and looks for
+failures that repeat at the same place in every field, which points at the stepper rather than the
+wafer. See [Reticle](user-guide.md#reticle).
+
 ![Wafer map in test-value mode](images/wafer-map-testvalue.png)
 ![Wafer map in soft-bin mode](images/wafer-map-softbin.png)
 

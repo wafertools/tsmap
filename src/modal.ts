@@ -318,3 +318,35 @@ export function openModal(options: OpenModalOptions): ModalHandle {
 
   return { box, body, close };
 }
+
+/**
+ * The footer the single-purpose setting dialogs (Diameter & edge exclusion, Reticle) share: **Clear** on the left,
+ * which turns red on hover as the one destructive choice, **Cancel** and **Apply** on the right.
+ */
+export function clearCancelApplyRow(handlers: { onClear: () => void; onCancel: () => void; onApply: () => void }): HTMLElement {
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px';
+
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = 'Clear';
+  clearBtn.className = 'btn-secondary';
+  clearBtn.addEventListener('mouseenter', () => { clearBtn.style.borderColor = 'var(--error-text)'; clearBtn.style.color = 'var(--error-text)'; });
+  clearBtn.addEventListener('mouseleave', () => { clearBtn.style.borderColor = 'var(--border-mid)'; clearBtn.style.color = 'var(--text-secondary)'; });
+  clearBtn.addEventListener('click', handlers.onClear);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.className = 'btn-secondary';
+  cancelBtn.addEventListener('click', handlers.onCancel);
+
+  const applyBtn = document.createElement('button');
+  applyBtn.textContent = 'Apply';
+  applyBtn.className = 'btn-primary';
+  applyBtn.addEventListener('click', handlers.onApply);
+
+  const right = document.createElement('div');
+  right.style.cssText = 'display:flex;gap:8px';
+  right.append(cancelBtn, applyBtn);
+  row.append(clearBtn, right);
+  return row;
+}

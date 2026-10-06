@@ -4,7 +4,7 @@
 // diameter-gates-exclusion rule live in waferGeometry.ts; this module only
 // owns the dialog.
 
-import { openModal } from './modal';
+import { openModal, clearCancelApplyRow } from './modal';
 import { normalizeWaferGeometry, type WaferGeometry } from './waferGeometry';
 
 // Three-tier hint, in order of trust: a WCR (Wafer Configuration Record)
@@ -179,37 +179,13 @@ export function showWaferGeometryDialog(
         });
       }
 
-      const buttonRow = document.createElement('div');
-      buttonRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px';
-
-      const clearBtn = document.createElement('button');
-      clearBtn.textContent = 'Clear';
-      clearBtn.className = 'btn-secondary';
-      clearBtn.addEventListener('mouseenter', () => { clearBtn.style.borderColor = 'var(--error-text)'; clearBtn.style.color = 'var(--error-text)'; });
-      clearBtn.addEventListener('mouseleave', () => { clearBtn.style.borderColor = 'var(--border-mid)'; clearBtn.style.color = 'var(--text-secondary)'; });
-      clearBtn.addEventListener('click', () => {
-        // Clears both together — leaving a pinned exclusion behind after
-        // diameter reverts to auto-inferred would leave an exclusion with no
-        // confirmed diameter to measure it against.
-        onApply({ diameterMm: undefined, edgeExclusionMm: undefined });
-        modalHandle.close();
+      // Clears both together — leaving a pinned exclusion behind after diameter reverts to
+      // auto-inferred would leave an exclusion with no confirmed diameter to measure it against.
+      const buttonRow = clearCancelApplyRow({
+        onClear: () => { onApply({ diameterMm: undefined, edgeExclusionMm: undefined }); modalHandle.close(); },
+        onCancel: () => modalHandle.close(),
+        onApply: doApply,
       });
-
-      const rightGroup = document.createElement('div');
-      rightGroup.style.cssText = 'display:flex;gap:8px';
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.className = 'btn-secondary';
-      cancelBtn.addEventListener('click', () => modalHandle.close());
-
-      const applyBtn = document.createElement('button');
-      applyBtn.textContent = 'Apply';
-      applyBtn.className = 'btn-primary';
-      applyBtn.addEventListener('click', doApply);
-
-      rightGroup.append(cancelBtn, applyBtn);
-      buttonRow.append(clearBtn, rightGroup);
 
       body.append(diameterLabel, diameterHintText, exclusionLabel, exclusionHintText, errorText, buttonRow);
       diameterInput.focus();

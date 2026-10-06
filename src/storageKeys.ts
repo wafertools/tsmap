@@ -84,6 +84,12 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     scope: 'both',
   },
   {
+    key: 'tsmap:reticle',
+    label: 'Reticle',
+    description: 'The stepper field size (and corner die) set in Reticle.',
+    scope: 'both',
+  },
+  {
     key: 'tsmap:map-colors',
     label: 'Wafer map colours',
     description: 'The bin and value colour schemes you picked on a wafer map, and whether colours from a bin definitions file are used.',

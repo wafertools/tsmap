@@ -65,8 +65,8 @@ Controls:
   · 0  [aria="Select the same dies on every wafer: off (click to turn on)"]
   · Download gallery PNG
   · Summary panel
-  · Insights   (×2)
   · Maps
+  · Insights
   · 1 · Pass2,27179.0%
   · 2 · Fail (1 test)42514.8%
   · 3 · Fail (multi)1776.2%
@@ -104,6 +104,8 @@ Controls:
   · Limit fail rate for idsat_n_uA is 2.0 pp higher than the rest of the wafer — higher on 9/13 wafers, all wafers' data combined
   · Limit fail rate for idsat_p_uA is 2.9 pp higher than the rest of the wafer — higher on 10/13 wafers, all wafers' data combined
   · ▶Wafer Yield (49.8–98.2%) · median 73.8%
+  · Slot  [radio, checked]
+  · Yield  [radio, unchecked]
   · W01 · TT995.5%+21.7  [aria="W01 · TT, 95.5% yield, 9 findings, 1 unusual — open wafer"]
   · W02 · FF71.9%−1.8  [aria="W02 · FF, 71.9% yield — open wafer"]
   · W03 · TT1095.5%+21.7  [aria="W03 · TT, 95.5% yield, 10 findings, 5 unusual — open wafer"]
@@ -118,7 +120,11 @@ Controls:
   · W12 · FS372.9%−0.9  [aria="W12 · FS, 72.9% yield, 3 findings — open wafer"]
   · W13 · SF1373.8%0.0  [aria="W13 · SF, 73.8% yield, 13 findings, 1 unusual — open wafer"]
   · ▶Hard Bin Breakdown — % of dies (N=2,873)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
   · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
   · ▶Test Values (6) — 13 wafers pooled · N=2,873
   · ▶Functional Tests (1) — 13 wafers pooled · N=2,873
   · Log
@@ -145,6 +151,8 @@ Menu — Setup ▾:
         hint: Define and assign wafer splits (process corners, experiment groups, etc.)
     · Diameter & edge exclusion…
         hint: Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer
+    · Reticle…
+        hint: Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field
     · ☑Show test-value findings  [checked]
         hint: Add regional test-value findings to the summary panel (slower on large loads)
 
@@ -198,90 +206,7 @@ Menu — Charts and tables for this wafer (or right-click):
     · Value histogram
     · Process capability
     · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
-    · Dies
-    · Test statistics
-
-Menu — Charts and tables for this wafer (or right-click):
-    · Value histogram
-    · Process capability
-    · New plot…
+    · New sweep…
     · Dies
     · Test statistics
 
@@ -290,8 +215,22 @@ Dialog — Splits…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
+    · Show split in wafer map labels  [checkbox, checked]
     · Select all
     · Select none
+    · W01sample-lot.stdfTT  [checkbox, unchecked]
+    · W02sample-lot.stdfFF  [checkbox, unchecked]
+    · W03sample-lot.stdfTT  [checkbox, unchecked]
+    · W04sample-lot.stdfSS  [checkbox, unchecked]
+    · W05sample-lot.stdfTT  [checkbox, unchecked]
+    · W06sample-lot.stdfFS  [checkbox, unchecked]
+    · W07sample-lot.stdfTT  [checkbox, unchecked]
+    · W08sample-lot.stdfSF  [checkbox, unchecked]
+    · W09sample-lot.stdfTT  [checkbox, unchecked]
+    · W10sample-lot.stdfFF  [checkbox, unchecked]
+    · W11sample-lot.stdfSS  [checkbox, unchecked]
+    · W12sample-lot.stdfFS  [checkbox, unchecked]
+    · W13sample-lot.stdfSF  [checkbox, unchecked]
     · Assign to selected  [disabled]
     · Clear split  [disabled]
     · Clear all
@@ -323,6 +262,19 @@ Dialog — Diameter & edge exclusion…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
+    · Wafer diameter (mm)  [number]
+    · Edge exclusion width (mm)  [number]
+    · Clear
+    · Cancel
+    · Apply
+
+Dialog — Reticle…
+    · Maximize (F)
+        hint: Maximize (F)
+    · Close (Esc)
+        hint: Close (Esc)
+    · Wafer diameter (mm)  [number]
+    · Edge exclusion width (mm)  [number]
     · Clear
     · Cancel
     · Apply
@@ -332,6 +284,8 @@ Dialog — Definitions file formats…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
+    · Wafer diameter (mm)  [number]
+    · Edge exclusion width (mm)  [number]
     · Clear
     · Cancel
     · Apply
@@ -341,6 +295,8 @@ Dialog — Reset saved settings…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
+    · Colour themeThe theme you picked, or Auto to follow your sys  [checkbox, unchecked]
+    · Wafer split assignmentsSplit labels you assigned to wafers,  [checkbox, unchecked]
     · Select all
     · Forget selected  [disabled]
     · Cancel
@@ -350,3 +306,1283 @@ Dialog — About tsmap…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
+
+## Insights (sample lot)
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · Save as PNG   (×5)
+  · Expand   (×5)
+  · Sort: yield  [radio, unchecked]
+  · Sort: wafer ID  [radio, checked]
+  · Hard bins  [radio, checked]
+  · Soft bins  [radio, unchecked]
+  · Test limits  [radio, checked]
+  · Tester flag  [radio, unchecked]
+  · Functional  [radio, unchecked]
+  · Data tab
+  · Log
+      hint: Show the log panel
+
+Menu — Choose how to pick files to open:
+    · Choose files…
+        hint: Pick individual files in the usual dialog
+    · Scan a folder…
+        hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table Folders are read in your browser — no files are uploaded.
+
+Menu — Choose how to pick files to add:
+    · Choose files…
+        hint: Pick individual files in the usual dialog
+    · Scan a folder…
+        hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table Folders are read in your browser — no files are uploaded.
+
+Menu — Setup ▾:
+    · Tests…
+        hint: Choose which tests are imported, rename them, and set limits, units and type
+    · Bin definitions…
+        hint: 3 hard, 3 soft bin names — save or load hard/soft bin names and pass/fail flags
+    · Splits…
+        hint: Define and assign wafer splits (process corners, experiment groups, etc.)
+    · Diameter & edge exclusion…
+        hint: Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer
+    · Reticle…
+        hint: Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field
+    · ☑Show test-value findings  [checked]
+        hint: Add regional test-value findings to the summary panel (slower on large loads)
+
+Menu — Group by:
+    · None
+    · Split (5)
+
+## Insights (sample lot) › Overview
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · Save as PNG   (×5)
+  · Expand   (×5)
+  · Sort: yield  [radio, unchecked]
+  · Sort: wafer ID  [radio, checked]
+  · Hard bins  [radio, checked]
+  · Soft bins  [radio, unchecked]
+  · Test limits  [radio, checked]
+  · Tester flag  [radio, unchecked]
+  · Functional  [radio, unchecked]
+  · Data tab
+  · Log
+      hint: Show the log panel
+
+## Insights (sample lot) › Distributions
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · Save as PNG   (×4)
+  · Expand   (×4)
+  · vth_n_mV▾  [aria="Test", opens menu]   (×3)
+  · Log scale  [checkbox, unchecked]
+  · Axis includes limits  [checkbox, checked]   (×3)
+  · Clip outliers  [checkbox, unchecked]   (×3)
+  · All wafers▾  [aria="Wafer", opens menu]
+  · Log
+      hint: Show the log panel
+
+Menu — Test:
+    · vth_n_mV
+    · vth_p_mV
+    · idsat_n_uA
+    · idsat_p_uA
+    · ioff_nA
+    · fmax_MHz
+
+Menu — Wafer:
+    · All wafers
+    · W01 · TT
+    · W02 · FF
+    · W03 · TT
+    · W04 · SS
+    · W05 · TT
+    · W06 · FS
+    · W07 · TT
+    · W08 · SF
+    · W09 · TT
+    · W10 · FF
+    · W11 · SS
+    · W12 · FS
+    · W13 · SF
+
+## Insights (sample lot) › Correlation
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · Save as PNG   (×2)
+  · Expand   (×2)
+  · Max tests:  [number]
+  · All wafers▾  [aria="Wafer", opens menu]   (×2)
+  · Correlation CSV
+  · vth_n_mV▾  [aria="Test", opens menu]
+  · vth_p_mV▾  [aria="Test", opens menu]
+  · Bin 1
+  · Bin 2
+  · Bin 3
+  · Log
+      hint: Show the log panel
+
+## Insights (sample lot) › Data
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · Statistics  [checked]
+  · Dies  [unchecked]
+  · Wafers  [unchecked]
+  · Test values CSV
+  · Functional CSV
+  · Log
+      hint: Show the log panel
+
+## Insights (sample lot) › Plot
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · + New plot
+  · + New sweep
+  · Add examples
+  · Import plots…
+  · Export plots…
+  · Delete all plots…  [disabled]
+  · Log
+      hint: Show the log panel
+
+## Insights (sample lot) › Plot › + New plot editor
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · + New plot
+  · + New sweep
+  · Add examples
+  · Import plots…
+  · Export plots…
+  · Delete all plots…
+  · Save as PNG   (×2)
+  · Expand   (×2)
+  · Edit
+  · Duplicate
+  · Delete
+  · W01 · TT   (×2)
+  · W02 · FF   (×2)
+  · W03 · TT   (×2)
+  · W04 · SS   (×2)
+  · W05 · TT   (×2)
+  · W06 · FS   (×2)
+  · W07 · TT   (×2)
+  · W08 · SF   (×2)
+  · W09 · TT   (×2)
+  · W10 · FF   (×2)
+  · W11 · SS   (×2)
+  · W12 · FS   (×2)
+  · W13 · SF   (×2)
+  · Log
+      hint: Show the log panel
+  · Maximize (F)
+  · Close (Esc)
+  · Setup
+  · Customise
+  · Scatter  [radio, checked]
+  · Histogram  [radio, unchecked]
+  · Box  [radio, unchecked]
+  · Bar  [radio, unchecked]
+  · Line  [radio, unchecked]
+  · vth_n_mV · 1001▾  [aria="X axis", opens menu]
+  · vth_p_mV · 1002▾  [aria="Y axis", opens menu]
+  · Follow Group by (a colour per wafer)▾  [aria="Colour", opens menu]
+  · Automatic  [radio, checked]
+  · Die  [radio, unchecked]
+  · Wafer  [radio, unchecked]
+  · Reset  [disabled]
+  · Cancel
+
+Menu — X axis:
+    · vth_n_mV · 1001
+    · vth_p_mV · 1002
+    · idsat_n_uA · 1003
+    · idsat_p_uA · 1004
+    · ioff_nA · 1005
+    · fmax_MHz · 1006
+    · Die X
+    · Die Y
+    · Wafer order
+    · Yield
+    · Dies
+    · Job Rev
+    · Centre Die X
+    · Centre Die Y
+
+Menu — Y axis:
+    · vth_n_mV · 1001
+    · vth_p_mV · 1002
+    · idsat_n_uA · 1003
+    · idsat_p_uA · 1004
+    · ioff_nA · 1005
+    · fmax_MHz · 1006
+    · Die X
+    · Die Y
+    · Wafer order
+    · Yield — Yield is per wafer: use a bar or line chart  [disabled]
+    · Dies
+    · Job Rev
+    · Centre Die X
+    · Centre Die Y
+
+Menu — Colour:
+    · Follow Group by (a colour per wafer)
+    · None
+    · vth_n_mV · 1001
+    · vth_p_mV · 1002
+    · idsat_n_uA · 1003
+    · idsat_p_uA · 1004
+    · ioff_nA · 1005
+    · fmax_MHz · 1006
+    · Die X
+    · Die Y
+    · Ring
+    · Quadrant
+    · Hard bin
+    · Soft bin
+    · Site
+    · Wafer order
+    · Yield
+    · Dies
+    · Split
+    · Lot
+    · Product
+    · Program
+    · Node Name
+    · Tester Type
+    · Job Rev
+    · Wafer Diameter
+    · Die Height
+    · Die Width
+    · Wafer Flat
+    · Centre Die X
+    · Centre Die Y
+    · X Increases
+    · Y Increases
+
+## Insights (sample lot) › Plot › + New plot editor › Customise
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · + New plot
+  · + New sweep
+  · Add examples
+  · Import plots…
+  · Export plots…
+  · Delete all plots…
+  · Save as PNG   (×2)
+  · Expand   (×2)
+  · Edit
+  · Duplicate
+  · Delete
+  · W01 · TT   (×2)
+  · W02 · FF   (×2)
+  · W03 · TT   (×2)
+  · W04 · SS   (×2)
+  · W05 · TT   (×2)
+  · W06 · FS   (×2)
+  · W07 · TT   (×2)
+  · W08 · SF   (×2)
+  · W09 · TT   (×2)
+  · W10 · FF   (×2)
+  · W11 · SS   (×2)
+  · W12 · FS   (×2)
+  · W13 · SF   (×2)
+  · Log
+      hint: Show the log panel
+  · Maximize (F)
+  · Close (Esc)
+  · Setup
+  · Customise
+  · Linear  [radio, checked]   (×2)
+  · Log  [radio, unchecked]   (×2)
+  · Reverse direction  [checkbox, unchecked]   (×2)
+  · Test + spec  [radio, checked]
+  · Test  [radio, unchecked]
+  · Spec  [radio, unchecked]
+  · None  [radio, unchecked]
+  · Reset  [disabled]
+  · Cancel
+
+## Insights (sample lot) › + New sweep editor
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 8 more fields
+  · Maps
+  · Insights
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · Plot
+  · None▾  [aria="Group by", opens menu]
+  · + New plot
+  · + New sweep
+  · Add examples
+  · Import plots…
+  · Export plots…
+  · Delete all plots…
+  · Save as PNG   (×2)
+  · Expand   (×2)
+  · Edit
+  · Duplicate
+  · Delete
+  · Log
+      hint: Show the log panel
+  · Maximize (F)
+  · Close (Esc)
+  · Test order  [radio, checked]
+  · Values  [radio, unchecked]
+  · From test name  [radio, unchecked]
+  · + Add series
+  · Linear  [radio, checked]
+  · Log  [radio, unchecked]
+  · Reset  [disabled]
+  · Cancel
+
+## Single wafer (full view)
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 10 more fields
+  · Plot mode  [opens menu]
+  · Colour scheme  [opens menu]
+  · Overlays  [opens menu]
+  · Legend style  [opens menu]
+  · Orientation  [opens menu]
+  · Columns  [opens menu]
+  · 0  [aria="Select the same dies on every wafer: off (click to turn on)"]
+  · Download gallery PNG
+  · Summary panel
+  · Maps
+  · Insights
+  · 1 · Pass2,27179.0%
+  · 2 · Fail (1 test)42514.8%
+  · 3 · Fail (multi)1776.2%
+  · W01 · TT▾  [aria="Wafer info for W01 · TT. Click to expand."]
+  · Reattach to gallery
+  · W02 · FF▾  [aria="Wafer info for W02 · FF. Click to expand."]
+  · Open full view   (×12)
+  · Download PNG   (×12)
+  · Zoom (drag to zoom region)   (×12)
+  · Zoom in   (×12)
+  · Zoom out   (×12)
+  · Reset zoom (double-click)   (×12)
+  · Pan (drag to move)   (×12)
+  · Select (drag to select dies)   (×12)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×12)
+  · W03 · TT▾  [aria="Wafer info for W03 · TT. Click to expand."]
+  · W04 · SS▾  [aria="Wafer info for W04 · SS. Click to expand."]
+  · W05 · TT▾  [aria="Wafer info for W05 · TT. Click to expand."]
+  · W06 · FS▾  [aria="Wafer info for W06 · FS. Click to expand."]
+  · W07 · TT▾  [aria="Wafer info for W07 · TT. Click to expand."]
+  · W08 · SF▾  [aria="Wafer info for W08 · SF. Click to expand."]
+  · W09 · TT▾  [aria="Wafer info for W09 · TT. Click to expand."]
+  · W10 · FF▾  [aria="Wafer info for W10 · FF. Click to expand."]
+  · W11 · SS▾  [aria="Wafer info for W11 · SS. Click to expand."]
+  · W12 · FS▾  [aria="Wafer info for W12 · FS. Click to expand."]
+  · W13 · SF▾  [aria="Wafer info for W13 · SF. Click to expand."]
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · Full report ▸
+  · ▶Findings (3)3
+  · ●●●Unusual 2
+  · ●●○Notable 1
+  · Detail ▸
+  · Spatial pattern: edge (edge-local on 4, edge-ring on 1) — seen on 5/13 wafers (38%)
+  · Limit fail rate for idsat_n_uA is 2.0 pp higher than the rest of the wafer — higher on 9/13 wafers, all wafers' data combined
+  · Limit fail rate for idsat_p_uA is 2.9 pp higher than the rest of the wafer — higher on 10/13 wafers, all wafers' data combined
+  · ▶Wafer Yield (49.8–98.2%) · median 73.8%
+  · Slot  [radio, checked]
+  · Yield  [radio, unchecked]
+  · W01 · TT995.5%+21.7  [aria="W01 · TT, 95.5% yield, 9 findings, 1 unusual — open wafer"]
+  · W02 · FF71.9%−1.8  [aria="W02 · FF, 71.9% yield — open wafer"]
+  · W03 · TT1095.5%+21.7  [aria="W03 · TT, 95.5% yield, 10 findings, 5 unusual — open wafer"]
+  · W04 · SS258.4%−15.4  [aria="W04 · SS, 58.4% yield, 2 findings — open wafer"]
+  · W05 · TT994.6%+20.8  [aria="W05 · TT, 94.6% yield, 9 findings, 1 unusual — open wafer"]
+  · W06 · FS1073.3%−0.5  [aria="W06 · FS, 73.3% yield, 10 findings, 4 unusual — open wafer"]
+  · W07 · TT397.7%+24.0  [aria="W07 · TT, 97.7% yield, 3 findings — open wafer"]
+  · W08 · SF771.0%−2.7  [aria="W08 · SF, 71.0% yield, 7 findings — open wafer"]
+  · W09 · TT598.2%+24.4  [aria="W09 · TT, 98.2% yield, 5 findings — open wafer"]
+  · W10 · FF375.1%+1.4  [aria="W10 · FF, 75.1% yield, 3 findings — open wafer"]
+  · W11 · SS349.8%−24.0  [aria="W11 · SS, 49.8% yield, 3 findings — open wafer"]
+  · W12 · FS372.9%−0.9  [aria="W12 · FS, 72.9% yield, 3 findings — open wafer"]
+  · W13 · SF1373.8%0.0  [aria="W13 · SF, 73.8% yield, 13 findings, 1 unusual — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=2,873)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · ▶Test Values (6) — 13 wafers pooled · N=2,873
+  · ▶Functional Tests (1) — 13 wafers pooled · N=2,873
+  · Log
+      hint: Show the log panel
+
+## Test selector (Setup ▾ → Tests…)
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · 10 more fields
+  · Plot mode  [opens menu]
+  · Colour scheme  [opens menu]
+  · Overlays  [opens menu]
+  · Legend style  [opens menu]
+  · Orientation  [opens menu]
+  · Columns  [opens menu]
+  · 0  [aria="Select the same dies on every wafer: off (click to turn on)"]
+  · Download gallery PNG
+  · Summary panel
+  · Maps
+  · Insights
+  · 1 · Pass1,25994.9%
+  · 3 · No set443.3%
+  · 2 · Forming fail131.0%
+  · 4 · No reset100.8%
+  · W01▾  [aria="Wafer info for W01. Click to expand."]
+  · Open full view   (×6)
+  · Download PNG   (×6)
+  · Zoom (drag to zoom region)   (×6)
+  · Zoom in   (×6)
+  · Zoom out   (×6)
+  · Reset zoom (double-click)   (×6)
+  · Pan (drag to move)   (×6)
+  · Select (drag to select dies)   (×6)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×6)
+  · W02▾  [aria="Wafer info for W02. Click to expand."]
+  · W03▾  [aria="Wafer info for W03. Click to expand."]
+  · W04▾  [aria="Wafer info for W04. Click to expand."]
+  · W05▾  [aria="Wafer info for W05. Click to expand."]
+  · W06▾  [aria="Wafer info for W06. Click to expand."]
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · Full report ▸
+  · ▶Findings (45)45
+  · ●●●Unusual 45
+  · All kinds▾  [aria="Kind", opens menu]
+  · All regions▾  [aria="Region", opens menu]
+  · Detail ▸
+  · Mean Ihrs_1e1cyc is 7.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e1cyc is 2.5% higher than the rest of the map — higher on 4/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e2cyc is 3.8% higher than the rest of the map — higher on 4/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e3cyc is 6.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e4cyc is 10.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.4V is 65.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.4V is 42.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e1cyc is 5.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e2cyc is 12.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e3cyc is 14.9% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e4cyc is 16.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e5cyc is 16.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e6cyc is 16.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e3cyc is 5.1% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e4cyc is 8.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e5cyc is 15.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e6cyc is 31.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.3V is 24.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.4V is 35.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.5V is 25.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.6V is 9.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.7V is 1.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.2V is 7.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.3V is 23.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.4V is 41.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.5V is 40.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.6V is 22.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.7V is 8.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e2cyc is 11.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e3cyc is 13.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e4cyc is 14.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e5cyc is 15.2% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ihrs_1e6cyc is 15.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e5cyc is 16.0% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e6cyc is 40.2% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.5V is 31.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.6V is 9.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.5V is 51.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Iset_+0.6V is 22.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Yield is 4.8 percentage points lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ilrs_1e2cyc is 2.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_-0.3V is 22.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+  · Mean Iset_-0.7V is 12.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_+0.6V is 65.0% lower than other test sites — lower on 6/6 wafers, all wafers' data combined
+  · Mean Ireset_+1.1V is 3094.9% higher than other test sites — higher on 6/6 wafers, all wafers' data combined
+  · ▶Wafer Yield (93.7–97.7%) · median 94.3%
+  · Slot  [radio, checked]
+  · Yield  [radio, unchecked]
+  · W012894.6%+0.2  [aria="W01, 94.6% yield, 28 findings, 21 unusual — open wafer"]
+  · W023993.7%−0.7  [aria="W02, 93.7% yield, 39 findings, 26 unusual — open wafer"]
+  · W033094.1%−0.2  [aria="W03, 94.1% yield, 30 findings, 10 unusual — open wafer"]
+  · W041895.5%+1.1  [aria="W04, 95.5% yield, 18 findings, 17 unusual — open wafer"]
+  · W053094.1%−0.2  [aria="W05, 94.1% yield, 30 findings, 16 unusual — open wafer"]
+  · W063297.7%+3.4  [aria="W06, 97.7% yield, 32 findings, 28 unusual — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=1,326)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · ▶Test Values (76) — 6 wafers pooled · N=1,326
+  · ▶Functional Tests (1) — 6 wafers pooled · N=1,326
+  · Log
+      hint: Show the log panel
+  · Close
+  · All
+  · Parametric
+  · Functional
+  · † Derived
+  · Select all
+  · Select none
+  · Select range
+  · 2001F  [checkbox, checked]
+  · 3000≥50 uAP  [checkbox, checked]
+  · 3001uAP  [checkbox, checked]
+  · 3002uAP  [checkbox, checked]
+  · 3003uAP  [checkbox, checked]
+  · 3004uAP  [checkbox, checked]
+  · 3005uAP  [checkbox, checked]
+  · 3006uAP  [checkbox, checked]
+  · 3007uAP  [checkbox, checked]
+  · 3008uAP  [checkbox, checked]
+  · 3009uAP  [checkbox, checked]
+  · 3010uAP  [checkbox, checked]
+  · 3011uAP  [checkbox, checked]
+  · 3012uAP  [checkbox, checked]
+  · 3013uAP  [checkbox, checked]
+  · 3014uAP  [checkbox, checked]
+  · 3015uAP  [checkbox, checked]
+  · 3016uAP  [checkbox, checked]
+  · 3017uAP  [checkbox, checked]
+  · 3018uAP  [checkbox, checked]
+  · 3019uAP  [checkbox, checked]
+  · 3020uAP  [checkbox, checked]
+  · 3021uAP  [checkbox, checked]
+  · 3022uAP  [checkbox, checked]
+  · 3023uAP  [checkbox, checked]
+  · 3024uAP  [checkbox, checked]
+  · 3025uAP  [checkbox, checked]
+  · 3026uAP  [checkbox, checked]
+  · 3027uAP  [checkbox, checked]
+  · 3028uAP  [checkbox, checked]
+  · 3029uAP  [checkbox, checked]
+  · 3030≤20 uAP  [checkbox, checked]
+  · 3100uAP  [checkbox, checked]
+  · 3101uAP  [checkbox, checked]
+  · 3102uAP  [checkbox, checked]
+  · 3103uAP  [checkbox, checked]
+  · 3104uAP  [checkbox, checked]
+  · 3105uAP  [checkbox, checked]
+  · 3106uAP  [checkbox, checked]
+  · 3107uAP  [checkbox, checked]
+  · 3108uAP  [checkbox, checked]
+  · 3109uAP  [checkbox, checked]
+  · 3110uAP  [checkbox, checked]
+  · 3111uAP  [checkbox, checked]
+  · 3112uAP  [checkbox, checked]
+  · 3113uAP  [checkbox, checked]
+  · 3114uAP  [checkbox, checked]
+  · 3115uAP  [checkbox, checked]
+  · 3116uAP  [checkbox, checked]
+  · 3117uAP  [checkbox, checked]
+  · 3118uAP  [checkbox, checked]
+  · 3119uAP  [checkbox, checked]
+  · 3120uAP  [checkbox, checked]
+  · 3121uAP  [checkbox, checked]
+  · 3122uAP  [checkbox, checked]
+  · 3123uAP  [checkbox, checked]
+  · 3124uAP  [checkbox, checked]
+  · 3125uAP  [checkbox, checked]
+  · 3126uAP  [checkbox, checked]
+  · 3127uAP  [checkbox, checked]
+  · 3128uAP  [checkbox, checked]
+  · 3129uAP  [checkbox, checked]
+  · 3130≥50 uAP  [checkbox, checked]
+  · 3200uAP  [checkbox, checked]
+  · 3201uAP  [checkbox, checked]
+  · 3202uAP  [checkbox, checked]
+  · 3203uAP  [checkbox, checked]
+  · 3204uAP  [checkbox, checked]
+  · 3205uAP  [checkbox, checked]
+  · 3206uAP  [checkbox, checked]
+  · 3300uAP  [checkbox, checked]
+  · 3301uAP  [checkbox, checked]
+  · 3302uAP  [checkbox, checked]
+  · 3303uAP  [checkbox, checked]
+  · 3304uAP  [checkbox, checked]
+  · 3305uAP  [checkbox, checked]
+  · 3306uAP  [checkbox, checked]
+  · Save definitions
+  · Load definitions
+  · ▾  [aria="Load a recently used definitions file", opens menu]
+  · Cancel
+  · Apply to 77 tests →
+
+## Column mapping (CSV)
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files  [disabled]
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", disabled, opens menu]
+      hint: Pick files, or scan a whole folder
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · Load sample data
+  · Scan a folder…
+      hint: Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load. Folders are read in your browser — no files are uploaded.
+  · Log
+      hint: Show the log panel
+  · Shown → Test value
+  · Shown → Ignore
+  · Reset to auto-detected  [disabled]
+      hint: Return every column to the role detection chose, and forget the mapping saved for this set of columns
+  · X positionY positionHard binSoft binWafer IDLot IDTest siteT  [select]   (×8)
+  · Subdivide file by this column  [checkbox, unchecked]
+  · Subdivide file by this column (3 values in sampl  [checkbox, unchecked]
+  · Subdivide file by this column (18 values in samp  [checkbox, unchecked]
+  · Subdivide file by this column (13 values in samp  [checkbox, unchecked]
+  · Subdivide file by this column (2 values in sampl  [checkbox, unchecked]   (×2)
+  · Subdivide file by this column (24 values in samp  [checkbox, unchecked]
+  · Subdivide file by this column (23 values in samp  [checkbox, unchecked]
+  · Cancel
+  · Load bin definitions…
+      hint: Load a bin-definitions CSV for real bin names (and pass/fail flags) instead of typing bare numbers
+  · Continue →
+
+## Column mapping (CSV) › Lot with retests loaded
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · Plot mode  [opens menu]
+  · Colour scheme  [opens menu]
+  · Overlays  [opens menu]
+  · Legend style  [opens menu]
+  · Orientation  [opens menu]
+  · Columns  [opens menu]
+  · 0  [aria="Select the same dies on every wafer: off (click to turn on)"]
+  · Download gallery PNG
+  · Summary panel
+  · Maps
+  · Insights
+  · Bin 186791.2%
+  · Bin 2848.8%
+  · W01▾  [aria="Wafer info for W01. Click to expand."]
+  · Open full view   (×3)
+  · Download PNG   (×3)
+  · Zoom (drag to zoom region)   (×3)
+  · Zoom in   (×3)
+  · Zoom out   (×3)
+  · Reset zoom (double-click)   (×3)
+  · Pan (drag to move)   (×3)
+  · Select (drag to select dies)   (×3)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×3)
+  · W02▾  [aria="Wafer info for W02. Click to expand."]
+  · W03▾  [aria="Wafer info for W03. Click to expand."]
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · Full report ▸
+  · ▶Wafer Yield (89.9–92.1%) · median 91.5%
+  · Slot  [radio, checked]
+  · Yield  [radio, unchecked]
+  · W0191.5%0.0  [aria="W01, 91.5% yield — open wafer"]
+  · W02889.9%−1.6  [aria="W02, 89.9% yield, 8 findings — open wafer"]
+  · W0392.1%+0.6  [aria="W03, 92.1% yield — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=951)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · ▶Test Values (2) — 3 wafers pooled · N=951
+  · ▲ 3 new warningsLog
+      hint: Show the log panel
+
+## Column mapping (CSV) › Log panel
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · Plot mode  [opens menu]
+  · Colour scheme  [opens menu]
+  · Overlays  [opens menu]
+  · Legend style  [opens menu]
+  · Orientation  [opens menu]
+  · Columns  [opens menu]
+  · 0  [aria="Select the same dies on every wafer: off (click to turn on)"]
+  · Download gallery PNG
+  · Summary panel
+  · Maps
+  · Insights
+  · Bin 186791.2%
+  · Bin 2848.8%
+  · W01▾  [aria="Wafer info for W01. Click to expand."]
+  · Open full view   (×3)
+  · Download PNG   (×3)
+  · Zoom (drag to zoom region)   (×3)
+  · Zoom in   (×3)
+  · Zoom out   (×3)
+  · Reset zoom (double-click)   (×3)
+  · Pan (drag to move)   (×3)
+  · Select (drag to select dies)   (×3)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×3)
+  · W02▾  [aria="Wafer info for W02. Click to expand."]
+  · W03▾  [aria="Wafer info for W03. Click to expand."]
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · Full report ▸
+  · ▶Wafer Yield (89.9–92.1%) · median 91.5%
+  · Slot  [radio, checked]
+  · Yield  [radio, unchecked]
+  · W0191.5%0.0  [aria="W01, 91.5% yield — open wafer"]
+  · W02889.9%−1.6  [aria="W02, 89.9% yield, 8 findings — open wafer"]
+  · W0392.1%+0.6  [aria="W03, 92.1% yield — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=951)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · ▶Test Values (2) — 3 wafers pooled · N=951
+  · Log
+      hint: Show the log panel
+
+## Multi-project wafer (compact layout offered)
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · Plot mode  [opens menu]
+  · Colour scheme  [opens menu]
+  · Overlays  [opens menu]
+  · Legend style  [opens menu]
+  · Orientation  [opens menu]
+  · Columns  [opens menu]
+  · 0  [aria="Select the same dies on every wafer: off (click to turn on)"]
+  · Download gallery PNG
+  · Summary panel
+  · Maps
+  · Insights
+  · Bin 11,01571.1%
+  · Bin 234424.1%
+  · Bin 3694.8%
+  · W01▾  [aria="Wafer info for W01. Click to expand."]
+  · Open full view   (×3)
+  · Download PNG   (×3)
+  · Zoom (drag to zoom region)   (×3)
+  · Zoom in   (×3)
+  · Zoom out   (×3)
+  · Reset zoom (double-click)   (×3)
+  · Pan (drag to move)   (×3)
+  · Select (drag to select dies)   (×3)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×3)
+  · W02▾  [aria="Wafer info for W02. Click to expand."]
+  · W03▾  [aria="Wafer info for W03. Click to expand."]
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · Rings 1–2
+  · soft bin 10
+  · Full report ▸
+  · ▶Findings (4)4
+  · ●●●Unusual 1
+  · ●●○Notable 3
+  · Detail ▸
+  · Hard bin 2 occurrence 27.0 percentage points lower than the rest of the map — lower on 3/3 wafers, all wafers' data combined
+  · Yield is 29.7 percentage points higher than the rest of the map — higher on 1/3 wafers, all wafers' data combined
+  · ▶Wafer Yield (35.5–95.0%) · median 82.8%
+  · Slot  [radio, checked]
+  · Yield  [radio, unchecked]
+  · W0195.0%+12.2  [aria="W01, 95.0% yield — open wafer"]
+  · W0282.8%0.0  [aria="W02, 82.8% yield — open wafer"]
+  · W031235.5%−47.3  [aria="W03, 35.5% yield, 12 findings — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=1,428)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · Log
+      hint: Show the log panel
+
+Menu — Overlays:
+    · ✓Compact layout  [unchecked]
+    · Layout diagnostics
+    · ✓Ring boundaries  [unchecked]
+    · ✓Quadrant lines  [unchecked]
+    · ✓Die labels  [unchecked]
+    · ✓XY indicator  [unchecked]
+    · ✓Axis labels  [unchecked]
+    · ✓Mark failing dies  [unchecked]
+    · Clear overlays  [disabled]
+
+## Wafers with no die positions
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · Plot mode  [opens menu]
+  · Colour scheme  [opens menu]
+  · Overlays  [opens menu]
+  · Legend style  [opens menu]
+  · Orientation  [opens menu]
+  · Columns  [opens menu]
+  · 0  [aria="Select the same dies on every wafer: off (click to turn on)"]
+  · Download gallery PNG
+  · Summary panel
+  · Maps
+  · Insights
+  · Bin 156084.5%
+  · Bin 28212.4%
+  · Bin 3213.2%
+  · W01▾  [aria="Wafer info for W01. Click to expand."]
+  · Open full view   (×3)
+  · Download PNG   (×2)
+  · Zoom (drag to zoom region)   (×2)
+  · Zoom in   (×2)
+  · Zoom out   (×2)
+  · Reset zoom (double-click)   (×2)
+  · Pan (drag to move)   (×2)
+  · Select (drag to select dies)   (×2)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×2)
+  · W02▾  [aria="Wafer info for W02. Click to expand."]
+  · +35 dies without position data▾  [aria="35 dies without position data. Click to view."]
+  · W03▾  [aria="Wafer info for W03. Click to expand."]
+  · View die list
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · Ring 4 (edge)
+  · hard bin 2
+  · hard bin 3
+  · Full report ▸
+  · ▶Findings (15)15
+  · ●●●Unusual 15
+  · All kinds▾  [aria="Kind", opens menu]
+  · All regions▾  [aria="Region", opens menu]
+  · Detail ▸
+  · Spatial pattern: edge-ring — seen on 2/3 wafers (67%)
+  · Hard bin and soft bin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
+  · Hard bin and soft bin 3 (same dies) occurrence 9.8 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
+  · Scan_chain pass rate 5.2 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined
+  · Limit fail rate for freq_MHz is 16.3 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined
+  · Limit fail rate for leakage_nA is 13.7 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined
+  · Limit fail rate for vth_mV is 17.6 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined
+  · Mean freq_MHz is 3.0% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
+  · Mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
+  · Mean vth_mV is 9.1% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
+  · Yield is 41.8 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined
+  · ▶Wafer Yield (82.4–86.4%) · median 84.6%
+  · Slot  [radio, checked]
+  · Yield  [radio, unchecked]
+  · W011782.4%−2.3  [aria="W01, 82.4% yield, 17 findings, 2 unusual — open wafer"]
+  · W021584.6%0.0  [aria="W02, 84.6% yield, 15 findings, 1 unusual — open wafer"]
+  · W0386.4%+1.8  [aria="W03, 86.4% yield — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=663)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · ▶Test Values (3) — 3 wafers pooled · N=663
+  · ▶Functional Tests (1) — 3 wafers pooled · N=663
+  · Log
+      hint: Show the log panel
+
+## Filter files (folder scan)
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files  [disabled]
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", disabled, opens menu]
+      hint: Pick files, or scan a whole folder
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help
+      hint: Help
+  · Load sample data
+  · Scan a folder…
+      hint: Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load. Folders are read in your browser — no files are uploaded.
+  · Log
+      hint: Show the log panel
+  · Maximize (F)
+      hint: Maximize (F)
+  · Close (Esc)
+      hint: Close (Esc)
+  · Select all
+  · Select none
+  · Invert
+  · Clear filters
+  · Columns ▾  [opens dialog]
+  · Name  [aria="Sort by Name"]
+      hint: Sort by Name
+  · ▾  [aria="Filter by Name", opens dialog]
+      hint: Filter by Name
+  · Lot  [aria="Sort by Lot"]
+      hint: Sort by Lot
+  · ▾  [aria="Filter by Lot", opens dialog]
+      hint: Filter by Lot
+  · Wafers  [aria="Sort by Wafers"]
+      hint: Sort by Wafers
+  · ▾  [aria="Filter by Wafers", opens dialog]
+      hint: Filter by Wafers
+  · Tested  [aria="Sort by Tested"]
+      hint: Sort by Tested
+  · ▾  [aria="Filter by Tested", opens dialog]
+      hint: Filter by Tested
+  · Modified  [aria="Sort by Modified"]
+      hint: Sort by Modified
+  · ▾  [aria="Filter by Modified", opens dialog]
+      hint: Filter by Modified
+  · Size  [aria="Sort by Size"]
+      hint: Sort by Size
+  · ▾  [aria="Filter by Size", opens dialog]
+      hint: Filter by Size
+  · Part type  [aria="Sort by Part type"]
+      hint: Sort by Part type
+  · ▾  [aria="Filter by Part type", opens dialog]
+      hint: Filter by Part type
+  · Program  [aria="Sort by Program"]
+      hint: Sort by Program
+  · ▾  [aria="Filter by Program", opens dialog]
+      hint: Filter by Program
+  · Temperature  [aria="Sort by Temperature"]
+      hint: Sort by Temperature
+  · ▾  [aria="Filter by Temperature", opens dialog]
+      hint: Filter by Temperature
+  · Tester  [aria="Sort by Tester"]
+      hint: Sort by Tester
+  · ▾  [aria="Filter by Tester", opens dialog]
+      hint: Filter by Tester
+  · Node  [aria="Sort by Node"]
+      hint: Sort by Node
+  · ▾  [aria="Filter by Node", opens dialog]
+      hint: Filter by Node
+  · Operator  [aria="Sort by Operator"]
+      hint: Sort by Operator
+  · ▾  [aria="Filter by Operator", opens dialog]
+      hint: Filter by Operator
+  · Program rev  [aria="Sort by Program rev"]
+      hint: Sort by Program rev
+  · ▾  [aria="Filter by Program rev", opens dialog]
+      hint: Filter by Program rev
+  · Sites  [aria="Sort by Sites"]
+      hint: Sort by Sites
+  · ▾  [aria="Filter by Sites", opens dialog]
+      hint: Filter by Sites
+  · Save filter…
+  · Load filter…
+  · Load selected…

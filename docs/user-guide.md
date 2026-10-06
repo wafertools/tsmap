@@ -898,6 +898,27 @@ something that varies per wafer the way [splits](#wafer-splits) do. They stay in
 the next file you open too, until changed or cleared. `--wafer-diameter`/`--edge-exclusion` set
 the same values from the command line at launch — see [Command line](#command-line).
 
+### Reticle
+
+A **reticle** (or stepper field) is the group of dies exposed in one lithography step. Nothing in a wafer file says how
+many dies make a field, so tsmap draws no field grid until you say. Open **Setup ▾ → Reticle…** and give:
+
+- **Field width (dies)** and **Field height (dies)**: whole numbers.
+- **Corner die X / Y** (optional): the die at the bottom-left corner of a field, in the die coordinates in the file.
+  Leave both blank when die (0, 0) sits at a field corner. Give both or neither.
+
+**Apply** takes effect at once, without reloading the file. **Clear** removes the reticle.
+
+With a reticle set:
+
+- the **field grid** is drawn on every map (**Overlays ▾ → Reticle grid** hides it), and a die's tooltip gives its
+  position within its own field;
+- the Summary panel looks for **reticle-position findings**: a yield or value signature that repeats at the same cell of
+  every field, which points at the stepper (alignment drift, a mask defect) rather than at the wafer.
+
+Like the [diameter](#wafer-diameter-and-edge-exclusion), the reticle is one value for every wafer loaded, is remembered
+between sessions, and stays in effect for the next file you open. **Help → Reset saved settings…** lists it.
+
 ## Reference
 
 ### Command line
