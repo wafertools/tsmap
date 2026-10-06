@@ -205,10 +205,10 @@ export const flows: Record<string, () => Promise<void | { endedAt: number }>> = 
     await painted();
   },
 
-  /** The gallery's Insights button: the lot-wide Overview, drawn. Loads the Insights chunk the first time. */
+  /** The Insights side of the gallery's Maps | Insights switch: the lot-wide Overview, drawn. Loads the Insights chunk the first time. */
   async insights() {
     need(state.gallery, 'gallery');
-    click('[data-wmap-insights-btn]');
+    click('[data-wmap-view="insights"]');
     return { endedAt: await settled(state.container!) };
   },
 

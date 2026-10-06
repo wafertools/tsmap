@@ -423,9 +423,9 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       break;
 
     case 'openInsights': {
-      // wmap's own Insights button — tsmap's bespoke Charts view (#charts-btn,
-      // .chart-card) was removed and folded into wmap.
-      await page.click('button[aria-label="Insights"]');
+      // The Insights side of wmap's Maps | Insights switch — tsmap's bespoke Charts view
+      // (#charts-btn, .chart-card) was removed and folded into wmap.
+      await page.click('[data-wmap-view="insights"]');
       await page.waitForTimeout(1200);
       break;
     }

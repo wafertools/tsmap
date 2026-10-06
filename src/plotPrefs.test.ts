@@ -66,8 +66,17 @@ describe('importing a plots file named on the command line', () => {
   it('adds the plots to the saved ones', () => {
     savePlots([A]);
     const r = importPlotsText(writePlotsFile([B]));
-    expect(r).toMatchObject({ added: 1, replaced: 0, titles: ['b'] });
+    expect(r).toMatchObject({ added: 1, replaced: 0, titles: [], untitled: 1 });
     expect(loadSavedPlots().map(p => p.id)).toEqual(['a', 'b']);
+  });
+
+  it('reports the titles the plots carry, and counts the untitled ones instead of naming them by id', () => {
+    savePlots([]);
+    const titled: PlotSpec = { ...B, id: 'c', title: 'Vth vs Idsat' };
+    const r = importPlotsText(writePlotsFile([titled, B]));
+    expect(r.titles).toEqual(['Vth vs Idsat']);
+    expect(r.untitled).toBe(1);
+    expect(JSON.stringify(r)).not.toContain('"b"');
   });
 
   it('replaces a plot with the same id, so the same file twice leaves one copy', () => {

@@ -208,7 +208,7 @@ export const scenario = {
         ['openSplitsDialog'],
         ['loadSplitsFile', `${LOT_DIR}/LOT-A417_splits.csv`],
         ['closeSplitsDialog'],
-        ['click', '[data-wmap-insights-btn]'],
+        ['click', '[data-wmap-view="insights"]'],
         ['wait', 800],
         ['setInsightsGroupBy', 'Split'],
       ],

@@ -326,7 +326,7 @@ export const CAPTURES = [
   // ── §7 Insights — Overview sub-tab (yield + bin pareto + ring/quadrant) ───
   // wmap's own Insights tab replaced tsmap's former bespoke Charts view —
   // Overview/Distributions/Correlation sub-tabs, opened via
-  // the map/gallery's "Insights" button rather than a tsmap #charts-btn.
+  // the Maps | Insights switch rather than a tsmap #charts-btn.
   {
     file: 'charts-overview',
     group: 'charts',

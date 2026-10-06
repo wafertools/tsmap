@@ -174,10 +174,19 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> ParseResult<ParquetHeadersR
     }
 
     // Reading row N means decoding every row before it, so the spread is by row
-    // group: the first row of up to SPREAD_ROWS groups, evenly spaced. A file
-    // written as one row group keeps just its head.
+    // group: the first row of up to SPREAD_ROWS groups, evenly spaced, taken from
+    // the groups the head did not reach. The head is the first HEAD_ROWS rows of
+    // the file, which runs past a short first group into the next, so those
+    // groups are counted from their row counts rather than assumed to be one.
+    // A file written as one row group keeps just its head.
     let groups = reader.num_row_groups();
-    for g in crate::sample::spread_indices(groups + HEAD_ROWS).into_iter().map(|i| i - HEAD_ROWS).filter(|&g| g > 0) {
+    let (mut head_rows, mut head_groups) = (0usize, 0usize);
+    while head_groups < groups && head_rows < HEAD_ROWS {
+        head_rows += reader.metadata().row_group(head_groups).num_rows().max(0) as usize;
+        head_groups += 1;
+    }
+    let beyond_head = groups - head_groups;
+    for g in crate::sample::spread_indices(beyond_head + HEAD_ROWS).into_iter().map(|i| head_groups + i - HEAD_ROWS) {
         let group = reader.get_row_group(g).map_err(ParseError::parquet_read)?;
         if let Some(row) = RowIter::from_row_group(None, group.as_ref()).map_err(ParseError::parquet_read)?.next() {
             add(row.map_err(ParseError::parquet_read)?);
@@ -208,19 +217,24 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> ParseResult<ParquetHeadersR
 /// CSV/JSON have no such shortcut and so get no wafer count. Values are
 /// trimmed, and a row blank in every column is not a wafer. A column name
 /// missing from the schema is an error rather than a count of nothing.
-pub fn parquet_distinct_count_from_bytes(bytes: &[u8], columns: &[String]) -> ParseResult<usize> {
+///
+/// `blank_is_a_value` counts a row blank in every named column as one more value
+/// instead of skipping it. A wafer count wants it off; asking whether a column is
+/// constant wants it on, because a column that is "25" in some rows and empty in
+/// the rest is not constant, and skipping the empty rows would call it so.
+pub fn parquet_distinct_count_from_bytes(bytes: &[u8], columns: &[String], blank_is_a_value: bool) -> ParseResult<usize> {
     let bytes = crate::read_file::maybe_gunzip(bytes)?;
     let bytes: &[u8] = &bytes;
     let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(ParseError::parquet_read)?;
-    distinct_count_from_reader(&reader, columns)
+    distinct_count_from_reader(&reader, columns, blank_is_a_value)
 }
 
 #[cfg(feature = "native")]
-pub fn parquet_distinct_count_inner(path: String, columns: Vec<String>) -> ParseResult<usize> {
-    with_path_reader!(&path, |reader| distinct_count_from_reader(&reader, &columns))
+pub fn parquet_distinct_count_inner(path: String, columns: Vec<String>, blank_is_a_value: bool) -> ParseResult<usize> {
+    with_path_reader!(&path, |reader| distinct_count_from_reader(&reader, &columns, blank_is_a_value))
 }
 
-fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String]) -> ParseResult<usize> {
+fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String], blank_is_a_value: bool) -> ParseResult<usize> {
     let schema = reader.metadata().file_metadata().schema();
     if let Some(missing) = columns.iter().find(|c| !schema.get_fields().iter().any(|f| f.name() == c.as_str())) {
         return Err(ParseError::column_missing(missing));
@@ -242,7 +256,7 @@ fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String]) -> 
         let key: Vec<String> = row.get_column_iter()
             .map(|(_, f)| field_to_string(f).trim().to_string())
             .collect();
-        if key.iter().all(|v| v.is_empty()) { continue; }
+        if !blank_is_a_value && key.iter().all(|v| v.is_empty()) { continue; }
         seen.insert(key);
     }
     Ok(seen.len())
@@ -764,7 +778,7 @@ mod tests {
         // Fixture: three rows, all wafer W1, hbins 1, 1, 2.
         let bytes = write_fixture(parquet::basic::Compression::SNAPPY);
         let count = |cols: &[&str]| parquet_distinct_count_from_bytes(
-            &bytes, &cols.iter().map(|c| c.to_string()).collect::<Vec<_>>());
+            &bytes, &cols.iter().map(|c| c.to_string()).collect::<Vec<_>>(), false);
         assert_eq!(count(&["wafer"]), Ok(1));
         // Pairs, whatever order they are asked in: (W1,1) and (W1,2).
         assert_eq!(count(&["wafer", "hbin"]), Ok(2));
@@ -773,9 +787,31 @@ mod tests {
     }
 
     #[test]
+    fn distinct_count_can_count_a_blank_row_as_a_value() {
+        // One optional column: "25" in two rows, empty in the third. As a wafer count the empty row is not a wafer;
+        // asked whether the column is constant, it is one more value, so the column is not.
+        let schema = Arc::new(parse_message_type("message schema { OPTIONAL INT32 temp; }").unwrap());
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            let mut rg = writer.next_row_group().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<Int32Type>().write_batch(&[25, 25], Some(&[1, 1, 0]), None).unwrap();
+            col.close().unwrap();
+            rg.close().unwrap();
+            writer.close().unwrap();
+        }
+        let cols = vec!["temp".to_string()];
+        assert_eq!(parquet_distinct_count_from_bytes(&buf, &cols, false), Ok(1), "blank rows skipped");
+        assert_eq!(parquet_distinct_count_from_bytes(&buf, &cols, true), Ok(2), "blank counted as a value");
+    }
+
+    #[test]
     fn sample_reaches_later_row_groups() {
         // One int32 column, ten row groups of one row each; the value changes
-        // from the sixth group on, so the head (rows 0-4 of group 0) cannot see it.
+        // from the sixth group on. The head is the first five rows, which run across
+        // groups 0-4, so it cannot see the change and the spread starts at group 5.
         let schema = Arc::new(parse_message_type("message schema { REQUIRED INT32 temp; }").unwrap());
         let props = Arc::new(WriterProperties::builder().build());
         let mut buf = Vec::new();
@@ -793,6 +829,8 @@ mod tests {
         let result = parquet_headers_from_bytes(&buf).unwrap();
         let temps: HashSet<&str> = result.sample.iter().map(|r| r["temp"].as_str()).collect();
         assert!(temps.contains("25") && temps.contains("125"), "{temps:?}");
+        // Every row once: the head's five groups are not read a second time by the spread.
+        assert_eq!(result.sample.len(), 10, "{:?}", result.sample);
     }
 
     #[test]

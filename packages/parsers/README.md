@@ -84,7 +84,7 @@ Every parse function takes raw file bytes (`Uint8Array`), or throws a `ParserErr
 | `atdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Same first-pass scan for ATDF |
 | `stdf_file_meta` | `(bytes: Uint8Array) => FileMeta` | Lot metadata, wafer count, first/last timestamps and site count from an MIR/SDR/WIR/WRR-only scan — no PTR/FTR/PIR/PRR walk, so it stays cheap across a batch of files |
 | `atdf_file_meta` | `(bytes: Uint8Array) => FileMeta` | Same metadata-only scan for ATDF |
-| `parquet_distinct_count` | `(bytes: Uint8Array, columns: string[]) => number` | How many distinct combinations of those columns the file holds — a wafer count from `['lot','wafer']` without a full parse, read as a column projection. A column missing from the schema is an error, not a count of zero. Parquet only: CSV/JSON have no equivalent shortcut |
+| `parquet_distinct_count` | `(bytes: Uint8Array, columns: string[], blankIsAValue: boolean) => number` | How many distinct combinations of those columns the file holds — a wafer count from `['lot','wafer']` without a full parse, read as a column projection. `blankIsAValue` is stated by every caller: `false` skips rows blank in every named column (a wafer count: an empty row is not a wafer), `true` counts them as one more value (is this column constant? a column that is "25" in some rows and empty in the rest is not). A column missing from the schema is an error, not a count of zero. Parquet only: CSV/JSON have no equivalent shortcut |
 | `parse_stdf_filtered` | `(bytes: Uint8Array, selected: number[]) => Uint8Array` | Full parse, skipping per-site accumulation for test numbers not in `selected` |
 | `parse_atdf_filtered` | `(bytes: Uint8Array, selected: number[]) => Uint8Array` | Same filtered parse for ATDF |
 
@@ -336,7 +336,7 @@ There is no `csv_headers`/`json_headers` in the WASM API — a browser caller th
 ```ts
 interface ParquetHeadersResult {
   headers: string[];
-  sample: Record<string, string>[];
+  sample: Record<string, string>[];   // the first five rows, then the first row of up to twenty later row groups, evenly spaced
   rowCount: number;
   columnTypes: Record<string, 'number' | 'bool' | 'string'>;
 }
@@ -358,7 +358,7 @@ The crate also builds as a native Rust library (used directly by tsmap's Tauri c
 | `parse_json_sync(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_json` |
 | `parquet_headers_inner(path: String) -> ParseResult<ParquetHeadersResult>` | `parse_parquet` |
 | `parse_parquet_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_parquet` |
-| `parquet_distinct_count_inner(path: String, columns: Vec<String>) -> ParseResult<usize>` | `parse_parquet` |
+| `parquet_distinct_count_inner(path: String, columns: Vec<String>, blank_is_a_value: bool) -> ParseResult<usize>` | `parse_parquet` |
 | `read_bytes(path: &str) -> ParseResult<Vec<u8>>` | `read_file` |
 | `read_text(path: &str) -> ParseResult<String>` | `read_file` |
 
@@ -383,7 +383,7 @@ alone. Same codes as the WASM layer above; it is the same error, serialised ther
 | `parse_json_from_bytes(&[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_json` |
 | `parquet_headers_from_bytes(&[u8]) -> ParseResult<ParquetHeadersResult>` | `parse_parquet` |
 | `parse_parquet_from_bytes(&[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_parquet` |
-| `parquet_distinct_count_from_bytes(&[u8], &[String]) -> ParseResult<usize>` | `parse_parquet` |
+| `parquet_distinct_count_from_bytes(&[u8], &[String], bool) -> ParseResult<usize>` | `parse_parquet` |
 | `decompress_if_gzip(Vec<u8>) -> ParseResult<Vec<u8>>` | `read_file` |
 
 `CsvHeadersResult` and `JsonHeadersResult` are the same shape — the header row plus enough of the file to preview a mapping:

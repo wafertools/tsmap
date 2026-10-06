@@ -111,7 +111,7 @@ in `steps.mjs` — this is the index to browse, not the whole story.
 **Insights**
 | Step | Args | Does |
 |---|---|---|
-| `openInsights` | — | Click `button[aria-label="Insights"]` (only matches while *closed* — see the toggle gotcha below) |
+| `openInsights` | — | Click the Insights side of the Maps | Insights switch, `[data-wmap-view="insights"]` |
 | `selectInsightsTab` | `label` | Switch Overview / Distributions / Correlation |
 | `expandChartByTitle` | `titlePrefix` | Click a chart card's Expand button |
 | `setInsightsGroupBy` | `label` | Set the "Group by:" select |
@@ -137,13 +137,12 @@ in `steps.mjs` — this is the index to browse, not the whole story.
 **Cosmetic (screenshot-capture only — throw if used with `allowCosmetic: false`, which the scenario runner always sets)**
 `showCursorOn`, `hideCursor`, `shrinkPanelToContent`, `shrinkModalToContent` — these exist for `capture-screenshots.mjs`'s docs-image crops and deliberately can't be used in a scenario, since they'd misrepresent real app behaviour.
 
-## The toggle-button gotcha
+## Opening and closing Insights
 
-The Insights button's `aria-label` flips between `"Insights"` and `"Back to
-wafer/gallery view"` depending on open state — so `openInsights` only works
-while it's closed, and can't be reused to close it or to assert open state.
-Use the stable `data-wmap-insights-btn` hook instead when you need either:
-`['click', '[data-wmap-insights-btn]']`.
+Insights is the **Maps | Insights** switch at the far right of the toolbar row: two tabs,
+`[data-wmap-view="maps"]` and `[data-wmap-view="insights"]`, with `aria-selected` saying which is
+showing. Click the one you want (`['click', '[data-wmap-view="insights"]']`); clicking the one already
+selected does nothing, so the same step is safe to repeat.
 
 ## When there's no step for what you want to click
 

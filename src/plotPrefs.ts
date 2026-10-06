@@ -39,8 +39,10 @@ export function savePlots(plots: PlotSpec[]): void {
 export interface ImportPlotsResult {
   added: number;
   replaced: number;
-  /** Titles of the plots read, in file order. */
+  /** Titles the file's plots carry, in file order. A plot with no title has none to report: its name follows its fields. */
   titles: string[];
+  /** How many of the plots read have no title. */
+  untitled: number;
   /** Settings or plots wmap's reader dropped, each naming where. */
   warnings: string[];
   /** Set when nothing could be read: the saved plots are left as they were. */
@@ -56,7 +58,7 @@ export interface ImportPlotsResult {
  */
 export function importPlotsText(text: string): ImportPlotsResult {
   const read = readPlotsFile(text);
-  if (read.error !== undefined) return { added: 0, replaced: 0, titles: [], warnings: read.warnings, error: read.error };
+  if (read.error !== undefined) return { added: 0, replaced: 0, titles: [], untitled: 0, warnings: read.warnings, error: read.error };
   const saved = loadSavedPlots();
   const incoming = new Map(read.plots.map(p => [p.id, p]));
   const merged = saved.map(p => incoming.get(p.id) ?? p);
@@ -66,7 +68,8 @@ export function importPlotsText(text: string): ImportPlotsResult {
   return {
     added: fresh.length,
     replaced: read.plots.length - fresh.length,
-    titles: read.plots.map(p => p.title ?? p.id),
+    titles: read.plots.flatMap(p => (p.title ? [p.title] : [])),
+    untitled: read.plots.filter(p => !p.title).length,
     warnings: read.warnings,
   };
 }

@@ -689,7 +689,7 @@ reachable with nothing loaded.
 
 ### Grouping data in the Insights tab
 
-The **Insights** button in the map toolbar (both the single-wafer view and the gallery have
+The **Insights** side of the **Maps | Insights** switch at the far right of the toolbar row (both the single-wafer view and the gallery have
 their own) switches to a grid of statistical panels — yield, per-test pass rate, bin pareto,
 process capability, boxplot, histogram, wafer-to-wafer trend, correlation, and scatter — sharing
 the same parsed, in-memory data as the map, so switching never re-parses.
@@ -739,6 +739,8 @@ wafer and your plots are in the menu, drawn over just those dies.
 **Export plots…** writes every plot to a file, and **Import plots…** adds the plots of such a file to yours (as
 copies where one already exists, never replacing). That is how a set of plots moves to another machine or to a
 colleague. To load a file when tsmap starts, name it with [`--plots`](#command-line). **Help → Reset saved settings…** lists your saved plots like any other remembered setting.
+
+**Delete all plots…** removes every saved plot, sweeps included, after asking you to confirm; the question says how many, and that **Export plots…** first keeps a copy. **Undo** brings the whole list back for ten seconds.
 
 ### Tables and exports
 

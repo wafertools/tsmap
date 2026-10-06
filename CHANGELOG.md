@@ -4,10 +4,12 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
-## [Unreleased]
+## [0.1.44] — 2026-10-06
 
 ### Added
 
+- **Delete all plots… on the Plot tab.** It removes every saved plot, sweeps included, after asking you to confirm (the question says
+  how many, and that Export plots… first keeps a copy). Undo restores the whole list for ten seconds.
 - **Your plots are kept.** Insights has a **Plot** tab, a chart builder (see wafermap's guide for how it works), and tsmap
   remembers the plots you build across loads and restarts, on this machine, and offers them in the right-click menu on a
   selection or a wafer. A plot is a recipe with no lot in it, so it draws again on the next lot; one whose test is not in
@@ -27,6 +29,10 @@ technical record, including internal changes.
 
 ### Changed
 
+- **`@wafertools/testdata-parser` 0.15.0.** `parquet_distinct_count` takes a third argument, `blankIsAValue`, which every caller states
+  (a wafer count skips empty rows; checking that a column is constant counts them, because a column that is "25" in some rows and empty in
+  the rest is not constant). A Parquet preview takes the first row of up to twenty later row groups and never repeats a row the first five
+  already read. Published before this release and pinned at `^0.15.0`.
 - **The RRAM sample's sweeps are a plots file.** `sample_data/RRAM-LOT-06_plots.json` replaces `RRAM-LOT-06_sweeps.json`
   (the generator writes it); import it from the Plot tab or open the sample with `--plots`.
 - **`--plots <FILE>` adds a plots file's plots to the saved ones.** It takes what **Export plots…** writes, or a sweeps
@@ -54,7 +60,7 @@ technical record, including internal changes.
   absent otherwise, since a few rows cannot show that a column is constant across the file.
 - **CSV, JSON and Parquet previews read rows from throughout the file.** The column mapping dialog and the file filter
   see the first five rows and up to twenty more spread evenly through the rest, so a column that changes partway
-  through is no longer taken for a constant one. CSV is read by seeking, so large files cost no more to scan; a gzipped
+  through shows as varying. CSV is read by seeking, so large files cost no more to scan; a gzipped
   CSV and a Parquet file with a single row group keep just their first rows.
 - **The file filter checks Parquet columns exactly.** A column whose sampled rows agree is confirmed against the whole
   column, which Parquet can read without reading the rest of the file.

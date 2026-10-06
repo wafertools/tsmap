@@ -31,7 +31,8 @@ resolve.
 - `parse_csv(bytes, mapping)` / `parse_json(bytes, mapping)` / `parse_parquet(bytes, mapping)` - full parse with an explicit `CsvMapping`. There is no header auto-detection.
 - `stdf_test_names(bytes)` / `atdf_test_names(bytes)` - fast scan: test definitions + die count, no per-die accumulation.
 - `parse_stdf_filtered(bytes, selected)` / `parse_atdf_filtered(bytes, selected)` - full parse that accumulates values only for the selected test numbers.
-- `parquet_headers(bytes)` - schema, sample rows and per-column types, for a mapping UI. There is deliberately no `csv_headers`/`json_headers` in the WASM API: read a text header row in plain JS.
+- `parquet_headers(bytes)` - schema, sample rows (the first five, then the first row of up to twenty later row groups) and per-column types, for a mapping UI.
+- `parquet_distinct_count(bytes, columns, blankIsAValue)` - distinct combinations of the named columns, read as a projection. `blankIsAValue: false` skips rows blank in every named column (a wafer count); `true` counts them as a value (is this column constant?). There is deliberately no `csv_headers`/`json_headers` in the WASM API: read a text header row in plain JS.
 - `stdf_file_meta(bytes)` / `atdf_file_meta(bytes)` - lot metadata, wafer count, first/last timestamps and site count, without a full parse.
 
 ## Traps

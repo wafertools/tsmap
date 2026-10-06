@@ -250,7 +250,7 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
         if (waferCol) {
           const lotCol = roleCol('lot');
           meta.waferCount = await platform
-            .parquetDistinctCount(file, lotCol ? [lotCol, waferCol] : [waferCol])
+            .parquetDistinctCount(file, lotCol ? [lotCol, waferCol] : [waferCol], false)
             .catch(() => 0);
         }
         return meta;
@@ -300,21 +300,21 @@ const PER_DIE_ROLES = new Set<string>([
  *  fields. A column left over keeps its "(first rows)" mark; a failed read
  *  leaves the sample's answer alone rather than failing the scan. */
 const MAX_SETTLED = 8;
-async function settleFromColumns(platform: Platform, file: FileHandle, meta: FileMeta): Promise<void> {
+export async function settleFromColumns(platform: Platform, file: FileHandle, meta: FileMeta): Promise<void> {
   const open = meta.lotMeta.fields.filter(f => f.key !== 'lotId' && (f.value === '' || f.value.endsWith(FIRST_ROWS)));
   for (const f of open.slice(0, MAX_SETTLED)) {
     try {
-      const distinct = await platform.parquetDistinctCount(file, [f.key]);
+      // Blank counts as a value: a column that is "25" in some rows and empty in the rest is not constant.
+      const distinct = await platform.parquetDistinctCount(file, [f.key], true);
       if (distinct >= 2) f.value = VARIES;
-      // One value, and every sampled row had it: the column is that value
-      // throughout. One value but blank in the sample means it is mixed.
-      else if (distinct === 1) f.value = f.value === '' ? VARIES : f.value.slice(0, -FIRST_ROWS.length);
+      // One value in the whole column, blank included: the sample's value is it. A sample that was blank means the column is.
+      else if (distinct === 1) f.value = f.value.endsWith(FIRST_ROWS) ? f.value.slice(0, -FIRST_ROWS.length) : f.value;
       else f.value = '';
     } catch { /* keep the sample's answer */ }
   }
 }
 
-function headersToFileMeta(headers: string[], sample: Record<string, string>[], rowCount: number): FileMeta {
+export function headersToFileMeta(headers: string[], sample: Record<string, string>[], rowCount: number): FileMeta {
   const wholeFile = rowCount <= sample.length;
   const fields: { key: string; value: string }[] = [];
   const seen = new Set<string>();

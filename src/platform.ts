@@ -206,8 +206,12 @@ export interface Platform {
   /** Distinct combinations of `columns`' values across the whole Parquet file
    *  — the file filter's wafer count, as distinct (lot, wafer) pairs. Parquet
    *  only: it reads just those columns, where CSV/JSON would mean reading every
-   *  byte of the file during what is meant to be a quick header scan. */
-  parquetDistinctCount(file: FileHandle, columns: string[]): Promise<number>;
+   *  byte of the file during what is meant to be a quick header scan.
+   *  `blankIsAValue` is stated by every caller: a wafer count skips rows with no
+   *  value (false), a test of whether a column is constant counts them (true),
+   *  because a column that is "25" in some rows and empty in the rest is not
+   *  constant. */
+  parquetDistinctCount(file: FileHandle, columns: string[], blankIsAValue: boolean): Promise<number>;
   /** `title` — see `pickFiles`'s doc: desktop-only, replaces the OS's own
    *  generic default with copy naming what's being saved. */
   savePng(blob: Blob, stem: string, purpose: DialogPurpose, title?: string): Promise<void>;
@@ -464,9 +468,9 @@ function makeTauriPlatform(): Platform {
       return invoke<HeadersResult>('parquet_headers', { path: file.path });
     },
 
-    async parquetDistinctCount(file, columns) {
+    async parquetDistinctCount(file, columns, blankIsAValue) {
       const invoke = await getInvoke();
-      return invoke<number>('parquet_distinct_count', { path: file.path, columns });
+      return invoke<number>('parquet_distinct_count', { path: file.path, columns, blankIsAValue });
     },
 
     async savePng(blob, stem, purpose, title) {
@@ -774,14 +778,14 @@ function getWorker(): Worker {
 function callWorker(
   op: ParserOp,
   bytes: Uint8Array,
-  extra?: { mapping?: CsvMapping; selected?: number[]; columns?: string[] },
+  extra?: { mapping?: CsvMapping; selected?: number[]; columns?: string[]; blankIsAValue?: boolean },
 ): Promise<unknown> {
   const id = nextCallId++;
   const copy = bytes.slice();
   return new Promise((resolve, reject) => {
     pendingCalls.set(id, { op, resolve, reject });
     getWorker().postMessage(
-      { id, op, bytes: copy, mapping: extra?.mapping, selected: extra?.selected, columns: extra?.columns },
+      { id, op, bytes: copy, mapping: extra?.mapping, selected: extra?.selected, columns: extra?.columns, blankIsAValue: extra?.blankIsAValue },
       [copy.buffer],
     );
   });
@@ -849,9 +853,11 @@ export function sampleIndices(total: number): number[] {
 }
 
 /** Parse CSV bytes: detect delimiter, extract headers, sample rows, count rows. */
-function parseCsvHeaders(bytes: Uint8Array): HeadersResult {
+export function parseCsvHeaders(bytes: Uint8Array): HeadersResult {
   const text = new TextDecoder().decode(bytes);
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  // Blank lines and `#` comment lines are not rows: the parser (native and WASM) skips both, so a preview row is
+  // never one it would not read.
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '' && !l.startsWith('#'));
   const firstLine = lines[0] ?? '';
   const commas = firstLine.split(',').length - 1;
   const tabs = firstLine.split('\t').length - 1;
@@ -1162,8 +1168,8 @@ function makeWebPlatform(): Platform {
       return await callWorker('parquetHeaders', file.bytes) as HeadersResult;
     },
 
-    async parquetDistinctCount(file, columns) {
-      return await callWorker('parquetDistinctCount', file.bytes, { columns }) as number;
+    async parquetDistinctCount(file, columns, blankIsAValue) {
+      return await callWorker('parquetDistinctCount', file.bytes, { columns, blankIsAValue }) as number;
     },
 
     async savePng(blob, stem) {

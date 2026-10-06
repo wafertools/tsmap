@@ -40,6 +40,8 @@ export interface ParserRequest {
   mapping?: CsvMapping;
   selected?: number[];
   columns?: string[];
+  /** `parquetDistinctCount`: count a row blank in every named column as a value, instead of skipping it. */
+  blankIsAValue?: boolean;
 }
 
 
@@ -107,7 +109,7 @@ function run(wasm: WasmModule, req: ParserRequest): unknown {
     case 'parseParquet':      return wasm.parse_parquet(req.bytes, mapping());
     case 'parquetHeaders':    return wasm.parquet_headers(req.bytes);
     case 'parquetDistinctCount':
-      return wasm.parquet_distinct_count(req.bytes, required(req.columns, 'columns', req.op));
+      return wasm.parquet_distinct_count(req.bytes, required(req.columns, 'columns', req.op), req.blankIsAValue ?? false);
     case 'stdfTestNames':     return wasm.stdf_test_names(req.bytes);
     case 'atdfTestNames':     return wasm.atdf_test_names(req.bytes);
     case 'stdfFileMeta':      return wasm.stdf_file_meta(req.bytes);

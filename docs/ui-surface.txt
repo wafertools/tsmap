@@ -147,8 +147,6 @@ Menu — Setup ▾:
         hint: Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer
     · ☑Show test-value findings  [checked]
         hint: Add regional test-value findings to the summary panel (slower on large loads)
-    · Sweeps…
-        hint: Load a sweeps file: runs of tests read as response curves, in Insights → Sweeps
 
 Menu — Plot mode:
     · Test Value ▶  [unchecked, opens menu]

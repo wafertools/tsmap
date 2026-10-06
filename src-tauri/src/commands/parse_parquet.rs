@@ -14,8 +14,8 @@ pub async fn parquet_headers(path: String) -> Result<ParquetHeadersResult, Parse
 
 /// The file filter's Parquet wafer count — see `parquet_distinct_count_from_bytes`.
 #[tauri::command]
-pub async fn parquet_distinct_count(path: String, columns: Vec<String>) -> Result<usize, ParseError> {
-    tokio::task::spawn_blocking(move || parquet_distinct_count_inner(path, columns))
+pub async fn parquet_distinct_count(path: String, columns: Vec<String>, blank_is_a_value: bool) -> Result<usize, ParseError> {
+    tokio::task::spawn_blocking(move || parquet_distinct_count_inner(path, columns, blank_is_a_value))
         .await
         .map_err(ParseError::internal)?
 }

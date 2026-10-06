@@ -99,7 +99,7 @@ Close the expanded view when you are done.
 
 ## 7. Compare the corners
 
-Click **Insights** (the chart icon at the right of the gallery toolbar). You get three sub-tabs:
+Click **Insights** (the switch at the far right of the toolbar row, beside **Maps**). You get three sub-tabs:
 **Overview**, **Distributions**, and **Correlation**.
 
 On **Overview**, find the **Group by:** picker and choose **Split**.

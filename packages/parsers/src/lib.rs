@@ -382,10 +382,10 @@ export interface ParserError extends Error {
 
     /// `columns` is a JS string array. See `parquet_distinct_count_from_bytes`.
     #[wasm_bindgen]
-    pub fn parquet_distinct_count(bytes: &[u8], columns: &TsStringArray) -> Result<usize, JsValue> {
+    pub fn parquet_distinct_count(bytes: &[u8], columns: &TsStringArray, blank_is_a_value: bool) -> Result<usize, JsValue> {
         let columns: Vec<String> = serde_wasm_bindgen::from_value(AsRef::<JsValue>::as_ref(columns).clone())
             .map_err(|e| to_js_error(ParseError::mapping_invalid(e)))?;
-        crate::parse_parquet::parquet_distinct_count_from_bytes(bytes, &columns)
+        crate::parse_parquet::parquet_distinct_count_from_bytes(bytes, &columns, blank_is_a_value)
             .map_err(to_js_error)
     }
 
