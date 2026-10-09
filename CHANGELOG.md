@@ -6,6 +6,8 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+## [0.1.46] — 2026-10-09
+
 ### Added
 
 - **Validity limits, and Exclude values outside limits.** A long-format CSV, JSON or Parquet file, or a test-definitions file, can carry
