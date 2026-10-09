@@ -305,7 +305,7 @@ mod tests {
             wafer: Some("wafer".into()), lot: if lot { Some("lot".into()) } else { None }, site: None,
             tests: vec![], meta: meta.iter().map(|s| s.to_string()).collect(), split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None, pass_bins: vec![1],
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, lo_valid_col: None, hi_valid_col: None, units_col: None, pass_bins: vec![1],
         }
     }
 

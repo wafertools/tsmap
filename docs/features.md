@@ -54,6 +54,10 @@ Give tsmap the **reticle** (stepper field) size in dies and it draws the field g
 failures that repeat at the same place in every field, which points at the stepper rather than the
 wafer. See [Reticle](user-guide.md#reticle).
 
+A **multi-project wafer**, where each reticle holds only a few of one product's dies and the map is mostly empty, can be drawn on a
+**Compact layout** that removes the empty rows and columns and outlines each group of dies. Every die is still counted, and the labels
+keep the original die coordinates. See [Multi-project wafers](user-guide.md#multi-project-wafers).
+
 ![Wafer map in test-value mode](images/wafer-map-testvalue.png)
 ![Wafer map in soft-bin mode](images/wafer-map-softbin.png)
 
@@ -76,6 +80,15 @@ multi-wafer load.
 
 See [Dies with no reported position](user-guide.md#dies-with-no-reported-position) in the
 user guide.
+
+### Values that are not measurements
+
+A tester that runs out of range records its rail instead of a reading: a current held at the compliance clamp, an open-circuit
+value. One such value stretches the colour scale and drags the mean, the standard deviation and the Cpk. A test can carry
+**validity limits**, the range a real measurement lies in (from a long-format file's `lvl`/`uvl` columns or a test-definitions
+file), and **Setup ▾ → Exclude values outside limits…** chooses which limit set a value must lie inside to be used. An excluded
+value counts as missing in the map, the statistics and every chart, and is counted wherever a population is shown, while bins and
+the tester's recorded pass/fail are unchanged. See [Excluding values outside limits](user-guide.md#excluding-values-outside-limits).
 
 ## Wafer splits — compare process corners
 
@@ -126,6 +139,15 @@ other: where they cross, and how far apart they are at a given level. They are d
 card on the Insights Plot tab (**+ New sweep**), kept with your other plots; the swept value can be given directly or read from the
 test names, and plotted on a log axis when it grows by multiples. See
 [Sweeps](user-guide.md#sweeps).
+
+**Your own plots.** The **Plot** tab is a chart builder: choose scatter, histogram, box, bar or line, and for each axis and for
+colour any test, a die's position, ring, quadrant, reticle cell or shot, bin, site, a pass/fail test, or a wafer attribute. A
+plot is a recipe with no lot in it, so tsmap keeps your plots between sessions and draws them again on the next lot. **Export
+plots…** and **Import plots…** move a set between machines. See [Plots](user-guide.md#your-own-plots).
+
+**Tables for the same dies.** Insights' **Data** tab shows the lot as tables: the test statistics, every die in a sortable
+table that scrolls smoothly at hundreds of thousands of dies, and one row per wafer, each with CSV export. Clicking a die row
+shows that die on its map. The Summary panel's **Data tables** button opens the same tables over the wafer or lot it describes.
 
 **Chart just the dies you care about.** Select dies on a map and right-click — or
 right-click a wafer card, or one wafer's bar in a chart — for a histogram, process

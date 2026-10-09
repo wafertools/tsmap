@@ -9,7 +9,9 @@ carries the test's real number instead. These do, in both layouts:
 
   TESTNUM-LONG-01.{csv,json,parquet} — long/pivot format, NUMBER ONLY (no
     name column at all) — proves the no-name case is fully supported and the
-    display name falls back to the number itself.
+        display name falls back to the number itself. It also carries validity
+        limits, with high- and low-side clamp values, inclusive boundary values,
+        and a test with no validity limits.
   TESTNUM-WIDE-01.{csv,json,parquet} — wide format, columns literally named
     by their bare test number ("2101", not "test_2101") — proves the wide
     mapping path uses that real number directly instead of hashing it away.
@@ -32,9 +34,13 @@ WAFERS = ['W01', 'W02']
 DIES = [(0, 0), (1, 0), (0, 1), (1, 1)]  # small and easy to eyeball by hand
 
 # ── Long format, number only ─────────────────────────────────────────────────
-# (test_num, base_value, step) — value = base + step * die_index, so every
-# cell is distinct and easy to sanity-check against the source.
-LONG_TESTS = [(2001, 100.0, 1.5), (2002, 200.0, -2.0), (2003, 300.0, 0.5)]
+# (test_num, base_value, step, valid_low, valid_high) — value = base + step *
+# die_index, so every cell is distinct and easy to sanity-check against source.
+LONG_TESTS = [
+    (2001, 100.0, 1.5, 100.0, 103.0),
+    (2002, 200.0, -2.0, 196.0, 200.0),
+    (2003, 300.0, 0.5, None, None),
+]
 
 
 def build_long_rows() -> list[dict]:
@@ -42,17 +48,20 @@ def build_long_rows() -> list[dict]:
     for w in WAFERS:
         for i, (x, y) in enumerate(DIES):
             hbin = 1 if i % 3 != 0 else 2
-            for tnum, base, step in LONG_TESTS:
+            for tnum, base, step, valid_low, valid_high in LONG_TESTS:
                 rows.append({
                     'wafer': w, 'x': x, 'y': y, 'hbin': hbin, 'sbin': hbin,
                     'test_num': tnum, 'test_val': round(base + step * i, 3),
+                    'lvl': valid_low, 'uvl': valid_high,
                 })
     return rows
 
 
 def write_long_csv(rows: list[dict], path: Path) -> None:
     with open(path, 'w', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=['wafer', 'x', 'y', 'hbin', 'sbin', 'test_num', 'test_val'])
+        w = csv.DictWriter(f, fieldnames=[
+            'wafer', 'x', 'y', 'hbin', 'sbin', 'test_num', 'test_val', 'lvl', 'uvl',
+        ], lineterminator='\n')
         w.writeheader()
         w.writerows(rows)
 

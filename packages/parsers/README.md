@@ -142,6 +142,8 @@ interface CsvMapping {
   hiLimitCol?: string;
   loSpecCol?: string;         // for "tall" CSVs: spec limits (STDF LO_SPEC/HI_SPEC) per row — a separate pair
   hiSpecCol?: string;
+  loValidCol?: string;        // for "tall" CSVs: validity limits per row — the range a real measurement lies in (no STDF field)
+  hiValidCol?: string;
   unitsCol?: string;
   passBins: number[];         // hbin/sbin values treated as a pass for pass/fail summary
 }
@@ -209,6 +211,8 @@ interface TestDef {
   hiLimit?: number;
   loSpec?: number;     // specification limits (STDF LO_SPEC/HI_SPEC), separate from the test limits
   hiSpec?: number;
+  loValid?: number;    // validity limits: a value outside is a tester clamp, not a reading (CSV/JSON/Parquet only)
+  hiValid?: number;
   loLimitInclusive?: boolean; // false: a result equal to the low test limit fails (STDF PARM_FLG bit 6 clear, ATDF "L")
   hiLimitInclusive?: boolean; // the same for the high test limit (PARM_FLG bit 7, ATDF "H"); absent = equal passes
   units?: string;

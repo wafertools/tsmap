@@ -273,13 +273,13 @@ describe('formatTestListCsv / parseTestListFile round-trip', () => {
   it('quotes commas in name/units on save, so they round-trip exactly', () => {
     const entries = [{ num: 1001, name: 'Vdd, Core', units: 'mA, RMS' }];
     const csv = formatTestListCsv(entries);
-    expect(csv).toContain('1001,"Vdd, Core",,,,,"mA, RMS",,');
+    expect(csv).toContain('1001,"Vdd, Core",,,,,,,"mA, RMS",,');
     expect(parseTestListFile(csv)).toEqual(entries);
   });
 
   it('writes the canonical header, expression last', () => {
     const csv = formatTestListCsv([{ num: 1001, name: 'Vdd' }]);
-    expect(csv).toContain('num,name,loLimit,hiLimit,loSpec,hiSpec,units,testType,expression');
+    expect(csv).toContain('num,name,loLimit,hiLimit,loSpec,hiSpec,loValid,hiValid,units,testType,expression');
   });
 
   it('round-trips spec limits separately from test limits', () => {

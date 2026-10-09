@@ -119,7 +119,8 @@ Any of these work from the lot view:
 
 - **Summary report** (top of the Summary panel) — a self-contained HTML report of the whole
   lot.
-- **Test values CSV** / **Functional CSV** — the underlying numbers.
+- **Data tables** (beside the report button) — the underlying numbers as tables of statistics, dies and wafers, each
+  with **Export CSV** and **Copy**.
 - **Download gallery PNG** (camera icon in the toolbar) — the wafer grid as an image.
 
 ## What you have done
@@ -137,5 +138,7 @@ Any of these work from the lot view:
   CSV/JSON/Parquet, [Column mapping](user-guide.md#column-mapping-csv-json-and-parquet).
 - **Splits on your own lots** — the sample's corners were pre-assigned; assign your own in
   [Wafer splits](user-guide.md#wafer-splits).
+- **Other things to try** — the repository's `sample_data/` folder has lots for retests, a multi-project wafer, validity
+  limits and more; the [sample files table](user-guide.md#sample-files) says what each shows.
 - **Something not working** — [Troubleshooting](troubleshooting.md).
 - **The rest of the interface** — the [user guide](user-guide.md).

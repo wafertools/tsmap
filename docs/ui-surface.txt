@@ -160,6 +160,8 @@ Menu — Setup ▾:
         hint: Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer
     · Reticle…
         hint: Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field
+    · Exclude values outside limits…
+        hint: Values outside validity limits are treated as missing and counted
     · ☑Show test-value findings  [checked]
         hint: Add regional test-value findings to the summary panel (slower on large loads)
 
@@ -388,6 +390,8 @@ Menu — Setup ▾:
         hint: Set the wafer diameter and edge-exclusion band (mm), applied to every loaded wafer
     · Reticle…
         hint: Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field
+    · Exclude values outside limits…
+        hint: Values outside validity limits are treated as missing and counted
     · ☑Show test-value findings  [checked]
         hint: Add regional test-value findings to the summary panel (slower on large loads)
 

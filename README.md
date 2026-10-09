@@ -34,6 +34,10 @@ Discussions](https://github.com/wafertools/.github/discussions).
 - **Stats & findings** — yield, bin breakdown, ring/quadrant analysis, and spatial findings
 - **Coordinate-less dies** — X/Y position is optional; a wafer with no reported position shows a CSV-exportable die list instead of a fabricated map, and a partly-positioned wafer shows both
 - **Charts & Insights** — yield by wafer, bin pareto, per-test box plots and histograms, and a cross-test correlation matrix
+- **Your own plots** — Insights has a **Plot** tab, a chart builder (scatter, histogram, box, bar, line and response-curve sweeps over any test, die field or wafer attribute); the plots are kept between sessions and move between machines with **Export plots… / Import plots…**
+- **Data tables** — the lot as sortable tables (statistics, every die, one row per wafer) with CSV export, from Insights' **Data** tab or the Summary panel's **Data tables** button; right-click a selection, a card or a chart mark to chart or tabulate just those dies
+- **Reticle and multi-project wafers** — **Setup ▾ → Reticle…** draws the stepper field grid and finds failures that repeat in every field; a multi-project wafer can be drawn on a **Compact layout**
+- **Validity limits** — a long-format file or a test-definitions file can carry the range a real measurement lies in; **Setup ▾ → Exclude values outside limits…** keeps tester clamps and open-circuit readings out of the map, statistics and charts, and counts them
 - **Wafer splits** — attach a process corner or experiment group to each wafer, load and save the assignment as CSV, and group every chart by it
 - **Test selector** — for files with many tests, a two-pass flow lets you choose which tests to import before the full parse; **Setup ▾ → Tests…** re-opens the selector after load
 - **Open from a URL** — `tsmap --url <url> --url-format <format>` on desktop, `?dataUrl=&dataFormat=` on the browser build, or a `tsmap://open?url=…` deep link from your own web page. `--url-headers <file>` covers data APIs that authenticate via a header. See [Integrations](https://wafertools.github.io/tsmap/integrating-data-selection/) and the [live demo](https://wafertools.github.io/tsmap/demos/open-from-link.html)
@@ -162,6 +166,7 @@ src/
   splits.ts / splitsUI.ts — wafer splits: a user-assigned grouping axis over metadata
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
   reticle.ts / reticleUI.ts — the stepper field size (dies) behind the reticle grid and reticle-position findings
+  valueFilter.ts / valueFilterUI.ts — which limit set a test value must lie inside to be used (validity limits by default); wmap applies it and counts what it excludes
   mapColorPrefs.ts    — remembered bin / value colour schemes and "use defined bin colours"
   plotPrefs.ts        — the saved plots behind Insights' Plot tab, kept as wmap's own plots file
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet

@@ -75,6 +75,11 @@ export interface TestDef {
    *  judged against. Separate from the test limits. */
   loSpec?: number;
   hiSpec?: number;
+  /** Validity limits — the range a real measurement lies in; a value outside
+   *  is a tester clamp, not a reading. CSV/JSON/Parquet only (STDF and ATDF
+   *  have no field for them). Separate from the test and spec limits. */
+  loValid?: number;
+  hiValid?: number;
   /** `false` when a result equal to the low test limit fails (STDF PARM_FLG
    *  bit 6 clear, ATDF Limit Compare `L`). Absent = it passes. */
   loLimitInclusive?: boolean;

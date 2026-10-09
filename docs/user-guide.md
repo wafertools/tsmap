@@ -107,6 +107,24 @@ you can see tsmap working before opening your own files. Available on both deskt
 browser. Its process-corner [splits](#wafer-splits) apply automatically, so the loaded
 lot is ready to explore with **Group by → Split** right away.
 
+#### Sample files
+
+The repository's `sample_data/` folder holds synthetic lots for trying each feature. None contains real device data. The
+[web page](web.md#try-it-with-sample-data) has a few of them to download.
+
+| File | What it shows | Where to look |
+| --- | --- | --- |
+| `PVT-LOT-05.stdf` with `PVT-LOT-05_splits.csv` | 13 wafers across 5 process corners, 4-site test, correlated tests. This is the lot behind **Load sample data**. | **Group by → Split**; the Insights correlation tab |
+| `PVT-LOT-05_testdefs.csv`, `_testdefs_spec.csv`, `_testdefs_edgecases.csv` | Test-definitions files for that lot: names and test limits; test limits **and** spec limits on the same tests; and a robustness check with an unrecognised column and malformed lines, each reported in the log without dropping the rest of the file. | **Setup ▾ → Tests…** → load. The spec file adds LSL/USL lines and a capability judged against the spec limits |
+| `RETEST-LOT-07.csv` | Dies probed twice: most failing dies are retested and about two thirds recover. | The die tooltip's retest count; the log's note about repeated dies |
+| `MPW-LOT-08.csv` | A multi-project wafer: a small cluster of dies repeats in every reticle. | **Overlays ▾ → Compact layout** and **Layout diagnostics** |
+| `VALID-LOT-09.csv` | Long-format file with test limits and validity limits (`lo_limit`, `hi_limit`, `lvl`, `uvl`). A few readings per test are tester clamps: Idsat at its 5000 µA compliance clamp, Vth at 0 mV with no probe contact, Ioff at its ammeter rail. | **Setup ▾ → Exclude values outside limits…**: switch between validity limits and off, and compare the map, the Test Values table's **Excl.** column and the Distributions charts. Yield does not change |
+| `RRAM-LOT-06.stdf`, `_testdefs.csv`, `_plots.json` | A resistive-memory characterisation lot with 76 tests: readable names, 7 derived tests, and two sweeps. | Load the lot, load the definitions in the test selector, then **Insights → Plot → Import plots…** (or launch with `--plots`) |
+| `EDGE-LOT-01`, `HY-LOT-04`, `CLUST-LOT-03`, `PARAM-LOT-02` (`.stdf`, `.atdf`, and one file per wafer) | Four small lots, each with one story: an edge-ring defect, a high-yield lot, a failure cluster, and a parametric shift. Open several together for a mixed gallery and the file filter. | The Summary panel's findings; **Open files ▾ → Scan a folder…** |
+| `COORDLESS-LOT-01.stdf`, `TESTNUM-COORDLESS-01.{csv,json,parquet}`, `ALL-COORDLESS-01.csv` | Wafers whose dies have no reported position: one positioned, one mixed, one with none. | [Dies with no position](#dies-with-no-reported-position) |
+| `TESTNUM-LONG-01`, `TESTNUM-WIDE-01` (`.csv`, `.json`, `.parquet`) | Real test numbers in long format (no name column, with validity limits and boundary values) and in wide format (numeric column headers). | The column mapping dialog's test number choice |
+| `CORR-LOT-01.parquet`, `PARQUET-LOT-01.parquet`, `sample-lot.stdf.gz`, `large.zip` | Parquet with designed correlations, a general Parquet lot, a gzipped STDF, and a 66 MB zip holding a 358 MB STDF to try a large load. | Open directly: `.gz` and `.zip` are read without unpacking |
+
 ### Open files
 
 Click **Open files** in the toolbar to open a file picker. You can select one file or
@@ -813,7 +831,8 @@ its tooltip shows the expression, so it is never mistaken for a measurement.
 
 - **What an expression can read:** `t[3126]` is a test's value, `testPass[2001]` the tester's
   recorded pass/fail, `specPass[3126]` whether the value is inside its limits, and `diePass()`
-  the die's bin verdict. `3126..3130` names every test in that range that exists — so a
+  the die's bin verdict. The die's own fields are `dieX()`, `dieY()`, `hbin()`, `sbin()` and `site()`, so a test can be cut by
+  bin (`hbin() == 5`) or position (`if(dieX() < 5, t[1010], 0 - 1)`); a field the die lacks is no value, not zero. `3126..3130` names every test in that range that exists — so a
   program numbered in steps of two needs nothing special. A range must be reduced with
   `mean`, `sum`, `min`, `max`, `all`, `any`, `none`, `countTrue`, `countFalse` or
   `countKnown`. The full list of operators and functions is in the
@@ -927,6 +946,32 @@ With a reticle set:
 Like the [diameter](#wafer-diameter-and-edge-exclusion), the reticle is one value for every wafer loaded, is remembered
 between sessions, and stays in effect for the next file you open. **Help → Reset saved settings…** lists it. `--reticle`
 sets it for one launch from the [command line](#command-line).
+
+### Excluding values outside limits
+
+A tester that runs out of range records its rail instead of a reading: a current held at the compliance clamp, a voltage at the
+supply, an open-circuit value. These are numbers in the file and not measurements, and one of them stretches the colour scale and
+moves the mean, σ and Cpk of the whole wafer. A test can carry **validity limits**, the range a real measurement lies in. They are a
+third kind beside the test limits (which judge good against bad) and the spec limits, and a clamped value is neither good nor bad.
+They come from a long-format file's `lvl` and `uvl` columns, or the `loValid` and `hiValid` columns of a
+[test-definitions file](#test-definitions-file) (map them in the [column mapping](#column-mapping-reference) if your names differ).
+
+Open **Setup ▾ → Exclude values outside limits…** and choose which limit set a value must lie inside to be used:
+
+- **Validity limits** (the default): values outside a test's validity limits are used as missing. Tests without validity limits are
+  unaffected, so a file that has none behaves as before.
+- **Spec limits** or **Test limits**: keep only values inside each test's spec or test limits.
+- **Off**: every value is used as recorded.
+
+**Apply** takes effect at once, without reloading the file, and **Clear** returns to the default. The choice is one setting for every
+wafer loaded and is remembered between sessions; **Help → Reset saved settings…** lists it.
+
+An excluded value is **missing** for that test on that die: grey on the map, and left out of the statistics and every chart, and a
+derived test is computed from what remains. Nothing is hidden: the tooltip on a grey die names the excluded value and the limit set,
+and the count appears in the Summary panel's Test Values table (a total beside **N** and an **Excl.** column), in the chart captions,
+the Plot tab's footnote, the report and the CSV exports. The wafer's bins and the tester's recorded pass/fail are unchanged, so yield
+is the same either way. `sample_data/VALID-LOT-09.csv` has a few clamped readings and its limits; open it and switch between
+**Validity limits** and **Off** to see what a clamp does to the scale.
 
 ## Reference
 
@@ -1215,10 +1260,10 @@ The saved format is one test per line, with a header naming the columns:
 
     # tsmap test definitions
     # Saved: 2026-06-15T10:00:00.000Z
-    num,name,loLimit,hiLimit,loSpec,hiSpec,units,testType,expression
-    1000,Idsat_vg1,0.1,1.5,0.05,1.8,mA,P,
-    1001,Idsat_vg2,,,,,mA,P,
-    1010,Vt_lin,,,,,,,
+    num,name,loLimit,hiLimit,loSpec,hiSpec,loValid,hiValid,units,testType,expression
+    1000,Idsat_vg1,0.1,1.5,0.05,1.8,0,10,mA,P,
+    1001,Idsat_vg2,,,,,,,mA,P,
+    1010,Vt_lin,,,,,,,,,
 
 - Lines starting with `#` are comments and are ignored on load.
 - **Legacy format** (still fully supported): `<test number> <display name>`, with the number
@@ -1255,13 +1300,17 @@ The saved format is one test per line, with a header naming the columns:
   and `spec_lo`) are both ignored with a warning naming them; tsmap never guesses which
   one was meant. A row whose low limit is above its high limit has that pair dropped with
   a warning; the other pair still applies.
+- **Validity limits** are a third kind, in their own columns: `loValid` and `hiValid` (or `lvl` and `uvl`). They state the range a real
+  measurement lies in, and a value outside it is a tester clamp that [Exclude values outside limits…](#excluding-values-outside-limits)
+  uses as missing. They are never paired with the test or spec limits, and a validity limit given for a functional test is dropped with
+  a warning like the others.
 - `testType` accepts `P`/`p` (parametric) or `F`/`f` (functional).
 - Limits only make sense for parametric tests — a functional test is pass/fail with no
   measured value to check a limit against. A test or spec limit given for a test that is
   (or is being reclassified to) functional is dropped with a warning; the rest of that row's
   overrides (name, units, type) still apply.
 - A `units` value that differs from the data's only by prefix (the file says mV, the data
-  is in V) converts that row's test and spec limits to the data's unit, and the log says so. A unit that
+  is in V) converts that row's test, spec and validity limits to the data's unit, and the log says so. A unit that
   differs in any other way is applied as written, with a warning to check the limits: they
   are judged against the data as recorded.
 - A blank field means "don't override this" — it leaves the parsed value (or an override
@@ -1462,6 +1511,8 @@ and the header names that are filled in automatically.
 | **High test limit (long format)** | High test limit in a long-format file |
 | **Low spec limit / LSL (long format)** | Low spec limit in a long-format file — the process specification that Process Capability is measured against. Kept separate from the test limits: a low limit only ever pairs with a high limit of the same kind |
 | **High spec limit / USL (long format)** | High spec limit in a long-format file |
+| **Low validity limit / LVL (long format)** | Low validity limit in a long-format file — the lowest value that is a real measurement. A value below it is a tester clamp, and **Setup ▾ → Exclude values outside limits…** treats it as missing. A third kind, never paired with the test or spec limits |
+| **High validity limit / UVL (long format)** | High validity limit in a long-format file |
 | **Units (long format)** | Units string in a long-format file |
 | **Display info** | An additional wafer attribute, captured for the strip above the map and for Group by and Compare by (and shown in tooltips). Values are recorded **per wafer**, so a file mixing temperatures or test programs labels each wafer with its own. If the same wafer appears more than once — tested at two temperatures, say — and one of these columns tells the passes apart, each pass becomes its own wafer map, and the log says which column did it; with nothing to tell them apart the repeats are treated as retests. A column whose value changes *within* a wafer (a per-die timestamp) is not shown as a wafer property, and the log says so. The **Subdivide file by this column** checkbox is a structural escape hatch for flat files that pack several wafers into one file with no wafer column — it subdivides the file into one wafer map per distinct value of the column. (Do not use it for parallel-test sites — map those to **Test site** instead.) |
 | **— ignore —** | Column is not imported |
@@ -1489,6 +1540,8 @@ The overlay pre-fills a role for any column whose header exactly matches one of 
 | **High test limit (long format)** | `hi_limit`, `high_limit`, `higher_limit`, `upper_limit`, `hi_lim`, `high_lim`, `upper_lim`, `h_limit`, `h_lim`, `max_limit`, `max_lim`, `ul`, `test_hi`, `test_high` |
 | **Low spec limit / LSL (long format)** | `lo_spec`, `low_spec`, `lower_spec`, `lo_spec_limit`, `low_spec_limit`, `lower_spec_limit`, `spec_lo`, `spec_low`, `min_spec`, `lsl` |
 | **High spec limit / USL (long format)** | `hi_spec`, `high_spec`, `higher_spec`, `upper_spec`, `hi_spec_limit`, `high_spec_limit`, `upper_spec_limit`, `spec_hi`, `spec_high`, `max_spec`, `usl` |
+| **Low validity limit / LVL (long format)** | `lvl` |
+| **High validity limit / UVL (long format)** | `uvl` |
 | **Units (long format)** | `units`, `unit`, `uom`, `test_units`, `test_unit` |
 | **Display info** | `testdate`, `test_date`, `date`, `temp`, `temperature`, `tst_temp`, `operator`, `oper`, `testprogram`, `test_program`, `job_nam`, `node`, `node_nam`, `tester`, `tstr_typ`, `part_typ`, `part_type`, `device`, `handler`, `hand_typ`, `sublot`, `sblot_id`, `exec_typ`, `exec_ver`, `serl_num`, `serial` |
 
@@ -1524,7 +1577,7 @@ A bare `bin` is the weakest claim on **Hard bin**: when a file also has `Hard bi
 
 tsmap saves a few things between sessions so you don't have to set them up again: your colour
 theme, recently opened files, recently used definitions files, column mappings (per column
-layout), wafer split assignments (per lot), your saved plots, any wafer diameter and edge-exclusion override, and
+layout), wafer split assignments (per lot), your saved plots, any wafer diameter and edge-exclusion override, the reticle, the limit set values must lie inside, and
 the last file filter. The desktop app also remembers its window's size, position and whether it was
 maximised, and opens the next launch the same way; a first launch opens centred at 80% of the screen.
 This one is kept in the app's configuration folder rather than in the list below, so **Reset saved

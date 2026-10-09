@@ -1,6 +1,6 @@
 # Use cases
 
-Four workflows tsmap is built for, written as procedures you can follow. Each states what it
+Five workflows tsmap is built for, written as procedures you can follow. Each states what it
 needs, what you should see, and — just as important — how to avoid over-reading the result.
 
 New to tsmap? Start with the [tutorial](tutorial.md), which walks the first of these
@@ -95,6 +95,40 @@ either shows a genuine trend or reveals that a high *r* came from something else
 
 See [The wafer map view](user-guide.md#the-wafer-map-view) and
 [Grouping data in the Insights tab](user-guide.md#grouping-data-in-the-insights-tab).
+
+---
+
+## Telling a tester clamp from a real reading
+
+**Use this when** a parametric test has a long tail or a scale stretched by a few values that look too round, too large or too
+small to be real: a current exactly at the compliance setting, an open-circuit rail, a voltage of 0.
+
+**You need:** the tests' **validity limits**, the range a real measurement lies in. A long-format CSV, JSON or Parquet file can
+carry them as `lvl` and `uvl` columns, and a [test-definitions file](user-guide.md#test-definitions-file) as `loValid` and
+`hiValid`. `sample_data/VALID-LOT-09.csv` has them, with a few clamped readings per test.
+
+1. Open the file. The column mapping dialog reads `lvl` and `uvl` as the low and high validity limits.
+2. Choose **Plot mode → Test Value ▶** and pick a test. With **Setup ▾ → Exclude values outside limits…** on its default,
+   **Validity limits**, the clamped dies are grey on the map: they are missing, not failing.
+3. Open the Summary panel's Test Values table. The count of excluded values sits beside **N**, in the **Excl.** column.
+4. Open **Insights → Distributions**. The histogram and box plot captions give the same count, and the scale follows the real readings.
+5. Switch to **Off** and look again. The clamps return as extreme values, and the scale, the mean and σ move with them.
+
+**What you should see:** the same wafers, with the clamps counted and set aside. **Yield does not change**: bins and the tester's
+recorded pass/fail are the tester's own.
+
+**Reading it correctly:**
+
+- **An excluded value is not a failing die.** It is a die with no value for that test. If the clamp is a symptom of a real fault
+  (a short that overloads the meter), the bins already say so; look at the bin map as well.
+- **The limits are only as good as the file that carries them.** Validity limits that sit inside the real distribution exclude
+  real readings, and the count says how many. Compare it with the population before you trust a tight set.
+- **Spec limits** and **Test limits** are also choices in the same dialog, to keep only values inside those. Use them to look at the
+  population that meets a limit, not to judge pass/fail: the map's own pass/fail colouring is separate.
+
+**Next:** if the clamps cluster in one place, switch **Off**, colour a plot by ring or quadrant (**Insights → Plot**) and see where.
+
+See [Excluding values outside limits](user-guide.md#excluding-values-outside-limits).
 
 ---
 

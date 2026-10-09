@@ -246,7 +246,7 @@ export function showAppendConfirm({ incoming, existing, onConfirm, onCancel }: A
   const warningHtml = warnings.length > 0
     ? `<div class="append-warnings">${warnings.map(w =>
         `<div class="append-warning append-${w.level}">
-          <span class="warn-icon">${w.level === 'warn' ? '⚠' : 'ℹ'}</span>
+          <span class="warn-icon">${w.level === 'warn' ? '⚠' : 'ⓘ'}</span>
           <span>${esc(w.message)}</span>
         </div>`).join('')}</div>`
     : `<div class="append-ok">No structural mismatches detected.</div>`;

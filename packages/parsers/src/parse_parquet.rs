@@ -311,6 +311,8 @@ fn parse_from_reader<R: FileReader>(reader: &R, mapping: CsvMapping) -> ParseRes
                     order: Some(i as u32),
                     lo_spec: None,
                     hi_spec: None,
+                    lo_valid: None,
+                    hi_valid: None,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 },
@@ -522,6 +524,10 @@ fn parse_long_format(
                     .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let hi_spec = mapping.hi_spec_col.as_deref()
                     .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let lo_valid = mapping.lo_valid_col.as_deref()
+                    .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let hi_valid = mapping.hi_valid_col.as_deref()
+                    .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let units = mapping.units_col.as_deref()
                     .and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).cloned();
                 // No name column (or this row's name cell was empty): the
@@ -534,6 +540,8 @@ fn parse_long_format(
                     order: Some(order),
                     lo_spec,
                     hi_spec,
+                    lo_valid,
+                    hi_valid,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 });
@@ -563,7 +571,7 @@ mod tests {
             hbin: None, sbin: None, wafer: None, lot: None, site: None,
             tests: vec![], meta: vec![], split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None,
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, lo_valid_col: None, hi_valid_col: None, units_col: None,
             pass_bins: vec![],
         }
     }
@@ -1046,6 +1054,61 @@ mod tests {
         buf
     }
 
+    /// (x, y, test, val, lvl, uvl): one test with validity limits on every row.
+    fn write_long_format_fixture_with_validity() -> Vec<u8> {
+        let schema = Arc::new(
+            parse_message_type(
+                "message schema {
+                    REQUIRED INT32 x;
+                    REQUIRED INT32 y;
+                    REQUIRED BYTE_ARRAY test (UTF8);
+                    REQUIRED DOUBLE val;
+                    REQUIRED DOUBLE lvl;
+                    REQUIRED DOUBLE uvl;
+                }",
+            )
+            .unwrap(),
+        );
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            let mut row_group = writer.next_row_group().unwrap();
+            let tests: Vec<ByteArray> = ["Vt", "Vt"].iter().map(|s| ByteArray::from(s.as_bytes().to_vec())).collect();
+            let mut col = row_group.next_column().unwrap().unwrap();
+            col.typed::<Int32Type>().write_batch(&[0, 1], None, None).unwrap();
+            col.close().unwrap();
+            let mut col = row_group.next_column().unwrap().unwrap();
+            col.typed::<Int32Type>().write_batch(&[0, 0], None, None).unwrap();
+            col.close().unwrap();
+            let mut col = row_group.next_column().unwrap().unwrap();
+            col.typed::<ByteArrayType>().write_batch(&tests, None, None).unwrap();
+            col.close().unwrap();
+            for vals in [[1.1f64, 9.99e9], [-100.0, -100.0], [100.0, 100.0]] {
+                let mut col = row_group.next_column().unwrap().unwrap();
+                col.typed::<DoubleType>().write_batch(&vals, None, None).unwrap();
+                col.close().unwrap();
+            }
+            row_group.close().unwrap();
+            writer.close().unwrap();
+        }
+        buf
+    }
+
+    #[test]
+    fn long_format_reads_validity_limits() {
+        let bytes = write_long_format_fixture_with_validity();
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test".to_string());
+        m.testvalue_col = Some("val".to_string());
+        m.lo_valid_col = Some("lvl".to_string());
+        m.hi_valid_col = Some("uvl".to_string());
+        let result = parse_parquet_from_bytes(&bytes, m).unwrap();
+        let vt = result.test_defs.values().find(|d| d.name == "Vt").unwrap();
+        assert_eq!((vt.lo_valid, vt.hi_valid), (Some(-100.0), Some(100.0)));
+        assert_eq!((vt.lo_limit, vt.hi_limit, vt.lo_spec, vt.hi_spec), (None, None, None, None));
+    }
+
     #[test]
     fn long_format_pivots_into_dies() {
         let bytes = write_long_format_fixture();
@@ -1144,7 +1207,7 @@ mod tests {
             }).collect(),
             meta: vec![], split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None,
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, lo_valid_col: None, hi_valid_col: None, units_col: None,
             pass_bins: vec![1],
         };
 

@@ -36,6 +36,8 @@ import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
 import { getReticle, normalizeReticle, setReticle, toWmapReticleConfig, type ReticleSettings } from './reticle';
 import { showReticleDialog } from './reticleUI';
+import { getValueFilter, setValueFilter, VALUE_FILTER_LABEL } from './valueFilter';
+import { showValueFilterDialog } from './valueFilterUI';
 import type { InferredDiameterHint } from './waferGeometryUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
 import { showFileAssociationsModal } from './fileAssociationsUI';
@@ -297,6 +299,9 @@ let edgeExclusionMm: number | undefined = getEdgeExclusionMm();
 // call, which draws the field grid and adds reticle-position findings. Unset means neither — nothing
 // in a wafer file says how many dies make a field. See reticle.ts.
 let reticle: ReticleSettings | undefined = getReticle();
+// Which limit set a test value must lie inside to be used (`valueFilter` on every buildWaferMap call). Validity
+// limits by default, which only affects tests that have them. Same cache invalidation as the reticle.
+let valueFilterMode = getValueFilter();
 
 let cachedLotStats: NonNullable<Awaited<ReturnType<typeof buildLotStatsSummary>>> | null = null;
 // The wmap controller for the map currently rendered into the main `container`
@@ -809,6 +814,7 @@ function buildWmapConfig(
     },
     dieConfig: wcr?.dieConfig,
     reticleConfig: toWmapReticleConfig(reticle),
+    valueFilter: valueFilterMode,
     // From this file's HBR/SBR (see ParsedFile.hbinDefs/sbinDefs/passHbins,
     // types.ts) — undefined falls back to wmap's own defaults (bare bin
     // numbers, passBins [1]).
@@ -2635,6 +2641,14 @@ function openWaferGeometryDialog() {
   });
 }
 
+function openValueFilterDialog() {
+  if (session.wafers.length === 0) return;
+  showValueFilterDialog(valueFilterMode, (next) => {
+    valueFilterMode = setValueFilter(next);
+    rerenderCurrentLot('Rendering');
+  });
+}
+
 /** A reticle that has been set is drawn: the field grid is what the setting is for, and the Overlays menu still hides it. */
 function reticleViewOption(): { showReticle?: boolean } {
   return reticle === undefined ? {} : { showReticle: true };
@@ -3177,6 +3191,13 @@ function openLotMenu(anchor: HTMLElement) {
           ? `${reticle.width} × ${reticle.height} dies per field`
           : 'Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field',
         onClick: openReticleDialog,
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Exclude values outside limits…',
+        hint: valueFilterMode === 'none'
+          ? 'Off: every value is used as recorded'
+          : `Values outside ${VALUE_FILTER_LABEL[valueFilterMode].toLowerCase()} are treated as missing and counted`,
+        onClick: openValueFilterDialog,
       }));
       // Moved out of the app bar, where it was a bare switch reading "Value
       // findings" with no indication of what it acted on. In a menu row there

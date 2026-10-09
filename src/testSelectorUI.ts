@@ -102,7 +102,7 @@ export interface DerivedSelection {
   selected: number[];
 }
 
-type TestListField = 'num' | 'name' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'units' | 'testType' | 'expression';
+type TestListField = 'num' | 'name' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'loValid' | 'hiValid' | 'units' | 'testType' | 'expression';
 
 /** Header cell (normalized: trimmed, lowercased, spaces/dashes/underscores
  * collapsed) -> canonical column. Lets a hand-authored or externally-exported
@@ -113,6 +113,8 @@ const HEADER_FIELD_ALIASES: Record<string, TestListField> = {
   name: 'name', testname: 'name',
   units: 'units', unit: 'units',
   testtype: 'testType', type: 'testType',
+  // The file's own column names for validity limits (the saved form); `lvl`/`uvl` are the built-in spellings in limitNames.ts.
+  lovalid: 'loValid', hivalid: 'hiValid',
   // "Derived from" is the column wmap's own CSV exports carry for a derived test.
   expression: 'expression', expr: 'expression', formula: 'expression', derivedfrom: 'expression',
 };
@@ -296,7 +298,9 @@ export function parseTestListFile(
         case 'loLimit':
         case 'hiLimit':
         case 'loSpec':
-        case 'hiSpec': {
+        case 'hiSpec':
+        case 'loValid':
+        case 'hiValid': {
           const n = Number(raw);
           if (Number.isFinite(n)) row[field] = n;
           else onWarn?.(lineNo, `Invalid ${field} value "${raw}" ignored`);
@@ -315,7 +319,7 @@ export function parseTestListFile(
     }
     // A pair whose low limit is above its high limit cannot be what was meant;
     // both halves of that pair are dropped, the other pair is kept.
-    for (const [lo, hi] of [['loLimit', 'hiLimit'], ['loSpec', 'hiSpec']] as const) {
+    for (const [lo, hi] of [['loLimit', 'hiLimit'], ['loSpec', 'hiSpec'], ['loValid', 'hiValid']] as const) {
       if (row[lo] !== undefined && row[hi] !== undefined && row[lo]! > row[hi]!) {
         onWarn?.(lineNo, `${LIMIT_FIELD_LABEL[lo]} ${row[lo]} is above ${LIMIT_FIELD_LABEL[hi]} ${row[hi]}; both ignored`);
         delete row[lo];
@@ -340,7 +344,7 @@ export function formatTestListCsv(entries: TestListEntry[]): string {
   const lines = [
     '# tsmap test definitions',
     `# Saved: ${new Date().toISOString()}`,
-    'num,name,loLimit,hiLimit,loSpec,hiSpec,units,testType,expression',
+    'num,name,loLimit,hiLimit,loSpec,hiSpec,loValid,hiValid,units,testType,expression',
     ...entries.map(e => [
       e.num,
       e.name !== undefined ? quote(e.name) : '',
@@ -348,6 +352,8 @@ export function formatTestListCsv(entries: TestListEntry[]): string {
       e.hiLimit !== undefined ? e.hiLimit : '',
       e.loSpec !== undefined ? e.loSpec : '',
       e.hiSpec !== undefined ? e.hiSpec : '',
+      e.loValid !== undefined ? e.loValid : '',
+      e.hiValid !== undefined ? e.hiValid : '',
       e.units !== undefined ? quote(e.units) : '',
       e.testType ?? '',
       e.expression !== undefined ? quote(e.expression) : '',
@@ -436,7 +442,8 @@ export function resolveLoadedTestList(
     // enforces the same rule as a final safety net).
     const effectiveType = row.testType ?? currentTestDefs[String(num)]?.testType;
     const anyLimit = row.loLimit !== undefined || row.hiLimit !== undefined
-      || row.loSpec !== undefined || row.hiSpec !== undefined;
+      || row.loSpec !== undefined || row.hiSpec !== undefined
+      || row.loValid !== undefined || row.hiValid !== undefined;
     if (effectiveType === 'F' && anyLimit) {
       limitOnFunctionalCount++;
     } else {
@@ -444,6 +451,8 @@ export function resolveLoadedTestList(
       if (row.hiLimit !== undefined) ov.hiLimit = row.hiLimit;
       if (row.loSpec !== undefined) ov.loSpec = row.loSpec;
       if (row.hiSpec !== undefined) ov.hiSpec = row.hiSpec;
+      if (row.loValid !== undefined) ov.loValid = row.loValid;
+      if (row.hiValid !== undefined) ov.hiValid = row.hiValid;
     }
     if (row.units !== undefined) ov.units = row.units;
     if (row.testType !== undefined) ov.testType = row.testType;
@@ -617,13 +626,15 @@ export function showTestSelectorOverlay(
     return testOverrides.get(num)?.name ?? def.name;
   }
 
-  function effectiveLimits(num: number, def: TestDef): { loLimit?: number; hiLimit?: number; loSpec?: number; hiSpec?: number; units?: string; testType: 'P' | 'F' } {
+  function effectiveLimits(num: number, def: TestDef): { loLimit?: number; hiLimit?: number; loSpec?: number; hiSpec?: number; loValid?: number; hiValid?: number; units?: string; testType: 'P' | 'F' } {
     const ov = testOverrides.get(num);
     return {
       loLimit: ov?.loLimit ?? def.loLimit,
       hiLimit: ov?.hiLimit ?? def.hiLimit,
       loSpec: ov?.loSpec ?? def.loSpec,
       hiSpec: ov?.hiSpec ?? def.hiSpec,
+      loValid: ov?.loValid ?? def.loValid,
+      hiValid: ov?.hiValid ?? def.hiValid,
       units: ov?.units ?? def.units,
       testType: ov?.testType ?? def.testType,
     };
@@ -1117,6 +1128,8 @@ export function showTestSelectorOverlay(
       hiLimit: eff.hiLimit,
       loSpec: eff.loSpec,
       hiSpec: eff.hiSpec,
+      loValid: eff.loValid,
+      hiValid: eff.hiValid,
       units: eff.units,
       testType: eff.testType,
       ...(derived?.expression !== undefined ? { expression: derived.expression } : {}),

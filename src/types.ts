@@ -10,6 +10,11 @@ export interface TestDef {
    *  above. Only process capability reads them, via wmap's `specLow`/`specHigh`. */
   loSpec?: number;
   hiSpec?: number;
+  /** Validity limits (`lvl`/`uvl`): the range a real measurement lies in. A value
+   *  outside is a tester clamp, treated as no value by wmap's value filter. A
+   *  third kind beside the test and spec limits, never paired with either. */
+  loValid?: number;
+  hiValid?: number;
   /** `false` when a value equal to the low/high test limit fails, as the file
    *  states (STDF PARM_FLG bits 6/7, ATDF Limit Compare). Absent = it passes. */
   loLimitInclusive?: boolean;
@@ -43,6 +48,9 @@ export interface TestOverride {
    *  separate pair from the test limits above; never paired across. */
   loSpec?: number;
   hiSpec?: number;
+  /** Validity limits (`lvl`/`uvl`) — see `TestDef.loValid`. */
+  loValid?: number;
+  hiValid?: number;
   units?: string;
   testType?: 'P' | 'F';
 }

@@ -6,7 +6,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2001,
-    "test_val": 100.0
+    "test_val": 100.0,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W01",
@@ -15,7 +17,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2002,
-    "test_val": 200.0
+    "test_val": 200.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W01",
@@ -24,7 +28,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2003,
-    "test_val": 300.0
+    "test_val": 300.0,
+    "lvl": null,
+    "uvl": null
   },
   {
     "wafer": "W01",
@@ -33,7 +39,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2001,
-    "test_val": 101.5
+    "test_val": 101.5,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W01",
@@ -42,7 +50,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2002,
-    "test_val": 198.0
+    "test_val": 198.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W01",
@@ -51,7 +61,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2003,
-    "test_val": 300.5
+    "test_val": 300.5,
+    "lvl": null,
+    "uvl": null
   },
   {
     "wafer": "W01",
@@ -60,7 +72,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2001,
-    "test_val": 103.0
+    "test_val": 103.0,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W01",
@@ -69,7 +83,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2002,
-    "test_val": 196.0
+    "test_val": 196.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W01",
@@ -78,7 +94,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2003,
-    "test_val": 301.0
+    "test_val": 301.0,
+    "lvl": null,
+    "uvl": null
   },
   {
     "wafer": "W01",
@@ -87,7 +105,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2001,
-    "test_val": 104.5
+    "test_val": 104.5,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W01",
@@ -96,7 +116,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2002,
-    "test_val": 194.0
+    "test_val": 194.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W01",
@@ -105,7 +127,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2003,
-    "test_val": 301.5
+    "test_val": 301.5,
+    "lvl": null,
+    "uvl": null
   },
   {
     "wafer": "W02",
@@ -114,7 +138,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2001,
-    "test_val": 100.0
+    "test_val": 100.0,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W02",
@@ -123,7 +149,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2002,
-    "test_val": 200.0
+    "test_val": 200.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W02",
@@ -132,7 +160,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2003,
-    "test_val": 300.0
+    "test_val": 300.0,
+    "lvl": null,
+    "uvl": null
   },
   {
     "wafer": "W02",
@@ -141,7 +171,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2001,
-    "test_val": 101.5
+    "test_val": 101.5,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W02",
@@ -150,7 +182,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2002,
-    "test_val": 198.0
+    "test_val": 198.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W02",
@@ -159,7 +193,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2003,
-    "test_val": 300.5
+    "test_val": 300.5,
+    "lvl": null,
+    "uvl": null
   },
   {
     "wafer": "W02",
@@ -168,7 +204,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2001,
-    "test_val": 103.0
+    "test_val": 103.0,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W02",
@@ -177,7 +215,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2002,
-    "test_val": 196.0
+    "test_val": 196.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W02",
@@ -186,7 +226,9 @@
     "hbin": 1,
     "sbin": 1,
     "test_num": 2003,
-    "test_val": 301.0
+    "test_val": 301.0,
+    "lvl": null,
+    "uvl": null
   },
   {
     "wafer": "W02",
@@ -195,7 +237,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2001,
-    "test_val": 104.5
+    "test_val": 104.5,
+    "lvl": 100.0,
+    "uvl": 103.0
   },
   {
     "wafer": "W02",
@@ -204,7 +248,9 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2002,
-    "test_val": 194.0
+    "test_val": 194.0,
+    "lvl": 196.0,
+    "uvl": 200.0
   },
   {
     "wafer": "W02",
@@ -213,6 +259,8 @@
     "hbin": 2,
     "sbin": 2,
     "test_num": 2003,
-    "test_val": 301.5
+    "test_val": 301.5,
+    "lvl": null,
+    "uvl": null
   }
 ]

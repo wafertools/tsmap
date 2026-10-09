@@ -68,6 +68,12 @@ pub struct CsvMapping {
     pub lo_spec_col: Option<String>,
     #[serde(default)]
     pub hi_spec_col: Option<String>,
+    /// Long-format only: columns holding each test's validity limits — the
+    /// range a real measurement lies in, a third kind beside the test and spec limits.
+    #[serde(default)]
+    pub lo_valid_col: Option<String>,
+    #[serde(default)]
+    pub hi_valid_col: Option<String>,
     pub units_col: Option<String>,
     pub pass_bins: Vec<u32>,
 }
@@ -253,6 +259,8 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
                     order: Some(i as u32),
                     lo_spec: None,
                     hi_spec: None,
+                    lo_valid: None,
+                    hi_valid: None,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 },
@@ -349,6 +357,10 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let hi_spec = mapping.hi_spec_col.as_deref()
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let lo_valid = mapping.lo_valid_col.as_deref()
+                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let hi_valid = mapping.hi_valid_col.as_deref()
+                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
                 let units = mapping.units_col.as_deref()
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty());
                 // No name column (or this row's name cell was empty): the
@@ -361,6 +373,8 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
                     order: Some(order),
                     lo_spec,
                     hi_spec,
+                    lo_valid,
+                    hi_valid,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 });
@@ -505,6 +519,8 @@ mod tests {
             hi_limit_col: None,
             lo_spec_col: None,
             hi_spec_col: None,
+            lo_valid_col: None,
+            hi_valid_col: None,
             units_col: None,
             pass_bins: vec![],
         }
@@ -887,6 +903,34 @@ mod tests {
         assert_eq!(vt.hi_limit, Some(2.0));
         assert_eq!(vt.lo_spec, Some(0.4));
         assert_eq!(vt.hi_spec, None);
+    }
+
+    #[test]
+    fn long_format_reads_validity_limits_as_a_third_kind() {
+        // Validity limits sit beside, and never pair with, the test and spec limits.
+        let csv = "x,y,test_name,test_val,hi_limit,lsl,lvl,uvl\n\
+                   0,0,Vt,1.1,2.0,0.4,-100,100\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test_name".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        m.hi_limit_col = Some("hi_limit".to_string());
+        m.lo_spec_col = Some("lsl".to_string());
+        m.lo_valid_col = Some("lvl".to_string());
+        m.hi_valid_col = Some("uvl".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        let vt = result.test_defs.values().find(|d| d.name == "Vt").unwrap();
+        assert_eq!((vt.lo_limit, vt.hi_limit), (None, Some(2.0)));
+        assert_eq!((vt.lo_spec, vt.hi_spec), (Some(0.4), None));
+        assert_eq!((vt.lo_valid, vt.hi_valid), (Some(-100.0), Some(100.0)));
+    }
+
+    #[test]
+    fn a_mapping_without_validity_columns_still_deserialises() {
+        // Saved mappings from before validity limits existed carry neither field.
+        let m: CsvMapping = serde_json::from_value(serde_json::json!(
+            { "tests": [], "meta": [], "splitBy": [], "passBins": [1] })).unwrap();
+        assert!(m.lo_valid_col.is_none() && m.hi_valid_col.is_none());
     }
 
     #[test]

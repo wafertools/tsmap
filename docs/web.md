@@ -57,7 +57,15 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
 - [tsmap-correlated.parquet](samples/tsmap-correlated.parquet) — Parquet: the same designed
   correlation dataset.
 
-All seven contain no real device data — they are generated for demonstration.
+- [tsmap-validity.csv](samples/tsmap-validity.csv) — CSV, long format: 3 wafers with test limits
+  and validity limits (`lvl`/`uvl`), where a few readings are tester clamps. Open it, then try
+  **Setup ▾ → Exclude values outside limits…**.
+- [tsmap-retest.csv](samples/tsmap-retest.csv) — CSV: 3 wafers in which failing dies were probed a
+  second time, most recovering. The die tooltip shows each die's retest count.
+- [tsmap-multi-project.csv](samples/tsmap-multi-project.csv) — CSV: a multi-project wafer, mostly
+  empty, for **Overlays ▾ → Compact layout**.
+
+All ten contain no real device data — they are generated for demonstration.
 
 Or try the **[live demo of opening tsmap from a link](demos/open-from-link.html)** — it
 builds the `?dataUrl=` link for each of these samples for you and opens the browser build

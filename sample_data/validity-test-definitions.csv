@@ -1,0 +1,6 @@
+# tsmap test definitions
+# Saved: 2026-10-07T08:15:06.583Z
+num                              , name, loLimit, hiLimit, loSpec, hiSpec, loValid, hiValid, units, testType, expression
+2001                             , 2001,  101      , 102       ,       ,       , 100    , 103    ,      , P       , 
+2002                             , 2002,  198      , 199       ,       ,       , 196    , 200    ,      , P       , 
+2003                             , 2003,  296      , 297       ,       ,       ,        ,        ,      , P       , 

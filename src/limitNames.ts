@@ -16,7 +16,7 @@
 
 import { normalizeHeaderKey } from './headerKey';
 
-export type LimitField = 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec';
+export type LimitField = 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'loValid' | 'hiValid';
 
 export const LIMIT_NAMES: Readonly<Record<LimitField, readonly string[]>> = {
   loLimit: ['lo_limit', 'low_limit', 'lower_limit', 'lo_lim', 'low_lim', 'lower_lim', 'l_limit', 'l_lim',
@@ -27,6 +27,10 @@ export const LIMIT_NAMES: Readonly<Record<LimitField, readonly string[]>> = {
     'spec_lo', 'spec_low', 'min_spec', 'lsl'],
   hiSpec: ['hi_spec', 'high_spec', 'higher_spec', 'upper_spec', 'hi_spec_limit', 'high_spec_limit',
     'upper_spec_limit', 'spec_hi', 'spec_high', 'max_spec', 'usl'],
+  // Validity limits: the range a real measurement lies in (a value outside is a tester clamp). Only these
+  // two spellings are built in; any other goes through custom names.
+  loValid: ['lvl'],
+  hiValid: ['uvl'],
 };
 
 /** Bare names read as test limits only where every column describes a test —
@@ -45,6 +49,7 @@ export const AMBIGUOUS_LIMIT_NAMES: readonly string[] = [
 
 export const LIMIT_FIELD_LABEL: Readonly<Record<LimitField, string>> = {
   loLimit: 'low test limit', hiLimit: 'high test limit', loSpec: 'low spec limit', hiSpec: 'high spec limit',
+  loValid: 'low validity limit', hiValid: 'high validity limit',
 };
 
 function byKey(table: Partial<Record<LimitField, readonly string[]>>): Map<string, LimitField> {

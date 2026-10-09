@@ -425,6 +425,8 @@ export function unionTestDefs(
       // withholds capability for a test whose spec limits differ.
       if (first.loSpec === undefined && def.loSpec !== undefined) first.loSpec = def.loSpec;
       if (first.hiSpec === undefined && def.hiSpec !== undefined) first.hiSpec = def.hiSpec;
+      if (first.loValid === undefined && def.loValid !== undefined) first.loValid = def.loValid;
+      if (first.hiValid === undefined && def.hiValid !== undefined) first.hiValid = def.hiValid;
     }
   }
   const collisions: TestDefCollision[] = [...statedByTest.entries()].map(([testNumber, e]) => ({
@@ -789,6 +791,8 @@ export function toWmapTestDefs(testDefs: Record<string, TestDef>): WmapTestDef[]
     limitHigh: def.hiLimit,
     specLow: def.loSpec,
     specHigh: def.hiSpec,
+    validLow: def.loValid,
+    validHigh: def.hiValid,
     limitLowInclusive: def.loLimitInclusive,
     limitHighInclusive: def.hiLimitInclusive,
     testType: def.testType,
@@ -848,7 +852,7 @@ export function applyTestOverrides(
     // override's limits to the data's unit and keeps it; any other difference is
     // applied as given and reported. With no unit in the data, the override's
     // unit simply names it.
-    let { loLimit, hiLimit, loSpec, hiSpec, units } = ov;
+    let { loLimit, hiLimit, loSpec, hiSpec, loValid, hiValid, units } = ov;
     const ovUnit = units?.trim(), dataUnit = testDefs[key].units?.trim();
     if (ovUnit && dataUnit && ovUnit !== dataUnit) {
       const k = unitShift(ovUnit, dataUnit);
@@ -857,6 +861,8 @@ export function applyTestOverrides(
         if (hiLimit !== undefined) hiLimit = shiftUnit(hiLimit, k);
         if (loSpec !== undefined) loSpec = shiftUnit(loSpec, k);
         if (hiSpec !== undefined) hiSpec = shiftUnit(hiSpec, k);
+        if (loValid !== undefined) loValid = shiftUnit(loValid, k);
+        if (hiValid !== undefined) hiValid = shiftUnit(hiValid, k);
         units = undefined;
       }
       unitNotes?.push({ testNumber: key, overrideUnit: ovUnit, dataUnit, converted: k !== undefined });
@@ -876,6 +882,8 @@ export function applyTestOverrides(
       ...(allowLimits && hiLimit !== undefined ? { hiLimit } : {}),
       ...(allowLimits && loSpec !== undefined ? { loSpec } : {}),
       ...(allowLimits && hiSpec !== undefined ? { hiSpec } : {}),
+      ...(allowLimits && loValid !== undefined ? { loValid } : {}),
+      ...(allowLimits && hiValid !== undefined ? { hiValid } : {}),
       ...(units !== undefined ? { units } : {}),
       ...(ov.testType !== undefined ? { testType: ov.testType } : {}),
     };
@@ -905,6 +913,8 @@ export function diffTestOverride(current: TestDef, original: TestDef): TestOverr
   if (current.hiLimit !== original.hiLimit) ov.hiLimit = current.hiLimit;
   if (current.loSpec !== original.loSpec) ov.loSpec = current.loSpec;
   if (current.hiSpec !== original.hiSpec) ov.hiSpec = current.hiSpec;
+  if (current.loValid !== original.loValid) ov.loValid = current.loValid;
+  if (current.hiValid !== original.hiValid) ov.hiValid = current.hiValid;
   if (current.units !== original.units) ov.units = current.units;
   if (current.testType !== original.testType) ov.testType = current.testType;
   return Object.keys(ov).length ? ov : undefined;

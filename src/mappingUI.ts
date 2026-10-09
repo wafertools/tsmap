@@ -43,6 +43,9 @@ export interface CsvMapping {
    *  LO_SPEC/HI_SPEC) — a separate pair from the test limits, never mixed. */
   loSpecCol?: string | null;
   hiSpecCol?: string | null;
+  /** Long-format only: validity limits (`lvl`/`uvl`) — the range a real measurement lies in. */
+  loValidCol?: string | null;
+  hiValidCol?: string | null;
   unitsCol: string | null;
   passBins: number[];
 }
@@ -62,7 +65,7 @@ export interface HeadersResult {
  *  string-typed column (per `HeadersResult.columnTypes`) is very likely a
  *  mistake — flagged, not blocked, since a numeric-looking string still
  *  parses fine (same leniency the Rust side applies). */
-const NUMERIC_ROLES = new Set<ColRole>(['x', 'y', 'hbin', 'sbin', 'site', 'test', 'testnumber', 'testvalue', 'loLimit', 'hiLimit', 'loSpec', 'hiSpec']);
+const NUMERIC_ROLES = new Set<ColRole>(['x', 'y', 'hbin', 'sbin', 'site', 'test', 'testnumber', 'testvalue', 'loLimit', 'hiLimit', 'loSpec', 'hiSpec', 'loValid', 'hiValid']);
 
 /** Whether a role assigned to a column should show the type-mismatch hint —
  *  shared by the initial row render and the role-change handler so the two
@@ -74,7 +77,7 @@ export function isTypeMismatch(role: ColRole, colType: 'number' | 'bool' | 'stri
 
 // ── Column role detection — mirrors showcase detectRole ───────────────────────
 
-type ColRole = 'x' | 'y' | 'hbin' | 'sbin' | 'wafer' | 'lot' | 'site' | 'testname' | 'testnumber' | 'testvalue' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'units' | 'test' | 'metadata' | '';
+type ColRole = 'x' | 'y' | 'hbin' | 'sbin' | 'wafer' | 'lot' | 'site' | 'testname' | 'testnumber' | 'testvalue' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'loValid' | 'hiValid' | 'units' | 'test' | 'metadata' | '';
 
 const EXACT_ROLES: { role: ColRole; patterns: string[] }[] = [
   { role: 'x',         patterns: ['x','die_x','x_loc','xloc','col','column','step_x','stepx','diex','xstep','x_step','xcoord','x_coord','xpos','x_pos','chip_x','chipx','position_x','positionx'] },
@@ -313,6 +316,8 @@ const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
   { value: 'hiLimit',   label: 'High test limit (long format)' },
   { value: 'loSpec',    label: 'Low spec limit / LSL (long format)' },
   { value: 'hiSpec',    label: 'High spec limit / USL (long format)' },
+  { value: 'loValid',   label: 'Low validity limit / LVL (long format)' },
+  { value: 'hiValid',   label: 'High validity limit / UVL (long format)' },
   { value: 'units',     label: 'Units (long format)' },
   { value: 'metadata',  label: 'Display info' },
   { value: '',          label: '— ignore —' },
@@ -326,7 +331,7 @@ const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
  * genuinely many-per-file roles.
  */
 const SINGLE_VALUE_ROLES: ReadonlyArray<ColRole> =
-  ['x', 'y', 'hbin', 'sbin', 'wafer', 'lot', 'site', 'testname', 'testnumber', 'testvalue', 'loLimit', 'hiLimit', 'loSpec', 'hiSpec', 'units'];
+  ['x', 'y', 'hbin', 'sbin', 'wafer', 'lot', 'site', 'testname', 'testnumber', 'testvalue', 'loLimit', 'hiLimit', 'loSpec', 'hiSpec', 'loValid', 'hiValid', 'units'];
 
 function roleLabel(role: ColRole): string {
   return ROLE_OPTIONS.find(o => o.value === role)?.label ?? role;
@@ -392,6 +397,7 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
   let testnameCol: string | null = null, testnumberCol: string | null = null, testvalueCol: string | null = null;
   let loLimitCol: string | null = null, hiLimitCol: string | null = null, unitsCol: string | null = null;
   let loSpecCol: string | null = null, hiSpecCol: string | null = null;
+  let loValidCol: string | null = null, hiValidCol: string | null = null;
   const tests: CsvTestCol[] = [];
   const meta: string[] = [];
   const splitBy: string[] = [];
@@ -424,6 +430,8 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
     else if (role === 'hiLimit') hiLimitCol = col;
     else if (role === 'loSpec')  loSpecCol = col;
     else if (role === 'hiSpec')  hiSpecCol = col;
+    else if (role === 'loValid') loValidCol = col;
+    else if (role === 'hiValid') hiValidCol = col;
     else if (role === 'units')   unitsCol = col;
     else if (role === 'test') {
       const nameInput = tr.querySelector<HTMLInputElement>('input[type="text"]');
@@ -441,7 +449,7 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
 
   return {
     x, y, hbin, sbin, wafer, lot, site, tests, meta, splitBy, testnameCol, testnumberCol, testvalueCol,
-    loLimitCol, hiLimitCol, loSpecCol, hiSpecCol, unitsCol,
+    loLimitCol, hiLimitCol, loSpecCol, hiSpecCol, loValidCol, hiValidCol, unitsCol,
     passBins: passBins.length ? passBins : [1],
   };
 }
@@ -552,6 +560,8 @@ export async function showMappingOverlay(
     if (saved.hiLimitCol) savedRoles[saved.hiLimitCol] = 'hiLimit';
     if (saved.loSpecCol)  savedRoles[saved.loSpecCol]  = 'loSpec';
     if (saved.hiSpecCol)  savedRoles[saved.hiSpecCol]  = 'hiSpec';
+    if (saved.loValidCol) savedRoles[saved.loValidCol] = 'loValid';
+    if (saved.hiValidCol) savedRoles[saved.hiValidCol] = 'hiValid';
     if (saved.unitsCol)   savedRoles[saved.unitsCol]   = 'units';
     saved.tests?.forEach(t => { savedRoles[t.col] = 'test'; });
     saved.meta?.forEach(c  => { savedRoles[c] = 'metadata'; });

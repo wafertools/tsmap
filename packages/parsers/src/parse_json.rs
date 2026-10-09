@@ -93,6 +93,8 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                     order: Some(i as u32),
                     lo_spec: None,
                     hi_spec: None,
+                    lo_valid: None,
+                    hi_valid: None,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 },
@@ -170,6 +172,8 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                 let hi_limit = mapping.hi_limit_col.as_deref().and_then(|c| cell_f64(row, c));
                 let lo_spec = mapping.lo_spec_col.as_deref().and_then(|c| cell_f64(row, c));
                 let hi_spec = mapping.hi_spec_col.as_deref().and_then(|c| cell_f64(row, c));
+                let lo_valid = mapping.lo_valid_col.as_deref().and_then(|c| cell_f64(row, c));
+                let hi_valid = mapping.hi_valid_col.as_deref().and_then(|c| cell_f64(row, c));
                 let units = mapping.units_col.as_deref()
                     .map(|c| cell_text(row, c)).filter(|s| !s.is_empty());
                 // No name column (or this row's name cell was empty): the
@@ -182,6 +186,8 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                     order: Some(order),
                     lo_spec,
                     hi_spec,
+                    lo_valid,
+                    hi_valid,
                     lo_limit_inclusive: None,
                     hi_limit_inclusive: None,
                 });
@@ -439,7 +445,7 @@ mod tests {
             hbin: None, sbin: None, wafer: None, lot: None, site: None,
             tests: vec![], meta: vec![], split_by: vec![],
             testname_col: None, testnumber_col: None, testvalue_col: None,
-            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, units_col: None,
+            lo_limit_col: None, hi_limit_col: None, lo_spec_col: None, hi_spec_col: None, lo_valid_col: None, hi_valid_col: None, units_col: None,
             pass_bins: vec![],
         }
     }
@@ -597,6 +603,24 @@ mod tests {
         let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
         assert_eq!(result.wafers[0].results.len(), 2);
         assert_eq!(result.test_defs.len(), 2);
+    }
+
+    #[test]
+    fn long_format_reads_validity_limits() {
+        let json = r#"[
+            {"x":0,"y":0,"test":"Vt","val":1.1,"lvl":-100,"uvl":100},
+            {"x":1,"y":0,"test":"Vt","val":9.99e9,"lvl":-100,"uvl":100}
+        ]"#;
+        let path = tmp(json);
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test".to_string());
+        m.testvalue_col = Some("val".to_string());
+        m.lo_valid_col = Some("lvl".to_string());
+        m.hi_valid_col = Some("uvl".to_string());
+        let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
+        let vt = result.test_defs.values().find(|d| d.name == "Vt").unwrap();
+        assert_eq!((vt.lo_valid, vt.hi_valid), (Some(-100.0), Some(100.0)));
+        assert_eq!((vt.lo_limit, vt.hi_limit, vt.lo_spec, vt.hi_spec), (None, None, None, None));
     }
 
     #[test]

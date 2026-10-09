@@ -170,6 +170,14 @@ pub struct TestDef {
     pub lo_spec: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hi_spec: Option<f64>,
+    /// Validity limits: the range a real measurement lies in. A value outside it
+    /// is a tester clamp, not a reading. Only CSV/JSON/Parquet files carry them
+    /// (STDF and ATDF have no field for them); a third kind beside the test and
+    /// spec limits, never read as either.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lo_valid: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hi_valid: Option<f64>,
     /// `Some(false)` when a result equal to the low test limit FAILS (STDF
     /// `PARM_FLG` bit 6 clear, ATDF Limit Compare `L`). `None` = it passes.
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -90,6 +90,12 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     scope: 'both',
   },
   {
+    key: 'tsmap:value-filter',
+    label: 'Value filter',
+    description: 'Which limit set a test value must lie inside to be used, set in Exclude values outside limits.',
+    scope: 'both',
+  },
+  {
     key: 'tsmap:map-colors',
     label: 'Wafer map colours',
     description: 'The bin and value colour schemes you picked on a wafer map, and whether colours from a bin definitions file are used.',

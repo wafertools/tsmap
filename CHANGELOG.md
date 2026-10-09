@@ -4,6 +4,24 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [Unreleased]
+
+### Added
+
+- **Validity limits, and Exclude values outside limits.** A long-format CSV, JSON or Parquet file, or a test-definitions file, can carry
+  validity limits (`lvl`/`uvl`, saved as `loValid`/`hiValid`): the range a real measurement lies in, a third kind beside the test and
+  spec limits. They can be mapped in the column mapping. **Setup ▾ → Exclude values outside limits…** chooses which limit set a value
+  must lie inside to be used: validity limits (the default, which only affects tests that have them), spec limits, test limits, or off.
+  An excluded value is treated as missing in the map, statistics and charts, and counted wherever a population is shown. Bins and the
+  tester's recorded pass/fail are unchanged. An override's validity limits follow its units when they are converted.
+- **A sample lot with validity limits.** `sample_data/VALID-LOT-09.csv` (written by `scripts/generate_validity_csv.py`) is a long-format file with test
+  limits and validity limits in which a few readings per test are tester clamps, so **Exclude values outside limits…** has something to exclude. It and the
+  retest and multi-project samples are also available to download from the web page, and the user guide has a table saying what each sample file shows.
+- **Validity limits in a test-definitions file.** The `loValid` and `hiValid` columns (or `lvl` and `uvl`) are documented beside the test and spec limits, and
+  the user guide and use cases explain Exclude values outside limits.
+- **The limit set is listed in Help → Reset saved settings….** The choice made in Exclude values outside limits is remembered between sessions, like the reticle, and
+  can be forgotten from the same dialog.
+
 ## [0.1.45] — 2026-10-06
 
 ### Changed
