@@ -1503,7 +1503,8 @@ and the header names that are filled in automatically.
 | **Wafer ID** | Identifies which wafer each row belongs to; splits rows into separate wafer maps |
 | **Lot ID** | Lot identifier. Map it whenever the file can hold more than one lot: each wafer is identified by lot **and** wafer ID, so two lots' W01 stay two separate wafers. |
 | **Test site** | Parallel-test site number for each die (the STDF `site_num` equivalent). Dies from all sites share one wafer map; the site appears in the die hover tooltip and can be used as a chart grouping/colour dimension. Numeric values only. |
-| **Test value** | Numeric test result (wide format — one column per test); the **Test name** field to the right sets the display name for that test. If the column's own header is itself a bare number (e.g. `1001`), that real number is used as the test's identity instead of a generated one |
+| **Test value** | Numeric test result (wide format — one column per test); the **Test name** field to the right sets the display name for that test. If the column's own header is itself a bare number (e.g. `1001`), that real number is used as the test's identity instead of a generated one. The same goes for a number written into the name, such as `Test 2001` or `test_07 (mV)`, when every test column has one and no two are the same; bracketed text such as units is ignored, and a number that is part of a quantity (`Gain 3dB`, `Vdd 1.8`) does not count |
+| **Pass/fail test** | A column of verdicts rather than measurements (wide format, like **Test value**): `PASS`/`FAIL` or `P`/`F` in any case. The test name and number follow the same rules as a test value. Each die records a pass or a fail for the test (a blank cell records nothing), the test is a *functional* test, and it appears under Verdicts and Functional rather than with the measured values. A column holding only `PASS`/`FAIL` (or `P`/`F`) in its first rows is chosen automatically. Parquet and JSON booleans and `1`/`0` are read as verdicts when you choose this role by hand |
 | **Test name (long format)** | Column containing the test name in a long/pivot layout. Optional if **Test number** is set instead — a file with only real test numbers and no descriptive names is fully supported; the number is used as the display name in that case |
 | **Test number (long format)** | Column containing the test's real number in a long/pivot layout. Optional alongside **Test name** — set alone (no name column at all) or together (real number, given name). At least one of **Test name**/**Test number** is required, along with **Test result** |
 | **Test result (long format)** | Column containing the numeric result in a long/pivot layout |
@@ -1557,6 +1558,8 @@ program, recipe, burn-in or stress time, slot, station, revision and similar com
 info**, not as tests. A bare `Temp Sensor 1` or `Frequency` stays a test, since it can be a
 measurement. **Test value** itself has no fixed name list for this reason:
 it's the fallback role for a numeric column nothing else claimed, not a pattern match.
+A column whose filled cells are all `PASS`/`FAIL` (or `P`/`F`) is a **Pass/fail test**. A column of `true`/`false` or `1`/`0` is left for you to
+choose, since a flag or a count is as likely as a verdict.
 A role that takes one column (X, Y, bins, wafer, lot, site and the long-format columns) is given to
 the best match only. When two columns look like the same role, the stronger match keeps it, the
 earlier column wins a tie, and the other becomes **Display info** with a note saying why.

@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use crate::types::*;
-use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
+use crate::flat_wafers::{FlatRow, split_parts, into_parsed, parse_verdict};
 use crate::parse_csv::CsvMapping;
 use crate::error::{ParseError, ParseResult};
 
@@ -77,30 +77,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
     // is the one thing only Rust can supply here: the column's position in
     // this array, i.e. the file's own column order, independent of whatever
     // number the hash produced.
-    let mut test_defs: HashMap<String, TestDef> = mapping
-        .tests
-        .iter()
-        .enumerate()
-        .map(|(i, t)| {
-            (
-                t.test_number.to_string(),
-                TestDef {
-                    name: t.name.clone(),
-                    test_type: "P".to_string(),
-                    lo_limit: None,
-                    hi_limit: None,
-                    units: None,
-                    order: Some(i as u32),
-                    lo_spec: None,
-                    hi_spec: None,
-                    lo_valid: None,
-                    hi_valid: None,
-                    lo_limit_inclusive: None,
-                    hi_limit_inclusive: None,
-                },
-            )
-        })
-        .collect();
+    let mut test_defs: HashMap<String, TestDef> = crate::flat_wafers::wide_test_defs(&mapping);
 
     if !is_long_format {
         // Wide-format fast path: each flattened row read once by mapped key.
@@ -136,7 +113,7 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
             hbin: int(&mapping.hbin),
             sbin: int(&mapping.sbin),
             site_num: int(&mapping.site),
-            tests: Vec::new(),
+            tests: Vec::new(), verdicts: Vec::new(),
         };
 
         let test_name = name_col.map(text).unwrap_or_default();
@@ -212,7 +189,9 @@ fn parse_json_wide(
     test_defs: HashMap<String, TestDef>,
 ) -> ParsedStdf {
     // (test number, source column) — resolved once, reused per row.
-    let test_cols: Vec<(u32, &str)> = mapping.tests.iter()
+    let test_cols: Vec<(u32, &str)> = mapping.tests.iter().filter(|t| !t.functional)
+        .map(|t| (t.test_number, t.col.as_str())).collect();
+    let verdict_cols: Vec<(u32, &str)> = mapping.tests.iter().filter(|t| t.functional)
         .map(|t| (t.test_number, t.col.as_str())).collect();
 
     let rows: Vec<FlatRow> = flat_rows.iter().map(|row| {
@@ -231,6 +210,9 @@ fn parse_json_wide(
             site_num: int(&mapping.site),
             tests: test_cols.iter()
                 .filter_map(|(t, c)| cell_f64(row, c).map(|v| (*t, v)))
+                .collect(),
+            verdicts: verdict_cols.iter()
+                .filter_map(|(t, c)| cell_verdict(row, c).map(|v| (*t, v)))
                 .collect(),
         }
     }).collect();
@@ -310,6 +292,17 @@ fn cell_f64(row: &Row, col: &str) -> Option<f64> {
     match row.get(col)? {
         Value::Number(n) => n.as_f64(),
         Value::String(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
+/// A cell as a recorded verdict: a JSON boolean, 1 or 0, or the words PASS/FAIL
+/// (see `parse_verdict`).
+fn cell_verdict(row: &Row, col: &str) -> Option<bool> {
+    match row.get(col)? {
+        Value::Bool(b) => Some(*b),
+        Value::Number(n) => n.as_i64().and_then(|n| parse_verdict(&n.to_string())),
+        Value::String(s) => parse_verdict(s),
         _ => None,
     }
 }
@@ -580,8 +573,8 @@ mod tests {
         let path = tmp(json);
         let mut m = basic_mapping("x", "y");
         m.tests = vec![
-            CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string() },
-            CsvTestCol { col: "t2".to_string(), test_number: 2, name: "T2".to_string() },
+            CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string(), functional: false },
+            CsvTestCol { col: "t2".to_string(), test_number: 2, name: "T2".to_string(), functional: false },
         ];
         let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
         let die = &result.wafers[0].results[0];
@@ -603,6 +596,31 @@ mod tests {
         let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
         assert_eq!(result.wafers[0].results.len(), 2);
         assert_eq!(result.test_defs.len(), 2);
+    }
+
+    #[test]
+    fn pass_fail_columns_are_functional_tests_with_recorded_verdicts() {
+        let json = r#"[
+            {"x":0,"y":0,"vt":1.5,"Test 2001":"PASS"},
+            {"x":1,"y":0,"vt":2.5,"Test 2001":"FAIL"},
+            {"x":2,"y":0,"vt":3.5,"Test 2001":null},
+            {"x":3,"y":0,"vt":4.5,"Test 2001":true},
+            {"x":4,"y":0,"vt":5.5,"Test 2001":0}
+        ]"#;
+        let path = tmp(json);
+        let mut m = basic_mapping("x", "y");
+        m.tests = vec![
+            CsvTestCol { col: "vt".to_string(), test_number: 1, name: "Vt".to_string(), functional: false },
+            CsvTestCol { col: "Test 2001".to_string(), test_number: 2001, name: "Test 2001".to_string(), functional: true },
+        ];
+        let r = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
+        assert_eq!(r.test_defs["2001"].test_type, "F");
+        assert_eq!(r.test_defs["1"].test_type, "P");
+        let d = &r.wafers[0].results;
+        let pass: Vec<Option<bool>> = d.iter().map(|x| x.test_pass.get("2001").copied()).collect();
+        assert_eq!(pass, vec![Some(true), Some(false), None, Some(true), Some(false)]);
+        assert!(d.iter().all(|x| !x.test_values.contains_key("2001")), "a verdict is not a measurement");
+        assert_eq!(d[1].test_values["1"], 2.5);
     }
 
     #[test]
@@ -723,9 +741,9 @@ mod tests {
         m.hbin = Some("hbin".to_string());
         m.sbin = Some("sbin".to_string());
         m.tests = vec![
-            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string() },
-            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string() },
-            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string() },
+            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string(), functional: false },
+            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string(), functional: false },
+            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string(), functional: false },
         ];
         let result = parse_json_sync(path.to_string(), m).unwrap();
         assert_eq!(result.wafers.len(), 3);
@@ -758,7 +776,7 @@ mod tests {
         m.tests = (0..n_tests)
             .map(|i| {
                 let num = 1000 + i as u32;
-                CsvTestCol { col: format!("t{num}"), name: format!("t{num}"), test_number: num }
+                CsvTestCol { col: format!("t{num}"), name: format!("t{num}"), test_number: num, functional: false }
             })
             .collect();
         m

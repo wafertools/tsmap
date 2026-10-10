@@ -83,7 +83,7 @@ user guide.
 
 ### Values that are not measurements
 
-A tester that runs out of range records its rail instead of a reading: a current held at the compliance clamp, an open-circuit
+A tester that runs out of range records its clamp value instead of a reading: a current held at the compliance clamp, an open-circuit
 value. One such value stretches the colour scale and drags the mean, the standard deviation and the Cpk. A test can carry
 **validity limits**, the range a real measurement lies in (from a long-format file's `lvl`/`uvl` columns or a test-definitions
 file), and **Setup ▾ → Exclude values outside limits…** chooses which limit set a value must lie inside to be used. An excluded

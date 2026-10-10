@@ -1,6 +1,6 @@
 import { columnsFromRows, recordOf } from './columns';
 import { describe, it, expect } from 'vitest';
-import { derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, webValueBudgetWarning, WEB_VALUE_BUDGET, shouldMountProgressively, GALLERY_PROGRESSIVE_DIE_THRESHOLD, errMsg, errCode, basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
+import { derivedNoneBuilt, definitionsAnchorOf, definitionsAnchorMismatch, webValueBudgetWarning, WEB_VALUE_BUDGET, shouldMountProgressively, GALLERY_PROGRESSIVE_DIE_THRESHOLD, errMsg, errCode, basename, toWmapTestDefs, unionTestDefs, unionBinInfo, autoPlotMode, applyTestSelection, applyTestOverrides, diffTestOverride, makeWaferSource, toWmapWaferMeta, wcrGeometryFrom, mergeBinDefs, mergePassHbins, toWaferData, stableTestNumber, testNumberForColumn, testNumberFromHeader, testNumbersForColumns, deriveFileName, isUrlImportFormat, effectiveFileExtension, checkSameExtension, formatFamily, isTesterExt, isAtdfExt } from './lib';
 import type { LotMeta, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 
 // ── basename ──────────────────────────────────────────────────────────────────
@@ -722,6 +722,50 @@ describe('stableTestNumber', () => {
     const b = stableTestNumber('GAIN_DB', usedB);
 
     expect(a).toBe(b);
+  });
+});
+
+// ── testNumberFromHeader / testNumbersForColumns ─────────────────────────────
+
+describe('testNumberFromHeader', () => {
+  it.each([
+    ['1001', 1001], ['Test 2001', 2001], ['test_07 (mV)', 7], ['T123_gain', 123], ['Test2001', 2001],
+    ['Vt [derived from 5, 6]', null], ['Vt [derived from 5, 6] 9', 9],
+  ])('%s -> %s', (h, n) => expect(testNumberFromHeader(h)).toBe(n));
+
+  it.each(['gain', 'Test 1 2', 'Gain 3dB', 'Idd 25C', 'Vdd 1.8', 'Vdd 1.8V', 'v1.2', '99999999999'])('%s states no number', h => {
+    expect(testNumberFromHeader(h)).toBeNull();
+  });
+});
+
+describe('testNumbersForColumns', () => {
+  it('uses the numbers the headers state when every column states one and they differ', () => {
+    expect(testNumbersForColumns(['test_01 (mV)', 'test_02 (mV)', 'Test 2001'])).toEqual([1, 2, 2001]);
+  });
+
+  it('is order-independent', () => {
+    expect(testNumbersForColumns(['Test 2001', 'test_01 (mV)'])).toEqual([2001, 1]);
+  });
+
+  it('uses none of them when one column states no number', () => {
+    const n = testNumbersForColumns(['test_01', 'test_02', 'gain']);
+    expect(n.every(v => v >= 1_000_000)).toBe(true);
+    expect(new Set(n).size).toBe(3);
+  });
+
+  it('uses none of them when two columns state the same number', () => {
+    const n = testNumbersForColumns(['Vt 5', 'Idsat_5']);
+    expect(n.every(v => v >= 1_000_000)).toBe(true);
+    expect(new Set(n).size).toBe(2);
+  });
+
+  it('numbers the exported die-list header (50 test_NN (mV) columns and Test 2001)', () => {
+    const cols = [...Array.from({ length: 50 }, (_, i) => `test_${String(i + 1).padStart(2, '0')} (mV)`), 'Test 2001'];
+    expect(testNumbersForColumns(cols)).toEqual([...Array.from({ length: 50 }, (_, i) => i + 1), 2001]);
+  });
+
+  it('keeps a bare numeric header', () => {
+    expect(testNumbersForColumns(['1001', '1002'])).toEqual([1001, 1002]);
   });
 });
 

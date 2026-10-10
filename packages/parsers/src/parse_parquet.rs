@@ -7,7 +7,7 @@ use parquet::schema::types::Type;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use crate::types::*;
-use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
+use crate::flat_wafers::{FlatRow, split_parts, into_parsed, parse_verdict};
 use crate::parse_csv::CsvMapping;
 use crate::error::{ParseError, ParseResult};
 
@@ -295,30 +295,7 @@ fn parse_from_reader<R: FileReader>(reader: &R, mapping: CsvMapping) -> ParseRes
     // hashed from the column's own key) — Rust just uses it as given. `order`
     // is the one thing only Rust can supply here: the column's position in
     // this array, i.e. the file's own column order.
-    let test_defs: HashMap<String, TestDef> = mapping
-        .tests
-        .iter()
-        .enumerate()
-        .map(|(i, t)| {
-            (
-                t.test_number.to_string(),
-                TestDef {
-                    name: t.name.clone(),
-                    test_type: "P".to_string(),
-                    lo_limit: None,
-                    hi_limit: None,
-                    units: None,
-                    order: Some(i as u32),
-                    lo_spec: None,
-                    hi_spec: None,
-                    lo_valid: None,
-                    hi_valid: None,
-                    lo_limit_inclusive: None,
-                    hi_limit_inclusive: None,
-                },
-            )
-        })
-        .collect();
+    let test_defs: HashMap<String, TestDef> = crate::flat_wafers::wide_test_defs(&mapping);
 
     let row_iter = reader.get_row_iter(None).map_err(ParseError::parquet_read)?;
     let is_long_format = (mapping.testname_col.is_some() || mapping.testnumber_col.is_some())
@@ -357,6 +334,21 @@ fn coerce_role_f64(field: Option<&Field>, role_key: &str, mismatches: &mut HashM
         *mismatches.entry(role_key.to_string()).or_insert(0) += 1;
     }
     None
+}
+
+/// A recorded verdict from a pass/fail column: a Parquet boolean, an integer 1 or 0,
+/// or the words PASS/FAIL (see `parse_verdict`). Blank is no verdict; a text
+/// cell that is none of these is counted like any other unusable value.
+fn coerce_verdict(field: Option<&Field>, role_key: &str, mismatches: &mut HashMap<String, u32>) -> Option<bool> {
+    let f = field?;
+    if is_blank(f) { return None; }
+    let v = match f {
+        Field::Bool(b) => Some(*b),
+        Field::Str(s) => parse_verdict(s),
+        other => field_to_f64(other).and_then(|n| parse_verdict(&n.to_string())),
+    };
+    if v.is_none() { *mismatches.entry(role_key.to_string()).or_insert(0) += 1; }
+    v
 }
 
 /// A whole number from a numeric role, or `None` — never truncated or clamped.
@@ -416,7 +408,9 @@ fn parse_wide_format(
     let wafer_i = opt_idx(&mapping.wafer);
     let lot_i = opt_idx(&mapping.lot);
     // (test number, its string key for mismatch messages, column index).
-    let test_i: Vec<(u32, String, usize)> = mapping.tests.iter()
+    let test_i: Vec<(u32, String, usize)> = mapping.tests.iter().filter(|t| !t.functional)
+        .filter_map(|t| idx(&t.col).map(|i| (t.test_number, t.test_number.to_string(), i))).collect();
+    let verdict_i: Vec<(u32, String, usize)> = mapping.tests.iter().filter(|t| t.functional)
         .filter_map(|t| idx(&t.col).map(|i| (t.test_number, t.test_number.to_string(), i))).collect();
     let meta_i: Vec<Option<usize>> = mapping.meta.iter().map(|c| idx(c)).collect();
 
@@ -433,6 +427,10 @@ fn parse_wide_format(
         for (t, key, i) in &test_i {
             if let Some(v) = coerce_role_f64(cell(*i), key, &mut mismatches) { tests.push((*t, v)); }
         }
+        let mut verdicts: Vec<(u32, bool)> = Vec::with_capacity(verdict_i.len());
+        for (t, key, i) in &verdict_i {
+            if let Some(v) = coerce_verdict(cell(*i), key, &mut mismatches) { verdicts.push((*t, v)); }
+        }
         let hbin = coerce_role_whole::<i64>(hbin_i.and_then(cell), "hbin", &mut mismatches);
         let sbin = coerce_role_whole::<i64>(sbin_i.and_then(cell), "sbin", &mut mismatches);
         let site_num = coerce_role_whole::<i64>(site_i.and_then(cell), "site", &mut mismatches);
@@ -446,7 +444,7 @@ fn parse_wide_format(
             wafer: text(wafer_i),
             split_parts: split_parts(&mapping.split_by, |c| text(idx(c))),
             meta: meta_i.iter().map(|i| text(*i)).collect(),
-            x, y, hbin, sbin, site_num, tests,
+            x, y, hbin, sbin, site_num, tests, verdicts,
         });
     }
 
@@ -492,7 +490,7 @@ fn parse_long_format(
             hbin: opt(&mapping.hbin).parse().ok(),
             sbin: opt(&mapping.sbin).parse().ok(),
             site_num: opt(&mapping.site).trim().parse().ok(),
-            tests: Vec::new(),
+            tests: Vec::new(), verdicts: Vec::new(),
         };
 
         let test_name = name_col.map(get).unwrap_or_default();
@@ -633,6 +631,62 @@ mod tests {
         buf
     }
 
+    /// A pass/fail column is a functional test whether the file stores it as text,
+    /// a boolean or an integer, and a null is no verdict.
+    #[test]
+    fn pass_fail_columns_are_functional_tests_with_recorded_verdicts() {
+        use parquet::data_type::BoolType;
+        let schema = Arc::new(parse_message_type(
+            "message schema { REQUIRED INT32 x; REQUIRED INT32 y; REQUIRED DOUBLE vt;
+                REQUIRED BYTE_ARRAY pf (UTF8); REQUIRED BOOLEAN ok; OPTIONAL INT32 bit; }",
+        ).unwrap());
+        let props = Arc::new(WriterProperties::builder().build());
+        let mut buf = Vec::new();
+        {
+            let mut writer = SerializedFileWriter::new(&mut buf, schema, props).unwrap();
+            let mut rg = writer.next_row_group().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<Int32Type>().write_batch(&[0, 1, 2], None, None).unwrap();
+            col.close().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<Int32Type>().write_batch(&[0, 0, 0], None, None).unwrap();
+            col.close().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<DoubleType>().write_batch(&[1.5, 2.5, 3.5], None, None).unwrap();
+            col.close().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            let words: Vec<ByteArray> = ["PASS", "FAIL", "pass"].iter().map(|w| ByteArray::from(w.as_bytes().to_vec())).collect();
+            col.typed::<ByteArrayType>().write_batch(&words, None, None).unwrap();
+            col.close().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<BoolType>().write_batch(&[true, false, true], None, None).unwrap();
+            col.close().unwrap();
+            let mut col = rg.next_column().unwrap().unwrap();
+            col.typed::<Int32Type>().write_batch(&[1, 0], Some(&[1, 1, 0]), None).unwrap();
+            col.close().unwrap();
+            rg.close().unwrap();
+            writer.close().unwrap();
+        }
+        let mut m = basic_mapping("x", "y");
+        m.tests = vec![
+            CsvTestCol { col: "vt".into(), test_number: 1, name: "Vt".into(), functional: false },
+            CsvTestCol { col: "pf".into(), test_number: 2001, name: "pf".into(), functional: true },
+            CsvTestCol { col: "ok".into(), test_number: 2002, name: "ok".into(), functional: true },
+            CsvTestCol { col: "bit".into(), test_number: 2003, name: "bit".into(), functional: true },
+        ];
+        let r = parse_parquet_from_bytes(&buf, m).unwrap();
+        for t in ["2001", "2002", "2003"] { assert_eq!(r.test_defs[t].test_type, "F", "{t}"); }
+        assert_eq!(r.test_defs["1"].test_type, "P");
+        let d = &r.wafers[0].results;
+        let col = |t: &str| d.iter().map(|x| x.test_pass.get(t).copied()).collect::<Vec<_>>();
+        assert_eq!(col("2001"), vec![Some(true), Some(false), Some(true)]);
+        assert_eq!(col("2002"), vec![Some(true), Some(false), Some(true)]);
+        assert_eq!(col("2003"), vec![Some(true), Some(false), None]);
+        assert!(d.iter().all(|x| !x.test_values.contains_key("2001")), "a verdict is not a measurement");
+        assert_eq!(d[2].test_values["1"], 3.5);
+        assert!(r.warnings.is_empty(), "{:?}", r.warnings.iter().map(|w| &w.message).collect::<Vec<_>>());
+    }
+
     /// Bins, sites and coordinates held as doubles are used only when they are
     /// whole numbers in range — never truncated (2.7 → 2) or wrapped (−1 → 0).
     #[test]
@@ -758,7 +812,7 @@ mod tests {
         let mut m = basic_mapping("x", "y");
         m.hbin = Some("hbin".into());
         m.site = Some("site".into());
-        m.tests = vec![CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string() }];
+        m.tests = vec![CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string(), functional: false }];
         let r = parse_parquet_from_bytes(&buf, m).unwrap();
         let dies = &r.wafers[0].results;
         assert_eq!((dies[0].x, dies[0].hbin, dies[0].site_num), (Some(0), None, None), "bin 40000 and site 300 are missing");
@@ -775,8 +829,8 @@ mod tests {
         m.hbin = Some("hbin".to_string());
         m.wafer = Some("wafer".to_string());
         m.tests = vec![
-            CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string() },
-            CsvTestCol { col: "t2".to_string(), test_number: 2, name: "T2".to_string() },
+            CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string(), functional: false },
+            CsvTestCol { col: "t2".to_string(), test_number: 2, name: "T2".to_string(), functional: false },
         ];
         m
     }
@@ -908,7 +962,7 @@ mod tests {
         // surfaced rather than a panic or a silently-zeroed value.
         let bytes = write_fixture(parquet::basic::Compression::UNCOMPRESSED);
         let mut m = basic_mapping("x", "y");
-        m.tests = vec![CsvTestCol { col: "wafer".to_string(), test_number: 99, name: "Bogus".to_string() }];
+        m.tests = vec![CsvTestCol { col: "wafer".to_string(), test_number: 99, name: "Bogus".to_string(), functional: false }];
         let result = parse_parquet_from_bytes(&bytes, m).unwrap();
         for die in &result.wafers[0].results {
             assert!(!die.test_values.contains_key("99"));
@@ -1157,9 +1211,9 @@ mod tests {
         m.hbin = Some("hbin".to_string());
         m.sbin = Some("sbin".to_string());
         m.tests = vec![
-            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string() },
-            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string() },
-            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string() },
+            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string(), functional: false },
+            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string(), functional: false },
+            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string(), functional: false },
         ];
         let result = parse_parquet_inner(path.to_string(), m).unwrap();
         assert_eq!(result.wafers.len(), 3);

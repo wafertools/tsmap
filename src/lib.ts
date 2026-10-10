@@ -535,6 +535,44 @@ export function testNumberForColumn(col: string, used: Set<number>): number {
 }
 
 /**
+ * The test number a column header states, or `null`: the one number in a name
+ * such as "Test 2001", "test_07 (mV)" or "T123_gain". Bracketed text (units,
+ * "[derived from …]") is ignored. A header with no number, more than one, or a
+ * number written into a quantity ("Gain 3dB", "Idd 25C", "Vdd 1.8") states none:
+ * a digit run followed by a letter, or part of a decimal, is not a test number.
+ * A bare number ("1001") is the plain case of the same rule.
+ */
+export function testNumberFromHeader(col: string): number | null {
+  const bare = col.replace(/\s*[([][^)\]]*[)\]]/g, ' ');
+  const runs = [...bare.matchAll(/\d+(?:\.\d+)?/g)];
+  if (runs.length !== 1) return null;
+  const [text] = runs[0];
+  if (!/^\d+$/.test(text)) return null;
+  if (/[A-Za-z]/.test(bare[runs[0].index! + text.length] ?? '')) return null;
+  const n = Number(text);
+  // Must fit the Rust side's u32 (test_number).
+  return n <= 0xFFFFFFFF ? n : null;
+}
+
+/**
+ * Wide-format test numbers for a mapping's test columns, in the order given.
+ * When every header states a number and the numbers are all different, those
+ * are the test numbers: "Test 2001" is test 2001, as a number written into the
+ * name is what the source system calls it. All or none: a file that names some
+ * tests by number and others not gets one scheme throughout, never a mixture
+ * that has to be explained. Otherwise each column falls back to
+ * `testNumberForColumn` (a bare numeric header as-is, else hashed).
+ */
+export function testNumbersForColumns(cols: readonly string[]): number[] {
+  const stated = cols.map(testNumberFromHeader);
+  if (cols.length > 0 && stated.every((n): n is number => n !== null) && new Set(stated).size === stated.length) {
+    return stated as number[];
+  }
+  const used = new Set<number>();
+  return cols.map(c => testNumberForColumn(c, used));
+}
+
+/**
  * Build a `WaferSource` provenance tag from a parsed file's lot metadata and
  * filename. One instance is created per loaded file and shared by reference
  * across all wafers it produced (see stamping in main.ts) — do not call this

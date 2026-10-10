@@ -66,6 +66,25 @@ describe('detectRole — limits / units', () => {
   });
 });
 
+describe('detectRole — pass/fail columns', () => {
+  const col = (v: string[]) => v.map(x => ({ c: x }));
+  it('a column of PASS/FAIL (or P/F, any case, blanks allowed) is a pass/fail test', () => {
+    expect(detectRole('c', col(['PASS', 'FAIL', '', 'pass']))).toBe('ftest');
+    expect(detectRole('c', col(['P', 'f']))).toBe('ftest');
+    expect(detectRole('Test 2001', [{ 'Test 2001': 'PASS' }])).toBe('ftest');
+  });
+  it('anything else in the sample keeps the column a value or display info', () => {
+    expect(detectRole('c', col(['PASS', 'maybe']))).toBe('metadata');
+    expect(detectRole('c', col(['1', '0']))).toBe('test');
+    expect(detectRole('c', col(['true', 'false']))).toBe('metadata');
+    expect(detectRole('c', col(['', '']))).toBe('metadata');
+  });
+  it('does not take a column that already has a stronger role', () => {
+    expect(detectRole('Test Temp', col(['PASS']))).toBe('metadata');
+    expect(detectRole('Operator', col(['P']))).toBe('metadata');
+  });
+});
+
 describe('detectRole — long-format identity/value columns', () => {
   // `test_val` is the real-world regression: correlated_long.csv (a bundled
   // fixture) uses this exact header, which matched no EXACT_ROLES pattern

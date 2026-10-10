@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use crate::types::*;
 use crate::sample::HEAD_ROWS;
-use crate::flat_wafers::{FlatRow, split_parts, into_parsed};
+use crate::flat_wafers::{FlatRow, split_parts, into_parsed, parse_verdict};
 use crate::error::{ParseError, ParseResult};
 
 #[derive(Serialize)]
@@ -21,6 +21,13 @@ pub struct CsvTestCol {
     pub col: String,
     pub test_number: u32,
     pub name: String,
+    /// A pass/fail column (PASS/FAIL, P/F, true/false, 1/0), not a measurement:
+    /// its test is functional (`"F"`), and each cell is a recorded verdict on
+    /// the die, kept in `test_pass` with no `test_values` entry — as for a
+    /// functional (FTR) test in STDF. `#[serde(default)]` so older saved
+    /// mapping payloads without the field still deserialize.
+    #[serde(default)]
+    pub functional: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -243,30 +250,7 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
     // is the one thing only Rust can supply here: the column's position in
     // this array, i.e. the file's own column order, independent of whatever
     // number the hash produced.
-    let mut test_defs: HashMap<String, TestDef> = mapping
-        .tests
-        .iter()
-        .enumerate()
-        .map(|(i, t)| {
-            (
-                t.test_number.to_string(),
-                TestDef {
-                    name: t.name.clone(),
-                    test_type: "P".to_string(),
-                    lo_limit: None,
-                    hi_limit: None,
-                    units: None,
-                    order: Some(i as u32),
-                    lo_spec: None,
-                    hi_spec: None,
-                    lo_valid: None,
-                    hi_valid: None,
-                    lo_limit_inclusive: None,
-                    hi_limit_inclusive: None,
-                },
-            )
-        })
-        .collect();
+    let mut test_defs: HashMap<String, TestDef> = crate::flat_wafers::wide_test_defs(&mapping);
 
     // Records are streamed through one buffer, never collected: holding the
     // whole file as text records beside the rows built from them was most of a
@@ -313,7 +297,7 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
             hbin: opt(&mapping.hbin).parse().ok(),
             sbin: opt(&mapping.sbin).parse().ok(),
             site_num: opt(&mapping.site).parse().ok(),
-            tests: Vec::new(),
+            tests: Vec::new(), verdicts: Vec::new(),
         };
 
         let test_name = name_col.map(|c| get(rec, c)).unwrap_or_default();
@@ -413,7 +397,10 @@ fn parse_csv_wide<R: Read>(
     let lot_i = opt_idx(&mapping.lot);
     let meta_i: Vec<Option<usize>> = mapping.meta.iter().map(|c| idx(c)).collect();
     // (test number, column index) — resolved once, reused per row.
-    let test_i: Vec<(u32, usize)> = mapping.tests.iter()
+    let test_i: Vec<(u32, usize)> = mapping.tests.iter().filter(|t| !t.functional)
+        .filter_map(|t| idx(&t.col).map(|i| (t.test_number, i))).collect();
+    // Pass/fail columns: the same, read as verdicts rather than numbers.
+    let verdict_i: Vec<(u32, usize)> = mapping.tests.iter().filter(|t| t.functional)
         .filter_map(|t| idx(&t.col).map(|i| (t.test_number, i))).collect();
 
     fn cell(rec: &csv::StringRecord, i: usize) -> &str { rec.get(i).unwrap_or("").trim() }
@@ -431,6 +418,8 @@ fn parse_csv_wide<R: Read>(
             let s = cell(rec, *i);
             if !s.is_empty() { if let Ok(v) = s.parse::<f64>() { tests.push((*t, v)); } }
         }
+        let verdicts: Vec<(u32, bool)> = verdict_i.iter()
+            .filter_map(|(t, i)| parse_verdict(cell(rec, *i)).map(|v| (*t, v))).collect();
         rows.push(FlatRow {
             lot: cell_opt(rec, lot_i).to_string(),
             wafer: cell_opt(rec, wafer_i).to_string(),
@@ -441,7 +430,7 @@ fn parse_csv_wide<R: Read>(
             hbin: hbin_i.and_then(|i| cell(rec, i).parse().ok()),
             sbin: sbin_i.and_then(|i| cell(rec, i).parse().ok()),
             site_num: site_i.and_then(|i| cell(rec, i).parse().ok()),
-            tests,
+            tests, verdicts,
         });
     }
 
@@ -704,8 +693,8 @@ mod tests {
         let path = tmp(csv);
         let mut m = basic_mapping("x", "y");
         m.tests = vec![
-            CsvTestCol { col: "t1".to_string(), test_number: 1, name: "Test1".to_string() },
-            CsvTestCol { col: "t2".to_string(), test_number: 2, name: "Test2".to_string() },
+            CsvTestCol { col: "t1".to_string(), test_number: 1, name: "Test1".to_string(), functional: false },
+            CsvTestCol { col: "t2".to_string(), test_number: 2, name: "Test2".to_string(), functional: false },
         ];
         let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
         let die = &result.wafers[0].results[0];
@@ -719,10 +708,39 @@ mod tests {
         let csv = "x,y,t1\n0,0,n/a\n1,0,2.5\n";
         let path = tmp(csv);
         let mut m = basic_mapping("x", "y");
-        m.tests = vec![CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string() }];
+        m.tests = vec![CsvTestCol { col: "t1".to_string(), test_number: 1, name: "T1".to_string(), functional: false }];
         let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
         assert!(!result.wafers[0].results[0].test_values.contains_key("1"));
         assert!((result.wafers[0].results[1].test_values["1"] - 2.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn pass_fail_columns_are_functional_tests_with_recorded_verdicts() {
+        let csv = "x,y,vt,Test 2001\n0,0,1.5,PASS\n1,0,2.5,FAIL\n2,0,3.5,\n3,0,4.5,p\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.tests = vec![
+            CsvTestCol { col: "vt".to_string(), test_number: 1, name: "Vt".to_string(), functional: false },
+            CsvTestCol { col: "Test 2001".to_string(), test_number: 2001, name: "Test 2001".to_string(), functional: true },
+        ];
+        let r = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        assert_eq!(r.test_defs["2001"].test_type, "F");
+        assert_eq!(r.test_defs["1"].test_type, "P");
+        let d = &r.wafers[0].results;
+        assert_eq!(d[0].test_pass.get("2001").copied(), Some(true));
+        assert_eq!(d[1].test_pass.get("2001").copied(), Some(false));
+        assert_eq!(d[2].test_pass.get("2001").copied(), None, "a blank cell is no verdict");
+        assert_eq!(d[3].test_pass.get("2001").copied(), Some(true));
+        assert!(!d[0].test_values.contains_key("2001"), "a verdict is not a measurement");
+        assert!(d[0].test_pass.get("1").is_none(), "a parametric column records no verdict");
+        assert_eq!(d[1].test_values["1"], 2.5);
+    }
+
+    #[test]
+    fn parse_verdict_reads_words_letters_booleans_and_digits() {
+        for t in ["PASS", "pass", "P", "p", "TRUE", "true", "1", " Pass "] { assert_eq!(parse_verdict(t), Some(true), "{t}"); }
+        for t in ["FAIL", "fail", "F", "f", "FALSE", "false", "0"] { assert_eq!(parse_verdict(t), Some(false), "{t}"); }
+        for t in ["", "n/a", "2", "1.5", "passed"] { assert_eq!(parse_verdict(t), None, "{t}"); }
     }
 
     #[test]
@@ -851,7 +869,7 @@ mod tests {
         let csv = "x,y,fixed_test,test_name,test_val\n0,0,9.9,Vt,1.1\n0,0,9.9,Idsat,2.2\n";
         let path = tmp(csv);
         let mut m = basic_mapping("x", "y");
-        m.tests = vec![CsvTestCol { col: "fixed_test".to_string(), test_number: 1_500_000, name: "Fixed".to_string() }];
+        m.tests = vec![CsvTestCol { col: "fixed_test".to_string(), test_number: 1_500_000, name: "Fixed".to_string(), functional: false }];
         m.testname_col = Some("test_name".to_string());
         m.testvalue_col = Some("test_val".to_string());
         let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
@@ -1063,7 +1081,7 @@ mod tests {
         m.tests = (0..n_tests)
             .map(|i| {
                 let num = 1000 + i as u32;
-                CsvTestCol { col: format!("t{num}"), name: format!("t{num}"), test_number: num }
+                CsvTestCol { col: format!("t{num}"), name: format!("t{num}"), test_number: num, functional: false }
             })
             .collect();
         m
@@ -1080,9 +1098,9 @@ mod tests {
         m.hbin = Some("hbin".to_string());
         m.sbin = Some("sbin".to_string());
         m.tests = vec![
-            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string() },
-            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string() },
-            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string() },
+            CsvTestCol { col: "3001".to_string(), test_number: 3001, name: "3001".to_string(), functional: false },
+            CsvTestCol { col: "3002".to_string(), test_number: 3002, name: "3002".to_string(), functional: false },
+            CsvTestCol { col: "3003".to_string(), test_number: 3003, name: "3003".to_string(), functional: false },
         ];
         let result = parse_csv_inner(path.to_string(), m).unwrap();
         assert_eq!(result.wafers.len(), 3);

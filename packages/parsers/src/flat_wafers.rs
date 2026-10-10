@@ -43,6 +43,35 @@ pub struct FlatRow {
     pub site_num: Option<i64>,
     /// Wide: every mapped test column that parsed. Long: this row's one test.
     pub tests: Vec<(u32, f64)>,
+    /// Wide: every mapped pass/fail column that held a verdict (true = pass).
+    /// Long: empty.
+    pub verdicts: Vec<(u32, bool)>,
+}
+
+/// A recorded verdict from a cell's text: PASS/FAIL, P/F, true/false or 1/0,
+/// any case. `None` for anything else, blank included. The one rule for every
+/// flat format; Parquet and JSON add their native booleans and numbers.
+pub fn parse_verdict(s: &str) -> Option<bool> {
+    let t = s.trim();
+    if t.eq_ignore_ascii_case("pass") || t.eq_ignore_ascii_case("p") || t.eq_ignore_ascii_case("true") || t == "1" { Some(true) }
+    else if t.eq_ignore_ascii_case("fail") || t.eq_ignore_ascii_case("f") || t.eq_ignore_ascii_case("false") || t == "0" { Some(false) }
+    else { None }
+}
+
+/// The test definitions of a wide-format mapping, in column order. Shared by
+/// CSV, JSON and Parquet so a column is described the same way in all three:
+/// a pass/fail column is a functional test (`"F"`), the rest are parametric
+/// (`"P"`). `order` is the column's position in the mapping, independent of
+/// the number it was given.
+pub fn wide_test_defs(mapping: &CsvMapping) -> HashMap<String, TestDef> {
+    mapping.tests.iter().enumerate().map(|(i, t)| {
+        (t.test_number.to_string(), TestDef {
+            name: t.name.clone(),
+            test_type: if t.functional { "F" } else { "P" }.to_string(),
+            order: Some(i as u32),
+            ..TestDef::default()
+        })
+    }).collect()
 }
 
 /// `"col: value"` parts for the mapping's "Subdivide file by" columns.
@@ -260,6 +289,7 @@ fn build_wafer(wafer_id: String, rows: Vec<FlatRow>, long_format: bool, pass_bin
             d.sbin = d.sbin.or(r.sbin.map(|b| b as u32));
             d.site_num = d.site_num.or(r.site_num.map(|s| s as u32));
             for &(t, v) in &r.tests { d.test_values.insert(t, v); }
+            for &(t, v) in &r.verdicts { d.test_pass.insert(t, v); }
         }
     } else {
         dies.reserve_exact(rows.len());
@@ -271,6 +301,7 @@ fn build_wafer(wafer_id: String, rows: Vec<FlatRow>, long_format: bool, pass_bin
             // A wide row has one entry per mapped column, so its test numbers are
             // distinct: its list becomes the die's as it is, with no copy.
             d.test_values = TestMap::from_distinct(r.tests);
+            d.test_pass = TestMap::from_distinct(r.verdicts);
             dies.push(d);
         }
     }
@@ -314,7 +345,7 @@ mod tests {
             lot: lot.into(), wafer: wafer.into(), split_parts: vec![],
             meta: meta.iter().map(|s| s.to_string()).collect(),
             x: Some(i64::from(x)), y: Some(0), hbin: Some(1), sbin: None, site_num: None,
-            tests: tests.to_vec(),
+            tests: tests.to_vec(), verdicts: Vec::new(),
         }
     }
 
@@ -459,7 +490,7 @@ mod tests {
         let mut m = mapping(&[], false);
         m.sbin = Some("sbin".into());
         m.site = Some("site".into());
-        m.tests = vec![crate::parse_csv::CsvTestCol { col: "t1".into(), test_number: 1, name: "T1".into() }];
+        m.tests = vec![crate::parse_csv::CsvTestCol { col: "t1".into(), test_number: 1, name: "T1".into(), functional: false }];
         m
     }
 

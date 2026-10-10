@@ -1,7 +1,7 @@
 // Column mapping overlay — shown after csv_headers, before parse_csv.
 // Mirrors the wmap showcase mapping phase.
 
-import { escapeHtml as esc, testNumberForColumn } from './lib';
+import { escapeHtml as esc, testNumbersForColumns } from './lib';
 import { upgradeTitleTooltips } from './tooltip';
 import { openModal } from './modal';
 import { parseBinDefsFile, type BinDefEntry } from './binDefs';
@@ -12,6 +12,8 @@ export interface CsvTestCol {
   col: string;
   testNumber: number;
   name: string;
+  /** A pass/fail column: a functional test whose cells are verdicts, not measurements. */
+  functional?: boolean;
 }
 
 export interface CsvMapping {
@@ -77,7 +79,7 @@ export function isTypeMismatch(role: ColRole, colType: 'number' | 'bool' | 'stri
 
 // ── Column role detection — mirrors showcase detectRole ───────────────────────
 
-type ColRole = 'x' | 'y' | 'hbin' | 'sbin' | 'wafer' | 'lot' | 'site' | 'testname' | 'testnumber' | 'testvalue' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'loValid' | 'hiValid' | 'units' | 'test' | 'metadata' | '';
+type ColRole = 'x' | 'y' | 'hbin' | 'sbin' | 'wafer' | 'lot' | 'site' | 'testname' | 'testnumber' | 'testvalue' | 'loLimit' | 'hiLimit' | 'loSpec' | 'hiSpec' | 'loValid' | 'hiValid' | 'units' | 'test' | 'ftest' | 'metadata' | '';
 
 const EXACT_ROLES: { role: ColRole; patterns: string[] }[] = [
   { role: 'x',         patterns: ['x','die_x','x_loc','xloc','col','column','step_x','stepx','diex','xstep','x_step','xcoord','x_coord','xpos','x_pos','chip_x','chipx','position_x','positionx'] },
@@ -200,6 +202,14 @@ const RANK = { exact: 0, limit: 1, regex: 2, words: 3, generic: 4, fallback: 5 }
 const GENERIC_NAMES = new Set(['bin', 'col', 'column', 'row', 'value', 'val', 'result']);
 interface Detection { role: ColRole; rank: number }
 
+const VERDICT_WORDS = new Set(['pass', 'fail', 'p', 'f']);
+
+/** Every filled cell in the sample is PASS/FAIL or P/F (any case), and there is at least one. */
+function isVerdictColumn(col: string, sample: Record<string, string>[]): boolean {
+  const filled = sample.map(r => (r[col] ?? '').trim()).filter(v => v !== '');
+  return filled.length > 0 && filled.every(v => VERDICT_WORDS.has(v.toLowerCase()));
+}
+
 function classify(col: string, sample: Record<string, string>[]): Detection {
   if (skipReason(col)) return { role: '', rank: RANK.exact };
   const key = col.toLowerCase().trim();
@@ -223,6 +233,9 @@ function classify(col: string, sample: Record<string, string>[]): Detection {
   if ((t.includes('wafer') || t.includes('wfr')) && !t.includes('lot') && noDisq) return words('wafer');
   if (t.includes('lot') && !t.includes('sublot') && !t.includes('sub') && noDisq) return words('lot');
   if (isTemperatureColumn(col) || t.some(s => CONDITION_TOKENS.has(s))) return words('metadata');
+  // PASS/FAIL (or P/F) in every filled cell → a functional test. true/false and 1/0 stay
+  // as they are: a flag or a count is as likely as a verdict.
+  if (isVerdictColumn(col, sample)) return { role: 'ftest', rank: RANK.fallback };
   // Numeric → test; otherwise metadata
   const sampleVal = sample.find(r => r[col] !== '')?.[col] ?? '';
   const isNumeric = sampleVal !== '' && !isNaN(Number(sampleVal));
@@ -309,6 +322,7 @@ const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
   { value: 'lot',       label: 'Lot ID' },
   { value: 'site',      label: 'Test site' },
   { value: 'test',      label: 'Test value' },
+  { value: 'ftest',     label: 'Pass/fail test' },
   { value: 'testname',  label: 'Test name (long format)' },
   { value: 'testnumber', label: 'Test number (long format)' },
   { value: 'testvalue', label: 'Test result (long format)' },
@@ -401,18 +415,17 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
   const tests: CsvTestCol[] = [];
   const meta: string[] = [];
   const splitBy: string[] = [];
-  // Derived from the column's own key (`col`), not its user-editable display
-  // name — `col` is guaranteed unique per file (it's the real header text),
-  // while two rows can end up with the same typed-in name. If `col` is itself
-  // a bare number (a raw-export convention — columns literally named "1001",
-  // "1002"), that real number is used as-is; otherwise it's hashed. Either
-  // way it's deterministic and order-independent: the same column gets the
-  // same number whether it's the 3rd column or the 30th, so a saved test
-  // list / override survives a column reorder or an added/removed column.
-  // `usedTestNumbers` guarantees no two columns in this one mapping ever
-  // collide, however each one lands.
-  const usedTestNumbers = new Set<number>();
-
+  // Test numbers are derived from the column's own key (`col`), not its
+  // user-editable display name — `col` is guaranteed unique per file (it's the
+  // real header text), while two rows can end up with the same typed-in name.
+  // They are assigned after the loop, over every test column together
+  // (`testNumbersForColumns`): a number the header states ("1001", "Test 2001",
+  // "test_07 (mV)") is used as-is when every test column states one and they all
+  // differ; otherwise each column is a bare numeric header or hashed. Either way
+  // it is deterministic and order-independent: the same column gets the same
+  // number whether it's the 3rd column or the 30th, so a saved test list /
+  // override survives a column reorder or an added/removed column, and no two
+  // columns in one mapping ever collide.
   for (const tr of rows) {
     const col = tr.dataset.col!;
     const role = (tr.querySelector<HTMLSelectElement>('select')?.value ?? '') as ColRole;
@@ -433,16 +446,19 @@ function readMapping(overlay: HTMLElement, passBinInput: HTMLInputElement): CsvM
     else if (role === 'loValid') loValidCol = col;
     else if (role === 'hiValid') hiValidCol = col;
     else if (role === 'units')   unitsCol = col;
-    else if (role === 'test') {
+    else if (role === 'test' || role === 'ftest') {
       const nameInput = tr.querySelector<HTMLInputElement>('input[type="text"]');
       const name = nameInput?.value.trim() || col;
-      tests.push({ col, testNumber: testNumberForColumn(col, usedTestNumbers), name });
+      tests.push(role === 'ftest' ? { col, testNumber: 0, name, functional: true } : { col, testNumber: 0, name });
     } else if (role === 'metadata') {
       meta.push(col);
       const splitCheck = tr.querySelector<HTMLInputElement>('input[type="checkbox"]');
       if (splitCheck?.checked) splitBy.push(col);
     }
   }
+
+  const numbers = testNumbersForColumns(tests.map(t => t.col));
+  tests.forEach((t, i) => { t.testNumber = numbers[i]; });
 
   const passBins = passBinInput.value
     .split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
@@ -563,7 +579,7 @@ export async function showMappingOverlay(
     if (saved.loValidCol) savedRoles[saved.loValidCol] = 'loValid';
     if (saved.hiValidCol) savedRoles[saved.hiValidCol] = 'hiValid';
     if (saved.unitsCol)   savedRoles[saved.unitsCol]   = 'units';
-    saved.tests?.forEach(t => { savedRoles[t.col] = 'test'; });
+    saved.tests?.forEach(t => { savedRoles[t.col] = t.functional ? 'ftest' : 'test'; });
     saved.meta?.forEach(c  => { savedRoles[c] = 'metadata'; });
   }
 
@@ -600,7 +616,7 @@ export async function showMappingOverlay(
              title="This column's values look like text, not numbers — double-check this mapping.">⚠</span>${note !== undefined
           ? `<span class="role-note" data-detected="${esc(detectedRoles[h])}"${noteShown ? '' : ' hidden'}>${esc(skipReason(h) ? 'Skipped. ' : '')}${esc(note)}</span>` : ''}</td>
         <td><input type="text" class="test-name-input" value="${esc(testName)}" placeholder="Test name"
-             style="display:${role === 'test' ? 'inline-block' : 'none'}"></td>
+             style="display:${role === 'test' || role === 'ftest' ? 'inline-block' : 'none'}"></td>
         <td class="split-cell" style="visibility:${role === 'metadata' ? 'visible' : 'hidden'}">
           <label class="split-label" title="Subdivide this flat file into one wafer map per distinct value of this column. Use only when a single file packs several wafers together with no wafer-ID column. Not for parallel-test sites — map those to 'Test site' instead.">
             <input type="checkbox"${isSavedSplitBy ? ' checked' : ''}>
@@ -694,7 +710,7 @@ export async function showMappingOverlay(
     const colType = result.columnTypes?.[tr.dataset.col!];
 
     sel.addEventListener('change', () => {
-      nameInput.style.display = sel.value === 'test' ? 'inline-block' : 'none';
+      nameInput.style.display = sel.value === 'test' || sel.value === 'ftest' ? 'inline-block' : 'none';
       splitCell.style.visibility = sel.value === 'metadata' ? 'visible' : 'hidden';
       mismatchHint.hidden = !(colType === 'string' && NUMERIC_ROLES.has(sel.value as ColRole));
       if (roleNote) roleNote.hidden = sel.value !== roleNote.dataset.detected;

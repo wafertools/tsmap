@@ -6,6 +6,29 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Added
+
+- **A pass/fail column in a CSV, JSON or Parquet file is a functional test.** The mapping dialog has a **Pass/fail test** role, chosen
+  automatically for a column of `PASS`/`FAIL` or `P`/`F`; each die records a verdict for it (a blank cell records nothing), and it is
+  listed under Verdicts and Functional with the functional tests of an STDF file. A die-list export re-imports with its `Test 2001`
+  column as a functional test, with the same pass and fail counts.
+
+### Changed
+
+- **A test number written into a column header is used as the test number.** `Test 2001` is test 2001 and `test_07 (mV)` is test 7, as a
+  header that is itself a number already was. It applies when every test column has exactly one number and no two are the same;
+  bracketed text such as units is ignored, and a number that is part of a quantity (`Gain 3dB`, `Vdd 1.8`) does not count. Otherwise
+  the columns are numbered as before. A saved test list or override for a file whose columns are now numbered this way refers to the
+  earlier numbers, so choose them again for that file.
+
+- **The Summary panel opens from a labelled Summary button above the map**, in place of the toolbar icon, and closes from its own
+  header. Every row in "What stands out" shows its dies on the map when clicked; the Findings section's Kind and Region dropdowns and
+  Detail modal are replaced by its severity chips, and the reports link each item to its evidence.
+- **Spatial patterns and findings come from wafermap 0.35.1's detection.** Scratches are recognised at any angle and donuts by their
+  radial profile, a cluster is judged by its size against random placement, and a region is compared only with the regions that are
+  not themselves deviant. Quadrants hold equal shares of the dies, which can move a quadrant yield by up to two points on a wafer of a
+  few hundred dies. A map of data with soft bins only opens in soft-bin mode.
+
 ## [0.1.46] — 2026-10-09
 
 ### Added

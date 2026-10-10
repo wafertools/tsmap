@@ -207,6 +207,9 @@ export interface CsvTestCol {
    *  number should use that number. */
   testNumber: number;
   name: string;
+  /** A pass/fail column (PASS/FAIL, P/F, true/false, 1/0): a functional test whose
+   *  cells are recorded verdicts (`testPass`), not measurements. Omitted = false. */
+  functional?: boolean;
 }
 
 /** Column mapping for CSV, JSON and Parquet. There is no header

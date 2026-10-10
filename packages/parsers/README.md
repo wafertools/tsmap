@@ -152,7 +152,8 @@ interface CsvTestCol {
   col: string;         // source column name
   testNumber: number;  // assigned test number
   name: string;        // display name
-}
+  functional?: boolean; // a pass/fail column (PASS/FAIL, P/F, true/false, 1/0): a functional test
+}                       // whose cells are recorded verdicts (`testPass`), not measurements
 ```
 
 `tests`, `meta`, `splitBy` and `passBins` must be present — pass `[]` where you are not
@@ -160,12 +161,14 @@ using one. Every other field may be omitted entirely or set to `null`; the two m
 same thing. (`parse_csv::mapping_shape_tests` pins that split, and the `CsvMapping`
 declaration shipped in the package encodes it.)
 
+A wide-layout column with `functional: true` is read as a verdict, not a number: `PASS`/`FAIL`, `P`/`F`, `true`/`false` or `1`/`0` in any case (a Parquet or JSON boolean too). Its test is functional (`testType: "F"`), each cell is stored in the die's `testPass` and never in `testValues`, and a blank cell records nothing. This is the same for CSV, JSON and Parquet; the tall layout has no functional columns.
+
 Two ways to describe test columns are supported: a **fixed set** of `tests` (one column per test, "wide" format), or a **tall** layout (`testnameCol`/`testnumberCol`/`testvalueCol` — one row per die×test, with the test identity read from a column rather than the header).
 
 **Test identity — real number vs. synthesized one.** Neither format has a mandatory real STDF-style test number, so one gets synthesized by default (see "Design notes" below) — but a caller that *does* have real numbers in the source data shouldn't lose them:
 
 - **Tall layout**: `testnameCol` and `testnumberCol` are independent — set either alone, or both together. Number alone is a legitimate, fully-supported case (some exports carry only a numeric test ID, no descriptive name) — the test's display name then falls back to the number itself, stringified. Name alone keeps the pre-existing hash-based behavior. Both together: the real number from `testnumberCol` is used as the key (not hashed), paired with the given name — this is the common "I have both and want them both honoured" case. Whichever columns are set, at least one of `testnameCol`/`testnumberCol` plus `testvalueCol` is required to trigger tall-layout parsing at all.
-- **Wide layout** (`tests: CsvTestCol[]`): `testNumber` is assigned by the caller building the mapping (tsmap's `mappingUI.ts` does this before calling in), not by this crate — but the same principle applies there: if a column's own header is itself a bare number (a real-world convention — columns literally named `1001`, `1002`), that number should be used directly rather than hashed. `test_identity`'s reserved band (below) exists specifically so a real number like this can never collide with a hashed one.
+- **Wide layout** (`tests: CsvTestCol[]`): `testNumber` is assigned by the caller building the mapping (tsmap's `mappingUI.ts` does this before calling in), not by this crate — but the same principle applies there: if a column's own header is itself a bare number (a real-world convention — columns literally named `1001`, `1002`), that number should be used directly rather than hashed, and so should the one number inside a header such as `Test 2001` or `test_07 (mV)` when every test column has one and they are all different (tsmap does this). `test_identity`'s reserved band (below) exists specifically so a real number like this can never collide with a hashed one.
 
 ### Return shape — `ParsedStdf`
 
