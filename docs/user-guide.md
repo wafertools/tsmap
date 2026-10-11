@@ -1541,8 +1541,8 @@ The overlay pre-fills a role for any column whose header exactly matches one of 
 | **High test limit (long format)** | `hi_limit`, `high_limit`, `higher_limit`, `upper_limit`, `hi_lim`, `high_lim`, `upper_lim`, `h_limit`, `h_lim`, `max_limit`, `max_lim`, `ul`, `test_hi`, `test_high` |
 | **Low spec limit / LSL (long format)** | `lo_spec`, `low_spec`, `lower_spec`, `lo_spec_limit`, `low_spec_limit`, `lower_spec_limit`, `spec_lo`, `spec_low`, `min_spec`, `lsl` |
 | **High spec limit / USL (long format)** | `hi_spec`, `high_spec`, `higher_spec`, `upper_spec`, `hi_spec_limit`, `high_spec_limit`, `upper_spec_limit`, `spec_hi`, `spec_high`, `max_spec`, `usl` |
-| **Low validity limit / LVL (long format)** | `lvl` |
-| **High validity limit / UVL (long format)** | `uvl` |
+| **Low validity limit / LVL (long format)** | `lvl`, `lo_valid`, `low_valid`, `lower_valid`, `valid_lo`, `valid_low`, `min_valid` |
+| **High validity limit / UVL (long format)** | `uvl`, `hi_valid`, `high_valid`, `upper_valid`, `valid_hi`, `valid_high`, `max_valid` |
 | **Units (long format)** | `units`, `unit`, `uom`, `test_units`, `test_unit` |
 | **Display info** | `testdate`, `test_date`, `date`, `temp`, `temperature`, `tst_temp`, `operator`, `oper`, `testprogram`, `test_program`, `job_nam`, `node`, `node_nam`, `tester`, `tstr_typ`, `part_typ`, `part_type`, `device`, `handler`, `hand_typ`, `sublot`, `sblot_id`, `exec_typ`, `exec_ver`, `serl_num`, `serial` |
 

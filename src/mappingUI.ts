@@ -204,6 +204,9 @@ interface Detection { role: ColRole; rank: number }
 
 const VERDICT_WORDS = new Set(['pass', 'fail', 'p', 'f']);
 
+/** Header words of a wafer or die summary (a status, a grade): a PASS/FAIL column named by one is not a test. */
+const WAFER_VERDICT_TOKENS: ReadonlySet<string> = new Set(['status', 'grade', 'overall', 'final', 'disposition', 'class', 'category', 'bucket', 'sort']);
+
 /** Every filled cell in the sample is PASS/FAIL or P/F (any case), and there is at least one. */
 function isVerdictColumn(col: string, sample: Record<string, string>[]): boolean {
   const filled = sample.map(r => (r[col] ?? '').trim()).filter(v => v !== '');
@@ -235,7 +238,8 @@ function classify(col: string, sample: Record<string, string>[]): Detection {
   if (isTemperatureColumn(col) || t.some(s => CONDITION_TOKENS.has(s))) return words('metadata');
   // PASS/FAIL (or P/F) in every filled cell → a functional test. true/false and 1/0 stay
   // as they are: a flag or a count is as likely as a verdict.
-  if (isVerdictColumn(col, sample)) return { role: 'ftest', rank: RANK.fallback };
+  // A wafer-level status or grade is metadata, not a per-test result, whatever its values are.
+  if (!t.some(s => WAFER_VERDICT_TOKENS.has(s)) && isVerdictColumn(col, sample)) return { role: 'ftest', rank: RANK.fallback };
   // Numeric → test; otherwise metadata
   const sampleVal = sample.find(r => r[col] !== '')?.[col] ?? '';
   const isNumeric = sampleVal !== '' && !isNaN(Number(sampleVal));

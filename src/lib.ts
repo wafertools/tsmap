@@ -549,6 +549,10 @@ export function testNumberFromHeader(col: string): number | null {
   const [text] = runs[0];
   if (!/^\d+$/.test(text)) return null;
   if (/[A-Za-z]/.test(bare[runs[0].index! + text.length] ?? '')) return null;
+  // A quantity ("Vdd 2", "Site 3 current") is not a test number: the number names a test only when it stands alone
+  // or follows a test word ("Test 2001", "test_07", "T123", "#5").
+  const before = bare.slice(0, runs[0].index!);
+  if (before.trim() !== '' && !/(?:^|[^A-Za-z])(?:test|tnum|tn|tst|t|no|num|number|#)[\s_#.:-]*$/i.test(before)) return null;
   const n = Number(text);
   // Must fit the Rust side's u32 (test_number).
   return n <= 0xFFFFFFFF ? n : null;

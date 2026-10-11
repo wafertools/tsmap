@@ -79,7 +79,11 @@ export function showReticleDialog(
       const readValidated = (): { ok: true; reticle: ReticleSettings | undefined } | { ok: false } => {
         const w = wholeNumber(width.input);
         const h = wholeNumber(height.input);
-        if (w === undefined && h === undefined) { errorText.textContent = ''; return { ok: true, reticle: undefined }; }
+        // Both sizes blank with the corner die blank too is a clear; a corner die alone is half an entry.
+        if (w === undefined && h === undefined && anchorX.input.value.trim() === '' && anchorY.input.value.trim() === '') {
+          errorText.textContent = '';
+          return { ok: true, reticle: undefined };
+        }
         if (!w || !h || w < 1 || h < 1) {
           errorText.textContent = 'Enter the field width and height as whole numbers of dies, or use Clear to remove the reticle.';
           return { ok: false };

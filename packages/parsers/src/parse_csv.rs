@@ -364,6 +364,15 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
                 });
                 n
             });
+            // Limits left blank on a test's first row are taken from the first later row that has them.
+            if let Some(def) = test_defs.get_mut(&tnum.to_string()) {
+                if def.lo_limit.is_none() { def.lo_limit = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_limit_col); }
+                if def.hi_limit.is_none() { def.hi_limit = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_limit_col); }
+                if def.lo_spec.is_none() { def.lo_spec = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_spec_col); }
+                if def.hi_spec.is_none() { def.hi_spec = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_spec_col); }
+                if def.lo_valid.is_none() { def.lo_valid = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_valid_col); }
+                if def.hi_valid.is_none() { def.hi_valid = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_valid_col); }
+            }
             if let Ok(v) = test_val.parse::<f64>() { row.tests.push((tnum, v)); }
         }
         rows.push(row);
@@ -738,8 +747,8 @@ mod tests {
 
     #[test]
     fn parse_verdict_reads_words_letters_booleans_and_digits() {
-        for t in ["PASS", "pass", "P", "p", "TRUE", "true", "1", " Pass "] { assert_eq!(parse_verdict(t), Some(true), "{t}"); }
-        for t in ["FAIL", "fail", "F", "f", "FALSE", "false", "0"] { assert_eq!(parse_verdict(t), Some(false), "{t}"); }
+        for t in ["PASS", "pass", "P", "p", "TRUE", "true", "1", "1.0", " Pass "] { assert_eq!(parse_verdict(t), Some(true), "{t}"); }
+        for t in ["FAIL", "fail", "F", "f", "FALSE", "false", "0", "0.0"] { assert_eq!(parse_verdict(t), Some(false), "{t}"); }
         for t in ["", "n/a", "2", "1.5", "passed"] { assert_eq!(parse_verdict(t), None, "{t}"); }
     }
 
@@ -921,6 +930,22 @@ mod tests {
         assert_eq!(vt.hi_limit, Some(2.0));
         assert_eq!(vt.lo_spec, Some(0.4));
         assert_eq!(vt.hi_spec, None);
+    }
+
+    #[test]
+    fn long_format_takes_a_limit_left_blank_on_the_first_row_from_a_later_one() {
+        let csv = "x,y,test_name,test_val,lvl,uvl\n\
+                   0,0,Vt,1.1,,\n\
+                   1,0,Vt,1.2,-100,100\n";
+        let path = tmp(csv);
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test_name".to_string());
+        m.testvalue_col = Some("test_val".to_string());
+        m.lo_valid_col = Some("lvl".to_string());
+        m.hi_valid_col = Some("uvl".to_string());
+        let result = parse_csv_inner(path.to_str().unwrap().to_string(), m).unwrap();
+        let vt = result.test_defs.values().find(|d| d.name == "Vt").unwrap();
+        assert_eq!((vt.lo_valid, vt.hi_valid), (Some(-100.0), Some(100.0)));
     }
 
     #[test]

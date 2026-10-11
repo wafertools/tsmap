@@ -17,7 +17,8 @@ technical record, including internal changes.
 
 - **A test number written into a column header is used as the test number.** `Test 2001` is test 2001 and `test_07 (mV)` is test 7, as a
   header that is itself a number already was. It applies when every test column has exactly one number and no two are the same;
-  bracketed text such as units is ignored, and a number that is part of a quantity (`Gain 3dB`, `Vdd 1.8`) does not count. Otherwise
+  bracketed text such as units is ignored, and a number that is part of a quantity (`Gain 3dB`, `Vdd 1.8`, `Vdd 2`) does not count:
+  it names a test only when it stands alone or follows a test word (`Test 2001`, `test_07`, `T123`, `#5`). Otherwise
   the columns are numbered as before. A saved test list or override for a file whose columns are now numbered this way refers to the
   earlier numbers, so choose them again for that file.
 
@@ -28,6 +29,11 @@ technical record, including internal changes.
   radial profile, a cluster is judged by its size against random placement, and a region is compared only with the regions that are
   not themselves deviant. Quadrants hold equal shares of the dies, which can move a quadrant yield by up to two points on a wafer of a
   few hundred dies. A map of data with soft bins only opens in soft-bin mode.
+- **Reticle grid, status columns and limits read across rows.** The Reticle grid stays hidden once hidden from Overlays ▾ until a
+  reticle is set again; Reticle… and Exclude values outside limits… can be set before a file is loaded; clearing the reticle needs
+  every field blank, the corner die included. A `PASS`/`FAIL` column named for a status or grade stays Display info. A JSON float
+  `1.0`/`0.0` and a CSV `1.0`/`0.0` are verdicts. A limit blank on a test's first row is taken from the first later row that has it, and
+  `lo_valid`, `hi_valid` and similar spellings are recognised as validity limits.
 
 ## [0.1.46] — 2026-10-09
 

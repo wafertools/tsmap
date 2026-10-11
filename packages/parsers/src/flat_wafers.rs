@@ -53,9 +53,10 @@ pub struct FlatRow {
 /// flat format; Parquet and JSON add their native booleans and numbers.
 pub fn parse_verdict(s: &str) -> Option<bool> {
     let t = s.trim();
-    if t.eq_ignore_ascii_case("pass") || t.eq_ignore_ascii_case("p") || t.eq_ignore_ascii_case("true") || t == "1" { Some(true) }
-    else if t.eq_ignore_ascii_case("fail") || t.eq_ignore_ascii_case("f") || t.eq_ignore_ascii_case("false") || t == "0" { Some(false) }
-    else { None }
+    if t.eq_ignore_ascii_case("pass") || t.eq_ignore_ascii_case("p") || t.eq_ignore_ascii_case("true") { return Some(true); }
+    if t.eq_ignore_ascii_case("fail") || t.eq_ignore_ascii_case("f") || t.eq_ignore_ascii_case("false") { return Some(false); }
+    // 1 and 0 as a number, written "1", "1.0" or as a float column does.
+    match t.parse::<f64>() { Ok(v) if v == 1.0 => Some(true), Ok(v) if v == 0.0 => Some(false), _ => None }
 }
 
 /// The test definitions of a wide-format mapping, in column order. Shared by

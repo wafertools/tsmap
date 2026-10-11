@@ -545,6 +545,15 @@ fn parse_long_format(
                 });
                 n
             });
+            // Limits left blank on a test's first row are taken from the first later row that has them.
+            if let Some(def) = test_defs.get_mut(&tnum.to_string()) {
+                if def.lo_limit.is_none() { def.lo_limit = (|c: &Option<String>| c.as_deref().and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_limit_col); }
+                if def.hi_limit.is_none() { def.hi_limit = (|c: &Option<String>| c.as_deref().and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_limit_col); }
+                if def.lo_spec.is_none() { def.lo_spec = (|c: &Option<String>| c.as_deref().and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_spec_col); }
+                if def.hi_spec.is_none() { def.hi_spec = (|c: &Option<String>| c.as_deref().and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_spec_col); }
+                if def.lo_valid.is_none() { def.lo_valid = (|c: &Option<String>| c.as_deref().and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_valid_col); }
+                if def.hi_valid.is_none() { def.hi_valid = (|c: &Option<String>| c.as_deref().and_then(|c| cells.get(c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_valid_col); }
+            }
             if let Ok(v) = test_val.parse::<f64>() { out.tests.push((tnum, v)); }
         }
         rows.push(out);

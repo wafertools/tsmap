@@ -170,6 +170,15 @@ fn parse_json_from_value(raw: Value, mapping: CsvMapping) -> ParseResult<ParsedS
                 });
                 n
             });
+            // Limits left blank on a test's first row are taken from the first later row that has them.
+            if let Some(def) = test_defs.get_mut(&tnum.to_string()) {
+                if def.lo_limit.is_none() { def.lo_limit = (|c: &Option<String>| c.as_deref().and_then(|c| cell_f64(row, c)))(&mapping.lo_limit_col); }
+                if def.hi_limit.is_none() { def.hi_limit = (|c: &Option<String>| c.as_deref().and_then(|c| cell_f64(row, c)))(&mapping.hi_limit_col); }
+                if def.lo_spec.is_none() { def.lo_spec = (|c: &Option<String>| c.as_deref().and_then(|c| cell_f64(row, c)))(&mapping.lo_spec_col); }
+                if def.hi_spec.is_none() { def.hi_spec = (|c: &Option<String>| c.as_deref().and_then(|c| cell_f64(row, c)))(&mapping.hi_spec_col); }
+                if def.lo_valid.is_none() { def.lo_valid = (|c: &Option<String>| c.as_deref().and_then(|c| cell_f64(row, c)))(&mapping.lo_valid_col); }
+                if def.hi_valid.is_none() { def.hi_valid = (|c: &Option<String>| c.as_deref().and_then(|c| cell_f64(row, c)))(&mapping.hi_valid_col); }
+            }
             if let Some(v) = test_value { out.tests.push((tnum, v)); }
         }
         rows.push(out);
@@ -301,7 +310,7 @@ fn cell_f64(row: &Row, col: &str) -> Option<f64> {
 fn cell_verdict(row: &Row, col: &str) -> Option<bool> {
     match row.get(col)? {
         Value::Bool(b) => Some(*b),
-        Value::Number(n) => n.as_i64().and_then(|n| parse_verdict(&n.to_string())),
+        Value::Number(n) => n.as_f64().and_then(|f| parse_verdict(&f.to_string())),
         Value::String(s) => parse_verdict(s),
         _ => None,
     }
@@ -596,6 +605,21 @@ mod tests {
         let result = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
         assert_eq!(result.wafers[0].results.len(), 2);
         assert_eq!(result.test_defs.len(), 2);
+    }
+
+    #[test]
+    fn a_float_pass_fail_column_gives_verdicts() {
+        let json = r#"[
+            {"x":0,"y":0,"pf":1.0},
+            {"x":1,"y":0,"pf":0.0},
+            {"x":2,"y":0,"pf":null}
+        ]"#;
+        let path = tmp(json);
+        let mut m = basic_mapping("x", "y");
+        m.tests = vec![CsvTestCol { col: "pf".to_string(), test_number: 7, name: "pf".to_string(), functional: true }];
+        let r = parse_json_sync(path.to_str().unwrap().to_string(), m).unwrap();
+        let pass: Vec<Option<bool>> = r.wafers[0].results.iter().map(|x| x.test_pass.get("7").copied()).collect();
+        assert_eq!(pass, vec![Some(true), Some(false), None]);
     }
 
     #[test]

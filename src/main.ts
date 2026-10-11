@@ -4,6 +4,7 @@ declare const __BUILD_DATE__: string;
 import { keepTests, testNumbers } from './columns';
 import { buildWaferMap } from '@wafertools/wafermap';
 import type { WaferMapResult, BinDef } from '@wafertools/wafermap';
+import type { WaferViewOptions } from '@wafertools/wafermap/render';
 import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide, WMAP_VERSION, WMAP_BUILD_TIME } from '@wafertools/wafermap/render';
 import type { FindingsNotice } from '@wafertools/wafermap/render';
 import { estimateValueFindingsMs, lotHasTestValues, describeDuration,
@@ -1237,7 +1238,7 @@ async function renderWaferView(wafers: WaferData[]) {
       // The colour choices persist across loads and restarts (mapColorPrefs.ts);
       // the plot mode is per-load, derived from the data.
       viewOptions: { plotMode, ...loadMapColorPrefs(), ...reticleViewOption() },
-      onViewOptionsChange: saveMapColorPrefs,
+      onViewOptionsChange: onMapViewOptionsChange,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default). It and tsmap's log deliberately show the same advisories:
       // the toolbar indicator is discoverable and persists with the map, the
@@ -1338,7 +1339,7 @@ async function renderWaferView(wafers: WaferData[]) {
       onSaveText,
       // Same persisted colour choices as the single-wafer call above.
       viewOptions: { plotMode, ...loadMapColorPrefs(), ...reticleViewOption() },
-      onViewOptionsChange: saveMapColorPrefs,
+      onViewOptionsChange: onMapViewOptionsChange,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default) — see the note on the single-wafer call above. The gallery
       // collects across every card and de-duplicates, so a lot-wide geometry
@@ -1985,7 +1986,7 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
   if (args.reticle != null) {
     const given = normalizeReticle(args.reticle);
     if (given === undefined) log('warn', '--reticle ignored: not a usable stepper field');
-    else { reticle = given; reticleChanged = true; }
+    else { if (reticle === undefined) reticleGridShown = undefined; reticle = given; reticleChanged = true; }
   }
   if (args.files.length === 0) {
     if ((plotsChanged || reticleChanged) && session.wafers.length > 0) rerenderCurrentLot('Rendering');
@@ -2642,7 +2643,6 @@ function openWaferGeometryDialog() {
 }
 
 function openValueFilterDialog() {
-  if (session.wafers.length === 0) return;
   showValueFilterDialog(valueFilterMode, (next) => {
     valueFilterMode = setValueFilter(next);
     rerenderCurrentLot('Rendering');
@@ -2651,14 +2651,22 @@ function openValueFilterDialog() {
 
 /** A reticle that has been set is drawn: the field grid is what the setting is for, and the Overlays menu still hides it. */
 function reticleViewOption(): { showReticle?: boolean } {
-  return reticle === undefined ? {} : { showReticle: true };
+  return reticle === undefined ? {} : { showReticle: reticleGridShown ?? true };
+}
+
+/** The Overlays ▾ → Reticle grid choice, kept across renders; unset until the reader makes one (the grid is then on). */
+let reticleGridShown: boolean | undefined;
+function onMapViewOptionsChange(opts: WaferViewOptions, changed: readonly (keyof WaferViewOptions)[]): void {
+  if (changed.includes('showReticle')) reticleGridShown = opts.showReticle;
+  saveMapColorPrefs(opts, changed);
 }
 
 // Same invalidation as openWaferGeometryDialog: the reticle feeds buildWaferMap at both call sites, so
 // cachedLotStats must not survive the change (rerenderCurrentLot drops it).
 function openReticleDialog() {
-  if (session.wafers.length === 0) return;
   showReticleDialog(reticle, (next) => {
+    // A reticle set (or cleared) afresh is drawn again, whatever the last one's grid was set to.
+    if (reticle === undefined || next === undefined) reticleGridShown = undefined;
     reticle = setReticle(next);
     rerenderCurrentLot('Rendering');
   });

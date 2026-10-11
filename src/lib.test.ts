@@ -730,10 +730,10 @@ describe('stableTestNumber', () => {
 describe('testNumberFromHeader', () => {
   it.each([
     ['1001', 1001], ['Test 2001', 2001], ['test_07 (mV)', 7], ['T123_gain', 123], ['Test2001', 2001],
-    ['Vt [derived from 5, 6]', null], ['Vt [derived from 5, 6] 9', 9],
+    ['Vt [derived from 5, 6]', null], ['Test [derived from 5, 6] 9', 9], ['#5', 5],
   ])('%s -> %s', (h, n) => expect(testNumberFromHeader(h)).toBe(n));
 
-  it.each(['gain', 'Test 1 2', 'Gain 3dB', 'Idd 25C', 'Vdd 1.8', 'Vdd 1.8V', 'v1.2', '99999999999'])('%s states no number', h => {
+  it.each(['gain', 'Test 1 2', 'Gain 3dB', 'Idd 25C', 'Vdd 1.8', 'Vdd 1.8V', 'v1.2', '99999999999', 'Vdd 2', 'Gain 3', 'Site 3 current', 'Rail 5'])('%s states no number', h => {
     expect(testNumberFromHeader(h)).toBeNull();
   });
 });

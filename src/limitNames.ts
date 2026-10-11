@@ -27,10 +27,10 @@ export const LIMIT_NAMES: Readonly<Record<LimitField, readonly string[]>> = {
     'spec_lo', 'spec_low', 'min_spec', 'lsl'],
   hiSpec: ['hi_spec', 'high_spec', 'higher_spec', 'upper_spec', 'hi_spec_limit', 'high_spec_limit',
     'upper_spec_limit', 'spec_hi', 'spec_high', 'max_spec', 'usl'],
-  // Validity limits: the range a real measurement lies in (a value outside is a tester clamp). Only these
-  // two spellings are built in; any other goes through custom names.
-  loValid: ['lvl'],
-  hiValid: ['uvl'],
+  // Validity limits: the range a real measurement lies in (a value outside is a tester clamp). Other
+  // spellings go through custom names.
+  loValid: ['lvl', 'lo_valid', 'low_valid', 'lower_valid', 'valid_lo', 'valid_low', 'min_valid'],
+  hiValid: ['uvl', 'hi_valid', 'high_valid', 'upper_valid', 'valid_hi', 'valid_high', 'max_valid'],
 };
 
 /** Bare names read as test limits only where every column describes a test —

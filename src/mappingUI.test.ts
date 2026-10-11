@@ -79,6 +79,10 @@ describe('detectRole — pass/fail columns', () => {
     expect(detectRole('c', col(['true', 'false']))).toBe('metadata');
     expect(detectRole('c', col(['', '']))).toBe('metadata');
   });
+  it('leaves a wafer-level status or grade as metadata', () => {
+    expect(detectRole('Overall Status', col(['PASS', 'FAIL']))).toBe('metadata');
+    expect(detectRole('grade', col(['P', 'F']))).toBe('metadata');
+  });
   it('does not take a column that already has a stronger role', () => {
     expect(detectRole('Test Temp', col(['PASS']))).toBe('metadata');
     expect(detectRole('Operator', col(['P']))).toBe('metadata');
