@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use testdata_parser::parse_stdf::parse_stdf_from_bytes_filtered;
+use testdata_parser::parse_stdf::parse_stdf_filtered_path;
 use testdata_parser::error::ParseError;
 use tauri::ipc::Response;
 use super::columnar;
@@ -7,9 +7,8 @@ use super::columnar;
 #[tauri::command]
 pub async fn parse_stdf_filtered(path: String, selected: Vec<u32>) -> Result<Response, ParseError> {
     tokio::task::spawn_blocking(move || {
-        let bytes = testdata_parser::read_file::read_bytes(&path)?;
         let set: HashSet<u32> = selected.into_iter().collect();
-        parse_stdf_from_bytes_filtered(&bytes, &set).map(columnar)
+        parse_stdf_filtered_path(&path, &set).map(columnar)
     })
     .await
     .map_err(ParseError::internal)?

@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-const SUPPORTED_EXTS: &[&str] = &["stdf", "std", "atdf", "atd", "csv", "txt", "dat", "json", "gz"];
+const SUPPORTED_EXTS: &[&str] = &["stdf", "std", "atdf", "atd", "csv", "txt", "dat", "json", "gz", "bz2"];
 
 fn is_supported(path: &Path) -> bool {
     path.extension()

@@ -19,8 +19,8 @@ backend. Both paths produce identical results from identical input — there is 
 | **JSON** | Array of per-die records |
 | **Parquet** | Columnar and typed; same wide/tall mapping as CSV. Row-oriented reader (no `arrow` dependency). `snappy`/`gzip`/`lz4`/`brotli` on every target; `zstd` is native-only — it needs a C toolchain the WASM build doesn't assume |
 
-Gzip-compressed input is decompressed transparently for every format — callers never
-branch on compression.
+Gzip- and bzip2-compressed input (`.gz`, `.bz2`) is decompressed transparently for every
+format — callers never branch on compression.
 
 All five parse to **one shared output shape**. There is no format-specific result type, so
 a consuming application writes its rendering and analysis code once.

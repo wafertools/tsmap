@@ -27,6 +27,8 @@ serde_json = "1"
 csv = "1"
 indexmap = "2"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# Default backend is libbz2-rs-sys, pure Rust: builds for wasm32 with no C toolchain, like flate2's rust_backend.
+bzip2 = "0.6"
 bytes = "1"
 tokio = { version = "1", features = ["rt", "rt-multi-thread"], optional = true }
 wasm-bindgen = { version = "0.2", optional = true }

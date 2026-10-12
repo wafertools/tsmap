@@ -29,6 +29,10 @@ describe('effectiveFileExtension', () => {
   it('strips a .gz wrapper to expose the inner format', () => {
     expect(effectiveFileExtension('lot.stdf.gz')).toBe('stdf');
   });
+  it('strips a .bz2 wrapper the same way', () => {
+    expect(effectiveFileExtension('lot.stdf.bz2')).toBe('stdf');
+    expect(effectiveFileExtension('LOT.CSV.BZ2')).toBe('csv');
+  });
   it('lowercases the extension', () => {
     expect(effectiveFileExtension('LOT.STDF')).toBe('stdf');
   });

@@ -4363,6 +4363,7 @@ name = "testdata-parser"
 version = "0.15.1"
 dependencies = [
  "bytes",
+ "bzip2",
  "console_error_panic_hook",
  "csv",
  "flate2",

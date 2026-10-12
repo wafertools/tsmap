@@ -358,3 +358,16 @@ describe('detectRoles — single-valued roles', () => {
     expect(notes['vth']).toBeUndefined();
   });
 });
+
+describe('detectRole — decimal-comma CSV', () => {
+  const sample = [{ leakage: '0,0815646268616209', idsat: '1.234,5', note: 'a,b' }];
+  it('reads a decimal-comma cell as a number when the parser says the file is written that way', () => {
+    expect(detectRole('leakage', sample, true)).toBe('test');
+    expect(detectRole('idsat', sample, true)).toBe('test');
+    expect(detectRoles(['leakage'], sample, true).roles['leakage']).toBe('test');
+  });
+  it('leaves the same cells as text otherwise, and text as text either way', () => {
+    expect(detectRole('leakage', sample)).toBe('metadata');
+    expect(detectRole('note', sample, true)).toBe('metadata');
+  });
+});

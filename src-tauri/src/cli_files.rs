@@ -123,7 +123,7 @@ impl CliArgs {
 pub const USAGE: &str = "\
 tsmap [OPTIONS] [FILE...]
 
-Open one or more wafer-map data files (STDF, ATDF, CSV, JSON, or a .zip/.gz
+Open one or more wafer-map data files (STDF, ATDF, CSV, JSON, or a .zip/.gz/.bz2
 of one of those). If tsmap is already running, files are handed to that
 window instead of opening a new one.
 

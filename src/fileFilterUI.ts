@@ -230,22 +230,22 @@ async function scanOne(platform: Platform, picked: PickedFile, id: string, ext: 
       if (isTesterExt(ext)) return isAtdfExt(ext) ? platform.atdfFileMeta(file) : platform.stdfFileMeta(file);
       if (ext === 'csv' || ext === 'txt' || ext === 'dat') {
         const h = await platform.csvHeaders(file);
-        return headersToFileMeta(h.headers, h.sample, h.rowCount);
+        return headersToFileMeta(h.headers, h.sample, h.rowCount, h.decimalComma);
       }
       if (ext === 'json') {
         const h = await platform.jsonHeaders(file);
-        return headersToFileMeta(h.headers, h.sample, h.rowCount);
+        return headersToFileMeta(h.headers, h.sample, h.rowCount, h.decimalComma);
       }
       if (ext === 'parquet') {
         const h = await platform.parquetHeaders(file);
-        const meta = headersToFileMeta(h.headers, h.sample, h.rowCount);
+        const meta = headersToFileMeta(h.headers, h.sample, h.rowCount, h.decimalComma);
         if (h.rowCount > h.sample.length) await settleFromColumns(platform, file, meta);
         // Wafers, for Parquet only (see parquetDistinctCount — CSV/JSON would
         // mean reading the whole file): distinct (lot, wafer) pairs, the
         // identity a load gives a wafer. Columns are found with detectRole,
         // the first match winning, as headersToFileMeta does for the lot. A
         // failed count leaves Wafers blank rather than failing the scan.
-        const roleCol = (role: string) => h.headers.find(c => detectRole(c, h.sample) === role);
+        const roleCol = (role: string) => h.headers.find(c => detectRole(c, h.sample, h.decimalComma) === role);
         const waferCol = roleCol('wafer');
         if (waferCol) {
           const lotCol = roleCol('lot');
@@ -314,12 +314,12 @@ export async function settleFromColumns(platform: Platform, file: FileHandle, me
   }
 }
 
-export function headersToFileMeta(headers: string[], sample: Record<string, string>[], rowCount: number): FileMeta {
+export function headersToFileMeta(headers: string[], sample: Record<string, string>[], rowCount: number, decimalComma = false): FileMeta {
   const wholeFile = rowCount <= sample.length;
   const fields: { key: string; value: string }[] = [];
   const seen = new Set<string>();
   for (const h of headers) {
-    const role = detectRole(h, sample);
+    const role = detectRole(h, sample, decimalComma);
     if (PER_DIE_ROLES.has(role)) continue;
     // A lot column (`lot`, `LOT_ID`, `lot_no`…) is filed under the STDF/ATDF
     // lot record's own key, `lotId` — the key the parser also gives it when
@@ -417,8 +417,8 @@ const OPTIONAL_COLUMNS: FilterTableColumn[] = [
  * file-input `accept` list.
  *
  * Only archives are materialised; everything else stays lazy (see `PickedFile`).
- * `.gz` needs nothing here — the parsers unwrap a gzip container themselves
- * (`read_file::maybe_gunzip`), on the bytes path as well as by extension.
+ * `.gz` and `.bz2` need nothing here — the parsers unwrap them themselves
+ * (`read_file::maybe_decompress`), on the bytes path as well as by extension.
  */
 async function expandPickedArchives(
   platform: Platform,
@@ -455,6 +455,12 @@ export interface FileFilterHandlers {
   /** Wraps `platform.confirm` so this module doesn't need its own dialog. */
   confirm: (message: string) => Promise<boolean>;
   log: (level: 'info' | 'error', message: string) => void;
+  /** True when the phase-timing log is on; the dialog then logs how long its
+   *  archive expansion, scan and table build take. */
+  timingsOn?: () => boolean;
+  /** Called with a message while a zip is read and expanded, which happens
+   *  before the dialog opens and can take seconds, and with null when done. */
+  onExpanding?: (message: string | null) => void;
 }
 
 /** `prePicked`, when given, skips the file picker and scans these files
@@ -475,7 +481,21 @@ export async function openFileFilterDialog(
   const rawPicked = prePicked ?? await pickFilesForFilter(platform);
   if (rawPicked.length === 0) return;
 
-  const picked = await expandPickedArchives(platform, rawPicked, handlers.log);
+  const timed = handlers.timingsOn?.() ?? false;
+  const t0 = performance.now();
+  const zips = rawPicked.filter(p => p.handle.name.toLowerCase().endsWith('.zip'));
+  if (zips.length > 0) {
+    handlers.onExpanding?.(`Reading ${zips.length === 1 ? zips[0].handle.name : `${zips.length} archives`}…`);
+  }
+  let picked: PickedFile[];
+  try {
+    picked = await expandPickedArchives(platform, rawPicked, handlers.log);
+  } finally {
+    if (zips.length > 0) handlers.onExpanding?.(null);
+  }
+  if (timed && rawPicked.some(p => p.handle.name.toLowerCase().endsWith('.zip'))) {
+    handlers.log('info', `⏱   Filter: expanded archives, ${picked.length} files in all — ${(performance.now() - t0).toFixed(0)} ms`);
+  }
   if (picked.length === 0) return;
 
   // Deliberately NO same-format check here. Scanning is read-only metadata, so
@@ -525,15 +545,35 @@ export async function openFileFilterDialog(
       body.appendChild(footer);
 
       let scannedCount = 0;
+      const scanStart = performance.now();
+      // Per format: files, summed per-file time (files scan SCAN_CONCURRENCY at
+      // a time, so the sum can exceed the wall time) and the slowest file.
+      const perFormat = new Map<string, { n: number; ms: number; slowMs: number; slow: string }>();
       mapWithConcurrency(picked, SCAN_CONCURRENCY, async (p, i) => {
         // Per-file extension, not one for the whole batch — a mixed pick is
         // allowed here (see the note above), so each file dispatches on itself.
-        const sf = await scanOne(platform, p, `row-${i}`, effectiveFileExtension(p.handle.name));
+        const ext = effectiveFileExtension(p.handle.name);
+        const fileStart = performance.now();
+        const sf = await scanOne(platform, p, `row-${i}`, ext);
+        if (timed) {
+          const ms = performance.now() - fileStart;
+          const f = perFormat.get(ext) ?? { n: 0, ms: 0, slowMs: 0, slow: '' };
+          f.n++; f.ms += ms;
+          if (ms > f.slowMs) { f.slowMs = ms; f.slow = p.handle.name; }
+          perFormat.set(ext, f);
+        }
         scannedCount++;
         status.textContent = `Scanning ${scannedCount} / ${picked.length}…`;
         return sf;
       }).then((results) => {
         scannedFiles = results;
+        const tableStart = performance.now();
+        if (timed) {
+          handlers.log('info', `⏱   Filter: scanned ${results.length} files — ${(tableStart - scanStart).toFixed(0)} ms`);
+          for (const [ext, f] of perFormat) {
+            handlers.log('info', `⏱     .${ext}: ${f.n} files, ${f.ms.toFixed(0)} ms summed, slowest ${f.slowMs.toFixed(0)} ms (${f.slow})`);
+          }
+        }
         const errorCount = results.filter(r => r.error).length;
         const formats = new Set(results.map(r => effectiveFileExtension(r.picked.handle.name)));
         // A load takes one format family (STDF and ATDF are one — see
@@ -660,6 +700,7 @@ export async function openFileFilterDialog(
         });
         tableMount.appendChild(table.el);
         table.setRows(rows);
+        if (timed) handlers.log('info', `⏱   Filter: table built with ${rows.length} rows — ${(performance.now() - tableStart).toFixed(0)} ms`);
 
         // Re-apply the last filter that was used to load — see LAST_FILTER_KEY.
         // `select: false` so rows aren't pre-ticked behind the user's back, and

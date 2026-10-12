@@ -85,6 +85,24 @@ pub fn split_parts(cols: &[String], mut value_of: impl FnMut(&str) -> String) ->
         .collect()
 }
 
+/// One `values-not-numeric` warning per column whose cells did not read as
+/// numbers, keyed by test number (or by role, for a non-test column) with the
+/// count of cells skipped. Shared by CSV and Parquet so the two report the same
+/// situation the same way.
+pub fn not_numeric_warnings(counts: &HashMap<String, u32>, test_defs: &HashMap<String, TestDef>) -> Vec<ParserWarning> {
+    let mut warnings: Vec<ParserWarning> = counts
+        .iter()
+        .map(|(role, count)| {
+            let label = test_defs.get(role).map(|d| d.name.as_str()).unwrap_or(role.as_str());
+            value_not_numeric_warning(label, *count)
+        })
+        .collect();
+    // Sorted by message so the order is deterministic regardless of HashMap
+    // iteration order — the codes are all the same here, the labels are not.
+    warnings.sort_by(|a, b| a.message.cmp(&b.message));
+    warnings
+}
+
 /// Assemble rows into a `ParsedStdf`. `extra_warnings` (e.g. Parquet's column
 /// type mismatches) are listed first, then values outside STDF's ranges, then
 /// position and grouping notes.
@@ -182,10 +200,35 @@ fn detect_passes(rows: &[FlatRow], meta_cols: usize, long_format: bool) -> Passe
     Passes::Retests { dies: dies.len() }
 }
 
+/// Most subdivisions per wafer a "Subdivide file by" mapping may yield before
+/// it is taken to be a per-die column and ignored.
+const MAX_SUBDIVISIONS_PER_WAFER: usize = 25;
+
+/// When the subdivide columns split the file into implausibly many wafers,
+/// drop the subdivision (clearing every row's `split_parts`) and say so.
+fn oversplit_check(rows: &mut [FlatRow], split_by: &[String]) -> Option<ParserWarning> {
+    if split_by.is_empty() || rows.iter().all(|r| r.split_parts.is_empty()) { return None; }
+    let mut base: HashSet<(&str, &str)> = HashSet::new();
+    let mut split: HashSet<(&str, &str, &[String])> = HashSet::new();
+    for r in rows.iter() {
+        base.insert((r.lot.as_str(), r.wafer.as_str()));
+        split.insert((r.lot.as_str(), r.wafer.as_str(), r.split_parts.as_slice()));
+    }
+    if split.len() <= base.len().max(1) * MAX_SUBDIVISIONS_PER_WAFER { return None; }
+    let warning = oversplit_warning(&split_by.join(", "), split.len(), base.len().max(1));
+    for r in rows.iter_mut() { r.split_parts.clear(); }
+    Some(warning)
+}
+
 fn assemble(rows: Vec<FlatRow>, mapping: &CsvMapping, long_format: bool) -> Assembled {
     let meta_cols = &mapping.meta;
     let pass_bins: HashSet<u32> = mapping.pass_bins.iter().copied().collect();
     let mut warnings: Vec<ParserWarning> = Vec::new();
+
+    // 0. A "Subdivide file by" column that varies from die to die is not a
+    //    wafer property: it would shatter the file into one wafer per die.
+    let mut rows = rows;
+    if let Some(w) = oversplit_check(&mut rows, &mapping.split_by) { warnings.push(w); }
 
     // 1. Identity — lot + wafer (+ subdivide parts), in first-seen order.
     let mut groups: IndexMap<(String, String), Vec<FlatRow>> = IndexMap::new();
@@ -381,6 +424,20 @@ mod tests {
         assert_eq!(field(&a.wafers[0], "program"), Some("P1"));
         assert_eq!(field(&a.wafers[1], "program"), Some("P2"));
         assert_eq!(a.meta.get("program"), None);
+    }
+
+    #[test]
+    fn subdividing_by_a_per_die_column_is_ignored_and_reported() {
+        let mut m = mapping(&[], true);
+        m.split_by = vec!["vdd".into()];
+        let rows: Vec<FlatRow> = (0..200).map(|i| {
+            let mut r = row("A", "W01", i, &[], &[]);
+            r.split_parts = vec![format!("vdd: {}", 1000.0 + f64::from(i) * 0.37)];
+            r
+        }).collect();
+        let a = assemble(rows, &m, false);
+        assert_eq!(a.wafers.len(), 1);
+        assert!(a.warnings.iter().any(|w| w.code == "subdivide-ignored" && w.message.contains("'vdd'")), "{:?}", a.warnings);
     }
 
     #[test]

@@ -2029,6 +2029,8 @@ async function offerFilterFirst(picked: PickedFile[], isAppend: boolean): Promis
     isAppend,
     confirm: (msg) => platform.confirm(msg),
     log,
+    timingsOn: () => logTimings,
+    onExpanding: (msg) => { if (msg) loadPhase('reading', msg); else endLoad(); },
   }, picked);
   return true;
 }
@@ -2122,6 +2124,8 @@ async function openScanInFilter(scan: FolderScan, isAppend: boolean) {
     isAppend,
     confirm: (msg) => platform.confirm(msg),
     log,
+    timingsOn: () => logTimings,
+    onExpanding: (msg) => { if (msg) loadPhase('reading', msg); else endLoad(); },
   }, scan.files.map(pickedFromHandle));
 }
 

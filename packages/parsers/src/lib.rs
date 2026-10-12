@@ -143,6 +143,7 @@ export type ParserWarningCode =
   | "retests-assumed"
   | "wafer-split-by-column"
   | "column-varies-within-wafer"
+  | "subdivide-ignored"
   | "multiple-lot-records";
 
 /** A non-fatal advisory. The parse succeeded; something about it is worth
@@ -190,6 +191,16 @@ export interface FileMeta {
   /** Latest WRR FINISH_T, same caveat. */
   latestFinish?: string;
   siteCount?: number;
+}
+
+/** A CSV's header row and a preview of its rows, read in the file's own dialect. */
+export interface CsvHeadersResult {
+  headers: string[];
+  /** Cells as written in the file: a decimal-comma file keeps `0,25` here. */
+  sample: Record<string, string>[];
+  rowCount: number;
+  /** The file writes numbers with a decimal comma; the parse reads them as numbers. */
+  decimalComma: boolean;
 }
 
 export interface ParquetHeadersResult {
@@ -259,6 +270,7 @@ export interface CsvMapping {
 export type ParseErrorCode =
   | "file-read"
   | "gzip-invalid"
+  | "bzip-invalid"
   | "encoding-invalid"
   | "not-stdf"
   | "stdf-unsupported"
@@ -288,6 +300,8 @@ export interface ParserError extends Error {
         pub type TsScanResult;
         #[wasm_bindgen(typescript_type = "FileMeta")]
         pub type TsFileMeta;
+        #[wasm_bindgen(typescript_type = "CsvHeadersResult")]
+        pub type TsCsvHeaders;
         #[wasm_bindgen(typescript_type = "ParquetHeadersResult")]
         pub type TsParquetHeaders;
         #[wasm_bindgen(typescript_type = "CsvMapping")]
@@ -352,99 +366,122 @@ export interface ParserError extends Error {
     // package, turns it back into a `ParsedStdf`.
 
     #[wasm_bindgen]
-    pub fn parse_stdf(bytes: &[u8]) -> Result<Vec<u8>, JsValue> {
-        crate::parse_stdf::parse_stdf_from_bytes(bytes)
+    pub fn parse_stdf(bytes: Vec<u8>) -> Result<Vec<u8>, JsValue> {
+        crate::parse_stdf::parse_stdf_from_bytes(&unpacked(bytes)?)
             .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_atdf(bytes: &[u8]) -> Result<Vec<u8>, JsValue> {
-        crate::parse_atdf::parse_atdf_from_bytes(bytes)
+    pub fn parse_atdf(bytes: Vec<u8>) -> Result<Vec<u8>, JsValue> {
+        crate::parse_atdf::parse_atdf_from_bytes(&unpacked(bytes)?)
             .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_csv(bytes: &[u8], mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
+    pub fn parse_csv(bytes: Vec<u8>, mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
         let mapping = mapping_from_js(AsRef::<JsValue>::as_ref(mapping))?;
-        crate::parse_csv::parse_csv_from_bytes(bytes, mapping)
+        crate::parse_csv::parse_csv_from_bytes(&unpacked(bytes)?, mapping)
             .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_json(bytes: &[u8], mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
+    pub fn parse_json(bytes: Vec<u8>, mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
         let mapping = mapping_from_js(AsRef::<JsValue>::as_ref(mapping))?;
-        crate::parse_json::parse_json_from_bytes(bytes, mapping)
+        crate::parse_json::parse_json_from_bytes(&unpacked(bytes)?, mapping)
             .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
+    /// `bytes` with a gzip or bzip2 container removed; unchanged when there is none.
     #[wasm_bindgen]
-    pub fn parquet_headers(bytes: &[u8]) -> Result<TsParquetHeaders, JsValue> {
-        crate::parse_parquet::parquet_headers_from_bytes(bytes)
+    pub fn decompress(bytes: Vec<u8>) -> Result<Vec<u8>, JsValue> {
+        unpacked(bytes)
+    }
+
+    /// `bytes` with any gzip or bzip2 container removed. Taken by value so the
+    /// compressed copy is freed as soon as it is unpacked, before the parse, instead
+    /// of being held until the call returns: on a 185 MB `.stdf.gz` it was most of the
+    /// difference between a 1.5 GB and a 2.2 GB module. Uncompressed input is returned
+    /// as is, with no copy.
+    fn unpacked(bytes: Vec<u8>) -> Result<Vec<u8>, JsValue> {
+        if crate::read_file::Compression::sniff(&bytes).is_none() { return Ok(bytes); }
+        crate::read_file::maybe_decompress(&bytes).map(|c| c.into_owned()).map_err(to_js_error)
+    }
+
+    #[wasm_bindgen]
+    pub fn csv_headers(bytes: Vec<u8>) -> Result<TsCsvHeaders, JsValue> {
+        crate::parse_csv::csv_headers_from_bytes(&unpacked(bytes)?)
+            .map(|r| to_js(&r))
+            .map_err(to_js_error)
+    }
+
+    #[wasm_bindgen]
+    pub fn parquet_headers(bytes: Vec<u8>) -> Result<TsParquetHeaders, JsValue> {
+        crate::parse_parquet::parquet_headers_from_bytes(&unpacked(bytes)?)
             .map(|r| to_js(&r))
             .map_err(to_js_error)
     }
 
     /// `columns` is a JS string array. See `parquet_distinct_count_from_bytes`.
     #[wasm_bindgen]
-    pub fn parquet_distinct_count(bytes: &[u8], columns: &TsStringArray, blank_is_a_value: bool) -> Result<usize, JsValue> {
+    pub fn parquet_distinct_count(bytes: Vec<u8>, columns: &TsStringArray, blank_is_a_value: bool) -> Result<usize, JsValue> {
         let columns: Vec<String> = serde_wasm_bindgen::from_value(AsRef::<JsValue>::as_ref(columns).clone())
             .map_err(|e| to_js_error(ParseError::mapping_invalid(e)))?;
-        crate::parse_parquet::parquet_distinct_count_from_bytes(bytes, &columns, blank_is_a_value)
+        crate::parse_parquet::parquet_distinct_count_from_bytes(&unpacked(bytes)?, &columns, blank_is_a_value)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_parquet(bytes: &[u8], mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
+    pub fn parse_parquet(bytes: Vec<u8>, mapping: &TsCsvMapping) -> Result<Vec<u8>, JsValue> {
         let mapping = mapping_from_js(AsRef::<JsValue>::as_ref(mapping))?;
-        crate::parse_parquet::parse_parquet_from_bytes(bytes, mapping)
+        crate::parse_parquet::parse_parquet_from_bytes(&unpacked(bytes)?, mapping)
             .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn stdf_test_names(bytes: &[u8]) -> Result<TsScanResult, JsValue> {
-        crate::parse_stdf::parse_stdf_test_names(bytes)
+    pub fn stdf_test_names(bytes: Vec<u8>) -> Result<TsScanResult, JsValue> {
+        crate::parse_stdf::parse_stdf_test_names(&unpacked(bytes)?)
             .map(|r| to_js(&r))
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn stdf_file_meta(bytes: &[u8]) -> Result<TsFileMeta, JsValue> {
-        crate::parse_stdf::parse_stdf_file_meta(bytes)
+    pub fn stdf_file_meta(bytes: Vec<u8>) -> Result<TsFileMeta, JsValue> {
+        crate::parse_stdf::parse_stdf_file_meta(&unpacked(bytes)?)
             .map(|r| to_js(&r))
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_stdf_filtered(bytes: &[u8], selected: &TsNumberArray) -> Result<Vec<u8>, JsValue> {
+    pub fn parse_stdf_filtered(bytes: Vec<u8>, selected: &TsNumberArray) -> Result<Vec<u8>, JsValue> {
         let set = selected_set(selected)?;
-        crate::parse_stdf::parse_stdf_from_bytes_filtered(bytes, &set)
+        crate::parse_stdf::parse_stdf_from_bytes_filtered(&unpacked(bytes)?, &set)
             .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn atdf_test_names(bytes: &[u8]) -> Result<TsScanResult, JsValue> {
-        crate::parse_atdf::parse_atdf_test_names(bytes)
+    pub fn atdf_test_names(bytes: Vec<u8>) -> Result<TsScanResult, JsValue> {
+        crate::parse_atdf::parse_atdf_test_names(&unpacked(bytes)?)
             .map(|r| to_js(&r))
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn atdf_file_meta(bytes: &[u8]) -> Result<TsFileMeta, JsValue> {
-        crate::parse_atdf::parse_atdf_file_meta(bytes)
+    pub fn atdf_file_meta(bytes: Vec<u8>) -> Result<TsFileMeta, JsValue> {
+        crate::parse_atdf::parse_atdf_file_meta(&unpacked(bytes)?)
             .map(|r| to_js(&r))
             .map_err(to_js_error)
     }
 
     #[wasm_bindgen]
-    pub fn parse_atdf_filtered(bytes: &[u8], selected: &TsNumberArray) -> Result<Vec<u8>, JsValue> {
+    pub fn parse_atdf_filtered(bytes: Vec<u8>, selected: &TsNumberArray) -> Result<Vec<u8>, JsValue> {
         let set = selected_set(selected)?;
-        crate::parse_atdf::parse_atdf_from_bytes_filtered(bytes, &set)
+        crate::parse_atdf::parse_atdf_from_bytes_filtered(&unpacked(bytes)?, &set)
             .map(crate::columnar::encode_columnar)
             .map_err(to_js_error)
     }

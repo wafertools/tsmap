@@ -47,6 +47,8 @@ export interface HeadersResult {
   /** Coarse per-column type ("number" | "bool" | "string") — set only by
    *  natively-typed sources (Parquet); absent for CSV/JSON. */
   columnTypes?: Record<string, 'number' | 'bool' | 'string'>;
+  /** CSV only: the file writes numbers with a decimal comma (see mappingUI.ts). */
+  decimalComma?: boolean;
 }
 
 export interface FileHandle {
@@ -201,10 +203,9 @@ export interface Platform {
   parseParquet(file: FileHandle, mapping: CsvMapping): Promise<RustParsedFile>;
   csvHeaders(file: FileHandle): Promise<HeadersResult>;
   jsonHeaders(file: FileHandle): Promise<HeadersResult>;
-  /** Unlike csvHeaders/jsonHeaders (computed in plain JS on web, see
-   *  parseCsvHeaders/parseJsonHeaders below), Parquet's binary format has no
-   *  pure-JS shortcut — this always goes through the WASM worker on web, and
-   *  through the native command on Tauri. */
+  /** Like csvHeaders (and unlike jsonHeaders, computed in plain JS on web, see
+   *  parseJsonHeaders below), this always goes through the WASM worker on web,
+   *  and through the native command on Tauri. */
   parquetHeaders(file: FileHandle): Promise<HeadersResult>;
   /** Distinct combinations of `columns`' values across the whole Parquet file
    *  — the file filter's wafer count, as distinct (lot, wafer) pairs. Parquet
@@ -383,13 +384,13 @@ function makeTauriPlatform(): Platform {
         // to exactly one — split out from a former combined "CSV / JSON /
         // Parquet" entry, which couldn't isolate just one of those three.
         filters: [
-          { name: 'Wafer map files', extensions: ['stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet', 'gz', 'zip'] },
+          { name: 'Wafer map files', extensions: ['stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet', 'gz', 'bz2', 'zip'] },
           { name: 'STDF', extensions: ['stdf', 'std'] },
           { name: 'ATDF', extensions: ['atdf', 'atd'] },
           { name: 'CSV', extensions: ['csv'] },
           { name: 'JSON', extensions: ['json'] },
           { name: 'Parquet', extensions: ['parquet'] },
-          { name: 'Archives', extensions: ['gz', 'zip'] },
+          { name: 'Archives', extensions: ['gz', 'bz2', 'zip'] },
         ],
       });
       const paths = Array.isArray(result) ? result : result ? [result] : [];
@@ -798,7 +799,7 @@ function callWorker(
  * Decompress a .gz file using the browser's native DecompressionStream.
  *
  * Checks the gzip magic bytes (0x1f 0x8b) first and returns the input
- * unchanged if they're absent — mirrors the Rust parser's `maybe_gunzip`
+ * unchanged if they're absent — mirrors the Rust parser's `maybe_decompress`
  * (CLAUDE.md: "a safe no-op if the caller already decompressed"), and for
  * the same reason: a server that sets `Content-Encoding: gzip` on a
  * `.gz`-suffixed asset (common static-host default, confirmed here against
@@ -809,7 +810,7 @@ function callWorker(
  * on already-decompressed bytes throws `The compressed data was not valid:
  * incorrect header check` — which is exactly what shipped (2026-08,
  * getSampleFile's `sample-lot.stdf.gz`): the error was real, but harmless
- * only by accident, because the Rust parser's own maybe_gunzip silently
+ * only by accident, because the Rust parser's own maybe_decompress silently
  * absorbed the already-decompressed bytes downstream. Web-only — Tauri
  * reads the file straight off disk (resolveResource), no HTTP transport
  * layer involved, so it never hits this.
@@ -853,29 +854,6 @@ export function sampleIndices(total: number): number[] {
   const n = Math.min(SAMPLE_SPREAD, rest);
   for (let k = 0; k < n; k++) idx.push(SAMPLE_HEAD + Math.floor(k * rest / n));
   return idx;
-}
-
-/** Parse CSV bytes: detect delimiter, extract headers, sample rows, count rows. */
-export function parseCsvHeaders(bytes: Uint8Array): HeadersResult {
-  const text = new TextDecoder().decode(bytes);
-  // Blank lines and `#` comment lines are not rows: the parser (native and WASM) skips both, so a preview row is
-  // never one it would not read.
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '' && !l.startsWith('#'));
-  const firstLine = lines[0] ?? '';
-  const commas = firstLine.split(',').length - 1;
-  const tabs = firstLine.split('\t').length - 1;
-  const semis = firstLine.split(';').length - 1;
-  const delim = tabs >= commas && tabs >= semis ? '\t' : semis > commas ? ';' : ',';
-
-  const headers = firstLine.split(delim).map(h => h.trim().replace(/^["']|["']$/g, ''));
-  const sample: Record<string, string>[] = [];
-  for (const r of sampleIndices(lines.length - 1)) {
-    const row: Record<string, string> = {};
-    const cells = lines[r + 1].split(delim);
-    headers.forEach((h, j) => { row[h] = (cells[j] ?? '').trim().replace(/^["']|["']$/g, ''); });
-    sample.push(row);
-  }
-  return { headers, sample, rowCount: lines.length - 1 };
 }
 
 /** Parse JSON bytes: extract column names and sample rows. */
@@ -1130,6 +1108,10 @@ function makeWebPlatform(): Platform {
         } else if (lower.endsWith('.gz')) {
           const decompressed = await decompressGzip(f.bytes);
           expanded.push({ name: f.name.slice(0, -3), bytes: decompressed, size: decompressed.length });
+        } else if (lower.endsWith('.bz2')) {
+          // No browser bzip2: the parser's own decoder, the one every parse uses.
+          const decompressed = await callWorker('decompress', f.bytes) as Uint8Array;
+          expanded.push({ name: f.name.slice(0, -4), bytes: decompressed, size: decompressed.length });
         } else {
           expanded.push({ ...f, size: f.size ?? f.bytes.length });
         }
@@ -1158,7 +1140,9 @@ function makeWebPlatform(): Platform {
     },
 
     async csvHeaders(file) {
-      return parseCsvHeaders(file.bytes);
+      // Through the parser, as the desktop does, so the preview reads the file
+      // with the same delimiter, quoting and decimal mark the parse will.
+      return await callWorker('csvHeaders', file.bytes) as HeadersResult;
     },
 
     async jsonHeaders(file) {
@@ -1166,8 +1150,8 @@ function makeWebPlatform(): Platform {
     },
 
     async parquetHeaders(file) {
-      // No pure-JS shortcut for a binary Parquet schema/footer, unlike
-      // csvHeaders/jsonHeaders above — always goes through the WASM worker.
+      // No pure-JS shortcut for a binary Parquet schema/footer — always goes
+      // through the WASM worker.
       return await callWorker('parquetHeaders', file.bytes) as HeadersResult;
     },
 

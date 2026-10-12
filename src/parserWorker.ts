@@ -24,6 +24,8 @@ export type ParserOp =
   | 'parseCsv'
   | 'parseJson'
   | 'parseParquet'
+  | 'csvHeaders'
+  | 'decompress'
   | 'parquetHeaders'
   | 'parquetDistinctCount'
   | 'stdfTestNames'
@@ -107,6 +109,8 @@ function run(wasm: WasmModule, req: ParserRequest): unknown {
     case 'parseCsv':          return wasm.parse_csv(req.bytes, mapping());
     case 'parseJson':         return wasm.parse_json(req.bytes, mapping());
     case 'parseParquet':      return wasm.parse_parquet(req.bytes, mapping());
+    case 'csvHeaders':        return wasm.csv_headers(req.bytes);
+    case 'decompress':        return wasm.decompress(req.bytes);
     case 'parquetHeaders':    return wasm.parquet_headers(req.bytes);
     case 'parquetDistinctCount':
       return wasm.parquet_distinct_count(req.bytes, required(req.columns, 'columns', req.op), req.blankIsAValue ?? false);

@@ -15,13 +15,16 @@ export function basename(p: string): string {
   return p.split(/[\\/]/).pop() ?? p;
 }
 
-/** File extension, with a `.gz` wrapper stripped to expose the inner format
- *  (`lot.stdf.gz` → `stdf`) — used everywhere a set of picked files needs to
- *  agree on format before dispatch. */
+/** Compression wrappers the parsers unwrap themselves (`read_file::Compression`). */
+export const COMPRESSED_EXTENSIONS = ['gz', 'bz2'] as const;
+
+/** File extension, with a `.gz` or `.bz2` wrapper stripped to expose the inner
+ *  format (`lot.stdf.gz` → `stdf`) — used everywhere a set of picked files
+ *  needs to agree on format before dispatch. */
 export function effectiveFileExtension(name: string): string {
   const parts = name.split('.');
   const ext = parts.pop()?.toLowerCase() ?? '';
-  return ext === 'gz' ? (parts.pop()?.toLowerCase() ?? ext) : ext;
+  return (COMPRESSED_EXTENSIONS as readonly string[]).includes(ext) ? (parts.pop()?.toLowerCase() ?? ext) : ext;
 }
 
 /** STDF or ATDF (by effective extension) — tester files, parsed per record by
@@ -74,6 +77,7 @@ export function checkSameExtension(names: string[], relaxed = false): string | n
 export const DATA_FILE_EXTENSIONS = [
   'stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet',
   'stdf.gz', 'std.gz', 'atdf.gz', 'atd.gz', 'csv.gz', 'json.gz', 'parquet.gz',
+  'stdf.bz2', 'std.bz2', 'atdf.bz2', 'atd.bz2', 'csv.bz2', 'json.bz2', 'parquet.bz2',
   'zip',
 ] as const;
 
@@ -84,7 +88,7 @@ export const DATA_FILE_EXTENSIONS = [
  *  start-up), the file filter's own input, and `pickWebFilesByPurpose`. The
  *  native desktop dialog's filter list is per-format and stays in platform.ts. */
 export const DATA_PICKER_EXTENSIONS = [
-  'stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet', 'gz', 'zip', 'txt', 'dat',
+  'stdf', 'std', 'atdf', 'atd', 'csv', 'json', 'parquet', 'gz', 'bz2', 'zip', 'txt', 'dat',
 ] as const;
 
 /** Formats tsmap can dispatch a URL-sourced import to — mirrors

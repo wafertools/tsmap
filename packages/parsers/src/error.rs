@@ -58,6 +58,11 @@ impl ParseError {
         Self::new("gzip-invalid", format!("gz decompress failed: {e}"))
     }
 
+    /// Bzip2 input that would not decompress.
+    pub fn bzip2_invalid(e: impl fmt::Display) -> Self {
+        Self::new("bzip-invalid", format!("bz2 decompress failed: {e}"))
+    }
+
     /// Bytes that are not valid UTF-8 — an ATDF/CSV/JSON file in another
     /// encoding, or a binary file handed to a text parser.
     pub fn encoding_invalid(e: impl fmt::Display) -> Self {
@@ -130,6 +135,7 @@ mod tests {
         let all = [
             ParseError::file_read("no such file"),
             ParseError::gzip_invalid("bad header"),
+            ParseError::bzip2_invalid("bad header"),
             ParseError::encoding_invalid("invalid utf-8 at byte 3"),
             ParseError::not_stdf("file too short to contain a FAR record"),
             ParseError::stdf_unsupported("unsupported STDF CPU_TYPE 9"),
@@ -141,7 +147,7 @@ mod tests {
             ParseError::internal("blocking task panicked"),
         ];
         let expected = [
-            "file-read", "gzip-invalid", "encoding-invalid", "not-stdf", "stdf-unsupported",
+            "file-read", "gzip-invalid", "bzip-invalid", "encoding-invalid", "not-stdf", "stdf-unsupported",
             "csv-read", "json-invalid", "parquet-read", "column-missing", "mapping-invalid",
             "internal",
         ];

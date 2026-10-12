@@ -44,7 +44,7 @@ try {
 }
 ```
 
-The full set: `file-read`, `gzip-invalid`, `encoding-invalid`, `not-stdf`,
+The full set: `file-read`, `gzip-invalid`, `bzip-invalid`, `encoding-invalid`, `not-stdf`,
 `stdf-unsupported`, `csv-read`, `json-invalid`, `parquet-read`, `column-missing`,
 `mapping-invalid`, `internal`. `ParseErrorCode` in the type declarations is the same
 list, so a `switch` on it is exhaustively checked.
@@ -57,7 +57,7 @@ In a bundler/dev-server context, `new URL('...testdata_parser_bg.wasm', import.m
 
 The package ships real declarations for every result and input shape —
 `ParsedStdf`, `WaferData`, `DieResult`, `TestDef`, `ParserWarning`, `ScanResult`,
-`FileMeta`, `ParquetHeadersResult`, `CsvMapping`, and the `ParserWarningCode` /
+`FileMeta`, `CsvHeadersResult`, `ParquetHeadersResult`, `CsvMapping`, and the `ParserWarningCode` /
 `ParseErrorCode` unions. Each export is typed with its real return type, so field
 names complete and a typo is a compile error.
 
@@ -70,7 +70,7 @@ and this README to each other.
 
 ## API
 
-Every parse function takes raw file bytes (`Uint8Array`), or throws a `ParserError` (see above). The full parses (`parse_*`) return a columnar buffer (`Uint8Array`) to decode as below; the scans and header reads return a plain JS object (via `serde-wasm-bindgen`). Gzip-compressed input (`.gz`) is transparently decompressed for every format.
+Every parse function takes raw file bytes (`Uint8Array`), or throws a `ParserError` (see above). The full parses (`parse_*`) return a columnar buffer (`Uint8Array`) to decode as below; the scans and header reads return a plain JS object (via `serde-wasm-bindgen`). Gzip- and bzip2-compressed input (`.gz`, `.bz2`) is transparently decompressed for every format.
 
 | Function | Signature | Returns |
 | --- | --- | --- |
@@ -78,7 +78,9 @@ Every parse function takes raw file bytes (`Uint8Array`), or throws a `ParserErr
 | `parse_atdf` | `(bytes: Uint8Array) => Uint8Array` | Full parse of an ATDF file, as a columnar buffer |
 | `parse_csv` | `(bytes: Uint8Array, mapping: CsvMapping) => Uint8Array` | Full parse of a CSV, using an explicit column mapping |
 | `parse_json` | `(bytes: Uint8Array, mapping: CsvMapping) => Uint8Array` | Full parse of a JSON array-of-records file, using the same mapping shape as CSV |
-| `parquet_headers` | `(bytes: Uint8Array) => ParquetHeadersResult` | Schema + a sample of rows, for a column-mapping UI (see below — unlike CSV/JSON, this one *is* a WASM export) |
+| `decompress` | `(bytes: Uint8Array) => Uint8Array` | The bytes with a gzip or bzip2 container removed (unchanged when there is none). Every parse already does this; it is for a caller that reads the bytes itself, such as a JSON header preview |
+| `csv_headers` | `(bytes: Uint8Array) => CsvHeadersResult` | Header row + a sample of rows, for a column-mapping UI, read with the delimiter and decimal mark `parse_csv` will use (see below) |
+| `parquet_headers` | `(bytes: Uint8Array) => ParquetHeadersResult` | Schema + a sample of rows, for a column-mapping UI (see below) |
 | `parse_parquet` | `(bytes: Uint8Array, mapping: CsvMapping) => Uint8Array` | Full parse of a Parquet file, using the same mapping shape as CSV/JSON |
 | `stdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Fast first-pass scan: test definitions + die count, no die accumulation |
 | `atdf_test_names` | `(bytes: Uint8Array) => ScanResult` | Same first-pass scan for ATDF |
@@ -262,6 +264,7 @@ type ParserWarningCode =
   | 'retests-assumed'           // repeated positions read as retests
   | 'wafer-split-by-column'     // one wafer per value of a mapped column
   | 'column-varies-within-wafer'// a metadata column describes dies, not wafers
+  | 'subdivide-ignored'         // "Subdivide file by" would give one wafer per die, so it was not applied
   | 'multiple-lot-records';     // the file holds more than one MIR
 ```
 
@@ -334,11 +337,32 @@ Timestamps are normally fixed-width ISO 8601, which is what makes "earliest" a p
 compare — but an ATDF value written in some other convention passes through unrecognised
 rather than being dropped, so treat these as display text unless you have parsed them.
 
-### Column headers: CSV/JSON vs Parquet
+### Column headers: CSV, JSON and Parquet
 
-There is no `csv_headers`/`json_headers` in the WASM API — a browser caller that needs to show the user a column-mapping UI before parsing a CSV/JSON file can just read the header row itself in plain JS (this is what tsmap's web build does; the desktop build calls the native functions below instead). The byte-based Rust functions exist (`csv_headers_from_bytes`, and `json_headers_sync`'s logic), they are simply not wired through `wasm-bindgen` for these two formats.
+**`csv_headers` reads a CSV the way `parse_csv` will.** The delimiter (`,`, `;` or tab, from the
+first line that is not a `#` comment) and the decimal mark are detected once, from the first
+64 KiB, and both calls use the same answer. A file whose sampled numbers are mostly written
+`0,25` rather than `0.25` is read as decimal-comma, as a European-locale export is; there, `.`
+groups thousands (`1.234,5` is 1234.5). Only a `;`- or tab-delimited file can be decimal-comma.
+`decimalComma` tells a mapping UI so it can recognise those cells as numbers; the sample keeps
+them as written. Reading the header row in plain JS instead would miss quoting and the decimal
+mark, and preview a file differently from how it then parses.
 
-**Parquet is different: `parquet_headers` *is* a WASM export.** Its binary, footer-based schema has no equivalent plain-JS shortcut — a caller genuinely needs the parser to read it. `ParquetHeadersResult` extends the same headers/sample/rowCount shape with `columnTypes` (coarse `"number" | "bool" | "string"` per column, inferred from the first sampled row), since Parquet's columns are natively typed unlike CSV/JSON's all-text cells:
+```ts
+interface CsvHeadersResult {
+  headers: string[];
+  sample: Record<string, string>[]; // the first five rows, then up to twenty spread through the file
+  rowCount: number;
+  decimalComma: boolean;
+}
+```
+
+A test column whose cells are not numbers in that dialect is reported, not dropped silently: the
+parse returns a `values-not-numeric` warning naming the column and how many cells were skipped.
+
+There is no `json_headers` in the WASM API: JSON's keys are plain to read in JS.
+
+**Parquet's `parquet_headers` is also a WASM export.** Its binary, footer-based schema has no equivalent plain-JS shortcut — a caller genuinely needs the parser to read it. `ParquetHeadersResult` extends the same headers/sample/rowCount shape with `columnTypes` (coarse `"number" | "bool" | "string"` per column, inferred from the first sampled row), since Parquet's columns are natively typed unlike CSV/JSON's all-text cells:
 
 ```ts
 interface ParquetHeadersResult {
@@ -353,11 +377,16 @@ interface ParquetHeadersResult {
 
 The crate also builds as a native Rust library (used directly by tsmap's Tauri commands, bypassing WASM entirely). Enable the `native` feature (the default); the `wasm` feature gates the `wasm-bindgen` exports above. See `Cargo.toml` for the full feature list, including `bench` (enables `parse_stdf_from_bytes_timed`, a timed parse variant used by the perf benchmarks).
 
-**Path-based** — `native` feature only, synchronous, read from a file path rather than a byte buffer:
+**Path-based** — `native` feature only, synchronous, read from a file path rather than a byte buffer. The STDF ones stream the
+file's records (through the gzip or bzip2 decoder its extension names) rather than reading it whole, so a parse peaks at its result,
+not the file plus its result:
 
 | Function | Module |
 | --- | --- |
 | `parse_stdf_sync(path: String) -> ParseResult<ParsedStdf>` | `parse_stdf` |
+| `parse_stdf_filtered_path(path: &str, selected: &HashSet<u32>) -> ParseResult<ParsedStdf>` | `parse_stdf` |
+| `parse_stdf_test_names_path(path: &str) -> ParseResult<ScanResult>` | `parse_stdf` |
+| `parse_stdf_file_meta_path(path: &str) -> ParseResult<FileMeta>` | `parse_stdf` |
 | `parse_atdf_sync(path: String) -> ParseResult<ParsedStdf>` | `parse_atdf` |
 | `csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult>` | `parse_csv` |
 | `parse_csv_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_csv` |
@@ -391,15 +420,16 @@ alone. Same codes as the WASM layer above; it is the same error, serialised ther
 | `parquet_headers_from_bytes(&[u8]) -> ParseResult<ParquetHeadersResult>` | `parse_parquet` |
 | `parse_parquet_from_bytes(&[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf>` | `parse_parquet` |
 | `parquet_distinct_count_from_bytes(&[u8], &[String], bool) -> ParseResult<usize>` | `parse_parquet` |
-| `decompress_if_gzip(Vec<u8>) -> ParseResult<Vec<u8>>` | `read_file` |
+| `maybe_decompress(&[u8]) -> ParseResult<Cow<[u8]>>` | `read_file` |
 
-`CsvHeadersResult` and `JsonHeadersResult` are the same shape — the header row plus enough of the file to preview a mapping:
+`CsvHeadersResult` is the header row plus enough of the file to preview a mapping, and the dialect the parse will read it with; `JsonHeadersResult` is the same without `decimal_comma`:
 
 ```rust
 pub struct CsvHeadersResult {
     pub headers: Vec<String>,
     pub sample: Vec<HashMap<String, String>>, // the first five rows, then up to twenty spread through the file
     pub row_count: usize,
+    pub decimal_comma: bool, // numbers are written 0,25; the sample keeps them as written
 }
 ```
 
@@ -407,7 +437,7 @@ pub struct CsvHeadersResult {
 
 - **Byte readers are panic-free.** STDF/ATDF field readers are bounds-checked and return `Option`/`Result` rather than panicking on truncated input — a panic inside WASM aborts the whole module with no recovery, so this is a hard requirement, not a style preference.
 - **Big-endian and little-endian STDF** are both supported (detected from the FAR record's `CPU_TYPE`).
-- **Gzip is transparent** — every entry point decompresses `.gz` input automatically by sniffing the magic bytes; callers don't need to branch on compression.
+- **Gzip and bzip2 are transparent** — every entry point decompresses `.gz` and `.bz2` input automatically by sniffing the magic bytes (a native path also by its extension); callers don't need to branch on compression.
 - **MPR records are not read yet.** A multiple-result parametric record (STDF `MPR`, ATDF `MPR:`)
   carries several results for one test; both parsers skip them — in the full parse and the
   test-name scan alike — and count them in a `records-not-read` warning, so the missing tests are

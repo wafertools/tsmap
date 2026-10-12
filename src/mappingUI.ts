@@ -61,6 +61,10 @@ export interface HeadersResult {
    *  so they never set this). Used to flag an obviously wrong role (e.g. a
    *  string column mapped to X) before a full parse silently drops every row. */
   columnTypes?: Record<string, 'number' | 'bool' | 'string'>;
+  /** CSV only: the parser found the file writes numbers with a decimal comma
+   *  (`0,25`). The sample keeps cells as written, so a numeric guess must read
+   *  them that way too. */
+  decimalComma?: boolean;
 }
 
 /** Roles that require a numeric cell value. Mapping one of these to a
@@ -213,7 +217,13 @@ function isVerdictColumn(col: string, sample: Record<string, string>[]): boolean
   return filled.length > 0 && filled.every(v => VERDICT_WORDS.has(v.toLowerCase()));
 }
 
-function classify(col: string, sample: Record<string, string>[]): Detection {
+/** A sample cell as a number, read the way the parser's `parse_number` reads
+ *  it: with a decimal comma, `.` groups thousands (`1.234,5` is 1234.5). */
+function cellNumber(cell: string, decimalComma: boolean): number {
+  return Number(decimalComma && cell.includes(',') ? cell.replace(/\./g, '').replace(',', '.') : cell);
+}
+
+function classify(col: string, sample: Record<string, string>[], decimalComma = false): Detection {
   if (skipReason(col)) return { role: '', rank: RANK.exact };
   const key = col.toLowerCase().trim();
   for (const { role, patterns } of EXACT_ROLES) {
@@ -242,12 +252,12 @@ function classify(col: string, sample: Record<string, string>[]): Detection {
   if (!t.some(s => WAFER_VERDICT_TOKENS.has(s)) && isVerdictColumn(col, sample)) return { role: 'ftest', rank: RANK.fallback };
   // Numeric → test; otherwise metadata
   const sampleVal = sample.find(r => r[col] !== '')?.[col] ?? '';
-  const isNumeric = sampleVal !== '' && !isNaN(Number(sampleVal));
+  const isNumeric = sampleVal !== '' && !isNaN(cellNumber(sampleVal, decimalComma));
   return { role: (isNumeric && !t.some(s => NON_TEST_TOKENS.has(s))) ? 'test' : 'metadata', rank: RANK.fallback };
 }
 
-export function detectRole(col: string, sample: Record<string, string>[]): ColRole {
-  return classify(col, sample).role;
+export function detectRole(col: string, sample: Record<string, string>[], decimalComma = false): ColRole {
+  return classify(col, sample, decimalComma).role;
 }
 
 /**
@@ -260,8 +270,9 @@ export function detectRole(col: string, sample: Record<string, string>[]): ColRo
 export function detectRoles(
   headers: readonly string[],
   sample: Record<string, string>[],
+  decimalComma = false,
 ): { roles: Record<string, ColRole>; notes: Record<string, string> } {
-  const found = headers.map((h, i) => ({ h, i, ...classify(h, sample) }));
+  const found = headers.map((h, i) => ({ h, i, ...classify(h, sample, decimalComma) }));
   const roles: Record<string, ColRole> = {};
   const notes: Record<string, string> = {};
   for (const f of found) roles[f.h] = f.role;
@@ -561,7 +572,7 @@ export async function showMappingOverlay(
   overlay.id = 'tsmap-mapping-overlay';
 
   // Detect initial roles — use saved mapping if available
-  const { roles: detectedRoles, notes: detectionNotes } = detectRoles(headers, sample);
+  const { roles: detectedRoles, notes: detectionNotes } = detectRoles(headers, sample, result.decimalComma);
 
   // Build saved role map
   const savedRoles: Record<string, ColRole> = {};
@@ -598,7 +609,12 @@ export async function showMappingOverlay(
     const uniqueVals = new Set(sample.map(r => r[h]).filter(v => v !== '')).size;
     // `sample` is only the first few rows, so it can show that a column varies
     // but never that it is constant — say nothing rather than claim "same for all".
-    const cardinalityHint = uniqueVals > 1 ? `(${uniqueVals} values in sample)` : '';
+    const filledInSample = sample.filter(r => r[h] !== '').length;
+    // Every sampled row differing suggests a per-die measurement, which makes a poor split.
+    const cardinalityHint = uniqueVals < 2 ? ''
+      : uniqueVals === filledInSample && filledInSample >= 5
+        ? `(differs on every sampled row — likely per-die, not per-wafer)`
+        : `(${uniqueVals} values in sample)`;
     const isSavedSplitBy = saved?.splitBy?.includes(h) ?? false;
 
     const options = ROLE_OPTIONS.map(o =>

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use crate::types::*;
 use crate::sample::HEAD_ROWS;
-use crate::flat_wafers::{FlatRow, split_parts, into_parsed, parse_verdict};
+use crate::flat_wafers::{FlatRow, split_parts, into_parsed, parse_verdict, not_numeric_warnings};
 use crate::error::{ParseError, ParseResult};
 
 #[derive(Serialize)]
@@ -13,6 +13,90 @@ pub struct CsvHeadersResult {
     pub headers: Vec<String>,
     pub sample: Vec<HashMap<String, String>>,
     pub row_count: usize,
+    /// The file writes numbers with a decimal comma (`0,25`), as a European-locale
+    /// export does. The sample keeps the cells as written; the parse reads them
+    /// as numbers. See `Dialect`.
+    pub decimal_comma: bool,
+}
+
+/// How a delimited text file is written: its field delimiter and its decimal
+/// mark. Detected once per file from its first `DIALECT_SNIFF_BYTES`, and used
+/// by every CSV entry point (headers and parse, path and bytes), so the preview
+/// and the parse never read a file two different ways.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Dialect {
+    pub delimiter: u8,
+    /// Numbers use `,` as the decimal mark. Only ever true with a `;` or tab
+    /// delimiter: in a comma-delimited file an unquoted decimal comma would
+    /// split the cell.
+    pub decimal_comma: bool,
+}
+
+/// How much of a file `detect_dialect` reads.
+const DIALECT_SNIFF_BYTES: usize = 64 * 1024;
+
+/// Rows of the sniffed head that the decimal mark is judged from.
+const DIALECT_SNIFF_ROWS: usize = 200;
+
+/// The delimiter, from the first line that is neither blank nor a `#` comment,
+/// and the decimal mark, from the cells of the rows after it.
+///
+/// A file is decimal-comma when more of its sampled cells look like `12,5`
+/// than like `12.5`. A majority rather than "no dots at all", because a
+/// European export can still carry a dotted version string or IP address in
+/// a metadata column.
+pub fn detect_dialect(head: &[u8]) -> Dialect {
+    let first_line = head
+        .split(|&b| b == b'\n')
+        .find(|l| { let t = l.trim_ascii(); !t.is_empty() && t[0] != b'#' })
+        .unwrap_or(&[]);
+    let count = |c: u8| first_line.iter().filter(|&&b| b == c).count();
+    let (commas, tabs, semis) = (count(b','), count(b'\t'), count(b';'));
+    let delimiter = if tabs >= commas && tabs >= semis && tabs > 0 { b'\t' }
+        else if semis > commas { b';' } else { b',' };
+    if delimiter == b',' { return Dialect { delimiter, decimal_comma: false }; }
+
+    // Judge only complete lines: the head may end part-way through one.
+    let complete = match head.iter().rposition(|&b| b == b'\n') { Some(i) => &head[..=i], None => head };
+    let mut rdr = ReaderBuilder::new()
+        .delimiter(delimiter).trim(csv::Trim::All).comment(Some(b'#')).flexible(true)
+        .from_reader(complete);
+    let (mut comma, mut dot) = (0usize, 0usize);
+    for rec in rdr.records().take(DIALECT_SNIFF_ROWS).flatten() {
+        for cell in rec.iter() {
+            match decimal_mark(cell) {
+                Some(b',') => comma += 1,
+                Some(b'.') => dot += 1,
+                _ => {}
+            }
+        }
+    }
+    Dialect { delimiter, decimal_comma: comma > dot }
+}
+
+/// The decimal mark a cell is written with, when it is a number with a
+/// fractional part: `12,5` / `-0,25e-3` → `,`; `12.5` / `.5` → `.`. An integer,
+/// a date (`12.10.2026`) or text is neither.
+fn decimal_mark(cell: &str) -> Option<u8> {
+    let s = cell.strip_prefix(['+', '-']).unwrap_or(cell);
+    let mantissa = s.split_once(['e', 'E']).map_or(s, |(m, exp)| {
+        let exp = exp.strip_prefix(['+', '-']).unwrap_or(exp);
+        if exp.is_empty() || !exp.bytes().all(|b| b.is_ascii_digit()) { "" } else { m }
+    });
+    let mark = mantissa.bytes().find(|b| *b == b',' || *b == b'.')?;
+    let (int, frac) = mantissa.split_once(mark as char)?;
+    let digits = |p: &str| p.bytes().all(|b| b.is_ascii_digit());
+    (digits(int) && !frac.is_empty() && digits(frac) && (mark == b'.' || !int.is_empty())).then_some(mark)
+}
+
+/// A cell as a number, in the file's dialect. With a decimal comma, `.` is a
+/// thousands separator (`1.234,5` is 1234.5).
+pub fn parse_number(cell: &str, dialect: Dialect) -> Option<f64> {
+    if dialect.decimal_comma && cell.contains(',') {
+        cell.replace('.', "").replacen(',', ".", 1).parse().ok()
+    } else {
+        cell.parse().ok()
+    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -133,9 +217,9 @@ fn spread_rows(
 }
 
 pub fn csv_headers_from_bytes(bytes: &[u8]) -> ParseResult<CsvHeadersResult> {
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
-    let delim = detect_delimiter(&bytes);
-    let mut rdr = build_reader_from_bytes(&bytes);
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    let dialect = detect_dialect(&bytes[..bytes.len().min(DIALECT_SNIFF_BYTES)]);
+    let mut rdr = build_reader_from_bytes(&bytes, dialect);
     let headers: Vec<String> = rdr
         .headers()
         .map_err(ParseError::csv_read)?
@@ -152,23 +236,24 @@ pub fn csv_headers_from_bytes(bytes: &[u8]) -> ParseResult<CsvHeadersResult> {
     let head_end = rdr.position().byte() as usize;
 
     let len = bytes.len();
-    sample.extend(spread_rows(len, head_end, delim, &headers, |off, n| {
+    sample.extend(spread_rows(len, head_end, dialect.delimiter, &headers, |off, n| {
         bytes[off.min(len)..(off + n).min(len)].to_vec()
     }));
 
     let row_count = bytes.iter().filter(|&&b| b == b'\n').count().saturating_sub(1);
-    Ok(CsvHeadersResult { headers, sample, row_count })
+    Ok(CsvHeadersResult { headers, sample, row_count, decimal_comma: dialect.decimal_comma })
 }
 
 pub fn parse_csv_from_bytes(bytes: &[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     // Borrowed unless it had to be decompressed: the file is not copied.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
-    parse_csv_from_reader(build_reader_from_bytes(&bytes), mapping)
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    let dialect = detect_dialect(&bytes[..bytes.len().min(DIALECT_SNIFF_BYTES)]);
+    parse_csv_from_reader(build_reader_from_bytes(&bytes, dialect), dialect, mapping)
 }
 
 #[cfg(feature = "native")]
 pub fn csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult> {
-    let mut rdr = build_reader(&path)?;
+    let (mut rdr, dialect) = build_reader(&path)?;
     let headers: Vec<String> = rdr
         .headers()
         .map_err(ParseError::csv_read)?
@@ -184,14 +269,12 @@ pub fn csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult> {
     }
     let head_end = rdr.position().byte() as usize;
 
-    // Seek to evenly spaced offsets rather than read through the file. A gzip
-    // stream cannot be seeked, so a .gz file keeps just its head.
-    let is_gz = std::path::Path::new(&path)
-        .extension().and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("gz")).unwrap_or(false);
+    // Seek to evenly spaced offsets rather than read through the file. A
+    // compressed stream cannot be seeked, so a .gz or .bz2 file keeps just its head.
+    let compressed = crate::read_file::Compression::of_path(&path).is_some();
     let file_len = std::fs::metadata(&path).ok().map(|m| m.len() as usize);
-    if let (false, Some(len), Ok(mut f)) = (is_gz, file_len, std::fs::File::open(&path)) {
-        sample.extend(spread_rows(len, head_end, b',', &headers, |off, n| {
+    if let (false, Some(len), Ok(mut f)) = (compressed, file_len, std::fs::File::open(&path)) {
+        sample.extend(spread_rows(len, head_end, dialect.delimiter, &headers, |off, n| {
             use std::io::{Seek, SeekFrom};
             let mut buf = vec![0u8; n];
             if f.seek(SeekFrom::Start(off as u64)).is_err() { return Vec::new(); }
@@ -210,16 +293,16 @@ pub fn csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult> {
         if avg == 0 { 0 } else { file_bytes / avg }
     }).unwrap_or(0);
 
-    Ok(CsvHeadersResult { headers, sample, row_count })
+    Ok(CsvHeadersResult { headers, sample, row_count, decimal_comma: dialect.decimal_comma })
 }
 
 #[cfg(feature = "native")]
 pub fn parse_csv_inner(path: String, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
-    let rdr = build_reader(&path)?;
-    parse_csv_from_reader(rdr, mapping)
+    let (rdr, dialect) = build_reader(&path)?;
+    parse_csv_from_reader(rdr, dialect, mapping)
 }
 
-fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
+fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, dialect: Dialect, mapping: CsvMapping) -> ParseResult<ParsedStdf> {
     let headers: Vec<String> = rdr
         .headers()
         .map_err(ParseError::csv_read)?
@@ -261,7 +344,7 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
     // The common case (one column per test): values are read by resolved column
     // index and parsed straight to their target type.
     if !is_long_format {
-        return parse_csv_wide(&mut rdr, &col_idx, &mapping, test_defs);
+        return parse_csv_wide(&mut rdr, &col_idx, dialect, &mapping, test_defs);
     }
 
     // ── Long-format path: one row per (die, test) ─────────────────────────────
@@ -283,10 +366,15 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
     let num_col = mapping.testnumber_col.as_deref();
     let val_col = mapping.testvalue_col.as_deref().unwrap();
     let mut rows: Vec<FlatRow> = Vec::new();
+    // Test values that were not numbers, per test — reported, not dropped silently.
+    let mut not_numeric: HashMap<String, u32> = HashMap::new();
 
     while rdr.read_record(&mut rec).map_err(ParseError::csv_read)? {
         let rec = &rec;
         let opt = |c: &Option<String>| c.as_deref().map(|c| get(rec, c)).unwrap_or_default();
+        // A mapped limit column's value on this row, in the file's dialect.
+        let num = |c: &Option<String>| c.as_deref().map(|c| get(rec, c))
+            .filter(|s| !s.is_empty()).and_then(|s| parse_number(&s, dialect));
         let mut row = FlatRow {
             lot: opt(&mapping.lot),
             wafer: opt(&mapping.wafer),
@@ -333,18 +421,12 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
                 };
                 let order = next_order;
                 next_order += 1;
-                let lo_limit = mapping.lo_limit_col.as_deref()
-                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-                let hi_limit = mapping.hi_limit_col.as_deref()
-                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-                let lo_spec = mapping.lo_spec_col.as_deref()
-                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-                let hi_spec = mapping.hi_spec_col.as_deref()
-                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-                let lo_valid = mapping.lo_valid_col.as_deref()
-                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
-                let hi_valid = mapping.hi_valid_col.as_deref()
-                    .map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok());
+                let lo_limit = num(&mapping.lo_limit_col);
+                let hi_limit = num(&mapping.hi_limit_col);
+                let lo_spec = num(&mapping.lo_spec_col);
+                let hi_spec = num(&mapping.hi_spec_col);
+                let lo_valid = num(&mapping.lo_valid_col);
+                let hi_valid = num(&mapping.hi_valid_col);
                 let units = mapping.units_col.as_deref()
                     .map(|c| get(rec, c)).filter(|s| !s.is_empty());
                 // No name column (or this row's name cell was empty): the
@@ -366,19 +448,23 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
             });
             // Limits left blank on a test's first row are taken from the first later row that has them.
             if let Some(def) = test_defs.get_mut(&tnum.to_string()) {
-                if def.lo_limit.is_none() { def.lo_limit = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_limit_col); }
-                if def.hi_limit.is_none() { def.hi_limit = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_limit_col); }
-                if def.lo_spec.is_none() { def.lo_spec = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_spec_col); }
-                if def.hi_spec.is_none() { def.hi_spec = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_spec_col); }
-                if def.lo_valid.is_none() { def.lo_valid = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.lo_valid_col); }
-                if def.hi_valid.is_none() { def.hi_valid = (|c: &Option<String>| c.as_deref().map(|c| get(rec, c)).filter(|s| !s.is_empty()).and_then(|s| s.parse::<f64>().ok()))(&mapping.hi_valid_col); }
+                if def.lo_limit.is_none() { def.lo_limit = num(&mapping.lo_limit_col); }
+                if def.hi_limit.is_none() { def.hi_limit = num(&mapping.hi_limit_col); }
+                if def.lo_spec.is_none() { def.lo_spec = num(&mapping.lo_spec_col); }
+                if def.hi_spec.is_none() { def.hi_spec = num(&mapping.hi_spec_col); }
+                if def.lo_valid.is_none() { def.lo_valid = num(&mapping.lo_valid_col); }
+                if def.hi_valid.is_none() { def.hi_valid = num(&mapping.hi_valid_col); }
             }
-            if let Ok(v) = test_val.parse::<f64>() { row.tests.push((tnum, v)); }
+            match parse_number(&test_val, dialect) {
+                Some(v) => row.tests.push((tnum, v)),
+                None => *not_numeric.entry(tnum.to_string()).or_insert(0) += 1,
+            }
         }
         rows.push(row);
     }
 
-    Ok(into_parsed(rows, &mapping, true, test_defs, Vec::new()))
+    let warnings = not_numeric_warnings(&not_numeric, &test_defs);
+    Ok(into_parsed(rows, &mapping, true, test_defs, warnings))
 }
 
 /// Allocation-light wide-format parse: resolve every mapped column to an index
@@ -390,6 +476,7 @@ fn parse_csv_from_reader<R: Read>(mut rdr: csv::Reader<R>, mapping: CsvMapping) 
 fn parse_csv_wide<R: Read>(
     rdr: &mut csv::Reader<R>,
     col_idx: &HashMap<&str, usize>,
+    dialect: Dialect,
     mapping: &CsvMapping,
     test_defs: HashMap<String, TestDef>,
 ) -> ParseResult<ParsedStdf> {
@@ -418,14 +505,20 @@ fn parse_csv_wide<R: Read>(
     }
 
     let mut rows: Vec<FlatRow> = Vec::new();
+    // Non-blank cells per test column that were not numbers.
+    let mut not_numeric = vec![0u32; test_i.len()];
     let mut record = csv::StringRecord::new();
     while rdr.read_record(&mut record).map_err(ParseError::csv_read)? {
         let rec = &record;
         // Sized to the test columns: one entry each at most, never a doubling's slack.
         let mut tests = Vec::with_capacity(test_i.len());
-        for (t, i) in &test_i {
+        for (k, (t, i)) in test_i.iter().enumerate() {
             let s = cell(rec, *i);
-            if !s.is_empty() { if let Ok(v) = s.parse::<f64>() { tests.push((*t, v)); } }
+            if s.is_empty() { continue; }
+            match parse_number(s, dialect) {
+                Some(v) => tests.push((*t, v)),
+                None => not_numeric[k] += 1,
+            }
         }
         let verdicts: Vec<(u32, bool)> = verdict_i.iter()
             .filter_map(|(t, i)| parse_verdict(cell(rec, *i)).map(|v| (*t, v))).collect();
@@ -443,48 +536,41 @@ fn parse_csv_wide<R: Read>(
         });
     }
 
-    Ok(into_parsed(rows, mapping, false, test_defs, Vec::new()))
+    let not_numeric: HashMap<String, u32> = test_i.iter().zip(&not_numeric)
+        .filter(|(_, n)| **n > 0).map(|((t, _), n)| (t.to_string(), *n)).collect();
+    let warnings = not_numeric_warnings(&not_numeric, &test_defs);
+    Ok(into_parsed(rows, mapping, false, test_defs, warnings))
 }
 
-fn detect_delimiter(bytes: &[u8]) -> u8 {
-    // Scan the first line to detect whether the file is comma, tab, or semicolon delimited.
-    let first_line_end = bytes.iter().position(|&b| b == b'\n').unwrap_or(bytes.len());
-    let first_line = &bytes[..first_line_end];
-    let commas = first_line.iter().filter(|&&b| b == b',').count();
-    let tabs   = first_line.iter().filter(|&&b| b == b'\t').count();
-    let semis  = first_line.iter().filter(|&&b| b == b';').count();
-    if tabs >= commas && tabs >= semis { b'\t' } else if semis > commas { b';' } else { b',' }
-}
-
-fn build_reader_from_bytes(bytes: &[u8]) -> csv::Reader<&[u8]> {
-    let delim = detect_delimiter(bytes);
+fn build_reader_from_bytes(bytes: &[u8], dialect: Dialect) -> csv::Reader<&[u8]> {
     let reader = bytes;
     ReaderBuilder::new()
-        .delimiter(delim)
+        .delimiter(dialect.delimiter)
         .trim(csv::Trim::All)
         .comment(Some(b'#'))
         .flexible(true)
         .from_reader(reader)
 }
 
+/// A streaming reader over the file at `path`, with its dialect. The head is
+/// read once to detect the dialect, then the file is opened again from the
+/// start, so a large file is never held in memory.
 #[cfg(feature = "native")]
-fn build_reader(path: &str) -> ParseResult<csv::Reader<Box<dyn Read>>> {
-    let is_gz = std::path::Path::new(path)
-        .extension().and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("gz")).unwrap_or(false);
+fn build_reader(path: &str) -> ParseResult<(csv::Reader<Box<dyn Read>>, Dialect)> {
+    use crate::read_file::open_decompressed;
+    let (head_reader, c) = open_decompressed(path)?;
+    let mut head = Vec::with_capacity(DIALECT_SNIFF_BYTES);
+    head_reader.take(DIALECT_SNIFF_BYTES as u64).read_to_end(&mut head)
+        .map_err(|e| match c { Some(c) => c.invalid(e), None => ParseError::file_read(e) })?;
+    let dialect = detect_dialect(&head);
 
-    let file = std::fs::File::open(path).map_err(ParseError::file_read)?;
-    let reader: Box<dyn Read> = if is_gz {
-        Box::new(flate2::read::GzDecoder::new(file))
-    } else {
-        Box::new(std::io::BufReader::new(file))
-    };
-
-    Ok(ReaderBuilder::new()
+    let rdr = ReaderBuilder::new()
+        .delimiter(dialect.delimiter)
         .trim(csv::Trim::All)
         .comment(Some(b'#'))
         .flexible(true)
-        .from_reader(reader))
+        .from_reader(open_decompressed(path)?.0);
+    Ok((rdr, dialect))
 }
 
 #[cfg(test)]
@@ -1168,6 +1254,119 @@ mod tests {
             result.wafers.len(), result.test_defs.len(),
             file_mb / (ms as f64 / 1000.0).max(0.001),
         );
+    }
+
+    // ── Dialect: delimiter and decimal mark ──────────────────────────────────
+
+    fn wide(cols: &[&str]) -> CsvMapping {
+        let mut m = basic_mapping("x", "y");
+        m.tests = cols.iter().enumerate().map(|(k, c)| CsvTestCol {
+            col: c.to_string(), test_number: k as u32 + 1, name: c.to_string(), functional: false,
+        }).collect();
+        m
+    }
+
+    #[test]
+    fn dialect_detects_delimiter_and_decimal_mark() {
+        let d = |s: &str| detect_dialect(s.as_bytes());
+        assert_eq!(d("x,y,v\n1,2,0.5\n"), Dialect { delimiter: b',', decimal_comma: false });
+        assert_eq!(d("x;y;v\n1;2;0,5\n"), Dialect { delimiter: b';', decimal_comma: true });
+        assert_eq!(d("x;y;v\n1;2;0.5\n"), Dialect { delimiter: b';', decimal_comma: false });
+        assert_eq!(d("x\ty\tv\n1\t2\t-1,25e-3\n"), Dialect { delimiter: b'\t', decimal_comma: true });
+        // Integers alone say nothing about the decimal mark.
+        assert_eq!(d("x;y\n1;2\n"), Dialect { delimiter: b';', decimal_comma: false });
+        // A leading comment line does not decide the delimiter.
+        assert_eq!(d("# exported, by tool, v2\nx;y;v\n1;2;0,5\n").delimiter, b';');
+        // A dotted version string in a metadata column is outvoted by the values.
+        assert!(d("ver;x;y;a;b\n1.2;1;2;0,5;3,25\n1.2;2;2;0,7;3,5\n").decimal_comma);
+        // Quoted headers and cells, as Excel writes them.
+        assert!(d("\"lot\";\"x\";\"v\"\n\"L1\";1;0,0815646268616209\n").decimal_comma);
+        // A head cut part-way through a line judges only the complete lines.
+        assert!(d("x;y;v\n1;2;0,5\n3;4;0.").decimal_comma);
+    }
+
+    #[test]
+    fn decimal_mark_and_parse_number() {
+        for (c, m) in [("12,5", Some(b',')), ("-0,25e-3", Some(b',')), ("12.5", Some(b'.')), (".5", Some(b'.')),
+                       (",5", None), ("12", None), ("12.10.2026", None), ("1,2,3", None), ("abc", None), ("1,5e", None)] {
+            assert_eq!(decimal_mark(c), m, "{c}");
+        }
+        let eu = Dialect { delimiter: b';', decimal_comma: true };
+        let us = Dialect { delimiter: b',', decimal_comma: false };
+        assert_eq!(parse_number("0,25", eu), Some(0.25));
+        assert_eq!(parse_number("1.234,5", eu), Some(1234.5));
+        assert_eq!(parse_number("-2,5e-3", eu), Some(-0.0025));
+        assert_eq!(parse_number("12.5", eu), Some(12.5), "a dot decimal still reads in a decimal-comma file");
+        assert_eq!(parse_number("0,25", us), None);
+    }
+
+    /// The KAI/Infineon export's shape: `;`, quoted text, decimal comma.
+    const EU_WIDE: &str = "\"lot\";\"wafer\";\"x\";\"y\";\"ring\";\"trend\"\n\
+                           \"Lot_5\";801;1;67;0,0815646268616209;0,507566413742191\n\
+                           \"Lot_5\";801;1;68;-0,0108790503669245;2,03923375035647e-14\n";
+
+    #[test]
+    fn decimal_comma_csv_reads_on_the_path_and_bytes_routes_alike() {
+        let path = tmp(EU_WIDE);
+        let p = path.to_str().unwrap().to_string();
+        let h = csv_headers_inner(p.clone()).unwrap();
+        assert_eq!(h.headers, vec!["lot", "wafer", "x", "y", "ring", "trend"]);
+        assert!(h.decimal_comma);
+        assert_eq!(h.sample[0]["ring"], "0,0815646268616209", "the preview keeps cells as written");
+        let hb = csv_headers_from_bytes(EU_WIDE.as_bytes()).unwrap();
+        assert_eq!((hb.headers, hb.decimal_comma), (h.headers, true));
+
+        let mut m = wide(&["ring", "trend"]);
+        m.wafer = Some("wafer".into());
+        m.lot = Some("lot".into());
+        for r in [parse_csv_inner(p.clone(), m.clone()).unwrap(), parse_csv_from_bytes(EU_WIDE.as_bytes(), m.clone()).unwrap()] {
+            let d = &r.wafers[0].results;
+            assert_eq!((d[0].x, d[0].y), (Some(1), Some(67)));
+            assert_eq!(d[0].test_values["1"], 0.0815646268616209);
+            assert_eq!(d[1].test_values["1"], -0.0108790503669245);
+            assert_eq!(d[1].test_values["2"], 2.03923375035647e-14);
+            assert!(r.warnings.iter().all(|w| w.code != "values-not-numeric"), "{:?}", r.warnings);
+        }
+    }
+
+    #[test]
+    fn decimal_comma_long_format_reads_values_and_limits() {
+        let csv = "x;y;test;value;lo;hi\n0;0;Vt;1,25;0,5;2,5\n1;0;Vt;3,75;;\n";
+        let mut m = basic_mapping("x", "y");
+        m.testname_col = Some("test".into());
+        m.testvalue_col = Some("value".into());
+        m.lo_limit_col = Some("lo".into());
+        m.hi_limit_col = Some("hi".into());
+        let r = parse_csv_from_bytes(csv.as_bytes(), m).unwrap();
+        let (num, def) = r.test_defs.iter().next().unwrap();
+        assert_eq!((def.lo_limit, def.hi_limit), (Some(0.5), Some(2.5)));
+        let vals: Vec<f64> = r.wafers[0].results.iter().map(|d| d.test_values[num.as_str()]).collect();
+        assert_eq!(vals, vec![1.25, 3.75]);
+    }
+
+    #[test]
+    fn a_bzip2_csv_reads_by_path_with_its_dialect() {
+        use std::io::Write;
+        let mut f = tempfile::Builder::new().suffix(".csv.bz2").tempfile().unwrap();
+        let mut bz = bzip2::write::BzEncoder::new(Vec::new(), bzip2::Compression::fast());
+        bz.write_all(EU_WIDE.as_bytes()).unwrap();
+        f.write_all(&bz.finish().unwrap()).unwrap();
+        let p = f.path().to_str().unwrap().to_string();
+        assert!(csv_headers_inner(p.clone()).unwrap().decimal_comma);
+        let r = parse_csv_inner(p, wide(&["ring"])).unwrap();
+        assert_eq!(r.wafers[0].results[0].test_values["1"], 0.0815646268616209);
+    }
+
+    #[test]
+    fn a_test_column_that_is_not_numbers_is_reported() {
+        // A comma-delimited file cannot hold an unquoted decimal comma, so a
+        // quoted "0,5" stays text: every cell is skipped, and the parse says so.
+        let csv = "x,y,ring,ok\n0,0,\"0,5\",1.5\n1,0,\"0,7\",2.5\n";
+        let r = parse_csv_from_bytes(csv.as_bytes(), wide(&["ring", "ok"])).unwrap();
+        let w: Vec<&ParserWarning> = r.warnings.iter().filter(|w| w.code == "values-not-numeric").collect();
+        assert_eq!(w.len(), 1, "{:?}", r.warnings);
+        assert!(w[0].message.contains("'ring'") && w[0].message.contains(" 2 "), "{}", w[0].message);
+        assert_eq!(w[0].severity, "error");
     }
 }
 

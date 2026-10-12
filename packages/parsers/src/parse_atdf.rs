@@ -332,9 +332,9 @@ fn decode_bin_record_atdf(f: &HashMap<&str, &str>, num_key: &str, pf_key: &str, 
 
 
 pub fn parse_atdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
     let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
         .map_err(ParseError::encoding_invalid)?;
@@ -555,9 +555,9 @@ pub fn parse_atdf_sync(path: String) -> ParseResult<ParsedStdf> {
 /// Scans the file for PTR/FTR records only, collecting test names and limits.
 /// Does not accumulate die results. Returns a flat map of test_num string → TestDef.
 pub fn parse_atdf_test_names(bytes: &[u8]) -> ParseResult<crate::types::ScanResult> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
     let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
         .map_err(ParseError::encoding_invalid)?;
@@ -602,9 +602,9 @@ fn parse_atdf_test_names_str(raw: &str) -> ParseResult<crate::types::ScanResult>
 /// of seek/skip — reuses the same field tables and helpers the full parse
 /// uses for these same four record types.
 pub fn parse_atdf_file_meta(bytes: &[u8]) -> ParseResult<crate::types::FileMeta> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
     let bytes: &[u8] = &bytes;
     let raw = std::str::from_utf8(bytes)
         .map_err(ParseError::encoding_invalid)?;
@@ -689,7 +689,8 @@ pub fn parse_atdf_from_bytes_filtered(
     bytes: &[u8],
     selected: &std::collections::HashSet<u32>,
 ) -> ParseResult<ParsedStdf> {
-    let raw = std::str::from_utf8(bytes)
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    let raw = std::str::from_utf8(&bytes)
         .map_err(ParseError::encoding_invalid)?;
     parse_atdf_str(raw, Some(selected))
 }
@@ -1469,6 +1470,25 @@ mod tests {
         let plain_dies: usize = plain.wafers.iter().map(|w| w.results.len()).sum();
         let gz_dies:    usize = gz.wafers.iter().map(|w| w.results.len()).sum();
         assert_eq!(gz_dies, plain_dies);
+    }
+
+    /// The filtered parse reads gzip and bzip2 bytes as the plain file, like
+    /// every other bytes entry point (see `maybe_decompress`).
+    #[test]
+    fn filtered_bytes_read_gzip_and_bzip2() {
+        use std::io::Write;
+        let raw = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.atdf")).unwrap();
+        let selected: std::collections::HashSet<u32> = parse_atdf_test_names(&raw).unwrap()
+            .test_defs.keys().filter_map(|k| k.parse().ok()).collect();
+        let dies = |p: &ParsedStdf| p.wafers.iter().map(|w| w.results.len()).sum::<usize>();
+        let plain = dies(&parse_atdf_from_bytes_filtered(&raw, &selected).unwrap());
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        gz.write_all(&raw).unwrap();
+        let mut bz = bzip2::write::BzEncoder::new(Vec::new(), bzip2::Compression::fast());
+        bz.write_all(&raw).unwrap();
+        for packed in [gz.finish().unwrap(), bz.finish().unwrap()] {
+            assert_eq!(dies(&parse_atdf_from_bytes_filtered(&packed, &selected).unwrap()), plain);
+        }
     }
 
     // Run with: cargo test --manifest-path packages/parsers/Cargo.toml --features bench --release -- --nocapture bench_parse_atdf

@@ -53,9 +53,9 @@ pub fn parse_json_sync(path: String, mapping: CsvMapping) -> ParseResult<ParsedS
 }
 
 pub fn parse_json_from_bytes(bytes: &[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
     let bytes: &[u8] = &bytes;
     // Parse straight from the byte slice — `from_slice` UTF-8-validates internally,
     // so the previous `String::from_utf8(bytes.to_vec())` (a full copy of the file)

@@ -8,12 +8,36 @@ technical record, including internal changes.
 
 ### Added
 
+- **Filter files shows "Reading name.zip…" while it expands an archive.** The load indicator names the archive until the file
+  list is ready, since a large archive can take a few seconds before the dialog opens.
+- **The phase-timing log covers the file filter.** With **Log phase timings** on, Filter files logs the time to expand archives,
+  to scan the files (with each format's file count, summed time and slowest file) and to build the table.
 - **A pass/fail column in a CSV, JSON or Parquet file is a functional test.** The mapping dialog has a **Pass/fail test** role, chosen
   automatically for a column of `PASS`/`FAIL` or `P`/`F`; each die records a verdict for it (a blank cell records nothing), and it is
   listed under Verdicts and Functional with the functional tests of an STDF file. A die-list export re-imports with its `Test 2001`
   column as a functional test, with the same pass and fail counts.
+- **European-format CSV files read as numbers.** A `;`- or tab-separated file whose numbers are written with a decimal comma
+  (`0,25`, `1.234,5`), as a European-locale export is, loads its test values and limits as numbers. The decimal mark and delimiter
+  are detected once from the start of the file and used by both the mapping dialog and the parse, so the dialog recognises those
+  columns as tests. The desktop and web builds read a CSV's delimiter (`,`, `;` or tab) the same way.
+- **bzip2-compressed files open.** A `.stdf.bz2`, `.csv.bz2` or any other supported format compressed with bzip2 opens as a `.gz`
+  does, from the file dialog, a folder scan, a `.zip` or the command line, on the desktop and the web build. The parser's
+  bytes entry points, including the filtered STDF and ATDF parses, unwrap gzip and bzip2 alike; a damaged bzip2 stream fails
+  with the error code `bzip-invalid`.
+- **The desktop app parses STDF files from disk as it reads them.** The full parse, the filtered parse, the test-name scan and the
+  file-filter metadata read a file's records in turn rather than loading the whole file first (through the gzip or bzip2 decoder for a
+  compressed file), so a parse peaks at about half the memory: 0.65 GB rather than 1.3 GB for a 670 MB lot.
+- **The web build holds less memory unpacking a compressed file.** A gzip file is unpacked into a buffer of its stated size rather than
+  one grown by doubling, and the compressed copy is freed before the parse: a 185 MB `.stdf.gz` of a 670 MB lot peaks at the same
+  1.5 GB as the plain file rather than 2.2 GB.
+- **A CSV test column that is not numbers is reported.** When cells in a column mapped as a test do not read as numbers, the load
+  logs a `values-not-numeric` warning naming the column and how many cells were skipped, as a Parquet load does.
 
 ### Changed
+
+- **Subdividing a file by a per-die column is ignored, with a warning.** If the chosen "Subdivide file by" columns would give more than
+  25 wafers per wafer in the file (a measured value that differs on every die, say), the file loads without subdividing and a warning
+  names the column. The mapping dialog's hint reads "differs on every sampled row" for a column whose sampled values are all distinct.
 
 - **A test number written into a column header is used as the test number.** `Test 2001` is test 2001 and `test_07 (mV)` is test 7, as a
   header that is itself a number already was. It applies when every test column has exactly one number and no two are the same;

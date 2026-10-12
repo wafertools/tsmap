@@ -276,6 +276,128 @@ impl<'a> RecordIter<'a> {
     }
 }
 
+/// Where the parsers read records from, front to back, once: a byte slice
+/// (`RecordIter` — WASM and every `*_from_bytes` caller) or a stream
+/// (`ReaderRecords` — a file on the native path, read without holding it whole).
+/// A record's body borrows the source until the next call.
+trait RecordSource {
+    fn next_record(&mut self) -> Option<RawRecord<'_>>;
+    /// The source ended part-way through a record.
+    fn truncated(&self) -> bool;
+    fn order(&self) -> ByteOrder;
+}
+
+impl RecordSource for RecordIter<'_> {
+    fn next_record(&mut self) -> Option<RawRecord<'_>> { RecordIter::next_record(self) }
+    fn truncated(&self) -> bool { self.pos < self.bytes.len() }
+    fn order(&self) -> ByteOrder { self.order }
+}
+
+impl<'a> RecordIter<'a> {
+    /// Records of `bytes`, after checking its FAR for the byte order.
+    fn over(bytes: &'a [u8]) -> ParseResult<Self> {
+        Ok(RecordIter { bytes, pos: 0, order: detect_byte_order(bytes)? })
+    }
+}
+
+/// Records read from a stream into one reused buffer: the file is never held whole,
+/// so a parse's peak memory is its result, not the file plus its result. A read
+/// that ends part-way through a record is `truncated`, as for a slice; any other
+/// read error ends the records and is returned by `take_error`.
+#[cfg(feature = "native")]
+struct ReaderRecords<R: std::io::Read> {
+    r: R,
+    buf: Vec<u8>,
+    order: ByteOrder,
+    truncated: bool,
+    error: Option<std::io::Error>,
+}
+
+#[cfg(feature = "native")]
+impl<R: std::io::Read> ReaderRecords<R> {
+    /// Reads the FAR to learn the byte order. The FAR is not handed on as a record:
+    /// no parser reads it beyond `detect_byte_order`, which checks it here.
+    fn new(mut r: R) -> ParseResult<Self> {
+        let mut far = [0u8; 6];
+        let mut got = 0;
+        while got < far.len() {
+            match r.read(&mut far[got..]) {
+                Ok(0) => break,
+                Ok(n) => got += n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(ParseError::file_read(e)),
+            }
+        }
+        let order = detect_byte_order(&far[..got])?;
+        // A FAR longer than its two-byte body: skip the rest of it.
+        let far_len = read_u2(&far, 0, order).unwrap_or(2) as u64;
+        let mut skip = far_len.saturating_sub(2) as usize;
+        let mut scratch = [0u8; 64];
+        while skip > 0 {
+            match r.read(&mut scratch[..skip.min(64)]) {
+                Ok(0) => break,
+                Ok(n) => skip -= n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(ParseError::file_read(e)),
+            }
+        }
+        Ok(Self { r, buf: Vec::with_capacity(1 << 16), order, truncated: false, error: None })
+    }
+
+    /// The read error that ended the records early, if one did.
+    fn take_error(&mut self) -> Option<std::io::Error> { self.error.take() }
+
+    /// Fills `buf[..n]`. `Some(false)` at a clean end of the stream before any byte;
+    /// `None` when it ends part-way (`truncated`) or a read fails (`error`).
+    fn fill(&mut self, n: usize) -> Option<bool> {
+        self.buf.resize(n, 0);
+        let mut got = 0;
+        while got < n {
+            match self.r.read(&mut self.buf[got..n]) {
+                Ok(0) if got == 0 => return Some(false),
+                Ok(0) => { self.truncated = true; return None; }
+                Ok(k) => got += k,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => { self.error = Some(e); return None; }
+            }
+        }
+        Some(true)
+    }
+}
+
+#[cfg(feature = "native")]
+impl<R: std::io::Read> RecordSource for ReaderRecords<R> {
+    fn next_record(&mut self) -> Option<RawRecord<'_>> {
+        if self.truncated || self.error.is_some() { return None; }
+        if !self.fill(4)? { return None; }
+        let len = read_u2(&self.buf, 0, self.order)? as usize;
+        let (typ, sub) = (self.buf[2], self.buf[3]);
+        if len == 0 {
+            self.buf.clear();
+        } else if !self.fill(len)? {
+            // The header was there and its body is not: the file ends mid-record.
+            self.truncated = true;
+            return None;
+        }
+        Some(RawRecord { typ, sub, body: &self.buf[..len] })
+    }
+    fn truncated(&self) -> bool { self.truncated }
+    fn order(&self) -> ByteOrder { self.order }
+}
+
+/// Parse the STDF file at `path` with `parse` over its records, streamed: through
+/// the gzip or bzip2 decoder its extension names, if any.
+#[cfg(feature = "native")]
+fn from_path<T>(path: &str, parse: impl FnOnce(&mut dyn RecordSource) -> ParseResult<T>) -> ParseResult<T> {
+    let (reader, compression) = crate::read_file::open_decompressed(path)?;
+    let mut src = ReaderRecords::new(std::io::BufReader::with_capacity(1 << 20, reader))?;
+    let out = parse(&mut src)?;
+    match src.take_error() {
+        Some(e) => Err(match compression { Some(c) => c.invalid(e), None => ParseError::file_read(e) }),
+        None => Ok(out),
+    }
+}
+
 /// Read the FAR record to determine byte order and validate it's STDF V4. FAR is
 /// always the first record: header `[REC_LEN][0][10]`, body `[CPU_TYPE][STDF_VER]`.
 /// CPU_TYPE and the header type/sub are single bytes (byte-order-independent), so
@@ -676,12 +798,14 @@ impl SiteAccum {
 // ── Main parser ───────────────────────────────────────────────────────────────
 
 pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
-    let bytes: &[u8] = &bytes;
-    let order = detect_byte_order(bytes)?;
-    let mut iter = RecordIter { bytes, pos: 0, order };
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    parse_stdf_records(&mut RecordIter::over(&bytes)?)
+}
+
+fn parse_stdf_records(iter: &mut dyn RecordSource) -> ParseResult<ParsedStdf> {
+    let order = iter.order();
 
     let mut lots = LotRecords::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
@@ -828,7 +952,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
         }
     }
 
-    if iter.pos < bytes.len() { spec.file_truncated(); }
+    if iter.truncated() { spec.file_truncated(); }
     let wafer_end = open.finish(&mut lots, &mut wafers);
 
     let mut warnings = spec.warnings();
@@ -845,8 +969,7 @@ pub fn parse_stdf_from_bytes(bytes: &[u8]) -> ParseResult<ParsedStdf> {
 
 #[cfg(feature = "native")]
 pub fn parse_stdf_sync(path: String) -> ParseResult<ParsedStdf> {
-    let bytes = crate::read_file::read_bytes(&path)?;
-    parse_stdf_from_bytes(&bytes)
+    from_path(&path, parse_stdf_records)
 }
 
 // ── First-pass test name scan ─────────────────────────────────────────────────
@@ -855,12 +978,20 @@ pub fn parse_stdf_sync(path: String) -> ParseResult<ParsedStdf> {
 /// Does not accumulate die results. Used to populate the test selector overlay
 /// before the full parse. Returns a flat map of test_num string → TestDef.
 pub fn parse_stdf_test_names(bytes: &[u8]) -> ParseResult<crate::types::ScanResult> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
-    let bytes: &[u8] = &bytes;
-    let order = detect_byte_order(bytes)?;
-    let mut iter = RecordIter { bytes, pos: 0, order };
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    test_names_records(&mut RecordIter::over(&bytes)?)
+}
+
+/// `parse_stdf_test_names` for the file at `path`, streamed rather than read whole.
+#[cfg(feature = "native")]
+pub fn parse_stdf_test_names_path(path: &str) -> ParseResult<crate::types::ScanResult> {
+    from_path(path, test_names_records)
+}
+
+fn test_names_records(iter: &mut dyn RecordSource) -> ParseResult<crate::types::ScanResult> {
+    let order = iter.order();
 
     let mut defs = TestDefs::default();
     let mut pir_count: u32 = 0;
@@ -894,12 +1025,20 @@ pub fn parse_stdf_test_names(bytes: &[u8]) -> ParseResult<crate::types::ScanResu
 /// walking as far as the last WRR costs "skip N more record headers," not
 /// new per-record work.
 pub fn parse_stdf_file_meta(bytes: &[u8]) -> ParseResult<crate::types::FileMeta> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
-    let bytes: &[u8] = &bytes;
-    let order = detect_byte_order(bytes)?;
-    let mut iter = RecordIter { bytes, pos: 0, order };
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    file_meta_records(&mut RecordIter::over(&bytes)?)
+}
+
+/// `parse_stdf_file_meta` for the file at `path`, streamed rather than read whole.
+#[cfg(feature = "native")]
+pub fn parse_stdf_file_meta_path(path: &str) -> ParseResult<crate::types::FileMeta> {
+    from_path(path, file_meta_records)
+}
+
+fn file_meta_records(iter: &mut dyn RecordSource) -> ParseResult<crate::types::FileMeta> {
+    let order = iter.order();
 
     let mut lot_meta = LotMeta::default();
     let mut wafer_count: u32 = 0;
@@ -959,8 +1098,18 @@ pub fn parse_stdf_from_bytes_filtered(
     bytes: &[u8],
     selected: &std::collections::HashSet<u32>,
 ) -> ParseResult<ParsedStdf> {
-    let order = detect_byte_order(bytes)?;
-    let mut iter = RecordIter { bytes, pos: 0, order };
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    filtered_records(&mut RecordIter::over(&bytes)?, selected)
+}
+
+/// `parse_stdf_from_bytes_filtered` for the file at `path`, streamed rather than read whole.
+#[cfg(feature = "native")]
+pub fn parse_stdf_filtered_path(path: &str, selected: &std::collections::HashSet<u32>) -> ParseResult<ParsedStdf> {
+    from_path(path, |src| filtered_records(src, selected))
+}
+
+fn filtered_records(iter: &mut dyn RecordSource, selected: &std::collections::HashSet<u32>) -> ParseResult<ParsedStdf> {
+    let order = iter.order();
 
     let mut lots = LotRecords::default();
     let mut sites: Vec<SiteInfo> = Vec::new();
@@ -1102,7 +1251,7 @@ pub fn parse_stdf_from_bytes_filtered(
         }
     }
 
-    if iter.pos < bytes.len() { spec.file_truncated(); }
+    if iter.truncated() { spec.file_truncated(); }
     let wafer_end = open.finish(&mut lots, &mut wafers);
 
     let mut warnings = spec.warnings();
@@ -1136,6 +1285,8 @@ pub struct ParseTiming {
 pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, ParseTiming)> {
     use std::time::Instant;
 
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
+    let bytes: &[u8] = &bytes;
     let order = detect_byte_order(bytes)?;
     let mut iter = RecordIter { bytes, pos: 0, order };
 
@@ -1388,7 +1539,7 @@ mod tests {
     // ── Gzip on the bytes path ─────────────────────────────────────────────────
     // The native path unwraps .gz by file extension in read_bytes, but the
     // WASM/browser path only ever sees raw bytes with no filename to inspect.
-    // Before maybe_gunzip was applied here, a gzipped STDF parsed fine on
+    // Before maybe_decompress was applied here, a gzipped STDF parsed fine on
     // desktop and failed in the browser for any caller that hadn't already
     // decompressed — which the file-filter scan hadn't.
 
@@ -1397,6 +1548,94 @@ mod tests {
         let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
         enc.write_all(raw).unwrap();
         enc.finish().unwrap()
+    }
+
+    fn bzip2_bytes(raw: &[u8]) -> Vec<u8> {
+        use std::io::Write;
+        let mut enc = bzip2::write::BzEncoder::new(Vec::new(), bzip2::Compression::fast());
+        enc.write_all(raw).unwrap();
+        enc.finish().unwrap()
+    }
+
+    /// Every STDF bytes entry point reads a gzip or bzip2 container exactly as
+    /// the plain file: one table, so a new entry point that skips
+    /// `maybe_decompress` fails here rather than only in a browser.
+    #[test]
+    fn every_bytes_entry_point_reads_gzip_and_bzip2() {
+        let raw = std::fs::read(MULTI_WAFER).unwrap();
+        let all = parse_stdf_test_names(&raw).unwrap();
+        let selected: std::collections::HashSet<u32> =
+            all.test_defs.keys().filter_map(|k| k.parse().ok()).collect();
+        let summary = |p: &ParsedStdf| (p.wafers.len(), p.wafers.iter().map(|w| w.results.len()).sum::<usize>(), p.test_defs.len());
+        let full = summary(&parse_stdf_from_bytes(&raw).unwrap());
+        let filtered = summary(&parse_stdf_from_bytes_filtered(&raw, &selected).unwrap());
+        let meta = parse_stdf_file_meta(&raw).unwrap().wafer_count;
+        for (name, packed) in [("gzip", gzip_bytes(&raw)), ("bzip2", bzip2_bytes(&raw))] {
+            assert_eq!(summary(&parse_stdf_from_bytes(&packed).unwrap()), full, "{name} full");
+            assert_eq!(summary(&parse_stdf_from_bytes_filtered(&packed, &selected).unwrap()), filtered, "{name} filtered");
+            assert_eq!(parse_stdf_test_names(&packed).unwrap().test_defs.len(), all.test_defs.len(), "{name} scan");
+            assert_eq!(parse_stdf_file_meta(&packed).unwrap().wafer_count, meta, "{name} meta");
+        }
+    }
+
+    #[test]
+    fn a_damaged_bzip2_stream_is_a_bzip2_error() {
+        let mut packed = bzip2_bytes(&std::fs::read(MULTI_WAFER).unwrap());
+        let mid = packed.len() / 2;
+        packed.truncate(mid);
+        assert_eq!(parse_stdf_from_bytes(&packed).err().map(|e| e.code), Some("bzip-invalid"));
+    }
+
+    /// The native path streams a file's records (`ReaderRecords`) instead of reading it
+    /// whole; every result must match the same file parsed from its bytes — every
+    /// sample, plain, gzip and bzip2, and a file cut off mid-record.
+    #[test]
+    fn a_streamed_path_parses_exactly_as_its_bytes() {
+        use std::io::Write;
+        // As values, not strings: `test_defs` is a HashMap, so its key order differs run to run.
+        let json = |r: &ParsedStdf| serde_json::to_value(r).unwrap();
+        let check = |path: &str, raw: &[u8]| {
+            assert_eq!(json(&parse_stdf_sync(path.to_string()).unwrap()), json(&parse_stdf_from_bytes(raw).unwrap()), "{path} full");
+            let names = parse_stdf_test_names_path(path).unwrap();
+            let from_bytes = parse_stdf_test_names(raw).unwrap();
+            assert_eq!(serde_json::to_value(&names).unwrap(), serde_json::to_value(&from_bytes).unwrap(), "{path} scan");
+            assert_eq!(serde_json::to_value(parse_stdf_file_meta_path(path).unwrap()).unwrap(),
+                       serde_json::to_value(parse_stdf_file_meta(raw).unwrap()).unwrap(), "{path} meta");
+            let all: std::collections::HashSet<u32> = names.test_defs.keys().filter_map(|k| k.parse().ok()).collect();
+            assert_eq!(json(&parse_stdf_filtered_path(path, &all).unwrap()),
+                       json(&parse_stdf_from_bytes_filtered(raw, &all).unwrap()), "{path} filtered");
+        };
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data");
+        let mut n = 0;
+        for e in std::fs::read_dir(dir).unwrap() {
+            let p = e.unwrap().path();
+            if p.extension().and_then(|x| x.to_str()) != Some("stdf") { continue; }
+            check(p.to_str().unwrap(), &std::fs::read(&p).unwrap());
+            n += 1;
+        }
+        assert!(n >= 5, "sample STDF files found: {n}");
+
+        let raw = std::fs::read(MULTI_WAFER).unwrap();
+        for (suffix, packed) in [(".stdf.gz", gzip_bytes(&raw)), (".stdf.bz2", bzip2_bytes(&raw))] {
+            let mut f = tempfile::Builder::new().suffix(suffix).tempfile().unwrap();
+            f.write_all(&packed).unwrap();
+            check(f.path().to_str().unwrap(), &raw);
+        }
+        let cut = &raw[..raw.len() - 7];
+        let mut f = tempfile::Builder::new().suffix(".stdf").tempfile().unwrap();
+        f.write_all(cut).unwrap();
+        let streamed = parse_stdf_sync(f.path().to_str().unwrap().to_string()).unwrap();
+        assert!(streamed.warnings.iter().any(|w| w.code == "file-truncated"), "{:?}", streamed.warnings);
+        check(f.path().to_str().unwrap(), cut);
+    }
+
+    #[test]
+    fn a_bz2_path_is_read_by_extension() {
+        let raw = std::fs::read(MULTI_WAFER).unwrap();
+        let mut f = tempfile::Builder::new().suffix(".stdf.bz2").tempfile().unwrap();
+        std::io::Write::write_all(&mut f, &bzip2_bytes(&raw)).unwrap();
+        let bytes = crate::read_file::read_bytes(f.path().to_str().unwrap()).unwrap();
+        assert_eq!(bytes, raw);
     }
 
     #[test]

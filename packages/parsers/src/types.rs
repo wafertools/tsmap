@@ -626,6 +626,14 @@ pub fn wafer_split_warning(named: &str, column: &str, values: &[String]) -> Pars
     ))
 }
 
+/// The "Subdivide file by" columns would have produced far more wafers than
+/// the file holds, so they were ignored. `warning`: nothing measured was lost.
+pub fn oversplit_warning(columns: &str, wafers: usize, base: usize) -> ParserWarning {
+    ParserWarning::warning("subdivide-ignored", format!(
+        "Subdividing by '{columns}' would give {wafers} wafers from {base}, so the column varies from die to die rather than from wafer to wafer. The file was loaded without subdividing; to keep a per-die value, map it as 'Display info' or a test value."
+    ))
+}
+
 /// A column mapped as metadata varies within a single wafer, so it describes
 /// dies rather than wafers and was dropped from the wafer/lot properties.
 /// `warning`: nothing measured was lost.
@@ -1036,6 +1044,7 @@ mod tests {
             retests_assumed_warning("Wafer W01", 4),
             wafer_split_warning("Wafer W01", "temp", &["25".into(), "85".into()]),
             column_varies_warning("stamp", "12:00"),
+            oversplit_warning("vdd", 200, 1),
             multiple_lot_records_warning(2),
             {
                 let mut open = OpenWafers::default();
@@ -1061,6 +1070,7 @@ mod tests {
             ("retests-assumed",             "warning"),
             ("wafer-split-by-column",       "warning"),
             ("column-varies-within-wafer",  "warning"),
+            ("subdivide-ignored",           "warning"),
             ("multiple-lot-records",        "warning"),
             ("wafer-end-missing",           "warning"),
         ];

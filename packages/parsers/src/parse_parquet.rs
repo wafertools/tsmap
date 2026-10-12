@@ -96,9 +96,9 @@ fn field_to_string(f: &Field) -> String {
 }
 
 pub fn parquet_headers_from_bytes(bytes: &[u8]) -> ParseResult<ParquetHeadersResult> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
     let bytes: &[u8] = &bytes;
     let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(ParseError::parquet_read)?;
     headers_from_reader(&reader)
@@ -114,12 +114,8 @@ pub fn parquet_headers_from_bytes(bytes: &[u8]) -> ParseResult<ParquetHeadersRes
 /// bytes functions use. A plain (non-gz) `.parquet` file — the common case —
 /// keeps the direct, unbuffered `File` path.
 #[cfg(feature = "native")]
-fn is_gz_path(path: &str) -> bool {
-    std::path::Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("gz"))
-        .unwrap_or(false)
+fn is_compressed_path(path: &str) -> bool {
+    crate::read_file::Compression::of_path(path).is_some()
 }
 
 /// Opens `path` as a Parquet reader bound to `$r` and evaluates `$body` with
@@ -132,7 +128,7 @@ fn is_gz_path(path: &str) -> bool {
 macro_rules! with_path_reader {
     ($path:expr, |$r:ident| $body:expr) => {{
         let path: &str = $path;
-        if is_gz_path(path) {
+        if is_compressed_path(path) {
             let bytes = crate::read_file::read_bytes(path)?;
             let $r = SerializedFileReader::new(Bytes::from(bytes)).map_err(ParseError::parquet_read)?;
             $body
@@ -223,7 +219,7 @@ fn headers_from_reader<R: FileReader>(reader: &R) -> ParseResult<ParquetHeadersR
 /// constant wants it on, because a column that is "25" in some rows and empty in
 /// the rest is not constant, and skipping the empty rows would call it so.
 pub fn parquet_distinct_count_from_bytes(bytes: &[u8], columns: &[String], blank_is_a_value: bool) -> ParseResult<usize> {
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
     let bytes: &[u8] = &bytes;
     let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(ParseError::parquet_read)?;
     distinct_count_from_reader(&reader, columns, blank_is_a_value)
@@ -263,9 +259,9 @@ fn distinct_count_from_reader<R: FileReader>(reader: &R, columns: &[String], bla
 }
 
 pub fn parse_parquet_from_bytes(bytes: &[u8], mapping: CsvMapping) -> ParseResult<ParsedStdf> {
-    // Transparently unwrap a .gz container — see read_file::maybe_gunzip.
-    // Borrows (no copy) when the input isn't gzipped.
-    let bytes = crate::read_file::maybe_gunzip(bytes)?;
+    // Transparently unwrap a .gz or .bz2 container — see read_file::maybe_decompress.
+    // Borrows (no copy) when the input isn't compressed.
+    let bytes = crate::read_file::maybe_decompress(bytes)?;
     let bytes: &[u8] = &bytes;
     let reader = SerializedFileReader::new(Bytes::from(bytes.to_vec())).map_err(ParseError::parquet_read)?;
     parse_from_reader(&reader, mapping)
@@ -373,20 +369,6 @@ fn coerce_role_whole<T: TryFrom<i64>>(field: Option<&Field>, role_key: &str,
     whole
 }
 
-fn mismatch_warnings(mismatches: &HashMap<String, u32>, test_defs: &HashMap<String, TestDef>) -> Vec<ParserWarning> {
-    let mut warnings: Vec<ParserWarning> = mismatches
-        .iter()
-        .map(|(role, count)| {
-            let label = test_defs.get(role).map(|d| d.name.as_str()).unwrap_or(role.as_str());
-            value_not_numeric_warning(label, *count)
-        })
-        .collect();
-    // Sorted by message so the order is deterministic regardless of HashMap
-    // iteration order — the codes are all the same here, the labels are not.
-    warnings.sort_by(|a, b| a.message.cmp(&b.message));
-    warnings
-}
-
 /// Fast path: one column per test, values read straight from their typed
 /// Parquet field with no string round-trip. This is the expected common case
 /// for Parquet test-data exports (columnar storage naturally suits a wide
@@ -448,7 +430,7 @@ fn parse_wide_format(
         });
     }
 
-    let extra = mismatch_warnings(&mismatches, &test_defs);
+    let extra = crate::flat_wafers::not_numeric_warnings(&mismatches, &test_defs);
     Ok(into_parsed(rows, mapping, false, test_defs, extra))
 }
 
@@ -991,7 +973,7 @@ mod tests {
 
     /// `.parquet.gz` — unusual (Parquet already compresses internally) but every
     /// other format decompresses `.gz` transparently by extension, and the
-    /// native path here has its own `is_gz_path` branch specifically for this
+    /// native path here has its own `is_compressed_path` branch specifically for this
     /// (see its doc comment) — so it needs its own coverage, not just the
     /// bytes-based tests above.
     #[test]
