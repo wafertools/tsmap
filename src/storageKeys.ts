@@ -97,8 +97,8 @@ export const STORED_ITEMS: readonly StoredItem[] = [
   },
   {
     key: 'tsmap:map-colors',
-    label: 'Wafer map colours',
-    description: 'The bin and value colour schemes you picked on a wafer map, and whether colours from a bin definitions file are used.',
+    label: 'Wafer map preferences',
+    description: 'How you like to see wafer maps: colour schemes, overlays, legend position, number format and the Insights charts\' axis settings. Not rotation, the compact layout or log scale, which belong to the data on screen.',
     scope: 'both',
   },
   {

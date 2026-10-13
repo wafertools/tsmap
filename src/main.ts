@@ -1,15 +1,12 @@
 declare const __APP_VERSION__: string;
 declare const __BUILD_DATE__: string;
 
-import { keepTests, testNumbers } from './columns';
+import { keepTests } from './columns';
 import { buildWaferMap } from '@wafertools/wafermap';
 import type { WaferMapResult, BinDef } from '@wafertools/wafermap';
 import type { WaferViewOptions } from '@wafertools/wafermap/render';
 import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide, WMAP_VERSION, WMAP_BUILD_TIME } from '@wafertools/wafermap/render';
-import type { FindingsNotice } from '@wafertools/wafermap/render';
-import { estimateValueFindingsMs, lotHasTestValues, describeDuration,
-         maxTestCount, VALUE_FINDINGS_AUTO_BUDGET_MS } from './valueFindings';
-import { analyzeWaferMap, analyzeWaferLot, setReportOpener } from '@wafertools/wafermap/stats';
+import { analyzeWaferMap, analyzeWaferLotAsync, setReportOpener } from '@wafertools/wafermap/stats';
 import type { StatsSummary } from '@wafertools/wafermap/stats';
 import { createPlatform, isTauri, canPickWebFilesByPurpose, pickWebFilesByPurpose, lastParseDecodeMs } from './platform';
 import type { FileHandle, StdfTestNames, ScanResult, CliStartupArgs, FolderScan } from './platform';
@@ -30,7 +27,7 @@ import { openModal } from './modal';
 import { showSplitsModal } from './splitsUI';
 import { getEdgeExclusionMm, getWaferDiameterMm, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
-import { loadMapColorPrefs, saveMapColorPrefs } from './mapColorPrefs';
+import { loadMapPrefs, saveMapPrefs } from './mapPrefs';
 import { loadSavedPlots, savePlots, importPlotsText } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
@@ -263,20 +260,13 @@ const insightsOpts = () => ({
 
 // ── App-wide state ────────────────────────────────────────────────────────────
 
-// "Value findings" toggle: when on, wmap's regional parametric test-value
-// pass runs (edge/quadrant/site "reads high/low on test X" + spec-region findings).
-// This gates ONLY the test-value (Welch) findings — regional yield and bin findings
-// are separate wmap analyses (enableHard/SoftBinAnalysis, default on) and run
-// regardless of this toggle. Off by default since wmap 0.16.0 — the test-value pass
-// scales with regions × tests × dies and is the dominant cost of analysis. Affects
-// only analyzeWaferMap/Lot, never parsing, so toggling re-renders the in-memory
-// data with no reload (see analyzeOpts).
-let valueFindings = false;
-// Set once the user picks a side in the Lot menu or via the Findings-panel
-// offer. Until then the cost estimate below decides, so a small lot never has
-// to be asked and a large one is never made to wait without being told.
-let valueFindingsChosen = false;
-const analyzeOpts = () => ({ enableTestValueAnalysis: valueFindings });
+// Set when the reader runs the test-value analysis from wmap's Findings section
+// (wmap reports it through `onStatsSummaryChange`), and cleared on every new
+// load. wmap decides by its own budget whether the analysis runs without asking;
+// this only keeps a re-render of the same load (a theme change, a geometry edit)
+// from dropping an analysis the reader asked for.
+let testValuesRequested = false;
+const analysisOptions = () => ({ enableTestValueAnalysis: testValuesRequested ? true : 'auto' as const });
 
 // Whether wafer map/gallery titles, cards, and summary panels show a wafer's
 // split as a " · <split>" suffix (toggled in the splits modal). On by default
@@ -688,8 +678,9 @@ const WMAP_WARNING_LOG_LEVEL: Record<ReturnType<typeof severityOf>, LogLevel> = 
  *   rings empty. `inferred-pitch` was removed in the same release — a pitch
  *   derived from a supplied diameter is self-consistent by construction, so it
  *   was firing on every correct inference;
- * - the analysis — `test-count-capped`, meaning test-value analysis was skipped
- *   entirely and **no** test findings were produced.
+ * - the analysis — an `analysis-option-corrected` advisory, for one. (A skipped
+ *   test-value analysis is not a warning: wmap records it and offers it in its
+ *   Findings section.)
  *
  * That second source is why `statsSummary` is a parameter and why this must be
  * called **after** `analyzeWaferMap`, not before it. `collectWarnings` also
@@ -899,7 +890,7 @@ function yieldToPaint(): Promise<void> {
  */
 async function buildLotStatsSummary(
   wafers: WaferData[],
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (done: number, total: number, phase: 'building' | 'analysing') => void,
   isCurrent: () => boolean = () => true,
 ) {
   // WCR geometry is lot-level (one WCR record per file), and every wafer
@@ -916,40 +907,53 @@ async function buildLotStatsSummary(
   // Unique across the whole set — two lots' W01 (or a retest of one wafer in
   // the same file) must not produce two cards with the same heading.
   const labels = waferLabels(wafers, showSplitSuffix);
-  const items: Array<ReturnType<typeof buildWaferMap> & { label: string; statsSummary: ReturnType<typeof analyzeWaferMap> }> = [];
+  const maps: Array<ReturnType<typeof buildWaferMap>> = [];
 
   // Show something before the first wafer, so the wait is explained from the off.
-  onProgress?.(0, wafers.length);
+  onProgress?.(0, wafers.length, 'building');
   await yieldToPaint();
   if (!isCurrent()) return null;
 
-  // Time-sliced rather than once per wafer: a paint costs ~32 ms, and at ~110 ms
-  // of work per wafer yielding every time would add a third to the total. Yielding
-  // whenever 100 ms has passed keeps every chunk short enough that the browser
-  // never judges the page hung, and keeps the overhead proportional to the work.
+  // Time-sliced rather than once per wafer: a paint costs ~32 ms, and yielding
+  // per wafer would add a third to the total. Yielding whenever 100 ms has passed
+  // keeps every chunk short enough that the browser never judges the page hung.
   let lastYield = performance.now();
   for (let i = 0; i < wafers.length; i++) {
     const w = wafers[i];
-    const wcr = wcrFor(w.source);
-    const waferMap = buildWaferMap(buildWmapConfig(w, wmapTestDefsForWafer(w), wcr));
-    const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
-    logWmapWarnings(labels[i], waferMap, statsSummary);
-    items.push({ ...waferMap, label: labels[i], statsSummary });
-
+    maps.push(buildWaferMap(buildWmapConfig(w, wmapTestDefsForWafer(w), wcrFor(w.source))));
     if (i + 1 < wafers.length && performance.now() - lastYield > 100) {
-      onProgress?.(i + 1, wafers.length);
+      onProgress?.(i + 1, wafers.length, 'building');
       await yieldToPaint();
       lastYield = performance.now();
       if (!isCurrent()) return null;
     }
   }
-  // The lot-level pass is its own chunk, and on a big lot not a short one.
-  onProgress?.(wafers.length, wafers.length);
-  await yieldToPaint();
+
+  // wmap analyses the lot, yielding between wafers itself, and decides once for
+  // the whole lot whether the test-value analysis fits its budget; when it does
+  // not, its Findings section offers it to the reader.
+  const superseded = new AbortController();
+  let lotStatsSummary: Awaited<ReturnType<typeof analyzeWaferLotAsync>>;
+  try {
+    lotStatsSummary = await analyzeWaferLotAsync(maps, {
+      ...analysisOptions(),
+      signal: superseded.signal,
+      onProgress: (done, total) => {
+        if (!isCurrent()) superseded.abort();
+        else onProgress?.(done, total, 'analysing');
+      },
+    });
+  } catch (err) {
+    if (superseded.signal.aborted) return null;
+    throw err;
+  }
   if (!isCurrent()) return null;
+  const items = maps.map((waferMap, i) => {
+    const statsSummary = lotStatsSummary.perWafer[i].summary;
+    logWmapWarnings(labels[i], waferMap, statsSummary);
+    return { ...waferMap, label: labels[i], statsSummary };
+  });
   logDefinitionsNotApplying(items);
-  const perWaferSummaries = items.map(i => i.statsSummary);
-  const lotStatsSummary = analyzeWaferLot(items, { perWaferSummaries, ...analyzeOpts() });
   return { items, lotStatsSummary };
 }
 
@@ -1098,9 +1102,8 @@ function renderWafers(
   // handle their own availability — "Tests…" greys out for a file with
   // no test data — so this only needs the "is anything loaded at all" gate.
   setToolbarGroupVisible(wafers.length > 0);
-  // Value findings are only meaningful when there are test values. Reset
-  // it off on every new load so a fresh (possibly large) lot starts on the fast path.
-  valueFindings = false;
+  // A new load starts from wmap's own decision again.
+  testValuesRequested = false;
 
   const totalDies = wafers.reduce((n, w) => n + w.results.count, 0);
   const loadedMsg = `${label} — ${wafers.length} wafer${wafers.length !== 1 ? 's' : ''}, ${totalDies} dies`;
@@ -1158,41 +1161,6 @@ const onSaveText = isTauri
   : undefined;
 
 /**
- * Decide whether to run the regional test-value pass without being asked, and
- * build the Findings-panel notice when we don't.
- *
- * The pass is worth having and most users never discovered it: it lived only
- * as a Lot-menu checkbox, and a reader looking at the Findings list had no
- * signal that a whole category was missing. Advertising the control could not
- * fix that — nothing sent them to the menu. So the absence is stated where the
- * findings are, and when the analysis is cheap enough not to be worth a
- * decision, it simply runs.
- */
-function resolveValueFindings(wafers: WaferData[]): FindingsNotice | undefined {
-  if (!lotHasTestValues(wafers)) return undefined;
-  const estimateMs = estimateValueFindingsMs(wafers);
-
-  if (!valueFindingsChosen && !valueFindings && estimateMs <= VALUE_FINDINGS_AUTO_BUDGET_MS) {
-    valueFindings = true;
-    log('info', `Test-value findings included automatically (${describeDuration(estimateMs)} of analysis).`);
-  }
-  if (valueFindings) return undefined;
-
-  const waferCount = wafers.length;
-  const testCount = maxTestCount(wafers);
-  return {
-    message: 'Test-value findings are not included.',
-    detail: `Regional analysis of ${testCount} test${testCount === 1 ? '' : 's'} across `
-      + `${waferCount} wafer${waferCount === 1 ? '' : 's'} — ${describeDuration(estimateMs)}.`,
-    actionLabel: 'Analyse',
-    // Same path as the Lot-menu item, so the two can't drift: it flips the
-    // flag, drops the cached analysis and re-renders from the dies already in
-    // memory. Marks the choice as the user's, so the budget stops deciding.
-    onAction: () => { valueFindingsChosen = true; toggleValueFindings(); },
-  };
-}
-
-/**
  * Monotonic token for `renderWaferView`.
  *
  * The gallery path now awaits the per-wafer analysis, so two renders can overlap
@@ -1212,7 +1180,6 @@ async function renderWaferView(wafers: WaferData[]) {
   // must not outlive the container it was mounted in.
   container.innerHTML = '';
 
-  const findingsNotice = await logTimed('resolveValueFindings', () => resolveValueFindings(wafers));
   const plotMode = await logTimed('autoPlotMode', () => autoPlotMode(wafers));
   if (wafers.length === 1) {
     container.classList.remove('gallery');
@@ -1220,13 +1187,17 @@ async function renderWaferView(wafers: WaferData[]) {
     const waferMap = buildWaferMap(buildWmapConfig(
       wafers[0], wmapTestDefsForWafer(wafers[0]), singleWcr,
     ));
-    const statsSummary = analyzeWaferMap(waferMap, analyzeOpts());
+    const statsSummary = analyzeWaferMap(waferMap, analysisOptions());
     logWmapWarnings(wafers[0].waferId, waferMap, statsSummary);
     logDefinitionsNotApplying([waferMap]);
     mainViewController = renderWaferMap(container, waferMap, {
       statsSummary,
       summaryPanel: { placement: 'right', defaultOpen: true },
-      findingsNotice,
+      onStatsSummaryChange: (next) => {
+        testValuesRequested = true;
+        logWmapWarnings(wafers[0].waferId, waferMap, next);
+        log('info', 'Test-value findings added.');
+      },
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
       // button click. tsmap's own guide content is folded into that same
@@ -1235,9 +1206,9 @@ async function renderWaferView(wafers: WaferData[]) {
       userGuideExtension: guideExtension,
       onSaveImage,
       onSaveText,
-      // The colour choices persist across loads and restarts (mapColorPrefs.ts);
+      // The reader's preferences persist across loads and restarts (mapPrefs.ts);
       // the plot mode is per-load, derived from the data.
-      viewOptions: { plotMode, ...loadMapColorPrefs(), ...reticleViewOption() },
+      viewOptions: { plotMode, ...loadMapPrefs(), ...reticleViewOption() },
       onViewOptionsChange: onMapViewOptionsChange,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default). It and tsmap's log deliberately show the same advisories:
@@ -1258,14 +1229,15 @@ async function renderWaferView(wafers: WaferData[]) {
       const total = wafers.length;
       const built = await buildLotStatsSummary(
         wafers,
-        (done) => {
+        (done, _total, phase) => {
           // `IfActive`: renderWaferView always runs inside a load its caller
           // opened, so these report progress and must never BEGIN one. When a
           // caller ended its load early (or never opened one — `refreshCurrentView`
           // on a theme change), a phase starting here created a load with no
           // owner to end it: the indicator stuck on "Finishing lot summary"
           // forever and the toolbar never came back.
-          if (done < total) loadPhaseIfActive('analysing', 'Analysing wafers', done, total);
+          if (phase === 'building') loadPhaseIfActive('analysing', 'Building wafer maps', done, total);
+          else if (done < total) loadPhaseIfActive('analysing', 'Analysing wafers', done, total);
           else loadPhaseIfActive('analysing', `Analysing the lot (${total} wafers)`);
         },
         isCurrent,
@@ -1328,7 +1300,18 @@ async function renderWaferView(wafers: WaferData[]) {
         settleGallery();
       },
       summaryPanel: { placement: 'right', defaultOpen: true },
-      findingsNotice,
+      // The reader ran the lot's test-value analysis from the Findings section:
+      // keep the new summaries, so a re-render of this load reuses them.
+      onStatsSummaryChange: ({ summaries, lotStatsSummary: lot }) => {
+        testValuesRequested = true;
+        if (cachedLotStats) {
+          cachedLotStats = {
+            items: cachedLotStats.items.map((it, i) => ({ ...it, statsSummary: summaries[i] })),
+            lotStatsSummary: lot,
+          };
+        }
+        log('info', `Test-value findings added for ${summaries.length} wafers.`);
+      },
       // No visible wmap help button — tsmap's own Help menu (openHelpMenu)
       // triggers wmap's guide via the controller's openUserGuide(), not a
       // button click. tsmap's own guide content is folded into that same
@@ -1338,7 +1321,7 @@ async function renderWaferView(wafers: WaferData[]) {
       onSaveImage,
       onSaveText,
       // Same persisted colour choices as the single-wafer call above.
-      viewOptions: { plotMode, ...loadMapColorPrefs(), ...reticleViewOption() },
+      viewOptions: { plotMode, ...loadMapPrefs(), ...reticleViewOption() },
       onViewOptionsChange: onMapViewOptionsChange,
       // wmap's own warning indicator is left ON (the `warnings` option's
       // default) — see the note on the single-wafer call above. The gallery
@@ -2323,24 +2306,6 @@ if (isTauri) {
 openMoreBtn.addEventListener('click', () => openPickMenu(openMoreBtn, false));
 addMoreBtn.addEventListener('click', () => openPickMenu(addMoreBtn, true));
 
-/** Toggle regional test-value findings and re-analyse. Reached from the Setup ▾
- *  menu (`openLotMenu`); a named function rather than an inline listener so the
- *  menu row can call it directly. */
-function toggleValueFindings() {
-  if (busy || session.wafers.length === 0) return;
-  // Whichever way it goes, the user has now decided — the auto budget must not
-  // silently turn it back on for them on the next render.
-  valueFindingsChosen = true;
-  valueFindings = !valueFindings;
-  // Analysis results are cached; the toggle changes what they contain, so drop
-  // them. Re-render the current map view (gallery/single) with the new setting —
-  // the raw dies are already in memory, so this is a re-analyse, not a reload.
-  log('info', `Test-value findings ${valueFindings ? 'on — recomputing regional test-value findings' : 'off'}`);
-  // Turning findings ON re-analyses; turning them OFF only re-renders what is
-  // already known. The verb differs, the lifecycle does not.
-  rerenderCurrentLot(valueFindings ? 'Analysing' : 'Rendering');
-}
-
 resetBtn.addEventListener('click', () => {
   if (session.wafers.length === 0) return;
   endLoad();
@@ -2653,16 +2618,19 @@ function openValueFilterDialog() {
   });
 }
 
-/** A reticle that has been set is drawn: the field grid is what the setting is for, and the Overlays menu still hides it. */
+/**
+ * A reticle that has been set is drawn: the field grid is what the setting is for, and the Overlays menu still
+ * hides it. The reader's choice this session wins, then their saved preference.
+ */
 function reticleViewOption(): { showReticle?: boolean } {
-  return reticle === undefined ? {} : { showReticle: reticleGridShown ?? true };
+  return reticle === undefined ? {} : { showReticle: reticleGridShown ?? loadMapPrefs().showReticle ?? true };
 }
 
 /** The Overlays ▾ → Reticle grid choice, kept across renders; unset until the reader makes one (the grid is then on). */
 let reticleGridShown: boolean | undefined;
 function onMapViewOptionsChange(opts: WaferViewOptions, changed: readonly (keyof WaferViewOptions)[]): void {
   if (changed.includes('showReticle')) reticleGridShown = opts.showReticle;
-  saveMapColorPrefs(opts, changed);
+  saveMapPrefs(opts, changed);
 }
 
 // Same invalidation as openWaferGeometryDialog: the reticle feeds buildWaferMap at both call sites, so
@@ -3210,22 +3178,6 @@ function openLotMenu(anchor: HTMLElement) {
           ? 'Off: every value is used as recorded'
           : `Values outside ${VALUE_FILTER_LABEL[valueFilterMode].toLowerCase()} are treated as missing and counted`,
         onClick: openValueFilterDialog,
-      }));
-      // Moved out of the app bar, where it was a bare switch reading "Value
-      // findings" with no indication of what it acted on. In a menu row there
-      // is room to name the object, and it sits with the other lot-scoped
-      // controls instead of beside the file buttons.
-      const hasTestValues = session.wafers.some(w =>
-        testNumbers(w.results).length > 0);
-      heading('Analysis');
-      popup.appendChild(makeMenuRow(close, {
-        label: 'Show test-value findings',
-        hint: hasTestValues
-          ? 'Add regional test-value findings to the summary panel (slower on large loads)'
-          : 'The loaded wafers have no test values to analyse',
-        enabled: hasTestValues && !busy,
-        checked: valueFindings,
-        onClick: toggleValueFindings,
       }));
     },
   );

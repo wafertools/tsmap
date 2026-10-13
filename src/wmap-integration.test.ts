@@ -127,50 +127,42 @@ describe('functional (F) tests end-to-end through the tsmap→wmap mapping', () 
 /**
  * Pins the contract `logWmapWarnings` (main.ts) depends on: since wmap 0.22.0
  * advisories come from the build AND from the analysis, so a host reading only
- * `waferMapResult.warnings` under-reports. tsmap did exactly that, which
- * silently dropped `test-count-capped` — an advisory whose whole meaning is
- * "no test findings were produced at all". If a future wmap moves the analysis
- * warnings elsewhere, this fails rather than tsmap going quiet again.
+ * `waferMapResult.warnings` under-reports. tsmap once did exactly that and
+ * silently dropped the analysis's advisories. If a future wmap moves the analysis
+ * warnings elsewhere, this fails rather than tsmap going quiet again. The
+ * analysis-side advisory used is `analysis-option-corrected` (an invalid
+ * sector count, as an untyped caller could pass).
  */
 describe('collectWarnings unions build-side and analysis-side advisories', () => {
-  // > 250 unique tests trips analyzeWaferMap's test-count cap.
-  const MANY_TESTS = 260;
-  const cappedResults = Array.from({ length: 20 }, (_, i) => ({
-    x: i % 5,
-    y: Math.floor(i / 5),
-    hbin: 1,
-    testValues: Object.fromEntries(
-      Array.from({ length: MANY_TESTS }, (_, t) => [3000 + t, i + t]),
-    ),
-  }));
+  const results = Array.from({ length: 100 }, (_, i) => ({ x: i % 10, y: Math.floor(i / 10), hbin: 1 }));
+  const analyse = (waferMap: ReturnType<typeof buildWaferMap>) =>
+    analyzeWaferMap(waferMap, { sectorCount: 5 } as unknown as Parameters<typeof analyzeWaferMap>[1]);
 
-  it('surfaces test-count-capped only when the statsSummary is passed', async () => {
+  it('surfaces an analysis advisory only when the statsSummary is passed', async () => {
     const { collectWarnings } = await import('@wafertools/wafermap/render');
-    const waferMap = buildWaferMap({ results: cappedResults, testDefs: [] });
-    const statsSummary = analyzeWaferMap(waferMap, { enableTestValueAnalysis: true });
+    const waferMap = buildWaferMap({ results, testDefs: [] });
+    const statsSummary = analyse(waferMap);
+    const code = 'analysis-option-corrected';
 
     // The advisory really is on the analysis side, not the build result.
-    expect(statsSummary.stats.warnings?.some(w => w.code === 'test-count-capped')).toBe(true);
-    expect(waferMap.warnings.some(w => w.code === 'test-count-capped')).toBe(false);
+    expect(statsSummary.stats.warnings?.some(w => w.code === code)).toBe(true);
+    expect(waferMap.warnings.some(w => w.code === code)).toBe(false);
 
     // Reading the build result alone — what tsmap used to do — misses it.
-    expect(collectWarnings({ result: waferMap }).some(w => w.code === 'test-count-capped')).toBe(false);
+    expect(collectWarnings({ result: waferMap }).some(w => w.code === code)).toBe(false);
 
-    // Passing both — what logWmapWarnings now does — reports it.
-    const collected = collectWarnings({ result: waferMap, statsSummary });
-    expect(collected.some(w => w.code === 'test-count-capped')).toBe(true);
+    // Passing both — what logWmapWarnings does — reports it.
+    expect(collectWarnings({ result: waferMap, statsSummary }).some(w => w.code === code)).toBe(true);
   });
 
   it('grades severity so the log level is derivable', async () => {
     const { collectWarnings, severityOf } = await import('@wafertools/wafermap/render');
-    const waferMap = buildWaferMap({ results: cappedResults, testDefs: [] });
-    const statsSummary = analyzeWaferMap(waferMap, { enableTestValueAnalysis: true });
-
-    const capped = collectWarnings({ result: waferMap, statsSummary })
-      .find(w => w.code === 'test-count-capped');
-    expect(capped).toBeDefined();
-    // A feature produced nothing, but what is drawn is correct — not an error.
-    expect(severityOf(capped!)).toBe('warning');
+    const waferMap = buildWaferMap({ results, testDefs: [] });
+    const corrected = collectWarnings({ result: waferMap, statsSummary: analyse(waferMap) })
+      .find(w => w.code === 'analysis-option-corrected');
+    expect(corrected).toBeDefined();
+    // The analysis ran with a corrected value; what is drawn is correct — not an error.
+    expect(severityOf(corrected!)).toBe('warning');
   });
 });
 

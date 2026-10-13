@@ -38,6 +38,17 @@ technical record, including internal changes.
 
 ### Changed
 
+- **Every wafer-map preference is remembered, not just the colours.** Overlays (rings, quadrants, die labels, reticle grid,
+  XY indicator, axis labels), legend position, number format, failing-die hatching, colorbar range and the Insights charts'
+  axis settings are kept across loads and restarts, alongside the colour schemes already kept. A rotation or mirror, the
+  compact layout and log scale are not: they belong to the data on screen, so the next lot opens without them. The saved
+  colour choices carry over. **Help → Reset saved settings…** lists them as "Wafer map preferences".
+- **wmap decides when test-value findings run, and its Findings panel offers them.** tsmap no longer estimates the cost
+  itself: wmap runs the regional test-value comparisons when the load is small enough to take about a second, and otherwise
+  its Findings panel says they are not included, with the tests, dies and expected time and an **Analyse** button, which
+  analyses every wafer of the lot at once. The **Setup ▾ → Show test-value findings** item is gone. Analysed findings stay
+  for the rest of the load, and the log notes them. A lot is analysed through wmap's own lot analysis, which yields to the
+  browser between wafers, after its wafer maps are built ("Building wafer maps", then "Analysing wafers").
 - **Subdividing a file by a per-die column is ignored, with a warning.** If the chosen "Subdivide file by" columns would give more than
   25 wafers per wafer in the file (a measured value that differs on every die, say), the file loads without subdividing and a warning
   names the column. The mapping dialog's hint reads "differs on every sampled row" for a column whose sampled values are all distinct.

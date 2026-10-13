@@ -167,7 +167,7 @@ src/
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
   reticle.ts / reticleUI.ts — the stepper field size (dies) behind the reticle grid and reticle-position findings
   valueFilter.ts / valueFilterUI.ts — which limit set a test value must lie inside to be used (validity limits by default); wmap applies it and counts what it excludes
-  mapColorPrefs.ts    — remembered bin / value colour schemes and "use defined bin colours"
+  mapPrefs.ts         — remembered wafer-map preferences (every key wmap classes as one)
   plotPrefs.ts        — the saved plots behind Insights' Plot tab, kept as wmap's own plots file
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
   limitNames.ts       — the one table of limit column names (test vs spec limits), shared by the definitions reader and the column mapping
@@ -176,7 +176,6 @@ src/
   metadata.ts         — faceting metadata: distinct wafer-provenance values to group by
   wcr.ts              — STDF wafer configuration record code tables, shared by geometry and display
   units.ts            — converts a test recorded in another SI prefix (mV vs V) to the lot's unit on load
-  valueFindings.ts    — cost model deciding whether wmap's regional test-value analysis runs unprompted
   webLimits.ts        — the browser build's size limit (test values its WASM parser can hold)
   recentFiles.ts      — recently opened file sets on the empty state (desktop only)
   storageKeys.ts      — the registry of every persisted preference, + legacy-key migration

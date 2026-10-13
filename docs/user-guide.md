@@ -565,32 +565,24 @@ lot in the other formats. The Summary panel's **Data tables** button opens every
 one table (with a wafer column), plus a statistics table and a table of wafers, each with its own
 CSV export covering the whole lot.
 
-### Value findings
+### Test-value findings
 
 The wafer map's summary panel has a **Findings** list — statistically significant spatial
 patterns: regions of the wafer (edge ring, quadrants, clusters, test sites) with unusually
 low yield or distinctive bin patterns. These yield and bin findings are fast to compute and
 **always on**.
 
-**Show test-value findings**, in the toolbar's **Setup ▾** menu, is a **toggle** (shown with a
-☐ / ☑ checkbox) that adds one more category to that same Findings list: regions that read
-unusually high or low on a specific *test value*, or fail spec more often there than elsewhere
-("the edge ring reads 8% high on VDD_CORE"). This is the **only** thing it changes. It does
-**not** affect:
+One category of finding takes longer to compute: regions that read unusually high or low on a
+specific *test value* ("the edge ring reads 8% high on VDD_CORE"). That comparison scales with the
+number of dies × tests, so it runs automatically only when the load is small enough to take about a
+second. A larger load shows a row at the top of the Findings list instead, saying the test-value
+findings are not included, how many tests and dies they would cover and roughly how long they would
+take, with an **Analyse** button. Analysing recomputes in place with no reload, for every wafer of the
+lot at once, and the findings stay for as long as the load is open.
 
-- the panel's per-test Min/Mean/Max statistics (always shown),
-- test-value maps or stacked value maps,
-- the [Insights tab](#grouping-data-in-the-insights-tab) (boxplots, histograms, scatter, correlation — all independent).
-
-Because this regional value pass scales with regions × tests × dies, tsmap estimates its cost
-on every load. If the estimate is under about a second it simply **includes the findings** and
-says so in the log. If it is longer, the Findings list itself shows a row saying test-value
-findings are not included, how much data they would cover and roughly how long they would take,
-with an **Analyse** button — the offer appears where you are already looking. Analysing, or the
-toggle, recomputes in place with no reload: the wafer's data is already in memory. Once you have
-made the choice yourself, tsmap stops deciding it for you. The item is enabled once a file with
-test values is loaded, and is disabled while the Insights tab is open (it only affects the map's
-summary panel).
+Findings for tests that fail their limits more often in one region are included either way, as are the
+panel's per-test Min/Mean/Max statistics, the test-value maps and the
+[Insights tab](#grouping-data-in-the-insights-tab).
 
 ### The log panel
 
@@ -1580,7 +1572,9 @@ A bare `bin` is the weakest claim on **Hard bin**: when a file also has `Hard bi
 ### What tsmap remembers, and how to forget it
 
 tsmap saves a few things between sessions so you don't have to set them up again: your colour
-theme, recently opened files, recently used definitions files, column mappings (per column
+theme, your wafer-map preferences (colour schemes, overlays, legend position, number format and the
+Insights charts' axis settings, but not a rotation, the compact layout or log scale, which belong to the
+data on screen), recently opened files, recently used definitions files, column mappings (per column
 layout), wafer split assignments (per lot), your saved plots, any wafer diameter and edge-exclusion override, the reticle, the limit set values must lie inside, and
 the last file filter. The desktop app also remembers its window's size, position and whether it was
 maximised, and opens the next launch the same way; a first launch opens centred at 80% of the screen.
