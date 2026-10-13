@@ -6,6 +6,8 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+## [0.1.47] — 2026-10-13
+
 ### Added
 
 - **Filter files shows "Reading name.zip…" while it expands an archive.** The load indicator names the archive until the file
