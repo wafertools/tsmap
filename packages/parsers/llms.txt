@@ -46,7 +46,7 @@ resolve.
 - **Empty collections are omitted, not emitted.** `warnings`, `hbinDefs`, `sbinDefs`, `passHbins`, `testValues` and `testPass` are all absent from the object when empty, so read them with `?.` and treat missing as empty.
 - **Warnings are structured, and half of them mean a number could be wrong.** Each is `{ code, message, severity }`. `severity: 'error'` means data was dropped or a value substituted, so a plot or yield built from the parse can mislead — `unpositioned-dies`, `soft-bin-mirrored`, `values-not-numeric`. `'warning'` means the parse made a documented interpretation you may want to change — `retests-assumed`, `wafer-split-by-column`, `column-varies-within-wafer`, `subdivide-ignored`, `multiple-lot-records`. Branch on `code`, never the prose, and surface them: a discarded advisory is how a partly-wrong load looks fine.
 - **Parquet's `zstd` codec is native-only.** `snappy`, `gzip`, `lz4` and `brotli` work everywhere; a zstd-compressed Parquet file parses natively and fails clearly on the WASM build.
-- **Gzip is handled for you.** Every entry point sniffs the magic bytes and decompresses `.gz` input. Do not decompress first.
+- **Gzip and bzip2 are handled for you.** Every entry point sniffs the magic bytes and decompresses `.gz` and `.bz2` input. Do not decompress first; `decompress(bytes)` is there for a caller that reads the bytes itself.
 - **Parse off the main thread in a browser.** The WASM build is slower than native and a large STDF will freeze the page otherwise. tsmap's `parserWorker.ts` is a worked example, including the `new URL(..., import.meta.url)` resolution that bundlers get finicky about.
 
 ## Handing the result to wafermap
