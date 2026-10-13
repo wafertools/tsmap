@@ -7,6 +7,7 @@ import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
 import type { PlotMode, DerivedTestDef } from '@wafertools/wafermap';
 import type { WaferMetadata } from '@wafertools/wafermap/renderer';
 import type { WaferConfig, DieConfig, BinDef } from '@wafertools/wafermap';
+import { fmtExact } from '@wafertools/wafermap';
 import { curatedFields, displayValue, isHiddenField } from './metadata';
 import { unitShift, shiftUnit } from './units';
 import { WCR_FLAT_SIDE, WCR_POS_X, WCR_POS_Y, WCR_UNITS, wcrCode } from './wcr';
@@ -460,8 +461,8 @@ function limitsDisagree(a: TestDef, b: TestDef): boolean {
 }
 
 function limitText(d: TestDef): string {
-  const lo = d.loLimit === undefined ? '' : String(d.loLimit);
-  const hi = d.hiLimit === undefined ? '' : String(d.hiLimit);
+  const lo = d.loLimit === undefined ? '' : fmtExact(d.loLimit);
+  const hi = d.hiLimit === undefined ? '' : fmtExact(d.hiLimit);
   return `${lo}-${hi}${d.units ? ' ' + d.units : ''}`;
 }
 

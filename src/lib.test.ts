@@ -1223,3 +1223,4 @@ describe('definitionsAnchorMismatch', () => {
     expect(a.names.size).toBe(0);
   });
 });
+

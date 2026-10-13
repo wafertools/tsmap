@@ -28,7 +28,7 @@ Discussions](https://github.com/wafertools/.github/discussions).
 
 ## Features
 
-- **Open** STDF, ATDF, CSV, JSON, and Parquet wafer map files, including `.gz` and `.zip` containers
+- **Open** STDF, ATDF, CSV, JSON, and Parquet wafer map files, including `.gz`, `.bz2` and `.zip` containers
 - **Scan a folder** — point tsmap at a directory of hundreds of files (or drop the folder on the window) and it scans only their header metadata (lot ID, part type, tester, wafer count, dates) into a sortable, filterable table, so you load just the handful you actually want. Subfolders are opt-in; mixed formats scan together; a filter can be saved and reloaded
 - **Multi-wafer** — all formats support multiple wafers; renders as a gallery automatically
 - **Stats & findings** — yield, bin breakdown, ring/quadrant analysis, and spatial findings
@@ -260,6 +260,7 @@ Seven npm runtime dependencies, and no bundled UI framework or third-party chart
 - [`parquet`](https://crates.io/crates/parquet) — Parquet reader, used through its row-oriented `record` API (no `arrow` dependency, which keeps the wasm bundle small). `zstd` is enabled on native only, since its C library needs a cross-compiler toolchain the wasm build can't assume
 - [`csv`](https://crates.io/crates/csv) — CSV/TSV reader
 - [`flate2`](https://crates.io/crates/flate2) — transparent `.gz` decompression (pure-Rust backend, so it builds for wasm)
+- [`bzip2`](https://crates.io/crates/bzip2) — transparent `.bz2` decompression (pure-Rust `libbz2-rs-sys` backend, so it builds for wasm)
 - [`serde`](https://crates.io/crates/serde) · [`serde_json`](https://crates.io/crates/serde_json) · [`indexmap`](https://crates.io/crates/indexmap) — data model and JSON parsing
 - [`wasm-bindgen`](https://crates.io/crates/wasm-bindgen) · [`serde-wasm-bindgen`](https://crates.io/crates/serde-wasm-bindgen) — the browser build's bridge
 

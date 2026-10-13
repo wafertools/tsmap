@@ -42,10 +42,11 @@ that part.
 |--------|-----------|-------|
 | STDF v4 | `.stdf`, `.std` | Binary; PTR (parametric) and FTR (functional) records; multi-wafer lots |
 | ATDF | `.atdf`, `.atd` | ASCII equivalent of STDF; same data, same features |
-| CSV | `.csv`, `.txt`, `.dat` | Tab, semicolon, and comma auto-detected; wide and long (pivot) formats |
+| CSV | `.csv`, `.txt`, `.dat` | Tab, semicolon, and comma auto-detected, and a decimal comma (`0,25`, as a European-locale export writes) in a tab- or semicolon-separated file; wide and long (pivot) formats |
 | JSON | `.json` | Flat array of die objects or nested `[{ wafer, results: [{die}] }]` |
 | Parquet | `.parquet` | Columnar, typed; wide and long (pivot) formats, same as CSV/JSON. `snappy`, `gzip`, `lz4`, and `brotli` compression on both desktop and web; `zstd` on desktop only |
 | Gzip | `.gz` | Transparent decompression — e.g. `lot.stdf.gz` |
+| Bzip2 | `.bz2` | Transparent decompression — e.g. `lot.stdf.bz2` |
 | Zip | `.zip` | All contained files extracted and loaded as a batch |
 
 STDF and ATDF are always parsed natively — never attempt to open them in a text editor
@@ -278,8 +279,8 @@ counting as one (they are the same records, binary and text) — so STDF and ATD
 together, but not with CSV, JSON or Parquet, which share one column mapping per load. When
 the scan holds more than one kind, buttons above the table choose between them; the dialog
 also tells you if a selection still mixes kinds, and stays open so you can adjust. Zip
-archives are expanded and their contents scanned individually, and `.gz` files are read
-straight through.
+archives are expanded and their contents scanned individually, and `.gz` and `.bz2` files are
+read straight through.
 
 ![The file filter after a mixed scan — the Show buttons offer All, STDF/ATDF and CSV, opened on the most common kind](images/file-filter-kinds.png)
 

@@ -30,6 +30,9 @@ technical record, including internal changes.
 - **The web build holds less memory unpacking a compressed file.** A gzip file is unpacked into a buffer of its stated size rather than
   one grown by doubling, and the compressed copy is freed before the parse: a 185 MB `.stdf.gz` of a 670 MB lot peaks at the same
   1.5 GB as the plain file rather than 2.2 GB.
+- **Test limits read as they were written.** An STDF file stores limits as 32-bit floats, so a limit of 1.6 arrived as
+  1.600000023841858. The test selector and the limit-mismatch message show such a limit in its shortest exact form (`1.6`);
+  pass/fail judgement and saved definitions keep the exact stored value.
 - **A CSV test column that is not numbers is reported.** When cells in a column mapped as a test do not read as numbers, the load
   logs a `values-not-numeric` warning naming the column and how many cells were skipped, as a Parquet load does.
 

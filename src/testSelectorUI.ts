@@ -2,7 +2,7 @@ import type { TestDef, TestOverride } from './types';
 import { createRangeSelection } from './listSelection';
 import { webValueBudgetWarning } from './lib';
 import { ICONS } from '@wafertools/wafermap/render';
-import { DERIVED_MARK, DERIVED_KEY } from '@wafertools/wafermap';
+import { DERIVED_MARK, DERIVED_KEY, fmtExact } from '@wafertools/wafermap';
 import { attachTooltip } from './tooltip';
 import { buildToggleGroup } from './toggleGroup';
 import { makeLoadDefinitionsButton, type RecentLoadRow } from './recentDefinitionsUI';
@@ -988,8 +988,8 @@ export function showTestSelectorOverlay(
       const limitsSpan = document.createElement('span');
       limitsSpan.style.cssText = 'color:var(--text-dim);font-size:12px;flex-shrink:0;min-width:130px;text-align:right';
       const limitParts: string[] = [];
-      if (eff.loLimit != null) limitParts.push(`≥${eff.loLimit}`);
-      if (eff.hiLimit != null) limitParts.push(`≤${eff.hiLimit}`);
+      if (eff.loLimit != null) limitParts.push(`≥${fmtExact(eff.loLimit)}`);
+      if (eff.hiLimit != null) limitParts.push(`≤${fmtExact(eff.hiLimit)}`);
       if (eff.units) limitParts.push(eff.units);
       limitsSpan.textContent = limitParts.join(' ');
 
