@@ -76,7 +76,9 @@ pub fn detect_dialect(head: &[u8]) -> Dialect {
 
 /// The decimal mark a cell is written with, when it is a number with a
 /// fractional part: `12,5` / `-0,25e-3` → `,`; `12.5` / `.5` → `.`. An integer,
-/// a date (`12.10.2026`) or text is neither.
+/// a date (`12.10.2026`) or text is neither, and so is a cell that reads as well
+/// as a thousands group: three digits after a whole part of 1–3 digits that is not
+/// `0` (`1,234` is 1234 in one locale and 1.234 in the other; `0,125` is not).
 fn decimal_mark(cell: &str) -> Option<u8> {
     let s = cell.strip_prefix(['+', '-']).unwrap_or(cell);
     let mantissa = s.split_once(['e', 'E']).map_or(s, |(m, exp)| {
@@ -86,7 +88,8 @@ fn decimal_mark(cell: &str) -> Option<u8> {
     let mark = mantissa.bytes().find(|b| *b == b',' || *b == b'.')?;
     let (int, frac) = mantissa.split_once(mark as char)?;
     let digits = |p: &str| p.bytes().all(|b| b.is_ascii_digit());
-    (digits(int) && !frac.is_empty() && digits(frac) && (mark == b'.' || !int.is_empty())).then_some(mark)
+    let thousands_group = frac.len() == 3 && (1..=3).contains(&int.len()) && !int.starts_with('0');
+    (digits(int) && !frac.is_empty() && digits(frac) && (mark == b'.' || !int.is_empty()) && !thousands_group).then_some(mark)
 }
 
 /// A cell as a number, in the file's dialect. With a decimal comma, `.` is a
@@ -271,7 +274,7 @@ pub fn csv_headers_inner(path: String) -> ParseResult<CsvHeadersResult> {
 
     // Seek to evenly spaced offsets rather than read through the file. A
     // compressed stream cannot be seeked, so a .gz or .bz2 file keeps just its head.
-    let compressed = crate::read_file::Compression::of_path(&path).is_some();
+    let compressed = crate::read_file::compression_of(&path)?.is_some();
     let file_len = std::fs::metadata(&path).ok().map(|m| m.len() as usize);
     if let (false, Some(len), Ok(mut f)) = (compressed, file_len, std::fs::File::open(&path)) {
         sample.extend(spread_rows(len, head_end, dialect.delimiter, &headers, |off, n| {
@@ -1277,6 +1280,8 @@ mod tests {
         assert_eq!(d("x;y\n1;2\n"), Dialect { delimiter: b';', decimal_comma: false });
         // A leading comment line does not decide the delimiter.
         assert_eq!(d("# exported, by tool, v2\nx;y;v\n1;2;0,5\n").delimiter, b';');
+        // Whole numbers with a thousands separator say nothing about the decimal mark.
+        assert!(!d("x\ty\tcount\n1\t2\t1,234\n3\t4\t12,500\n").decimal_comma);
         // A dotted version string in a metadata column is outvoted by the values.
         assert!(d("ver;x;y;a;b\n1.2;1;2;0,5;3,25\n1.2;2;2;0,7;3,5\n").decimal_comma);
         // Quoted headers and cells, as Excel writes them.
@@ -1288,7 +1293,10 @@ mod tests {
     #[test]
     fn decimal_mark_and_parse_number() {
         for (c, m) in [("12,5", Some(b',')), ("-0,25e-3", Some(b',')), ("12.5", Some(b'.')), (".5", Some(b'.')),
-                       (",5", None), ("12", None), ("12.10.2026", None), ("1,2,3", None), ("abc", None), ("1,5e", None)] {
+                       (",5", None), ("12", None), ("12.10.2026", None), ("1,2,3", None), ("abc", None), ("1,5e", None),
+                       // Read as well as a thousands group: no vote either way.
+                       ("1,234", None), ("1.234", None), ("999,000", None),
+                       ("0,125", Some(b',')), ("1,2345", Some(b',')), ("1234,567", Some(b','))] {
             assert_eq!(decimal_mark(c), m, "{c}");
         }
         let eu = Dialect { delimiter: b';', decimal_comma: true };

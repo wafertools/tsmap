@@ -6,6 +6,20 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A compressed file whose name does not say so opens on the desktop.** A gzip or bzip2 file named `.stdf`, `.csv` or
+  the like is recognised by its first bytes on the desktop's file path, as it already is in the web build, for the
+  full parse, the filtered parse, the test-name scan, the file-filter scan and the CSV preview.
+- **A damaged `.gz` file fails with `gzip-invalid`.** The size a gzip file states in its last bytes is used to reserve
+  memory only up to 64 times the compressed size; beyond that the reader grows the buffer as it reads.
+- **A tab- or `;`-separated CSV whose only commas are thousands separators reads its numbers with a decimal point.**
+  A cell such as `1,234` or `12,500` reads as well as a thousands group, so it does not decide the decimal mark; a
+  file is decimal-comma when its other cells (`0,25`, `12,5`) say so.
+- **"Subdivide file by" is ignored only for a column that leaves about one die per subdivision.** A file with no wafer
+  column can subdivide by the column that names its wafers, however many there are. A subdivision is dropped, with
+  the `subdivide-ignored` warning, when it gives more than 25 per wafer and fewer than five dies each on average.
+
 ## [0.1.47] — 2026-10-13
 
 ### Added

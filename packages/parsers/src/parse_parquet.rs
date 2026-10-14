@@ -109,13 +109,14 @@ pub fn parquet_headers_from_bytes(bytes: &[u8]) -> ParseResult<ParquetHeadersRes
 /// transparently by extension, so this stays consistent) can't be read via the
 /// fast `File`-based `ChunkReader` path below: gzip streams aren't seekable,
 /// and Parquet's footer-based format needs random access. It's read fully into
-/// memory and decompressed via `read_file::read_bytes` (which already does the
-/// same extension check), then wrapped in the same `Bytes` path the all-target
+/// memory and decompressed via `read_file::read_bytes` (which decides the
+/// compression by the same rule, `compression_of`), then wrapped in the same `Bytes` path the all-target
 /// bytes functions use. A plain (non-gz) `.parquet` file — the common case —
 /// keeps the direct, unbuffered `File` path.
 #[cfg(feature = "native")]
 fn is_compressed_path(path: &str) -> bool {
-    crate::read_file::Compression::of_path(path).is_some()
+    // A file that cannot be opened takes the direct path, which reports the error.
+    crate::read_file::compression_of(path).map(|c| c.is_some()).unwrap_or(false)
 }
 
 /// Opens `path` as a Parquet reader bound to `$r` and evaluates `$body` with

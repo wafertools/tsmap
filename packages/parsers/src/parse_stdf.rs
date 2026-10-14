@@ -1629,6 +1629,34 @@ mod tests {
         check(f.path().to_str().unwrap(), cut);
     }
 
+    /// A compressed file whose name does not say so is read by its magic bytes on
+    /// the path as on the bytes route, streamed or not.
+    #[test]
+    fn a_compressed_file_named_as_plain_is_read_by_its_magic_bytes() {
+        use std::io::Write;
+        let raw = std::fs::read(MULTI_WAFER).unwrap();
+        let json = |r: &ParsedStdf| serde_json::to_value(r).unwrap();
+        let plain = json(&parse_stdf_from_bytes(&raw).unwrap());
+        for packed in [gzip_bytes(&raw), bzip2_bytes(&raw)] {
+            let mut f = tempfile::Builder::new().suffix(".stdf").tempfile().unwrap();
+            f.write_all(&packed).unwrap();
+            let p = f.path().to_str().unwrap();
+            assert_eq!(json(&parse_stdf_sync(p.to_string()).unwrap()), plain);
+            assert_eq!(crate::read_file::read_bytes(p).unwrap(), raw);
+        }
+    }
+
+    /// A damaged gzip trailer states a size the file cannot hold. It is not trusted
+    /// as a reservation, and the file is reported as damaged.
+    #[test]
+    fn a_damaged_gzip_trailer_is_a_gzip_error() {
+        let mut packed = gzip_bytes(&std::fs::read(MULTI_WAFER).unwrap());
+        packed.truncate(packed.len() / 2);
+        let n = packed.len();
+        packed[n - 4..].copy_from_slice(&[0xff, 0xff, 0xff, 0xf0]);
+        assert_eq!(parse_stdf_from_bytes(&packed).err().map(|e| e.code), Some("gzip-invalid"));
+    }
+
     #[test]
     fn a_bz2_path_is_read_by_extension() {
         let raw = std::fs::read(MULTI_WAFER).unwrap();

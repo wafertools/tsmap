@@ -403,7 +403,7 @@ export interface ParserError extends Error {
 
     /// `bytes` with any gzip or bzip2 container removed. Taken by value so the
     /// compressed copy is freed as soon as it is unpacked, before the parse, instead
-    /// of being held until the call returns: on a 185 MB `.stdf.gz` it was most of the
+    /// of being held until the call returns: on a 185 MB `.stdf.gz` that is most of the
     /// difference between a 1.5 GB and a 2.2 GB module. Uncompressed input is returned
     /// as is, with no copy.
     fn unpacked(bytes: Vec<u8>) -> Result<Vec<u8>, JsValue> {

@@ -2,6 +2,11 @@ use std::borrow::Cow;
 use std::io::Read;
 use crate::error::{ParseError, ParseResult};
 
+/// Largest decompressed size, as a multiple of the compressed size, that a gzip
+/// file's stated size (ISIZE) is trusted for when reserving memory. Test data
+/// compresses well under this; a stated size beyond it is a damaged trailer.
+const MAX_GZIP_RATIO: usize = 64;
+
 /// A compressed container the parsers unwrap transparently.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Compression { Gzip, Bzip2 }
@@ -36,14 +41,19 @@ impl Compression {
 
     /// The decompressed size to reserve before reading. Growing the buffer by doubling
     /// briefly holds the old and the new one together — 1.5 GB for a 670 MB file — and
-    /// WASM memory never shrinks, so that moment became the module's size. Gzip states
+    /// WASM memory never shrinks, so that moment sets the module's size. Gzip states
     /// the size (ISIZE, its last four bytes; the last member's, so a multi-member file
     /// may be larger and grows from there); bzip2 does not.
+    ///
+    /// ISIZE is only as good as the file's last four bytes: a truncated or damaged file
+    /// ends in arbitrary ones, up to 4 GiB. So it is used only up to `MAX_GZIP_RATIO`
+    /// times the compressed size, past which the buffer grows as it is read.
     fn size_hint(self, bytes: &[u8]) -> usize {
         match self {
             Self::Gzip if bytes.len() >= 18 => {
                 let n = bytes.len();
-                u32::from_le_bytes([bytes[n - 4], bytes[n - 3], bytes[n - 2], bytes[n - 1]]) as usize
+                let isize = u32::from_le_bytes([bytes[n - 4], bytes[n - 3], bytes[n - 2], bytes[n - 1]]) as usize;
+                if isize <= n.saturating_mul(MAX_GZIP_RATIO) { isize } else { 0 }
             }
             _ => 0,
         }
@@ -74,24 +84,38 @@ pub fn maybe_decompress(bytes: &[u8]) -> ParseResult<Cow<'_, [u8]>> {
     match Compression::sniff(bytes) {
         None => Ok(Cow::Borrowed(bytes)),
         Some(c) => {
-            let mut buf = Vec::with_capacity(c.size_hint(bytes));
+            let mut buf = Vec::new();
+            // A failed reservation is not an error: the buffer grows as it is read instead.
+            let _ = buf.try_reserve_exact(c.size_hint(bytes));
             c.decoder(bytes).read_to_end(&mut buf).map_err(|e| c.invalid(e))?;
             Ok(Cow::Owned(buf))
         }
     }
 }
 
-/// The file at `path`, decompressed by extension (see `Compression::of_path`)
-/// as it is read. The one place a path's compression is decided.
+/// The file at `path`, decompressed as it is read. The one place a path's
+/// compression is decided: by its extension (`Compression::of_path`), else by its
+/// leading magic bytes, as `maybe_decompress` decides for bytes — so a gzipped
+/// `lot.stdf` reads on the path as it does from its bytes.
 #[cfg(feature = "native")]
 pub fn open_decompressed(path: &str) -> ParseResult<(Box<dyn Read>, Option<Compression>)> {
-    let file = std::fs::File::open(path).map_err(ParseError::file_read)?;
-    let c = Compression::of_path(path);
+    use std::io::BufRead;
+    let mut file = std::io::BufReader::new(std::fs::File::open(path).map_err(ParseError::file_read)?);
+    let c = match Compression::of_path(path) {
+        Some(c) => Some(c),
+        None => Compression::sniff(file.fill_buf().map_err(ParseError::file_read)?),
+    };
     let r: Box<dyn Read> = match c {
         Some(c) => c.decoder(file),
-        None => Box::new(std::io::BufReader::new(file)),
+        None => Box::new(file),
     };
     Ok((r, c))
+}
+
+/// The compression `open_decompressed` would read `path` with.
+#[cfg(feature = "native")]
+pub fn compression_of(path: &str) -> ParseResult<Option<Compression>> {
+    open_decompressed(path).map(|(_, c)| c)
 }
 
 #[cfg(feature = "native")]
@@ -109,4 +133,20 @@ pub fn read_bytes(path: &str) -> ParseResult<Vec<u8>> {
 pub fn read_text(path: &str) -> ParseResult<String> {
     let bytes = read_bytes(path)?;
     String::from_utf8(bytes).map_err(ParseError::encoding_invalid)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_gzip_size_hint_beyond_the_ratio_is_not_trusted() {
+        let mut bytes = vec![0x1f, 0x8b];
+        bytes.resize(100, 0);
+        let n = bytes.len();
+        bytes[n - 4..].copy_from_slice(&1000u32.to_le_bytes());
+        assert_eq!(Compression::Gzip.size_hint(&bytes), 1000);
+        bytes[n - 4..].copy_from_slice(&[0xff, 0xff, 0xff, 0xf0]);
+        assert_eq!(Compression::Gzip.size_hint(&bytes), 0);
+    }
 }

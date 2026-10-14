@@ -204,18 +204,29 @@ fn detect_passes(rows: &[FlatRow], meta_cols: usize, long_format: bool) -> Passe
 /// it is taken to be a per-die column and ignored.
 const MAX_SUBDIVISIONS_PER_WAFER: usize = 25;
 
-/// When the subdivide columns split the file into implausibly many wafers,
-/// drop the subdivision (clearing every row's `split_parts`) and say so.
+/// Fewest dies a subdivision holds on average for it to be a group of dies
+/// rather than one die's own value. A per-die column gives about one die each.
+const MIN_DIES_PER_SUBDIVISION: usize = 5;
+
+/// When the subdivide columns break the file into implausibly many wafers of a
+/// die or so each, drop the subdivision (clearing every row's `split_parts`) and
+/// say so. Both tests are needed: with the wafer column unmapped, a subdivide
+/// column can be the wafer identity itself, giving many subdivisions of a
+/// wafer's worth of dies each.
 fn oversplit_check(rows: &mut [FlatRow], split_by: &[String]) -> Option<ParserWarning> {
     if split_by.is_empty() || rows.iter().all(|r| r.split_parts.is_empty()) { return None; }
     let mut base: HashSet<(&str, &str)> = HashSet::new();
-    let mut split: HashSet<(&str, &str, &[String])> = HashSet::new();
+    // Dies (positions) per subdivision: a long-format file has a row per die and test.
+    let mut split: HashMap<(&str, &str, &[String]), HashSet<(Option<i64>, Option<i64>)>> = HashMap::new();
     for r in rows.iter() {
         base.insert((r.lot.as_str(), r.wafer.as_str()));
-        split.insert((r.lot.as_str(), r.wafer.as_str(), r.split_parts.as_slice()));
+        split.entry((r.lot.as_str(), r.wafer.as_str(), r.split_parts.as_slice())).or_default().insert((r.x, r.y));
     }
-    if split.len() <= base.len().max(1) * MAX_SUBDIVISIONS_PER_WAFER { return None; }
-    let warning = oversplit_warning(&split_by.join(", "), split.len(), base.len().max(1));
+    let base = base.len().max(1);
+    if split.len() <= base * MAX_SUBDIVISIONS_PER_WAFER { return None; }
+    let dies: usize = split.values().map(HashSet::len).sum();
+    if dies >= split.len() * MIN_DIES_PER_SUBDIVISION { return None; }
+    let warning = oversplit_warning(&split_by.join(", "), split.len(), base);
     for r in rows.iter_mut() { r.split_parts.clear(); }
     Some(warning)
 }
@@ -424,6 +435,21 @@ mod tests {
         assert_eq!(field(&a.wafers[0], "program"), Some("P1"));
         assert_eq!(field(&a.wafers[1], "program"), Some("P2"));
         assert_eq!(a.meta.get("program"), None);
+    }
+
+    #[test]
+    fn subdividing_by_the_wafer_identity_with_no_wafer_column_is_kept() {
+        // No wafer column: the subdivide column is what tells 30 wafers of 20 dies apart.
+        let mut m = mapping(&[], true);
+        m.split_by = vec!["slot".into()];
+        let rows: Vec<FlatRow> = (0..30).flat_map(|w| (0..20).map(move |i| {
+            let mut r = row("A", "", i, &[], &[]);
+            r.split_parts = vec![format!("slot: {w}")];
+            r
+        })).collect();
+        let a = assemble(rows, &m, false);
+        assert_eq!(a.wafers.len(), 30);
+        assert!(a.warnings.iter().all(|w| w.code != "subdivide-ignored"), "{:?}", a.warnings);
     }
 
     #[test]
