@@ -108,6 +108,12 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     scope: 'both',
   },
   {
+    key: 'tsmap:insights-filter',
+    label: 'Insights filter',
+    description: 'The conditions set with Filter… in Insights (a split, a ring, a range of a test), on or off, applied to the next lot.',
+    scope: 'both',
+  },
+  {
     key: 'tsmap:file-filter',
     legacyKeys: ['tsmap.fileFilter.lastCriteria'],
     label: 'Last file filter',

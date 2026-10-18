@@ -6,6 +6,12 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Added
+
+- **The Insights filter is remembered.** Its conditions, on or off, are kept on this machine and applied to the next
+  lot and after a restart, beside the saved plots and never inside an exported plots file. **Help → Reset saved
+  settings…** lists it.
+
 ### Fixed
 
 - **A compressed file whose name does not say so opens on the desktop.** A gzip or bzip2 file named `.stdf`, `.csv` or

@@ -28,7 +28,7 @@ import { showSplitsModal } from './splitsUI';
 import { getEdgeExclusionMm, getWaferDiameterMm, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
 import { loadMapPrefs, saveMapPrefs } from './mapPrefs';
-import { loadSavedPlots, savePlots, importPlotsText } from './plotPrefs';
+import { loadSavedPlots, savePlots, importPlotsText, loadInsightsFilter, saveInsightsFilter } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
@@ -250,6 +250,9 @@ const insightsOpts = () => ({
   // The Plot tab's own list, kept across loads and restarts (plotPrefs.ts). Export plots… goes through onSaveText.
   plots: loadSavedPlots(),
   onPlotsChange: savePlots,
+  // The Insights filter, kept the same way (plotPrefs.ts): restored on every mount, on the next lot and after a restart.
+  filter: loadInsightsFilter(),
+  onFilterChange: saveInsightsFilter,
   onPickPlotsFile: () => platform.pickTextFile('definitions', 'Select a plots file to import', ['json']).then(f => f?.content ?? null),
 });
 

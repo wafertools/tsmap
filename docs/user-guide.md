@@ -759,6 +759,11 @@ wafer and your plots are in the menu, drawn over just those dies.
 copies where one already exists, never replacing). That is how a set of plots moves to another machine or to a
 colleague. To load a file when tsmap starts, name it with [`--plots`](#command-line). **Help → Reset saved settings…** lists your saved plots like any other remembered setting.
 
+The **Insights filter** (**Filter…** beside Group by) is kept the same way: tsmap remembers its conditions, and
+whether it was on or off, and applies it to the next lot and after a restart. The line above the Insights tabs
+always states it, so a filter carried over to a new lot is never applied unseen; one that names a field the new
+lot does not have filters nothing and says so. **Remove** on that line forgets it.
+
 **Delete all plots…** removes every saved plot, sweeps included, after asking you to confirm; the question says how many, and that **Export plots…** first keeps a copy. **Undo** brings the whole list back for ten seconds.
 
 ### Tables and exports
@@ -1575,7 +1580,7 @@ tsmap saves a few things between sessions so you don't have to set them up again
 theme, your wafer-map preferences (colour schemes, overlays, legend position, number format and the
 Insights charts' axis settings, but not a rotation, the compact layout or log scale, which belong to the
 data on screen), recently opened files, recently used definitions files, column mappings (per column
-layout), wafer split assignments (per lot), your saved plots, any wafer diameter and edge-exclusion override, the reticle, the limit set values must lie inside, and
+layout), wafer split assignments (per lot), your saved plots and Insights filter, any wafer diameter and edge-exclusion override, the reticle, the limit set values must lie inside, and
 the last file filter. The desktop app also remembers its window's size, position and whether it was
 maximised, and opens the next launch the same way; a first launch opens centred at 80% of the screen.
 This one is kept in the app's configuration folder rather than in the list below, so **Reset saved

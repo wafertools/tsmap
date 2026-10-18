@@ -7,12 +7,17 @@
 //
 // Global, not per lot: a plot is a recipe with no population, and one that vanished when a different file opened would
 // defeat keeping it. A plot that needs a test the open lot lacks stays in the list, greyed, until a lot that has it.
+//
+// The Insights filter is kept here too, for the same reason and in the same way: wmap hands it over
+// (`insights.onFilterChange`) and is given it back (`insights.filter`), and wmap's reader is its only validator. It
+// applies to whatever lot opens next; one naming a field that lot lacks filters nothing, and Insights says so.
 
 import { readPlotsFile, writePlotsFile } from '@wafertools/wafermap';
-import type { PlotSpec } from '@wafertools/wafermap';
+import type { PlotFilter, PlotSpec } from '@wafertools/wafermap';
 import { storageKey } from './storageKeys';
 
 const KEY = storageKey('tsmap:plots');
+const FILTER_KEY = storageKey('tsmap:insights-filter');
 
 /** The latest list, so a re-render that happens before the next change is reported still starts from it. */
 let latest: PlotSpec[] | null = null;
@@ -34,6 +39,30 @@ export function savePlots(plots: PlotSpec[]): void {
     if (plots.length === 0) localStorage.removeItem(KEY);
     else localStorage.setItem(KEY, writePlotsFile(plots));
   } catch { /* storage full or unavailable: the plots last for this session */ }
+}
+
+/** The latest Insights filter, for the same reason as `latest`; `null` until read, `undefined` for no filter. */
+let latestFilter: PlotFilter | undefined | null = null;
+
+/**
+ * The saved Insights filter, or none. Handed to wmap as stored: wmap reads it as it reads a plots file, keeping what it
+ * can and logging what it left out, so a malformed one costs only its unreadable conditions.
+ */
+export function loadInsightsFilter(): PlotFilter | undefined {
+  if (latestFilter !== null) return latestFilter;
+  let text: string | null;
+  try { text = localStorage.getItem(FILTER_KEY); } catch { return (latestFilter = undefined); }
+  try { latestFilter = text ? JSON.parse(text) as PlotFilter : undefined; } catch { latestFilter = undefined; }
+  return latestFilter;
+}
+
+/** Keep the filter wmap reported; `undefined` (the filter removed) forgets it. Switched off, it is kept, off. */
+export function saveInsightsFilter(filter: PlotFilter | undefined): void {
+  latestFilter = filter;
+  try {
+    if (filter === undefined) localStorage.removeItem(FILTER_KEY);
+    else localStorage.setItem(FILTER_KEY, JSON.stringify(filter));
+  } catch { /* storage full or unavailable: the filter lasts for this session */ }
 }
 
 export interface ImportPlotsResult {
@@ -96,4 +125,5 @@ export function plotsTemplateText(): string {
 /** Test seam: forget the in-memory copy, as a fresh start would. */
 export function resetPlotPrefsForTests(): void {
   latest = null;
+  latestFilter = null;
 }

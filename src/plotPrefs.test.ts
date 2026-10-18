@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { writePlotsFile } from '@wafertools/wafermap';
 import type { PlotSpec } from '@wafertools/wafermap';
 import { resetMigrationForTests } from './storageKeys';
-import { loadSavedPlots, savePlots, resetPlotPrefsForTests, importPlotsText, plotsTemplateText } from './plotPrefs';
+import { loadSavedPlots, savePlots, resetPlotPrefsForTests, importPlotsText, plotsTemplateText, loadInsightsFilter, saveInsightsFilter } from './plotPrefs';
 import { readPlotsFile } from '@wafertools/wafermap';
 
 const store = new Map<string, string>();
@@ -111,5 +111,44 @@ describe('the example plots file', () => {
     expect(read.error).toBeUndefined();
     expect(read.warnings).toEqual([]);
     expect(read.plots).toMatchObject([{ id: 'set-reset', chart: 'sweep' }]);
+  });
+});
+
+describe('the saved Insights filter', () => {
+  const FILTER = { conditions: [{ field: { meta: 'split' }, values: ['A'] }, { field: { test: 1050 }, min: 0.4 }], off: true };
+
+  it('starts with none', () => {
+    expect(loadInsightsFilter()).toBeUndefined();
+  });
+
+  it('reads back after a restart, switched off as it was left', () => {
+    saveInsightsFilter(FILTER);
+    resetPlotPrefsForTests();
+    expect(loadInsightsFilter()).toEqual(FILTER);
+  });
+
+  it('a re-render before the next change is reported starts from the latest filter', () => {
+    saveInsightsFilter(FILTER);
+    store.clear();
+    expect(loadInsightsFilter()).toEqual(FILTER);
+  });
+
+  it('removing the filter forgets it, so Reset saved settings has nothing to list', () => {
+    saveInsightsFilter(FILTER);
+    saveInsightsFilter(undefined);
+    expect(store.has('tsmap:insights-filter')).toBe(false);
+    resetPlotPrefsForTests();
+    expect(loadInsightsFilter()).toBeUndefined();
+  });
+
+  it('stored text that is not JSON is no filter rather than an error', () => {
+    store.set('tsmap:insights-filter', '{not json');
+    expect(loadInsightsFilter()).toBeUndefined();
+  });
+
+  it('is kept apart from the plots, so exporting plots never carries it', () => {
+    savePlots([A]);
+    saveInsightsFilter(FILTER);
+    expect(readPlotsFile(store.get('tsmap:plots')!).plots).toEqual([A]);
   });
 });
