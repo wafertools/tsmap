@@ -136,11 +136,11 @@ the user guide.
 **Sweeps** read an ordered run of tests — set/reset voltages, bake times, cycle counts,
 resistance thresholds — as a response curve, and measure a pair of curves against each
 other: where they cross, and how far apart they are at a given level. They are defined in a
-card on the Insights Plot tab (**+ New sweep**), kept with your other plots; the swept value can be given directly or read from the
+card on the Insights My plots tab (**+ New sweep**), kept with your other plots; the swept value can be given directly or read from the
 test names, and plotted on a log axis when it grows by multiples. See
 [Sweeps](user-guide.md#sweeps).
 
-**Your own plots.** The **Plot** tab is a chart builder: choose scatter, histogram, box, bar or line, and for each axis and for
+**Your own plots.** The **My plots** tab is a chart builder: choose scatter, histogram, box, bar or line, and for each axis and for
 colour any test, a die's position, ring, quadrant, reticle cell or shot, bin, site, a pass/fail test, or a wafer attribute. A
 plot is a recipe with no lot in it, so tsmap keeps your plots between sessions and draws them again on the next lot. **Export
 plots…** and **Import plots…** move a set between machines. See [Plots](user-guide.md#your-own-plots).

@@ -168,7 +168,7 @@ src/
   reticle.ts / reticleUI.ts — the stepper field size (dies) behind the reticle grid and reticle-position findings
   valueFilter.ts / valueFilterUI.ts — which limit set a test value must lie inside to be used (validity limits by default); wmap applies it and counts what it excludes
   mapPrefs.ts         — remembered wafer-map preferences (every key wmap classes as one)
-  plotPrefs.ts        — the saved plots behind Insights' Plot tab (as wmap's own plots file) and the Insights filter
+  plotPrefs.ts        — the saved plots behind Insights' Plot tab (as wmap's own plots file) and the filter and the saved filters
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
   limitNames.ts       — the one table of limit column names (test vs spec limits), shared by the definitions reader and the column mapping
   headerKey.ts        — the header normalisation every column-name alias table is keyed by

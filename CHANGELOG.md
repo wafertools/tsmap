@@ -6,11 +6,15 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+## [0.1.48] — 2026-10-20
+
 ### Added
 
-- **The Insights filter is remembered.** Its conditions, on or off, are kept on this machine and applied to the next
-  lot and after a restart, beside the saved plots and never inside an exported plots file. **Help → Reset saved
-  settings…** lists it.
+- **The filter is remembered, and filters can be saved by name.** The Filter window's conditions, on or off, are kept on
+  this machine and applied to the next lot and after a restart, beside the saved plots and never inside an exported plots
+  file; the same filter now applies to the map and the gallery as well as Insights. Filters saved by name are kept the same
+  way, and **Export…** / **Import…** in the Filter window move them as a `wafermap-filters` file through the native file
+  dialogs. **Help → Reset saved settings…** lists both.
 
 ### Fixed
 

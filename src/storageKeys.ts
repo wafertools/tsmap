@@ -104,13 +104,19 @@ export const STORED_ITEMS: readonly StoredItem[] = [
   {
     key: 'tsmap:plots',
     label: 'Saved plots',
-    description: 'The plots you built on the Insights Plot tab (which fields, which chart type, titles and axis limits), kept for the next lot.',
+    description: 'The plots you built on the Insights My plots tab (which fields, which chart type, titles and axis limits), kept for the next lot.',
     scope: 'both',
   },
   {
     key: 'tsmap:insights-filter',
     label: 'Insights filter',
-    description: 'The conditions set with Filter… in Insights (a split, a ring, a range of a test), on or off, applied to the next lot.',
+    description: 'The conditions set with Filter… in the map, the gallery and Insights (a split, a ring, a range of a test), on or off, applied to the next lot.',
+    scope: 'both',
+  },
+  {
+    key: 'tsmap:saved-filters',
+    label: 'Saved filters',
+    description: 'Filters saved by name in the Filter window, kept for every lot and restart; Export… writes them as a file.',
     scope: 'both',
   },
   {

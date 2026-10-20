@@ -1,10 +1,10 @@
 // Saved plots: stored as wmap's own plots file, read leniently, shared in memory with the next mount.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { writePlotsFile } from '@wafertools/wafermap';
-import type { PlotSpec } from '@wafertools/wafermap';
+import { writePlotsFile, writeFiltersFile } from '@wafertools/wafermap';
+import type { PlotSpec, SavedFilter } from '@wafertools/wafermap';
 import { resetMigrationForTests } from './storageKeys';
-import { loadSavedPlots, savePlots, resetPlotPrefsForTests, importPlotsText, plotsTemplateText, loadInsightsFilter, saveInsightsFilter } from './plotPrefs';
+import { loadSavedPlots, savePlots, resetPlotPrefsForTests, importPlotsText, plotsTemplateText, loadInsightsFilter, saveInsightsFilter, loadSavedFilters, saveSavedFilters } from './plotPrefs';
 import { readPlotsFile } from '@wafertools/wafermap';
 
 const store = new Map<string, string>();
@@ -150,5 +150,60 @@ describe('the saved Insights filter', () => {
     savePlots([A]);
     saveInsightsFilter(FILTER);
     expect(readPlotsFile(store.get('tsmap:plots')!).plots).toEqual([A]);
+  });
+});
+
+describe('saved filters', () => {
+  const SAVED: SavedFilter[] = [
+    { id: 'f1', name: 'Bin 1 only', conditions: [{ field: { builtin: 'hbin' }, values: ['Bin 1'] }] },
+    { id: 'f2', name: 'Split A', conditions: [{ field: { meta: 'split' }, values: ['A'] }] },
+  ];
+
+  it('starts empty', () => {
+    expect(loadSavedFilters()).toEqual([]);
+  });
+
+  it('stores wmap\'s own filters file, so an export and the saved list are the same thing', () => {
+    saveSavedFilters(SAVED);
+    const text = store.get('tsmap:saved-filters')!;
+    expect(text).toBe(writeFiltersFile(SAVED));
+    expect(JSON.parse(text).format).toBe('wafermap-filters');
+  });
+
+  it('reads them back after a restart', () => {
+    saveSavedFilters(SAVED);
+    resetPlotPrefsForTests();
+    expect(loadSavedFilters()).toEqual(SAVED);
+  });
+
+  it('an empty list forgets the key, so Reset saved settings has nothing to list', () => {
+    saveSavedFilters(SAVED);
+    saveSavedFilters([]);
+    expect(store.has('tsmap:saved-filters')).toBe(false);
+    resetPlotPrefsForTests();
+    expect(loadSavedFilters()).toEqual([]);
+  });
+
+  it('stored text that is not a filters file is no filters rather than an error', () => {
+    store.set('tsmap:saved-filters', '{not json');
+    expect(loadSavedFilters()).toEqual([]);
+  });
+
+  it('a filter that cannot be read is dropped and the rest are kept', () => {
+    store.set('tsmap:saved-filters', JSON.stringify({ format: 'wafermap-filters', version: 1, filters: [SAVED[0], { name: 'Broken', conditions: [{ nope: 1 }] }] }));
+    expect(loadSavedFilters()).toEqual([SAVED[0]]);
+  });
+
+  it('is kept apart from the filter in force and from the plots', () => {
+    savePlots([A]);
+    saveInsightsFilter({ conditions: SAVED[0].conditions });
+    saveSavedFilters(SAVED);
+    expect(JSON.parse(store.get('tsmap:insights-filter')!).conditions).toEqual(SAVED[0].conditions);
+    expect(readPlotsFile(store.get('tsmap:plots')!).plots).toEqual([A]);
+  });
+
+  it('is a registered stored item, so the app can start and Reset can list it', async () => {
+    const { STORED_ITEMS } = await import('./storageKeys');
+    expect(STORED_ITEMS.map(i => i.key)).toContain('tsmap:saved-filters');
   });
 });

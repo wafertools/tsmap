@@ -1,4 +1,4 @@
-// The user's saved plots — the recipes behind Insights' Plot tab — remembered across loads and restarts.
+// The user's saved plots — the recipes behind Insights' My plots tab — remembered across loads and restarts.
 //
 // wmap keeps nothing itself: it is handed the list (`insights.plots`) and reports every change
 // (`insights.onPlotsChange`, debounced). tsmap stores the file text, exactly what wmap's own Export plots… writes, so a
@@ -12,12 +12,13 @@
 // (`insights.onFilterChange`) and is given it back (`insights.filter`), and wmap's reader is its only validator. It
 // applies to whatever lot opens next; one naming a field that lot lacks filters nothing, and Insights says so.
 
-import { readPlotsFile, writePlotsFile } from '@wafertools/wafermap';
-import type { PlotFilter, PlotSpec } from '@wafertools/wafermap';
+import { readFiltersFile, readPlotsFile, writeFiltersFile, writePlotsFile } from '@wafertools/wafermap';
+import type { PlotFilter, PlotSpec, SavedFilter } from '@wafertools/wafermap';
 import { storageKey } from './storageKeys';
 
 const KEY = storageKey('tsmap:plots');
 const FILTER_KEY = storageKey('tsmap:insights-filter');
+const SAVED_FILTERS_KEY = storageKey('tsmap:saved-filters');
 
 /** The latest list, so a re-render that happens before the next change is reported still starts from it. */
 let latest: PlotSpec[] | null = null;
@@ -65,6 +66,28 @@ export function saveInsightsFilter(filter: PlotFilter | undefined): void {
   } catch { /* storage full or unavailable: the filter lasts for this session */ }
 }
 
+/**
+ * The filters the reader saved under a name, kept as the file text wmap's own Export… writes (as the plots are), so one
+ * saved here can be exported and shared with no conversion and wmap's reader is the only validator. Global, not per
+ * lot: a saved filter is a recipe, and one naming a field the open lot lacks says so in wmap's Filter window.
+ */
+let latestSaved: SavedFilter[] | null = null;
+
+export function loadSavedFilters(): SavedFilter[] {
+  if (latestSaved) return latestSaved;
+  let text: string | null;
+  try { text = localStorage.getItem(SAVED_FILTERS_KEY); } catch { return (latestSaved = []); }
+  return (latestSaved = text ? readFiltersFile(text).filters : []);
+}
+
+export function saveSavedFilters(filters: SavedFilter[]): void {
+  latestSaved = filters;
+  try {
+    if (filters.length === 0) localStorage.removeItem(SAVED_FILTERS_KEY);
+    else localStorage.setItem(SAVED_FILTERS_KEY, writeFiltersFile(filters));
+  } catch { /* storage full or unavailable: the filters last for this session */ }
+}
+
 export interface ImportPlotsResult {
   added: number;
   replaced: number;
@@ -81,7 +104,7 @@ export interface ImportPlotsResult {
 /**
  * Read a plots file (wmap's own, or an older `tsmap-sweeps` file — the reader takes both) into the saved plots.
  *
- * For a file named on the command line, not the Plot tab's Import: a plot whose id is already saved is replaced, so
+ * For a file named on the command line, not the My plots tab's Import: a plot whose id is already saved is replaced, so
  * launching with the same file twice leaves one copy of each rather than a growing list (the tab's Import adds a copy
  * instead, to protect plots edited since). The reader is wmap's; this adds nothing to its validation.
  */
@@ -126,4 +149,5 @@ export function plotsTemplateText(): string {
 export function resetPlotPrefsForTests(): void {
   latest = null;
   latestFilter = null;
+  latestSaved = null;
 }

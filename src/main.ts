@@ -28,7 +28,7 @@ import { showSplitsModal } from './splitsUI';
 import { getEdgeExclusionMm, getWaferDiameterMm, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
 import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
 import { loadMapPrefs, saveMapPrefs } from './mapPrefs';
-import { loadSavedPlots, savePlots, importPlotsText, loadInsightsFilter, saveInsightsFilter } from './plotPrefs';
+import { loadSavedPlots, savePlots, importPlotsText, loadInsightsFilter, saveInsightsFilter, loadSavedFilters, saveSavedFilters } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
 import type { WaferGeometry } from './waferGeometry';
 import { showWaferGeometryDialog } from './waferGeometryUI';
@@ -247,12 +247,16 @@ function adoptDerived(d: DerivedSelection): void {
 /** Insights options for both mounts, so the map and the gallery offer the same tabs. */
 const insightsOpts = () => ({
   enabled: true,
-  // The Plot tab's own list, kept across loads and restarts (plotPrefs.ts). Export plots… goes through onSaveText.
+  // The My plots tab's own list, kept across loads and restarts (plotPrefs.ts). Export plots… goes through onSaveText.
   plots: loadSavedPlots(),
   onPlotsChange: savePlots,
   // The Insights filter, kept the same way (plotPrefs.ts): restored on every mount, on the next lot and after a restart.
   filter: loadInsightsFilter(),
   onFilterChange: saveInsightsFilter,
+  // Filters saved under a name, kept the same way; Export… / Import… in the Filter window use the native dialogs.
+  savedFilters: loadSavedFilters(),
+  onSavedFiltersChange: saveSavedFilters,
+  onPickFiltersFile: () => platform.pickTextFile('definitions', 'Select a filters file to import', ['json']).then(f => f?.content ?? null),
   onPickPlotsFile: () => platform.pickTextFile('definitions', 'Select a plots file to import', ['json']).then(f => f?.content ?? null),
 });
 
