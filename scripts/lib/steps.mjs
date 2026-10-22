@@ -980,6 +980,17 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       break;
     }
 
+    case 'chooseFile': {
+      // ['chooseFile', buttonSelector, filePath] — click a button that opens a file picker and give the picker a file. The web
+      // app prefers showOpenFilePicker(), which Playwright cannot see, so it is switched off to use the hidden input instead.
+      const [selector, filePath] = args;
+      await page.evaluate(() => { window.showOpenFilePicker = undefined; });
+      const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout: 10000 }), page.locator(selector).first().click()]);
+      await chooser.setFiles(filePath);
+      await page.waitForTimeout(800);
+      break;
+    }
+
     case 'rightClick': {
       // ['rightClick', selector, [x, y]?] — a right click on the element's first match, at a point given as fractions (0 to 1)
       // of its box (the centre when omitted), for menus that open on a context click. Throws if the selector matches nothing.
