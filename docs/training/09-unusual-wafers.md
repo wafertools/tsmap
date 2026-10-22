@@ -65,7 +65,7 @@ Empty rows and columns are removed and each group of dies is outlined. Every die
 
 # Layout diagnostics
 
-If a layout is not recognised as you expect, this window shows what the detector saw: counts and scores only, with no positions, bins or wafer names. **Copy** or **Save as file** to send it to support.
+If a layout is not recognised as you expect, this window shows what the detector saw: counts and scores only, with no positions, bins or wafer names. Use **Copy** or **Save as file**, then send the result to whoever supports tsmap.
 
 ![The Layout diagnostics window](images/09/layout-diagnostics.png)
 
@@ -79,7 +79,7 @@ If a layout is not recognised as you expect, this window shows what the detector
 
 # Three kinds of wafer
 
-In COORDLESS-LOT-01, **W01** has an X/Y position for every die. **W02** is mixed: some dies have results but no X/Y position. **W03** has results for its dies but no X/Y positions at all, so there is nowhere to draw them on a map.
+In the lot COORDLESS-LOT-01, **W01** has an X/Y position for every die. **W02** is mixed: some dies have results but no X/Y position. **W03** has results for its dies but no X/Y positions at all, so there is nowhere to draw them on a map.
 
 ![The lot's three wafers](images/09/coordless-lot.png)
 
@@ -99,7 +99,7 @@ It draws the dies that have positions. A footer counts the rest; click it to see
 
 # No positions at all
 
-With no positions there is no map to draw, so the card shows a summary matching the plot mode instead. **View die list** shows every die.
+With no positions there is no map to draw, so the card shows a summary instead: a bin breakdown in the bin colour modes, or a histogram when colouring by a test value. **View die list** shows every die.
 
 ![W03's summary card, with View die list outlined](images/09/positionless-card.png)
 
@@ -107,7 +107,7 @@ With no positions there is no map to draw, so the card shows a summary matching 
 
 # The die list
 
-Position and site, bins and every test value, with its own CSV export. **View chart** switches back.
+A row for every die, with its position (blank here), site, bins and every test value. **Export CSV** saves it, and **View chart** switches back.
 
 ![W03's die list](images/09/die-list.png)
 
@@ -129,7 +129,7 @@ More in the [user guide](../user-guide.md#dies-with-no-reported-position)
 
 # Retests
 
-When the same die position appears twice, tsmap keeps the last result. (The wafer map library can also keep the first, best or worst; tsmap has no control for that choice.) The die's tooltip says how often it was probed, and the log notes repeated dies. RETEST-LOT-07 has a second pass over most failing dies.
+When the same die position appears more than once, tsmap keeps the last result. The die's tooltip says how often it was probed, and the log notes repeated dies. RETEST-LOT-07 has a second pass over most failing dies.
 
 ---
 
@@ -143,13 +143,13 @@ If one file holds the same wafer more than once, a column that tells the passes 
 
 # Test site
 
-Some testers probe several dies at once, each through its own site, numbered 1, 2, 3… If your file has a column with that site number, map it to the **Test site** role in column mapping.
+Some testers probe several dies at the same time, each through its own numbered site (1, 2, 3…). If your file has a column with that number, assign it to **Test site** in the column mapping.
 
 All sites stay on one wafer map. The site shows in each die's tooltip, and you can colour or group a chart by it, for example to see whether one probe site fails more often.
 
 The column must hold numbers.
 
-Don't use **Subdivide file by this column** for sites. It splits the file into one wafer per value, and is only for flat files that pack several wafers together with no wafer column.
+Do not use **Subdivide file by this column** for sites. That option splits the file into one wafer per value, and is meant only for flat files that put several wafers in one file with no wafer column.
 
 ---
 
@@ -164,7 +164,7 @@ Don't use **Subdivide file by this column** for sites. It splits the file into o
 
 # Reticle…
 
-A wafer file doesn't record how many dies make up a stepper field, so you enter it here: the field's width and height, counted in dies. **Corner die X** and **Corner die Y** give the position of the field's bottom-left die, if it isn't die (0, 0).
+A reticle, or stepper field, is the group of dies exposed in one step. A wafer file doesn't record its size, so enter its width and height as numbers of dies. Change **Corner die X** and **Corner die Y** only if a field's bottom-left die is not at X 0, Y 0.
 
 ![The Reticle window](images/09/reticle-dialog.png)
 
@@ -174,7 +174,7 @@ A wafer file doesn't record how many dies make up a stepper field, so you enter 
 
 # A field of 4 by 3
 
-**Apply** takes effect at once. **Clear** removes the reticle. It applies to every wafer and is remembered.
+Here the field is 4 dies wide and 3 high. **Apply** takes effect at once. **Clear** removes the reticle. The reticle applies to every wafer and is remembered.
 
 ![The Reticle window with 4 by 3 entered](images/09/reticle-filled.png)
 
@@ -182,7 +182,7 @@ A wafer file doesn't record how many dies make up a stepper field, so you enter 
 
 # The field grid
 
-The grid is drawn on every map, a die's tooltip gives its position within its field, and the Summary panel looks for findings that repeat at the same cell of every field. That points at the mask or stepper, not the wafer.
+The grid is drawn on every map, a die's tooltip gives its position within its field, and the Summary panel looks for findings that repeat at the same position within every field. That points to the stepper or its mask rather than to the wafer itself.
 
 ![The three wafers with the reticle grid drawn](images/09/reticle-grid.png)
 
@@ -203,7 +203,7 @@ The grid is drawn on every map, a die's tooltip gives its position within its fi
 
 # Diameter and edge exclusion
 
-tsmap normally works the size out from the data. Override it when there are too few dies to infer from, or to add an **edge exclusion** band whose dies are left out of yield and drawn dimmed. The width needs a diameter first.
+tsmap normally works out the wafer diameter from the data. Enter it yourself when there are too few dies to work it out. You can also set an **edge exclusion**: a band of the width you give, in mm, at the rim. Dies in the band are left out of yield and drawn grey. Enter the diameter before the band's width.
 
 ![The Diameter and edge exclusion window](images/09/diameter-dialog.png)
 
@@ -211,7 +211,7 @@ tsmap normally works the size out from the data. Override it when there are too 
 
 # A band at the edge
 
-With 300 mm and 10 mm entered, dies within 10 mm of the edge are left out of yield and drawn dimmed. Both values are remembered.
+With 300 mm and 10 mm entered, dies within 10 mm of the edge are left out of yield and drawn grey. Both values are remembered.
 
 ![The wafers with an edge exclusion band](images/09/edge-exclusion.png)
 
@@ -222,7 +222,7 @@ With 300 mm and 10 mm entered, dies within 10 mm of the edge are left out of yie
 
 # Exclude values outside limits…
 
-A tester at its limit records its rail, such as a current at the compliance clamp, not a reading. One of these stretches the colour scale and moves the mean. A value outside the chosen limit set is treated as missing: grey on the map, left out of statistics, and counted wherever it matters.
+When a tester runs out of range it records its maximum or minimum instead of a real reading, for example a current stuck at its compliance clamp. One such value stretches the colour scale and moves the mean. By default tsmap treats any value outside a test's validity limits as missing: grey on the map and left out of statistics. The window also offers spec limits, test limits, or Off.
 
 ![The Exclude values outside limits window](images/09/exclude-values.png)
 
@@ -230,7 +230,7 @@ A tester at its limit records its rail, such as a current at the compliance clam
 
 # Nothing is hidden
 
-The tooltip on a grey die names the excluded value, and the Summary panel's Test Values table shows an **Excl.** column. Bins and the tester's pass/fail are unchanged, so yield is the same. Open `VALID-LOT-09.csv` and switch between **Validity limits** and **Off** to see it.
+The tooltip on a grey die names the excluded value, and the Summary panel's Test Values table shows an **Excl.** column. Bins and the tester's pass or fail are unchanged, so yield is the same. Open `VALID-LOT-09.csv` and switch between **Validity limits** and **Off** to see it.
 
 ---
 
@@ -249,7 +249,7 @@ The tooltip on a grey die names the excluded value, and the Summary panel's Test
 
 - **Compact layout** shows multi-project wafers at a readable size
 - Wafers with missing positions keep every die in the numbers
-- **Reticle…**, **Diameter & edge exclusion…** and **Exclude values** correct what the file does not say
+- **Reticle…** and **Diameter & edge exclusion…** supply what the file does not say, and **Exclude values outside limits…** removes tester clamp values
 
 More in the [user guide](../user-guide.md#analysing-your-data)
 

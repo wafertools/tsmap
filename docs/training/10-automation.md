@@ -34,11 +34,11 @@ tsmap training · a self-paced course
 
 # From a link
 
-Another application can hand tsmap a data URL. In the browser, put it in the page address:
+Another application can open tsmap with a link to a data file. In the browser, add the file's address to the page address:
 
 `…/app/?dataUrl=<encoded URL>&dataFormat=csv`
 
-The format is required: `stdf`, `atdf`, `csv`, `json`, `parquet` or `zip`. The file then loads as if opened locally.
+You must name the format: `stdf`, `atdf`, `csv`, `json`, `parquet` or `zip`. tsmap does not work it out from the address. The file then loads as if you had opened it locally.
 
 ---
 
@@ -48,7 +48,7 @@ The course's own labs use it. This opens the sample CSV:
 
 [Open the sample CSV](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sample.csv&dataFormat=csv)
 
-The browser must be allowed to read the file: the data server has to allow cross-origin requests. The log names this if a fetch fails.
+The data server must allow pages from other websites to read the file (this is called CORS). If the fetch fails, the log says so.
 
 More in the [user guide](../user-guide.md#opening-data-from-a-url)
 
@@ -69,7 +69,7 @@ On the desktop app, name files when you launch it:
 
 # More options
 
-`--tests`, `--wafer-diameter`, `--edge-exclusion` and `--reticle` pre-fill the same settings the dialogs set, for that launch only. `--list files.txt` reads a list of paths.
+`--wafer-diameter`, `--edge-exclusion` and `--reticle` set the same values as their dialogs, for that launch. `--tests` fills in the test selector, which is still shown. `--list files.txt` reads a list of paths.
 
 A `tsmap://open?url=…&format=…` link opens the desktop app from a web page, once the app has run on that machine.
 
@@ -94,7 +94,7 @@ On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and
 
 # The Help menu
 
-**User guide** opens this documentation; **Log phase timings** writes a line to the log at each load phase, useful when reporting a slow load; **About tsmap…** names the version.
+**User guide** opens this documentation. **Log phase timings** adds timing lines to the log while a file loads, which helps when reporting a slow load. **About tsmap…** shows the version. The other two entries are covered on the next slides.
 
 ![The Help menu](images/10/help-menu.png)
 
@@ -105,7 +105,7 @@ On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and
 
 # Definitions file formats…
 
-Four kinds of file, each with a **Save template…** button that writes a filled-in example in the exact layout tsmap reads. Prepare one before you have data.
+Four kinds of file, each with a **Save template…** button that writes a filled-in example in the exact layout tsmap reads. You can save a template and edit it before you have any data.
 
 ![The Definitions file formats window](images/10/definitions-formats.png)
 
@@ -113,7 +113,7 @@ Four kinds of file, each with a **Save template…** button that writes a filled
 
 # Three CSV files and one JSON
 
-Test definitions (with derived tests), splits and bin definitions are CSV. Plots, sweeps included, are JSON because a sweep has series inside it. Sessions 01, 04 and 08 use the first three, and 08 the plots.
+Test definitions (with derived tests), splits and bin definitions are CSV. Plots, sweeps included, are JSON because a sweep has series inside it. Test definitions come up in session 01, splits in session 04, and derived tests and plots in session 08. Bin definitions are new in this session.
 
 ---
 
@@ -122,7 +122,7 @@ Test definitions (with derived tests), splits and bin definitions are CSV. Plots
 
 # Bin definitions…
 
-A name for each hard or soft bin, whether a hard bin passes, and optionally its map colour. <span class="badge">1</span> saves them, <span class="badge">2</span> loads a file, <span class="badge">3</span> lists recently used files.
+A name for each hard or soft bin, whether a hard bin passes, and optionally its map colour. <span class="badge">1</span> **Save…** writes them to a CSV file. <span class="badge">2</span> **Load…** reads one. <span class="badge">3</span> The **▾** lists recently used files.
 
 ![The Bin definitions window, with its three buttons outlined](images/10/bin-definitions.png)
 
@@ -154,9 +154,9 @@ For those formats, load the file in the column mapping before you continue, next
 
 The **▾** beside a Load button lists the definitions files you loaded or saved recently, so you can reapply one without finding it again. Each kind of file keeps its own list.
 
-In the browser a recent entry is the copy taken when you last loaded or saved that file, as the menu says. If the file may have changed, choose **Choose a file…** and pick it again.
+In the browser, a recent entry is a saved copy of the file as it was when you last loaded or saved it. The original file is not read again. If the file may have changed, choose **Choose a file…** and pick it again.
 
-![The Load… menu in Bin definitions, listing a recent file](images/10/recent-definitions.png)
+![The menu opened by the arrow beside Load…, listing a recent file](images/10/recent-definitions.png)
 
 ---
 
@@ -171,7 +171,7 @@ In the browser a recent entry is the copy taken when you last loaded or saved th
 
 # Reset saved settings…
 
-tsmap keeps some choices on this machine only: your theme, wafer split assignments, column mappings, plots, the filter, geometry and more. This window lists what is stored. Tick items and **Forget selected**.
+tsmap keeps some choices on this machine only: your colour theme, wafer split assignments, column mappings, saved plots, filters, and any diameter, edge exclusion or reticle you set. The window lists only what is stored at the moment (here, just the theme). Tick what you want to forget, then choose **Forget selected**.
 
 ![The Reset saved settings window](images/10/reset-settings.png)
 
@@ -179,7 +179,7 @@ tsmap keeps some choices on this machine only: your theme, wafer split assignmen
 
 # Nothing is sent anywhere
 
-Loaded wafer data is not affected by a reset. Files are read on your machine and never uploaded.
+Loaded wafer data is not affected by a reset. Saved settings stay on this machine, and tsmap does not upload your data.
 
 ---
 
@@ -190,7 +190,7 @@ Loaded wafer data is not affected by a reset. Files are read on your machine and
 1. Open **Help → Definitions file formats…** and save the splits template
 2. On the sample lot, open **Setup ▾ → Bin definitions…** and **Save…**
 3. Open the [sample CSV link](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sample.csv&dataFormat=csv)
-4. Open **Help → Reset saved settings…**: what is stored?
+4. Open **Help → Reset saved settings…** and read the list of what is stored, then **Cancel**
 
 ---
 
@@ -211,4 +211,4 @@ More in the [user guide](../user-guide.md#reference)
 
 Back to [the start](00-welcome.md), or open the app and try your own data.
 
-To build wafermap, the library under tsmap, into your own application, sessions are planned. Until then see the [wafermap documentation](https://wafertools.github.io/wafermap/), [quickstart](https://wafertools.github.io/wafermap/quickstart/) and [developer guide](https://wafertools.github.io/wafermap/guide/).
+wafermap is the library tsmap is built on. To use it in your own application, see the [wafermap documentation](https://wafertools.github.io/wafermap/), [quickstart](https://wafertools.github.io/wafermap/quickstart/) and [developer guide](https://wafertools.github.io/wafermap/guide/).
