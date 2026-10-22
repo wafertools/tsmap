@@ -965,6 +965,21 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       await page.evaluate(([x, y]) => window.scrollTo(x, y), [args[0] ?? 0, args[1] ?? 0]);
       break;
 
+    case 'drag': {
+      // ['drag', selector, [x1, y1], [x2, y2]] — press at one point of the element, move to another and release. The
+      // points are fractions of the element's box (0 to 1), so the drag follows the element wherever the layout puts it;
+      // with several matches the first is used. Throws if the selector matches nothing.
+      const [selector, [x1, y1], [x2, y2]] = args;
+      const box = await page.locator(selector).first().boundingBox({ timeout: 5000 });
+      if (!box) throw new Error(`drag: "${selector}" has no bounding box`);
+      await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * x2, box.y + box.height * y2, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(600);
+      break;
+    }
+
     case 'scrollTop':
       // ['scrollTop', selector, y = 0] — set one element's own scroll position, e.g. '#map-container' back to the top after
       // a click scrolled it. Throws if the selector matches nothing.

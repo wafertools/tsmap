@@ -160,7 +160,7 @@ Not wired into `npm run verify` yet: it fails until every session is written.
 | 01 | Getting data in: formats, opening and adding files, folder scan, test selector, column mapping, theme, log | Written |
 | 02 | Reading a map and the toolbar | Written |
 | 03 | Findings | Written |
-| 04 | The lot view: gallery, stack and splits | Planned |
+| 04 | The lot view: gallery, stack and splits | Written |
 | 05 | Insights | Planned |
 | 06 | Correlation | Planned |
 | 07 | Drilling into any population | Planned |
