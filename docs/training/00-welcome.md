@@ -33,7 +33,7 @@ tsmap training · a self-paced course
 
 - **Wafer map**: one square per die, coloured by bin or by a test value
 - **Bin**: the category the tester put a die in. The legend lists them: here bin 1 is Pass, in green
-- **Yield**: the share of dies that pass, 79.0% for this lot
+- **Yield**: the share of dies that pass, 79.0% for this lot, shown in the legend
 
 ![The bin legend above one wafer of the sample lot: each square is one die, green for bin 1 (Pass), red for bin 2 and blue for bin 3](images/00/wafer-legend.png)
 
@@ -47,7 +47,7 @@ tsmap training · a self-paced course
 
 # A viewer for wafer test data
 
-Open STDF, ATDF, CSV, JSON or Parquet files and get interactive wafer maps, findings and charts.
+Open STDF, ATDF, CSV, JSON or Parquet files and get interactive wafer maps, findings, charts and tables.
 
 ![tsmap with the sample lot loaded](images/00/layout.png)
 
