@@ -6,6 +6,8 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+## [0.1.49] — 2026-10-22
+
 ### Added
 
 - **A choice of which result counts for a retested die.** **Setup ▾ → Retests…** sets whether a die position probed more than
