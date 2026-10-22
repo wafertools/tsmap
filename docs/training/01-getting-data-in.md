@@ -184,7 +184,15 @@ Click into a name and type. **Enter** keeps it; only the displayed name changes.
 
 # Mapping columns
 
-CSV, JSON and Parquet
+CSV, JSON and Parquet only
+
+---
+
+# Not for STDF or ATDF
+
+STDF and ATDF files have a fixed layout: wafer ID, die position, bins and test numbers each have a named record. tsmap reads them directly, so they skip this step and go to the test selector.
+
+CSV and JSON have no fixed schema and Parquet carries its own, so tsmap has to ask which column is which.
 
 ---
 
