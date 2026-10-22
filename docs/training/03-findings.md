@@ -104,7 +104,7 @@ Click a button to show only that test, bin or pattern. This is fmax_MHz, with th
 
 # Chart links
 
-**Chart** opens Insights at this item's card, under **Worth a look**. Insights is session 05.
+**Chart** opens Insights at this item's card, under **Worth a look**. *(Insights is covered in session 05.)*
 
 ![The Chart link on the top item](images/03/chart-link.png)
 
