@@ -79,7 +79,7 @@ If a layout is not recognised as you expect, this window shows what the detector
 
 # Three kinds of wafer
 
-In COORDLESS-LOT-01, W01 is fully positioned, W02 is mixed (some dies have no position) and W03 has none.
+In COORDLESS-LOT-01, **W01** has an X/Y position for every die. **W02** is mixed: some dies have results but no X/Y position. **W03** has results for its dies but no X/Y positions at all, so there is nowhere to draw them on a map.
 
 ![The lot's three wafers](images/09/coordless-lot.png)
 
