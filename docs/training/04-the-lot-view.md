@@ -204,13 +204,16 @@ Data with no lot ID can't be matched this way, so its splits are not remembered.
 
 ---
 
+<!-- _class: split -->
 <!-- covers: Open full view; Reattach to gallery -->
 
 # Detach a wafer and bring it back
 
-A card's expand button, **Open full view**, detaches that wafer into its own window with the full single-map toolbar. Where separate windows aren't available it floats inside the page.
+**Open full view**, the expand button in a card's header, detaches that wafer into its own window with the full single-map toolbar.
 
-The vacated card becomes a placeholder. Its **Reattach to gallery** button puts the wafer back; closing the detached window does the same.
+The vacated card becomes a placeholder. Its **Reattach to gallery** button puts the wafer back; closing the window does the same.
+
+![A wafer card's header with the Open full view button outlined](images/04/open-full-view.png)
 
 ---
 

@@ -123,6 +123,17 @@ export const scenario = {
       }],
     },
     {
+      id: '07c-open-full-view',
+      title: "Each card's header carries the Open full view button",
+      steps: [PARK],
+      checks: [isVisible(`${CARD} >> nth=0 >> button[aria-label="Open full view"]`, 'the first card shows Open full view')],
+      shots: [{
+        name: 'open-full-view',
+        clip: { target: `${CARD} >> nth=0 >> button[aria-label="Open full view"]`, closest: 'div:has(> button[aria-label="Open full view"])', pad: 8 },
+        callouts: [[`${CARD} >> nth=0 >> button[aria-label="Open full view"]`, { pad: 2 }]],
+      }],
+    },
+    {
       id: '08-same-dies-off',
       title: 'Select the same dies on every wafer, off',
       steps: [PARK],
