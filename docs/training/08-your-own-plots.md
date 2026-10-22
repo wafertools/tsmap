@@ -274,6 +274,20 @@ Titles, each axis's minimum, maximum, **Linear** or **Log** scale and **Reverse 
 
 ---
 
+<!-- covers: Reference lines -->
+
+# Reference lines
+
+A reference line marks a value of your own on a value axis: a target, a guard band, a customer's limit. It lets you see at a glance how the data sits against a number that matters to you but isn't one of the test's own limits.
+
+In **Reference lines** on the Customise page, write a value for a line, or `lo..hi` for a shaded band. Each can have a name, and they are separated by commas:
+
+`0.45 Target, 0.3..0.5 Window`
+
+`median` or `mean` draws a line at that statistic of what the plot shows, the same on every panel: `median, 0.45 Target`. Values are in the axis's own unit.
+
+---
+
 # Your plots are kept
 
 A plot is a recipe, not a picture: which fields go where, and nothing about the lot. tsmap remembers the list on this machine and draws it on the next lot you open. A plot that needs a test the lot lacks stays in the list, dimmed, with the reason.
