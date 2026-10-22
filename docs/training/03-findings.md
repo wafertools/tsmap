@@ -131,7 +131,7 @@ When no region, bin or wafer costs about a yield point, the panel says so and li
 
 # Bigger lots
 
-Findings on the test values of one region take longer to compute. A large load shows a row with an **Analyse** button instead, and the findings stay while the load is open.
+Findings about test values, such as a region reading high on one test, are worked out automatically only for smaller loads. For a larger load, the top of the Findings list says they are not included. Click **Analyse** to add them for every wafer.
 
 More in the [user guide](../user-guide.md#test-value-findings)
 
