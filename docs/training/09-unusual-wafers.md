@@ -211,7 +211,7 @@ tsmap normally works the size out from the data. Override it when there are too 
 
 # A band at the edge
 
-With 300 mm and 3 mm entered, dies within 3 mm of the edge are left out of yield and drawn dimmed. Both values are remembered.
+With 300 mm and 10 mm entered, dies within 10 mm of the edge are left out of yield and drawn dimmed. Both values are remembered.
 
 ![The wafers with an edge exclusion band](images/09/edge-exclusion.png)
 

@@ -122,14 +122,14 @@ export const scenario = {
     {
       id: '15-diameter',
       title: 'Setup ▾ → Diameter & edge exclusion…',
-      steps: [['press', 'Escape'], ['wait', 300], ['click', '#lot-btn'], ['wait', 300], ['click', 'button:has-text("Diameter & edge exclusion")'], ['wait', 800]],
+      steps: [['press', 'Escape'], ['wait', 300], ['click', '#lot-btn'], ['wait', 300], ['click', 'button:has-text("Reticle…")'], ['wait', 800], ['click', `${DIALOG} button:text-is("Clear")`], ['wait', 1000], ['click', '#lot-btn'], ['wait', 300], ['click', 'button:has-text("Diameter & edge exclusion")'], ['wait', 800]],
       checks: [isVisible(DIALOG, 'the Diameter window is open')],
       shots: [{ name: 'diameter-dialog', clip: { target: DIALOG, pad: 12 } }],
     },
     {
       id: '16-diameter-apply',
-      title: 'A 300 mm wafer with a 3 mm edge exclusion band',
-      steps: [['fillInput', `${DIALOG} input >> nth=0`, '300'], ['fillInput', `${DIALOG} input >> nth=1`, '3'], ['click', `${DIALOG} button:text-is("Apply")`], ['wait', 1500], PARK],
+      title: 'A 300 mm wafer with a 10 mm edge exclusion band',
+      steps: [['fillInput', `${DIALOG} input >> nth=0`, '300'], ['fillInput', `${DIALOG} input >> nth=1`, '10'], ['click', `${DIALOG} button:text-is("Apply")`], ['wait', 1500], PARK],
       shots: [{ name: 'edge-exclusion', clip: { rect: { x: 0, y: 130, width: 1280, height: 400 } } }],
     },
     {
