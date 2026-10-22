@@ -1,15 +1,18 @@
 /**
  * Session 04 — The lot view: gallery, stack and splits. Screenshots for docs/training/04-the-lot-view.md.
  *
- * The sample lot as a gallery, then stacked on the gallery toolbar's Plot mode (hard bins, soft bins, test values
- * and the aggregation method), then the toggle that selects the same dies on every wafer, then Setup ▾ → Splits…:
+ * EDGE-LOT-01, whose edge-ring defect stacks into a clear pattern, as a gallery and then stacked on the gallery
+ * toolbar's Plot mode (hard bins, soft bins, test values and the aggregation method). Then the sample lot: the toggle
+ * that selects the same dies on every wafer, and Setup ▾ → Splits…:
  * the dialog, split names in the map labels, and assigning a split to some wafers. Detaching a wafer into its own
  * window (Open full view, Reattach to gallery) opens a browser window the runner cannot capture yet, so the deck
  * teaches it without a picture. Run by scripts/training-shots.mjs.
  */
 
 import { isVisible, hasText } from '../lib/checks.mjs';
+import { SAMPLEDATA } from '../lib/paths.mjs';
 
+const EDGE = `${SAMPLEDATA}/EDGE-LOT-01.stdf`;
 const GT = '[data-wmap-toolbar="gallery"]';
 const CARD = '.wmap-gallery-card';
 const DIALOG = 'div[role="dialog"]';
@@ -47,16 +50,16 @@ export const scenario = {
   beats: [
     {
       id: '01-gallery',
-      title: 'The sample lot as a gallery, with the Summary panel closed to give the cards room',
-      steps: [['click', 'button:has-text("Load sample data")'], ['waitForWafers'], ['click', '[data-wmap-summary-close]'], ['wait', 800], PARK],
+      title: 'EDGE-LOT-01 as a gallery, with the Summary panel closed to give the cards room',
+      steps: [['loadFile', EDGE], ['waitForWafers'], ['click', '[data-wmap-summary-close]'], ['wait', 800], PARK],
       checks: [{
-        name: 'thirteen-cards',
-        describe: 'the gallery shows 13 wafer cards',
+        name: 'eight-cards',
+        describe: 'the gallery shows 8 wafer cards',
         get: (page) => page.locator(CARD).count(),
-        expect: (n) => n === 13,
+        expect: (n) => n === 8,
       }],
       // The header, the legend and the first row of cards: enough to show a gallery, and large on a slide.
-      shots: [{ name: 'gallery', clip: { rect: { x: 0, y: 50, width: 1280, height: 420 } } }],
+      shots: [{ name: 'gallery', clip: { rect: { x: 0, y: 50, width: 1280, height: 570 } } }],
     },
     {
       id: '02-plot-mode-menu',
@@ -73,22 +76,22 @@ export const scenario = {
       id: '03-stack-hard',
       title: 'Stacked Hard Bins: one card per bin, coloured by how many wafers had it at each die position',
       steps: [['click', `${menu('Plot mode')} ${row('Stacked Hard Bins')}`], ['wait', 1000], PARK],
-      checks: [hasText('[data-wmap-gallery-meta]', '13 wafers stacked')],
-      shots: [{ name: 'stack-hard', clip: { rect: { x: 0, y: 0, width: 1280, height: 525 } }, callouts: [['[data-wmap-gallery-meta]', { pad: 2 }]] }],
+      checks: [hasText('[data-wmap-gallery-meta]', '8 wafers stacked')],
+      shots: [{ name: 'stack-hard', clip: { rect: { x: 0, y: 0, width: 1280, height: 520 } }, callouts: [['[data-wmap-gallery-meta]', { pad: 2 }]] }],
     },
     {
       id: '04-stack-soft',
       title: 'Stacked Soft Bins: the same, for soft bins',
       steps: chooseMode('Stacked Soft Bins'),
-      checks: [hasText('[data-wmap-gallery-meta]', '13 wafers stacked')],
-      shots: [{ name: 'stack-soft', clip: { rect: { x: 0, y: 0, width: 1280, height: 525 } } }],
+      checks: [hasText('[data-wmap-gallery-meta]', '8 wafers stacked')],
+      shots: [{ name: 'stack-soft', clip: { rect: { x: 0, y: 0, width: 1280, height: 520 } } }],
     },
     {
       id: '05-stack-values',
       title: 'Stacked Test Values: one card per test, with the values combined across wafers',
       steps: chooseMode('Stacked Test Values'),
-      checks: [hasText('[data-wmap-gallery-meta]', '13 wafers stacked'), isVisible(btn('Aggregation method'), 'the Aggregation method button has appeared')],
-      shots: [{ name: 'stack-values', clip: { rect: { x: 0, y: 50, width: 1280, height: 365 } }, callouts: [[btn('Aggregation method'), { pad: 2 }]] }],
+      checks: [hasText('[data-wmap-gallery-meta]', '8 wafers stacked'), isVisible(btn('Aggregation method'), 'the Aggregation method button has appeared')],
+      shots: [{ name: 'stack-values', clip: { rect: { x: 0, y: 50, width: 1280, height: 470 } }, callouts: [[btn('Aggregation method'), { pad: 2 }]] }],
     },
     {
       id: '06-aggregation',
@@ -102,8 +105,19 @@ export const scenario = {
       title: 'Back to Hard Bin: one card per wafer again',
       steps: [['press', 'Escape'], ['wait', 300], ...chooseMode('Hard Bin')],
       checks: [{
+        name: 'eight-cards-again',
+        describe: 'the gallery shows 8 wafer cards again',
+        get: (page) => page.locator(CARD).count(),
+        expect: (n) => n === 8,
+      }],
+    },
+    {
+      id: '07b-sample-lot',
+      title: 'The sample lot for the rest of the session: its corners are already assigned as splits',
+      steps: [['click', '#reset-btn'], ['wait', 800], ['click', 'button:has-text("Load sample data")'], ['waitForWafers'], ['click', '[data-wmap-summary-close]'], ['wait', 800], PARK],
+      checks: [{
         name: 'thirteen-cards',
-        describe: 'the gallery shows 13 wafer cards again',
+        describe: 'the gallery shows 13 wafer cards',
         get: (page) => page.locator(CARD).count(),
         expect: (n) => n === 13,
       }],

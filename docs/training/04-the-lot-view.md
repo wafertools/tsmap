@@ -34,9 +34,9 @@ tsmap training · a self-paced course
 
 # One card per wafer
 
-A gallery shows each wafer on its own card. The buttons above it act on all the cards at once (session 02).
+A gallery shows each wafer on its own card. This is EDGE-LOT-01, eight wafers with an edge-ring defect. The buttons above act on all the cards at once (session 02).
 
-![The sample lot as a gallery, one card per wafer](images/04/gallery.png)
+![EDGE-LOT-01 as a gallery, one card per wafer](images/04/gallery.png)
 
 ---
 
@@ -53,9 +53,9 @@ Under **Lot aggregation**, three plot modes combine all the wafers into one map 
 
 # Stacked Hard Bins
 
-One card per bin. Each die position is coloured by how many wafers had that bin there: 0 to 13 here. It shows lot-level yield patterns.
+One card per bin. Each die position is coloured by how many wafers had that bin there: 0 to 8 here. Pass is high everywhere except a ring at the edge, where the defect sits.
 
-![Stacked Hard Bins for the sample lot, with the stack header outlined](images/04/stack-hard.png)
+![Stacked Hard Bins for EDGE-LOT-01, with the stack header outlined](images/04/stack-hard.png)
 
 ---
 
@@ -63,13 +63,13 @@ One card per bin. Each die position is coloured by how many wafers had that bin 
 
 The same for soft bins, so lot-level failure modes show as one map per soft bin.
 
-![Stacked Soft Bins for the sample lot](images/04/stack-soft.png)
+![Stacked Soft Bins for EDGE-LOT-01](images/04/stack-soft.png)
 
 ---
 
 # Stacked Test Values
 
-One card per test (six here, the first four shown), with the values combined across the wafers. The header says how many wafers were stacked and how they were combined.
+One card per test (three here), with the values combined across the wafers. The header says how many wafers were stacked and how they were combined.
 
 ![Stacked Test Values: one card per test, with the Σ button outlined](images/04/stack-values.png)
 
@@ -103,7 +103,7 @@ Off by default, so each card selects on its own. Click the button to turn it on.
 
 # One box, every wafer
 
-Drag a box on one wafer and the same die positions are selected on all of them. The badge counts them. Clicking the button clears the selection.
+Back on the sample lot, drag a box on one wafer and the same die positions are selected on all of them. The badge counts them. Clicking the button clears the selection.
 
 ![A box dragged on W01 selects the same dies on every wafer; the badge reads 24](images/04/same-dies-selected.png)
 
