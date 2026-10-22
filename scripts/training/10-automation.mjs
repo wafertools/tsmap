@@ -56,9 +56,16 @@ export const scenario = {
       }],
     },
     {
+      id: '05b-recent-definitions',
+      title: 'The ▾ beside Load… lists the definitions files used recently',
+      steps: [['click', `${DIALOG} button:text-is("Save…")`], ['wait', 1200], ['click', `${DIALOG} button[aria-label="Load a recently used definitions file"]`], ['wait', 600]],
+      checks: [hasText('body', 'Choose a file…')],
+      shots: [{ name: 'recent-definitions', clip: { rect: { x: 400, y: 320, width: 740, height: 270 } } }],
+    },
+    {
       id: '06-mapping-bin-definitions',
       title: 'For CSV, JSON and Parquet, the column mapping has its own Load bin definitions…',
-      steps: [['press', 'Escape'], ['wait', 300], ['click', '#reset-btn'], ['wait', 800], ['loadFile', `${SAMPLEDATA}/MPW-LOT-08.csv`], ['waitForOverlay', '.mapping-panel'], ['wait', 500]],
+      steps: [['press', 'Escape'], ['wait', 300], ['press', 'Escape'], ['wait', 300], ['click', '#reset-btn'], ['wait', 800], ['loadFile', `${SAMPLEDATA}/MPW-LOT-08.csv`], ['waitForOverlay', '.mapping-panel'], ['wait', 500]],
       checks: [isVisible('button:has-text("Load bin definitions")', 'the mapping offers Load bin definitions…')],
       shots: [{
         name: 'mapping-bin-definitions',

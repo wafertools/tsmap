@@ -148,9 +148,15 @@ For those formats, load the file in the column mapping before you continue, next
 
 ---
 
-# Recent files
+<!-- _class: split -->
 
-The **▾** beside a Load button lists the files you loaded or saved recently. Each kind keeps its own list.
+# Recent definitions files
+
+The **▾** beside a Load button lists the definitions files you loaded or saved recently, so you can reapply one without finding it again. Each kind of file keeps its own list.
+
+In the browser a recent entry is the copy taken when you last loaded or saved that file, as the menu says. If the file may have changed, choose **Choose a file…** and pick it again.
+
+![The Load… menu in Bin definitions, listing a recent file](images/10/recent-definitions.png)
 
 ---
 
