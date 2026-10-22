@@ -68,7 +68,8 @@ export const scenario = {
           callouts: [[target, { ...opts, badge: i + 1 }]],
           clip: { target, nth: opts.nth, closest: opts.closest, through: opts.through, pad: 60 },
         })),
-        { name: 'wafer-card', clip: { target: '.wmap-gallery-card', nth: 0, pad: 8 } },
+        // The legend strip and the first wafer under it, for the recap slide: the legend says what each colour is.
+        { name: 'wafer-legend', clip: { target: '[data-wmap-gallery-legend]', through: '.wmap-gallery-card >> nth=0', maxWidth: 800, pad: 8 } },
       ],
     },
     {

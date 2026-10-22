@@ -32,10 +32,10 @@ tsmap training · a self-paced course
 # A quick recap
 
 - **Wafer map**: one square per die, coloured by bin or by a test value
-- **Bin**: the category the tester put a die in; here bin 1 is Pass
+- **Bin**: the category the tester put a die in. The legend lists them: here bin 1 is Pass, in green
 - **Yield**: the share of dies that pass, 79.0% for this lot
 
-![One wafer of the sample lot: each square is one die, green for bin 1 (Pass)](images/00/wafer-card.png)
+![The bin legend above one wafer of the sample lot: each square is one die, green for bin 1 (Pass), red for bin 2 and blue for bin 3](images/00/wafer-legend.png)
 
 ---
 
