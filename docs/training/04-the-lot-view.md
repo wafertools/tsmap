@@ -122,7 +122,7 @@ Back on the sample lot, drag a box on one wafer and the same die positions are s
 
 # What a split is
 
-A split is a name you give a wafer that the file doesn't record, such as a process corner. **Setup ▾ → Splits…** opens the dialog.
+A split is a name you give a wafer that the test data file doesn't include, such as a process corner. **Setup ▾ → Splits…** opens the dialog.
 
 ![The Setup menu with Splits… outlined](images/04/setup-menu.png)
 
