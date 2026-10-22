@@ -6,6 +6,19 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Added
+
+- **The MIR's code fields are read.** Test station, test mode, retest code, protection code, burn-in time and command mode come
+  in from STDF and ATDF files with the other MIR fields, shown as the file has them (a code means what a site says it means),
+  and are Group by choices when they vary between wafers. A blank code, or a burn-in time of 65,535, is left out as not given.
+
+### Changed
+
+- **Every wafer attribute is a Group by choice, except the wafer-configuration sizes and orientation.** Tester serial number,
+  facility, floor, program revision, exec type and version, flow, spec, family, date code, process, design revision and the
+  rest of the MIR appear in Group by, Compare by and "What divides yield" whenever they vary. The per-wafer start and finish
+  times group by day, and every field has a plain label.
+
 ## [0.1.48] — 2026-10-20
 
 ### Added

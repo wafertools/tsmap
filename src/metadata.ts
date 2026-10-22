@@ -23,8 +23,12 @@ export const NONE_VALUE = '(none)';
 /** Curation entry for a known metadata key. */
 interface FieldMeta {
   label: string;
-  /** Show this field in the facet dropdown by default. */
-  facet: boolean;
+  /**
+   * Whether this is a Group by (and Compare by, and commonality) choice. **Every field is one unless it says `false`**: what a
+   * code, a revision or an equipment field means is a site's own convention, so nothing is hidden for being "low value". Only
+   * fields that cannot group anything (the declared wafer geometry) are listed as `false`.
+   */
+  facet?: boolean;
   /** Value is an ISO datetime; facet by its date portion only. */
   date?: boolean;
   /**
@@ -57,48 +61,67 @@ const wcrLetter = (table: Readonly<Record<string, string>>) => (raw: string): st
   return word ? capitalise(word) : `unrecognised code ${raw}`;
 };
 
-// Curated known fields: friendly label + whether surfaced as a facet by default
-// + date/display handling. Order here is the display order in the facet
-// dropdown; keys not listed still appear (labelled by their raw key) unless
-// marked `hidden`. Edit this table freely — no parser change needed.
+// Known fields: a friendly label, date and display handling, and (rarely) `facet: false`. Order here is the display order in the
+// Group by list; keys not listed still appear, labelled by their raw key, unless marked `hidden`. Codes (mode, retest, protection,
+// command mode) are shown as the file has them: their meaning differs by company and site. Edit this table freely — no parser
+// change needed.
 const FIELD_META: Record<string, FieldMeta> = {
-  // High-value faceting axes, shown first.
-  splitLabel: { label: 'Split',       facet: true },
-  lotId:      { label: 'Lot',         facet: true },
-  sublotId:   { label: 'Sublot',      facet: true },
-  partType:   { label: 'Part type',   facet: true },
-  jobName:    { label: 'Program',     facet: true },
-  testTemp:   { label: 'Temperature', facet: true },
-  startT:     { label: 'Test date',   facet: true, date: true },
-  testerType: { label: 'Tester',      facet: true },
-  nodeName:   { label: 'Node',        facet: true },
-  operName:   { label: 'Operator',    facet: true },
+  // The usual grouping axes, first.
+  splitLabel: { label: 'Split' },
+  lotId:      { label: 'Lot' },
+  sublotId:   { label: 'Sublot' },
+  partType:   { label: 'Part type' },
+  jobName:    { label: 'Program' },
+  testTemp:   { label: 'Temperature' },
+  startT:     { label: 'Test date', date: true },
+  // Equipment and station.
+  testerType: { label: 'Tester' },
+  nodeName:   { label: 'Node' },
+  stationNum: { label: 'Test station' },
+  serialNum:  { label: 'Tester serial' },
+  execType:   { label: 'Exec type' },
+  execVer:    { label: 'Exec version' },
+  facilityId: { label: 'Facility' },
+  floorId:    { label: 'Floor' },
+  // Who and how the lot was run.
+  operName:       { label: 'Operator' },
+  supervisorName: { label: 'Supervisor' },
+  engId:          { label: 'Engineer' },
+  modeCode:   { label: 'Test mode' },
+  retestCode: { label: 'Retest code' },
+  protCode:   { label: 'Protection code' },
+  cmodCode:   { label: 'Command mode' },
+  burnTime:   { label: 'Burn-in time' },
+  testCode:   { label: 'Test code' },
+  flowId:     { label: 'Flow' },
+  setupId:    { label: 'Setup' },
+  setupT:     { label: 'Setup date', date: true },
+  // Program and product.
+  jobRev:     { label: 'Program rev' },
+  specName:   { label: 'Spec' },
+  specVer:    { label: 'Spec version' },
+  designRev:  { label: 'Design rev' },
+  familyId:   { label: 'Family' },
+  packageType: { label: 'Package' },
+  processId:  { label: 'Process' },
+  dateCode:   { label: 'Date code' },
+  operFreq:   { label: 'Operating frequency' },
+  romCode:    { label: 'ROM code' },
+  auxFile:    { label: 'Aux file' },
+  userText:   { label: 'User text' },
   // Wafer-level (WIR/WRR).
-  frameId:    { label: 'Frame',       facet: true },
-  maskId:     { label: 'Mask',        facet: true },
-  fabWaferId: { label: 'Fab wafer ID', facet: true },
-  // Present but low cardinality / rarely useful to split on — labelled, not
-  // offered as a default facet (still shown if they happen to vary).
-  jobRev:     { label: 'Program rev',  facet: false },
-  execType:   { label: 'Exec type',    facet: false },
-  execVer:    { label: 'Exec version', facet: false },
-  testCode:   { label: 'Test code',    facet: false },
-  flowId:     { label: 'Flow',         facet: false },
-  specName:   { label: 'Spec',         facet: false },
-  specVer:    { label: 'Spec version', facet: false },
-  familyId:   { label: 'Family',       facet: false },
-  dateCode:   { label: 'Date code',    facet: false },
-  facilityId: { label: 'Facility',     facet: false },
-  floorId:    { label: 'Floor',        facet: false },
-  processId:  { label: 'Process',      facet: false },
-  designRev:  { label: 'Design rev',   facet: false },
-  serialNum:  { label: 'Tester serial', facet: false },
+  frameId:    { label: 'Frame' },
+  maskId:     { label: 'Mask' },
+  fabWaferId: { label: 'Fab wafer ID' },
+  waferStartT:  { label: 'Wafer start date',  date: true },
+  waferFinishT: { label: 'Wafer finish date', date: true },
+  waferDescUser: { label: 'Wafer description' },
+  waferDescExec: { label: 'Wafer description (tester)' },
   // STDF V4-2007 Version Update Record — present only in files that declare
   // that revision (e.g. "V4-2007"); a plain V4 file has no such field.
-  updNam:     { label: 'STDF revision', facet: false },
-  // Wafer Configuration Record (WCR) — geometry the tester declared, not a
-  // grouping axis. Codes and bare sizes are decoded through wcr.ts, the same
-  // tables `wcrGeometryFrom` builds the map from.
+  updNam:     { label: 'STDF revision' },
+  // Wafer Configuration Record (WCR) — the geometry the tester declared, not a grouping axis (the maps are drawn from it).
+  // Codes and bare sizes are decoded through wcr.ts, the same tables `wcrGeometryFrom` builds the map from.
   wafrSiz:    { label: 'Wafer diameter', facet: false, display: wcrSize },
   dieWid:     { label: 'Die width',      facet: false, display: wcrSize },
   dieHt:      { label: 'Die height',     facet: false, display: wcrSize },
@@ -177,5 +200,5 @@ export function facetValueOf(wafer: WaferData, key: string): string | undefined 
 export function curatedFields(): Array<{ key: string; label: string; facet: boolean; date: boolean }> {
   return Object.entries(FIELD_META)
     .filter(([, m]) => !m.hidden)
-    .map(([key, m]) => ({ key, label: m.label, facet: m.facet, date: m.date === true }));
+    .map(([key, m]) => ({ key, label: m.label, facet: m.facet !== false, date: m.date === true }));
 }

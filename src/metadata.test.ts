@@ -58,7 +58,7 @@ describe('WCR fields', () => {
     expect(keys).toContain('wafrSiz');
   });
 
-  it('labels WCR fields in plain language and keeps them out of the default facets', () => {
+  it('labels WCR fields in plain language and keeps them out of Group by', () => {
     expect(labelFor('wfFlat')).toBe('Wafer flat');
     expect(labelFor('wafrSiz')).toBe('Wafer diameter');
     expect(curatedFields().find(f => f.key === 'wafrSiz')!.facet).toBe(false);
@@ -103,12 +103,33 @@ describe('wmapAttributes — tsmap\'s curation as wmap\'s `attributes` option', 
     expect(attrs.temperature.label).toBe('Temperature');
   });
 
-  it('keeps the low-value and geometry fields out of Group by, and says which field is a date', () => {
-    for (const key of ['jobRev', 'execType', 'waferDiameter', 'dieWidth', 'centreDieX', 'xIncreases']) {
+  it('keeps only the declared wafer geometry out of Group by, and says which fields are dates', () => {
+    for (const key of ['waferDiameter', 'dieWidth', 'centreDieX', 'xIncreases']) {
       expect(attrs[key], key).toBeDefined();
       expect(attrs[key].facet, key).toBe(false);
     }
     expect(attrs.testDate).toMatchObject({ label: 'Test date', date: true });
+    expect(attrs.waferStartT).toMatchObject({ date: true });
+  });
+
+  it('offers every other field, however minor it looks: a code or an equipment field is a site\'s own convention', () => {
+    const excluded = new Set(curatedFields().filter(f => !f.facet).map(f => f.key));
+    expect([...excluded].sort()).toEqual(['centerX', 'centerY', 'dieHt', 'dieWid', 'posX', 'posY', 'wafrSiz', 'wfFlat']);
+    for (const key of ['serialNum', 'facilityId', 'floorId', 'jobRev', 'execType', 'execVer', 'flowId', 'stationNum', 'modeCode', 'retestCode', 'protCode', 'burnTime', 'cmodCode', 'userText', 'setupId']) {
+      expect(attrs[key], key).toBeDefined();
+      expect(attrs[key].facet, key).toBe(true);
+    }
+  });
+
+  it('labels the MIR codes in plain words and shows their values as the file has them', () => {
+    expect(labelFor('stationNum')).toBe('Test station');
+    expect(labelFor('modeCode')).toBe('Test mode');
+    expect(labelFor('retestCode')).toBe('Retest code');
+    expect(labelFor('protCode')).toBe('Protection code');
+    expect(labelFor('burnTime')).toBe('Burn-in time');
+    expect(labelFor('cmodCode')).toBe('Command mode');
+    expect(facetValueOf(wafer('W1', 1, src({ modeCode: 'P', retestCode: '1' })), 'modeCode')).toBe('P');
+    expect(facetValueOf(wafer('W1', 1, src({ modeCode: 'P', retestCode: '1' })), 'retestCode')).toBe('1');
   });
 
   it('leaves a hidden field out (WF_UNITS rides inside the sizes), and names every curated field once', () => {

@@ -240,6 +240,8 @@ const MIR_KEYS: &[(&str, &str)] = &[
     ("SPEC_VER","specVer"), ("FLOW_ID","flowId"), ("SETUP_ID","setupId"),
     ("DSGN_REV","designRev"), ("ENG_ID","engId"), ("ROM_COD","romCode"),
     ("SERL_NUM","serialNum"), ("SUPR_NAM","supervisorName"),
+    ("STAT_NUM","stationNum"), ("MODE_COD","modeCode"), ("RTST_COD","retestCode"),
+    ("PROT_COD","protCode"), ("BURN_TIM","burnTime"), ("CMOD_COD","cmodCode"),
 ];
 const WRR_KEYS: &[(&str, &str)] = &[
     ("FINISH_T","waferFinishT"), ("FABWF_ID","fabWaferId"), ("FRAME_ID","frameId"),
@@ -928,6 +930,7 @@ mod tests {
             ("setupT", "1992-07-23T08:14:59"), ("startT", "1992-07-23T08:23:02"),
             ("operName", "Sandy"), ("sublotId", "2B"), ("testCode", "HOT"),
             ("jobRev", "3.1.2"), ("execType", "IG900"), ("execVer", "2.4"), ("testTemp", "100"),
+            ("modeCode", "P"), ("stationNum", "1"), ("retestCode", "N"),
             ("wfFlat", "D"), ("posX", "R"), ("posY", "D"), ("wafrSiz", "5"),
             ("dieHt", ".3"), ("dieWid", ".25"), ("wfUnits", "1"), ("centerX", "23"), ("centerY", "19"),
         ] {

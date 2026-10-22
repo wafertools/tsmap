@@ -29,14 +29,22 @@ impl<'a> CnSeq<'a> {
 
 /// All non-empty lot-level fields from a MIR record body (STDF V4, 1·10).
 /// Fixed prefix is 15 bytes: SETUP_T(U4) START_T(U4) STAT_NUM(U1) MODE_COD(C1)
-/// RTST_COD(C1) PROT_COD(C1) BURN_TIM(U2) CMOD_COD(C1); then a run of Cn strings.
+/// RTST_COD(C1) PROT_COD(C1) BURN_TIM(U2) CMOD_COD(C1); then a run of Cn strings. All of them are emitted.
 fn mir_fields(b: &[u8], o: ByteOrder) -> Vec<MetaField> {
     let mut f = Vec::new();
     // Timestamps → ISO 8601 (host truncates to date where it groups by date).
     push_field(&mut f, "setupT", read_u4(b, 0, o).and_then(epoch_to_iso));
     push_field(&mut f, "startT", read_u4(b, 4, o).and_then(epoch_to_iso));
-    // Single-char code fields (STAT_NUM/MODE_COD/RTST_COD/PROT_COD/BURN_TIM/
-    // CMOD_COD) are low-value and skipped; the Cn run begins at byte 15.
+    // The fixed bytes between the times and the Cn run: STAT_NUM(U1) MODE_COD(C1) RTST_COD(C1) PROT_COD(C1) BURN_TIM(U2)
+    // CMOD_COD(C1). What a code means is a site's own convention, so the values go out verbatim and the host decides which
+    // matter. A blank C1 or a BURN_TIM of 65,535 is STDF's "not given" and is left out.
+    push_field(&mut f, "stationNum", b.get(8).map(|v| v.to_string()));
+    push_field(&mut f, "modeCode",   read_c1(b, 9));
+    push_field(&mut f, "retestCode", read_c1(b, 10));
+    push_field(&mut f, "protCode",   read_c1(b, 11));
+    push_field(&mut f, "burnTime",   read_u2(b, 12, o).filter(|&v| v != u16::MAX).map(|v| v.to_string()));
+    push_field(&mut f, "cmodCode",   read_c1(b, 14));
+    // The Cn run begins at byte 15.
     let mut cn = CnSeq::new(b, 15);
     // Order matches the STDF V4 MIR Cn field sequence.
     push_field(&mut f, "lotId",      nonempty(cn.next())); // LOT_ID
@@ -1425,6 +1433,48 @@ mod tests {
 
 
     use super::*;
+
+    /// A MIR body: the two times, the fixed code bytes, then the Cn run (LOT_ID, PART_TYP).
+    fn mir_body(stat: u8, mode: u8, rtst: u8, prot: u8, burn: u16, cmod: u8, o: ByteOrder) -> Vec<u8> {
+        let u4 = |v: u32| match o { ByteOrder::Little => v.to_le_bytes(), ByteOrder::Big => v.to_be_bytes() };
+        let u2 = |v: u16| match o { ByteOrder::Little => v.to_le_bytes(), ByteOrder::Big => v.to_be_bytes() };
+        let mut b = Vec::new();
+        b.extend(u4(1_700_000_000));
+        b.extend(u4(1_700_000_060));
+        b.extend([stat, mode, rtst, prot]);
+        b.extend(u2(burn));
+        b.push(cmod);
+        for cn in ["LOT-7", "PART-A"] { b.push(cn.len() as u8); b.extend(cn.as_bytes()); }
+        b
+    }
+
+    #[test]
+    fn mir_single_character_codes_are_emitted_verbatim() {
+        for o in [ByteOrder::Little, ByteOrder::Big] {
+            let f = mir_fields(&mir_body(3, b'P', b'1', b'Z', 48, b'N', o), o);
+            let get = |k: &str| f.iter().find(|m| m.key == k).map(|m| m.value.as_str());
+            assert_eq!(get("stationNum"), Some("3"));
+            assert_eq!(get("modeCode"), Some("P"));
+            assert_eq!(get("retestCode"), Some("1"));
+            assert_eq!(get("protCode"), Some("Z"));
+            assert_eq!(get("burnTime"), Some("48"));
+            assert_eq!(get("cmodCode"), Some("N"));
+            // The Cn run after them still reads from the right byte.
+            assert_eq!(get("lotId"), Some("LOT-7"));
+            assert_eq!(get("partType"), Some("PART-A"));
+        }
+    }
+
+    #[test]
+    fn mir_codes_stdf_calls_missing_are_left_out() {
+        let o = ByteOrder::Little;
+        let f = mir_fields(&mir_body(0, b' ', 0, b' ', u16::MAX, 0, o), o);
+        let has = |k: &str| f.iter().any(|m| m.key == k);
+        assert!(!has("modeCode") && !has("retestCode") && !has("protCode") && !has("cmodCode"), "blank C1 is not given");
+        assert!(!has("burnTime"), "65,535 minutes is not given");
+        assert!(has("stationNum"), "a station number has no missing value");
+        assert!(has("lotId"));
+    }
 
     const MULTI_WAFER: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.stdf");

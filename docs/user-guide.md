@@ -713,11 +713,13 @@ how tsmap feeds data into it:
 - **What "Group by" takes: wafer attributes.** A *wafer attribute* is a fact about a whole wafer: its lot, part type,
   program, temperature, test date, operator, or a [split](#wafer-splits) you've assigned (a split is one wafer
   attribute, like any other). They are attached to each wafer at load time. STDF and ATDF contribute every field in
-  their MIR record; CSV and JSON contribute the lot column plus any columns you mapped as metadata. Only attributes that
-  actually *vary* across the loaded wafers appear in the dropdown, and each carries the name it has in the file filter
-  (**Part type**, **Program**, **Test date**). Fields that are reference material rather than something to group on, such
-  as the program revision, tester details and the wafer-configuration sizes, are not offered there or as plot fields,
-  though they still show in the strip above the map and in the Wafers table.
+  their MIR record (test station, mode, retest and protection codes, burn-in time, tester serial number, facility and
+  floor, among others) and the fields of the wafer's WIR and WRR; CSV and JSON contribute the lot column plus any columns
+  you mapped as metadata. Only attributes that actually *vary* across the loaded wafers appear in the dropdown, and each
+  carries the name it has in the file filter (**Part type**, **Program**, **Test date**). Every attribute is offered
+  except the wafer-configuration sizes and orientation, which describe the map rather than the wafer; a code is shown as
+  the file has it, since what a mode or retest code means is each site's own convention. All of them show in the strip
+  above the map and in the Wafers table.
 - **Group by pools wafers; Compare by acts on one plot.** Group by separates whole wafers for every panel at once. A plot's
   own **Colour** and **Categories** (the *Compare by* choices) can also separate the dies within each wafer: by ring,
   quadrant, bin, site or a pass/fail test, as well as by a wafer attribute. See
