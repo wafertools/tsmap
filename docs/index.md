@@ -40,6 +40,10 @@ the same Rust parser used in the desktop app. Nothing is uploaded.
 No wafer files of your own? [Download a sample lot](web.md#try-it-with-sample-data) and open
 it straight away.
 
+New to tsmap? [Learn tsmap](learn/README.md) is eleven short lessons, from what a wafer map shows to
+opening data from a link. Each is a set of slides to work through at your own pace, with a lab in
+the web app.
+
 ## Download the desktop app
 
 The desktop version adds native file dialogs, drag-and-drop from the OS, file associations,

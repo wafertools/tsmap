@@ -19,6 +19,8 @@ interactive yield maps, parametric heat maps, and statistical charts. It runs as
 desktop application on Linux, macOS, and Windows, and as a browser app at
 [wafertools.github.io/tsmap/app/](https://wafertools.github.io/tsmap/app/).
 
+New to tsmap? [Learn tsmap](https://wafertools.github.io/tsmap/learn/) is a set of short slide lessons, each ending with a lab in the web app.
+
 The guide follows the order you meet things in:
 
 - [Getting started](#getting-started) — installing, opening your data, what happens next.

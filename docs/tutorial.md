@@ -11,7 +11,8 @@ At the end you will have found a genuine process-corner effect in a 13-wafer lot
 know which parts of the interface to reach for when you do it with your own data.
 
 This is a guided walk-through with a known answer — follow it in order. For the full reference
-on any screen it touches, see the [user guide](user-guide.md).
+on any screen it touches, see the [user guide](user-guide.md). If you would rather learn from
+slides, one idea at a time, try [Learn tsmap](learn/README.md).
 
 ---
 

@@ -7,6 +7,9 @@ It uses a WebAssembly build of the same Rust parser as the desktop app. Files ar
 entirely in your browser — nothing is sent to a server. Parsing runs in a background Web
 Worker, so the interface stays responsive even while a large file loads.
 
+New to tsmap? [Learn tsmap](learn/README.md) has short slide lessons, each ending with a lab in this
+web app on the bundled sample data.
+
 ## Opening files
 
 Click **Open files** to pick one or more files from your device, or drag and drop files
