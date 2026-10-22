@@ -94,7 +94,7 @@ On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and
 
 # The Help menu
 
-It works with nothing loaded. **User guide** opens this documentation; **Log phase timings** writes a line to the log at each load phase, useful when reporting a slow load; **About tsmap…** names the version.
+**User guide** opens this documentation; **Log phase timings** writes a line to the log at each load phase, useful when reporting a slow load; **About tsmap…** names the version.
 
 ![The Help menu](images/10/help-menu.png)
 
