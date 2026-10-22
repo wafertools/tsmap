@@ -3,7 +3,7 @@ marp: true
 theme: tsmap
 paginate: true
 title: "08 · Your own plots"
-description: Derived tests, sweeps and the plot editor: build charts, keep them, and reuse them on the next lot.
+description: "Derived tests, sweeps and the plot editor: build charts, keep them, and reuse them on the next lot."
 footer: Learn tsmap · 08 Your own plots
 ---
 
