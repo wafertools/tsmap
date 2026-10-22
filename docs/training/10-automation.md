@@ -210,3 +210,5 @@ More in the [user guide](../user-guide.md#reference)
 # That is the course
 
 Back to [the start](00-welcome.md), or open the app and try your own data.
+
+To build wafermap, the library under tsmap, into your own application, sessions are planned. Until then see the [wafermap documentation](https://wafertools.github.io/wafermap/), [quickstart](https://wafertools.github.io/wafermap/quickstart/) and [developer guide](https://wafertools.github.io/wafermap/guide/).

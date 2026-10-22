@@ -20,7 +20,7 @@ tsmap training · a self-paced course
 
 # In this session
 
-- Open files in every way tsmap offers, and build one lot from several files
+- Open files from inside the app, and build one lot from several files
 - Choose and rename tests in the test selector
 - Map the columns of a CSV, JSON or Parquet file
 
@@ -128,6 +128,17 @@ The two files hold one wafer each. They load as one lot, EDGE-LOT-01.
 The third wafer joins the same gallery, Summary and yield.
 
 ![Three wafers of EDGE-LOT-01, the added one outlined](images/01/merged-lot.png)
+
+---
+
+# Two more ways to open data
+
+Everything so far opens files from inside the app. Two other routes open data without any clicking:
+
+- **A link**: a web address that tells the web app which file to load
+- **The command line**: the desktop app opens files you name when you start it
+
+Both are covered in [session 10](10-automation.md).
 
 ---
 

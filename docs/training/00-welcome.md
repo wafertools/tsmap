@@ -21,7 +21,7 @@ tsmap training · a self-paced course
 # In this session
 
 - A quick recap of the terms tsmap uses
-- What tsmap is, and the two ways to run it
+- What tsmap is, the two ways to run it, and the library it is built on
 - A tour of the screen, one area at a time
 
 ---
@@ -56,8 +56,16 @@ Open STDF, ATDF, CSV, JSON or Parquet files and get interactive wafer maps, find
 # Two ways to run it
 
 - **In the browser** at [wafertools.github.io/tsmap/app](https://wafertools.github.io/tsmap/app/): nothing to install
-- **As a desktop app** for Linux, macOS and Windows
+- **As a desktop app** for Linux, macOS and Windows: download it from the [releases page](https://github.com/wafertools/tsmap/releases/latest)
 - The same parser and the same maps in both
+
+---
+
+# Built on wafermap
+
+tsmap is an application built on **wafermap**, an open source JavaScript library that draws the maps and charts and calculates the findings. What you see in tsmap's maps comes from wafermap, and tsmap's user guide links to wafermap's guide for the detail.
+
+You can also use wafermap to put wafer maps inside your own application. This course covers using tsmap; sessions on building wafermap into your own apps are planned. Until then, start with the [wafermap documentation](https://wafertools.github.io/wafermap/), the [quickstart](https://wafertools.github.io/wafermap/quickstart/) and the [developer guide](https://wafertools.github.io/wafermap/guide/).
 
 ---
 
@@ -196,7 +204,7 @@ The **?** button opens the Help menu. **User guide** opens the full guide.
 
 # Try it yourself
 
-1. Open the web app: [wafertools.github.io/tsmap/app](https://wafertools.github.io/tsmap/app/)
+1. Open the web app: [wafertools.github.io/tsmap/app](https://wafertools.github.io/tsmap/app/), or install the desktop app from the [releases page](https://github.com/wafertools/tsmap/releases/latest)
 2. Click **Load sample data**
 3. Find all eight areas from the tour
 4. Click **Insights**, then **Maps** to come back
@@ -218,4 +226,4 @@ The **?** button opens the Help menu. **User guide** opens the full guide.
 
 [01 · Getting data in →](01-getting-data-in.md)
 
-Every way to load your own files.
+Opening your own files, choosing tests and mapping columns.
