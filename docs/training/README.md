@@ -166,7 +166,7 @@ Not wired into `npm run verify` yet: it fails until every session is written.
 | 07 | Drilling into any population | Written |
 | 08 | Your own plots, derived tests and sweeps | Written |
 | 09 | Unusual wafers: multi-project, no positions, retests, multi-site | Written |
-| 10 | Automation and integration | Planned |
+| 10 | Automation and integration | Written |
 
 What each planned session takes, from the coverage report. Every uncovered control is listed once.
 
