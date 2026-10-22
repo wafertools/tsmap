@@ -164,7 +164,7 @@ Don't use **Subdivide file by this column** for sites. It splits the file into o
 
 # Reticle…
 
-Nothing in a wafer file says how many dies make a stepper field, so you say. Give its width and height in dies. **Corner die X and Y** name the bottom-left die of a field, when it is not die (0, 0).
+A wafer file doesn't record how many dies make up a stepper field, so you enter it here: the field's width and height, counted in dies. **Corner die X** and **Corner die Y** give the position of the field's bottom-left die, if it isn't die (0, 0).
 
 ![The Reticle window](images/09/reticle-dialog.png)
 
