@@ -13,7 +13,8 @@ Click **Open files** to pick one or more files from your device, or drag and dro
 anywhere in the window. Multiple files are loaded as a batch and merged into a single
 gallery, with a rename step to label each wafer.
 
-For a large set, **Filter files…** scans just the header metadata of every file you pick —
+For a large set, **Scan a folder…** (on the start screen, or under the **▾** beside **Open
+files** and **Add files**) reads just the header metadata of every file in the folder —
 lot ID, part type, wafer count and so on — and shows them in a sortable, filterable table so
 you can load only the ones you want. Files are read a few at a time and released again, so
 scanning a big batch doesn't hold it all in memory.
@@ -52,7 +53,7 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
   ~500 dies each, 20 tests), snappy-compressed; opening it shows the same column-mapping
   overlay as CSV/JSON.
 - [tsmap-correlated.stdf](samples/tsmap-correlated.stdf) — STDF: 5 wafers, ~200 dies each, 30
-  tests with *designed* correlations spanning a full range of Pearson r. Open **Charts** to
+  tests with *designed* correlations spanning a full range of Pearson r. Open **Insights → Correlation** to
   see the correlation matrix and scatter plots come to life.
 - [tsmap-correlated.parquet](samples/tsmap-correlated.parquet) — Parquet: the same designed
   correlation dataset.

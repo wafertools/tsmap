@@ -2936,9 +2936,10 @@ let closeHelpMenu: (() => void) | null = null;
 function openHelpMenu(anchor: HTMLElement) {
   if (closeHelpMenu) { closeHelpMenu(); return; }
 
+  anchor.setAttribute('aria-expanded', 'true');
   closeHelpMenu = openAnchoredMenu(
     anchor,
-    { stack: true, onClose: () => { closeHelpMenu = null; } },
+    { stack: true, onClose: () => { closeHelpMenu = null; anchor.setAttribute('aria-expanded', 'false'); } },
     (popup, close) => {
       popup.appendChild(makeMenuRow(close, {
         label: 'User guide',

@@ -117,6 +117,9 @@ that each open with a `divider` slide, a `lab` slide headed **Try it yourself**,
 ### Content rules
 
 - UK English. Describe what the software does now, in a neutral tone.
+- Write for end users. Do not dwell on price or licensing.
+- Recommend, don't decide: propose a coverage exclusion or a change of scope in review rather
+  than making it.
 - Source every statement from `docs/user-guide.md`, `docs/features.md`, `docs/ui-surface.txt` or
   the running app. When the guide is silent on something the app does, say so in your notes for
   review rather than guessing.
@@ -140,7 +143,8 @@ control cannot leave a stale claim behind.
 Much of the recorded surface is data rather than controls: one finding row, bin chip or wafer chip
 for each item in the loaded lot. `coverage-exclusions.txt` folds each such kind of row into one
 control (`fold <Name> = <pattern> | <reason>`), and leaves out what is not taught
-(`<pattern> | <reason>`). Every line needs a reason and must match something.
+(`<pattern> | <reason>`). Every line needs a reason and must match something. Exclusions are
+the maintainer's call: propose them, with the reason, rather than adding them.
 
 Not wired into `npm run verify` yet: it fails until every session is written.
 

@@ -25,6 +25,15 @@ technical record, including internal changes.
 
 ### Fixed
 
+- **A wafer added with Add files is labelled with its lot**, `EDGE-LOT-01 · W03` beside the `EDGE-LOT-01 · W01` already shown,
+  as the wafer labels step would name it. A file with no lot ID keeps its own wafer IDs.
+- **The toolbar counts every file a lot came from**, including files added later: three files read "3 files", not the count
+  of the first load.
+- **A scanned folder lists its files by name**, in the file filter and in the order a load takes them, rather than in the
+  order the platform returned them.
+- **The Help button says it opens a menu** to screen readers, and the four Save template… buttons in Definitions file
+  formats… each name the file they save.
+
 - **An ATDF site description is read as the specification lays it out.** The site numbers are the one comma-separated field
   (`SDR:2|4|5,6,7,8|…`), and the equipment fields after it are equipment, so an ID that happens to be a number is not a site.
 

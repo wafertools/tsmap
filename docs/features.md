@@ -21,7 +21,7 @@ See [Supported file formats](user-guide.md#supported-file-formats) and
 
 ## Find the right files before you open them
 
-Pointed at a directory of hundreds of lots, **Filter files…** reads only each file's header
+Pointed at a directory of hundreds of lots, **Scan a folder…** reads only each file's header
 metadata — lot ID, part type, tester, job name, wafer count, start and finish times, site
 count — and lays them out as one row per file. Sort, filter per column, or search across all
 of them, then load just the subset you actually want; the rest are never parsed. A filter can

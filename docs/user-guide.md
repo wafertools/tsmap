@@ -301,6 +301,10 @@ text column (e.g. `"42"`) still parses fine — but it catches an obvious mismat
 mapping a wafer-ID text column to X position) before a full parse silently produces empty
 or wrong results.
 
+A file with many columns can be set up in a few clicks. **Filter columns…** narrows the list to
+the columns whose names match what you type; **Shown → Test value** then gives every column still
+listed the Test value role, and **Shown → Ignore** leaves them all out of the load.
+
 Nothing here is a hard rule — whatever role a column lands on, reassign it in the overlay before
 continuing; no data is imported until you confirm. The roles, and the column names that are
 detected automatically, are listed in the [column mapping reference](#column-mapping-reference).

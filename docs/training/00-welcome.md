@@ -61,10 +61,9 @@ Open STDF, ATDF, CSV, JSON or Parquet files and get interactive wafer maps, find
 
 ---
 
-# Free, open, and local
+# Your files stay with you
 
-- Free and open source, under the MIT licence
-- Files are read on your own machine, in the browser or the app
+- Files are read on your own computer, in the browser or the app
 - Nothing is uploaded
 
 ---

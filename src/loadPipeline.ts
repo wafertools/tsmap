@@ -19,7 +19,7 @@ import {
 import type { OverrideUnitNote } from './lib';
 import type { UnitConversion } from './units';
 import { harmoniseTestUnits } from './units';
-import { needsWaferLabelPrompt, markPlaceholder } from './multiFileUI';
+import { needsWaferLabelPrompt, markPlaceholder, resolveWaferId } from './multiFileUI';
 import type { FileWaferEntry, RenamedWafer } from './multiFileUI';
 import type { CsvMapping } from './mappingUI';
 import type { BinDefEntry } from './binDefs';
@@ -455,12 +455,21 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
   const allWafers = entries.flatMap(e => e.parsed.wafers);
   const needsRename = needsWaferLabelPrompt(entries);
 
+  const appending = isAppend && session.wafers.length > 0;
   const getRenamed = async (): Promise<RenamedWafer[] | null> => {
     if (!needsRename) {
       // needsRename is false only for a single entry, so all wafers share its source.
       const source = makeWaferSource(entries[0].parsed.meta, entries[0].fileName);
+      const lotId = entries[0].parsed.meta.fields.find(f => f.key === 'lotId')?.value;
       return Promise.resolve(allWafers.map(w => ({
-        waferId: markPlaceholder(w.waferId, w.waferIdPlaceholder),
+        // Added to a gallery, a wafer with a lot ID is labelled the way the wafer
+        // labels step would label it (`<lot> · W03`), so it reads like the wafers
+        // already there. Without one it keeps its own ID: the step's file-name
+        // fallback would give every wafer of the file the same label. A file
+        // opened on its own keeps its plain wafer IDs.
+        waferId: appending && lotId?.trim()
+          ? resolveWaferId(w.waferId, entries[0].fileName, lotId, w.waferIdPlaceholder)
+          : markPlaceholder(w.waferId, w.waferIdPlaceholder),
         results: w.results,
         partCount: w.partCount,
         goodCount: w.goodCount,
@@ -482,7 +491,7 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
   const renamed = await getRenamed();
   if (!renamed) return;
 
-  if (isAppend && session.wafers.length > 0) {
+  if (appending) {
     loadPhase('waiting', 'Waiting for confirmation');
     const confirmed = await deps.ui.confirmAppend({ incoming: renamed, existing: session.wafers });
     if (!confirmed) {
@@ -511,7 +520,7 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
         ...entries.map(e => ({ ...e.parsed, fileName: e.fileName })),
       ]);
       deps.logPassBinCollisions(appendedBins.collisions);
-      deps.renderWafers(merged, session.fileName, appended.defs, {
+      deps.renderWafers(merged, loadLabel(merged, session.fileName), appended.defs, {
         hbinDefs: appendedBins.hbinDefs, sbinDefs: appendedBins.sbinDefs, passHbins: appendedBins.passHbins,
       }, defsBySourceFrom(renamed, session.defsBySource));
       log('info', `Added ${renamed.length} wafer${renamed.length !== 1 ? 's' : ''} — gallery now has ${merged.length}`);
@@ -529,4 +538,14 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
     );
     if (originalPaths) deps.rememberFiles(originalPaths);
   }
+}
+
+/**
+ * The toolbar's name for what is loaded: the one file's name, or how many files
+ * the wafers came from. Counted from the wafers themselves, so a file added to
+ * the gallery is counted too. A wafer that records no file counts as `fallback`.
+ */
+export function loadLabel(wafers: { source?: { sourceFile: string } }[], fallback: string): string {
+  const files = new Set(wafers.map(w => w.source?.sourceFile ?? fallback));
+  return files.size <= 1 ? ([...files][0] ?? fallback) : `${files.size} files`;
 }

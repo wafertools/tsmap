@@ -50,8 +50,6 @@ fold Filter files › Sort by column = Sort by * | one per metadata column found
 fold Filter files › Filter by column = Filter by * | one per metadata column found
 
 # ── Exclusions ──────────────────────────────────────────────────────────────
-
-Reticle… › * | ui-surface.mjs records the Diameter dialog's controls under this name; re-record before teaching it
-Definitions file formats… › * | ui-surface.mjs records the Diameter dialog's controls under this name; re-record before teaching it
-LOT-DEMO · W01▾Product: DEMO-DEVICE | the wafermap demo page's own wafer header; tsmap shows the wafer chip instead
-User guide | the wafermap demo page's own guide link; tsmap opens the guide from Help
+#
+# Leaving a control out of the course is the maintainer's decision. Propose an
+# exclusion in review, with its reason, and add the line only once it is agreed.
