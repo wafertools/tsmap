@@ -138,6 +138,7 @@ in `steps.mjs` — this is the index to browse, not the whole story.
 | `wait` | `ms` | Fixed pause (prefer a real completion signal when one exists) |
 | `scroll` | `x, y` | `window.scrollTo` |
 | `drag` | `selector, [x1, y1], [x2, y2]` | Press, move and release between two points of an element, given as fractions (0 to 1) of its box |
+| `rightClick` | `selector, [x, y]?` | Right-click an element, at a point given as fractions (0 to 1) of its box (centre by default) |
 | `scrollTop` | `selector, y = 0` | Set one element's own scroll position, e.g. `#map-container` back to the top |
 | `scrollIntoView` | `selector` | Scroll the element's nearest scrolling ancestor (the Summary panel, say) until it is at the top; the page does not move |
 

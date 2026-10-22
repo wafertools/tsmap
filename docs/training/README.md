@@ -163,7 +163,7 @@ Not wired into `npm run verify` yet: it fails until every session is written.
 | 04 | The lot view: gallery, stack and splits | Written |
 | 05 | Insights | Written |
 | 06 | Correlation | Written |
-| 07 | Drilling into any population | Planned |
+| 07 | Drilling into any population | Written |
 | 08 | Your own plots, derived tests and sweeps | Planned |
 | 09 | Unusual wafers: multi-project, no positions, retests, multi-site | Planned |
 | 10 | Automation and integration | Planned |

@@ -980,6 +980,17 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       break;
     }
 
+    case 'rightClick': {
+      // ['rightClick', selector, [x, y]?] — a right click on the element's first match, at a point given as fractions (0 to 1)
+      // of its box (the centre when omitted), for menus that open on a context click. Throws if the selector matches nothing.
+      const [selector, at = [0.5, 0.5]] = args;
+      const box = await page.locator(selector).first().boundingBox({ timeout: 5000 });
+      if (!box) throw new Error(`rightClick: "${selector}" has no bounding box`);
+      await page.mouse.click(box.x + box.width * at[0], box.y + box.height * at[1], { button: 'right' });
+      await page.waitForTimeout(500);
+      break;
+    }
+
     case 'scrollTop':
       // ['scrollTop', selector, y = 0] — set one element's own scroll position, e.g. '#map-container' back to the top after
       // a click scrolled it. Throws if the selector matches nothing.
