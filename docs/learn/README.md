@@ -107,6 +107,7 @@ that each open with a `divider` slide, a `lab` slide headed **Try it yourself**,
 
 - **One idea per slide**, usually one screenshot, and at most about three short lines.
 - The `split` class puts up to three bullets beside a screenshot.
+- The `side` class is the same for a tall screenshot, such as a menu or a panel: the text sits beside it and it takes the full height of the slide.
 - Refer to a numbered callout with `<span class="badge">2</span>`.
 - Callout labels place themselves on a free corner of their box; a shot fails when a label has
   nowhere to go, so overlapping labels never reach a slide.

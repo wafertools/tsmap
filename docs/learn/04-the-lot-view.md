@@ -40,7 +40,7 @@ A gallery shows each wafer on its own card. This is EDGE-LOT-01, eight wafers wi
 
 ---
 
-<!-- _class: split -->
+<!-- _class: side -->
 <!-- covers: Plot mode › Stacked Test Values; Plot mode › Stacked Hard Bins; Plot mode › Stacked Soft Bins; wmap guide › Lot-stack maps; wmap guide › Gallery stacked modes; glossary › Lot stack -->
 
 # Stack the lot

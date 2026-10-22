@@ -6,6 +6,10 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **Easier-to-read lesson slides.** In the Learn tsmap slides, each row of a two-column table has a rule under it, a bold left cell and an arrow into the right cell. A bullet that starts with a numbered badge uses the badge as its marker and wraps under its text, the badge no longer leaves a gap before a comma, and slides with no screenshot set their text larger.
+
 ## [0.1.49] — 2026-10-22
 
 ### Added

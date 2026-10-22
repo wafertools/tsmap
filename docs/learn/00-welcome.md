@@ -189,6 +189,7 @@ Each wafer gets its own map. The ▾ beside its name shows the wafer's details.
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Summary; Close the Summary panel -->
 
 # <span class="badge">7</span> The Summary panel

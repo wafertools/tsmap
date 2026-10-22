@@ -324,6 +324,7 @@ The roles you confirm are remembered for that set of columns. **Reset to auto-de
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Colour theme; tsmap guide › The toolbar and colour theme -->
 
 # Colour theme

@@ -371,7 +371,7 @@ Right after deleting, **Undo** brings the whole list back.
 
 ---
 
-<!-- _class: split -->
+<!-- _class: side -->
 <!-- covers: Charts and tables for this wafer (or right-click) › New plot…; Charts and tables for this wafer (or right-click) › New sweep… -->
 
 # From the right-click menu

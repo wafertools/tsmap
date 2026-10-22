@@ -222,6 +222,7 @@ Here the field is 4 dies wide and 3 high. **Apply** takes effect at once. **Clea
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Overlays › ✓Reticle grid; glossary › Reticle shot -->
 
 # Reticle grid

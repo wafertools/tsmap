@@ -221,6 +221,7 @@ A bin's button carries its legend colour and shows only those dies. This is hard
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Summary › Wafer Yield; Slot; Wafer yield row -->
 
 # Wafer Yield
@@ -231,6 +232,7 @@ One bar per wafer, in slot order, so a slot-related pattern shows. A badge count
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Yield -->
 
 # Sorted by yield

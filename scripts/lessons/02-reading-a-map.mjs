@@ -138,7 +138,8 @@ export const scenario = {
     {
       id: '05a-passfail-menu',
       title: 'In Test Value mode, Overlays adds Limit pass/fail and Test pass/fail',
-      steps: [['click', btn('Overlays')], ['wait', 300]],
+      // The pointer is parked off the menu: a disabled row under it opens a tooltip that the crop would cut off.
+      steps: [['click', btn('Overlays')], ['wait', 300], PARK, ['wait', 300]],
       checks: [
         isVisible(`${menu('Overlays')} ${row('Limit pass/fail')}`, 'Limit pass/fail is offered'),
         isVisible(`${menu('Overlays')} ${row('Test pass/fail')}`, 'Test pass/fail is offered'),
@@ -199,7 +200,7 @@ export const scenario = {
       title: 'Overlays: optional layers drawn over every map',
       steps: [
         ['click', '[data-wmap-gallery-legend] [role="button"] >> nth=1'], ['wait', 400],
-        ['click', btn('Overlays')], ['wait', 300],
+        ['click', btn('Overlays')], ['wait', 300], PARK, ['wait', 300],
       ],
       checks: [isVisible(menu('Overlays'), 'the Overlays menu is open')],
       shots: [menuShot('overlays-menu', 'Overlays')],

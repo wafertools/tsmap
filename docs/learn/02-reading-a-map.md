@@ -89,6 +89,7 @@ Several wafers open as a gallery, one card per wafer. Every button here acts on 
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Plot mode; Plot mode › Test Value ▶; Plot mode › Hard Bin; Plot mode › Soft Bin; wmap guide › Plot modes -->
 
 # Plot mode
@@ -137,6 +138,7 @@ Each die coloured by its reading. ▽ and △ mark dies below and above the test
 
 ---
 
+<!-- _class: side -->
 <!-- covers: chart › Limit pass/fail map; chart › Test pass/fail map; glossary › Pass/fail display -->
 
 # Pass or fail, two ways
@@ -191,6 +193,7 @@ Click a bin in the legend and the others grey out; **Ctrl** or **Cmd** + click a
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Overlays; Overlays › ✓Ring boundaries; Overlays › ✓Quadrant lines; Overlays › ✓Die labels; Overlays › ✓XY indicator; Overlays › ✓Axis labels; Overlays › ✓Mark failing dies; Overlays › Clear overlays -->
 
 # Overlays

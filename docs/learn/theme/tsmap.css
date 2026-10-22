@@ -12,6 +12,7 @@
  *   title    the opening slide of a session
  *   divider  a section divider
  *   split    text on the left, one screenshot on the right
+ *   side     the same, for a tall screenshot: the text sits beside it and it takes the slide's full height
  *   lab      the "Try it yourself" slide
  *   next     the closing "Next session" slide
  * Any other slide is a heading, at most a line or two of text, and a
@@ -88,6 +89,45 @@ code {
   padding: 0.05em 0.3em;
 }
 
+/*
+ * Two-column tables pair a thing on the left with what it gives on the right. A rule under every row
+ * keeps each pair on one line, the left cell is the stronger label, and an arrow leads into the right.
+ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86em;
+}
+th, td {
+  padding: 0.42em 0.9em;
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: 1px solid var(--rule);
+}
+thead th {
+  color: var(--muted);
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--primary);
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody td:first-child {
+  width: 1%;
+  font-weight: 600;
+  white-space: nowrap;
+}
+tbody td:nth-child(2)::before {
+  content: '\2192';
+  display: inline-block;
+  margin-right: 0.6em;
+  color: var(--primary);
+  font-size: 1.2em;
+  line-height: 1;
+  font-weight: 700;
+}
+
 /* A numbered marker matching the callout labels in the screenshots: a flat tab, not a button. */
 .badge {
   display: inline-block;
@@ -101,18 +141,31 @@ code {
   line-height: 1.3;
   text-align: center;
   vertical-align: 0.12em;
-  margin-right: 0.35em;
 }
+/* The source puts a space after a badge that leads a line; one that ends a phrase ("name 1, then") takes none. */
+.badge:first-child { margin-right: 0.1em; }
+
+/* A bullet that starts with a badge: the badge is the marker, and wrapped lines hang under the text. */
+li:has(> .badge:first-child) {
+  list-style: none;
+  margin-left: -1.2em;
+  padding-left: 2.2em;
+  text-indent: -2.2em;
+}
+li:has(> .badge:first-child) > .badge:first-child { text-indent: 0; }
+
+/* A slide with no screenshot has room to spare: set its text larger. */
+section:not(.title):not(.divider):not(.next):not(.split):not(:has(img:not(.emoji))):not(:has(table)) { font-size: 34px; }
 
 /* The screenshot paragraph takes whatever height the slide has left. */
-section > p:has(> img) {
+section > p:has(> img:not(.emoji)) {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-section > p > img {
+section > p > img:not(.emoji) {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -120,6 +173,9 @@ section > p > img {
   border-radius: 8px;
   box-shadow: var(--shot-shadow);
 }
+
+/* A symbol such as the warning sign is turned into a small image: keep it in the line of text. */
+img.emoji { height: 1em; width: 1em; vertical-align: -0.12em; margin: 0 0.05em; }
 
 /* Page number and footer, quiet. */
 section::after {
@@ -195,8 +251,20 @@ section.split {
   align-content: start;
 }
 section.split > h1 { grid-column: 1 / -1; }
-section.split > :not(h1):not(footer):not(header):not(p:has(> img)) { grid-column: 1; align-self: start; }
-section.split > p:has(> img) { grid-column: 2; grid-row: 2 / span 6; height: 100%; }
+section.split > :not(h1):not(footer):not(header):not(p:has(> img:not(.emoji))) { grid-column: 1; align-self: start; }
+section.split > p:has(> img:not(.emoji)) { grid-column: 2; grid-row: 2 / span 6; height: 100%; }
+
+/* ── side: text left, a tall screenshot at the full height of the slide ── */
+section.side {
+  display: grid;
+  grid-template-columns: 38% 1fr;
+  grid-template-rows: repeat(7, auto) 1fr;
+  column-gap: 44px;
+  row-gap: 18px;
+  align-content: start;
+}
+section.side > :not(footer):not(header):not(p:has(> img:not(.emoji))) { grid-column: 1; align-self: start; }
+section.side > p:has(> img:not(.emoji)) { grid-column: 2; grid-row: 1 / span 8; height: 100%; }
 
 /* ── lab ── */
 section.lab { border-top-color: var(--callout); }

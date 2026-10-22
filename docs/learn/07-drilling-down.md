@@ -147,6 +147,7 @@ Drag a box on a map: the selected dies keep their colour and the rest fade, with
 
 ---
 
+<!-- _class: side -->
 <!-- covers: Charts and tables for this wafer (or right-click); wmap guide › Charting dies and wafers -->
 
 # Right-click
