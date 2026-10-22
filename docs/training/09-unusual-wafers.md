@@ -99,7 +99,7 @@ It draws the dies that have positions. A footer counts the rest; click it to see
 
 # No positions at all
 
-Dies at invented positions could be misread as a real layout, so the card shows a summary matching the plot mode instead. **View die list** shows every die.
+With no positions there is no map to draw, so the card shows a summary matching the plot mode instead. **View die list** shows every die.
 
 ![W03's summary card, with View die list outlined](images/09/positionless-card.png)
 
