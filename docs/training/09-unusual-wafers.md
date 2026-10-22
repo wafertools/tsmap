@@ -129,7 +129,7 @@ More in the [user guide](../user-guide.md#dies-with-no-reported-position)
 
 # Retests
 
-When the same die position appears twice, the later result is kept. The die's tooltip says how often it was probed, and the log notes repeated dies. RETEST-LOT-07 has a second pass over most failing dies.
+When the same die position appears twice, tsmap keeps the last result. (The wafer map library can also keep the first, best or worst; tsmap has no control for that choice.) The die's tooltip says how often it was probed, and the log notes repeated dies. RETEST-LOT-07 has a second pass over most failing dies.
 
 ---
 
