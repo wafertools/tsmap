@@ -47,7 +47,7 @@ A matrix of every pair of tests on the left, and a scatter of one pair on the ri
 
 # The matrix
 
-Each cell is the Pearson correlation, r, of two tests over the dies. Strong colours move together (blue) or against each other (orange). <span class="badge">1</span> sets how many tests it shows; <span class="badge">2</span> saves it as a table.
+Each cell is the Pearson correlation, r, of two tests over the dies. Blue is positive: the two tests rise and fall together. Orange is negative: when one rises the other falls. The stronger the colour, the closer r is to +1 or −1. <span class="badge">1</span> sets how many tests it shows; <span class="badge">2</span> saves it as a table.
 
 ![The matrix, with Max tests and Correlation CSV outlined](images/06/matrix.png)
 
