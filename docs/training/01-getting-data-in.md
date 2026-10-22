@@ -302,6 +302,6 @@ More in the user guide: [Loading your data](../user-guide.md#loading-your-data)
 
 # Next session
 
-02 · Reading a map and the toolbar
+[02 · Reading a map and the toolbar →](02-reading-a-map.md)
 
 Plot modes, colours, overlays and zoom.

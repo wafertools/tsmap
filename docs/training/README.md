@@ -154,7 +154,7 @@ Not wired into `npm run verify` yet: it fails until every session is written.
 | --- | --- | --- |
 | 00 | Welcome: a quick recap of the terms; what tsmap is; a tour of the screen | Written |
 | 01 | Getting data in: formats, opening and adding files, folder scan, test selector, column mapping, theme, log | Written |
-| 02 | Reading a map and the toolbar | Planned |
+| 02 | Reading a map and the toolbar | Written |
 | 03 | Findings | Planned |
 | 04 | The lot view: gallery, stack and splits | Planned |
 | 05 | Insights | Planned |
