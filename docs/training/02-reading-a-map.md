@@ -171,7 +171,7 @@ The first turn also shows the XY indicator. **Reset orientation** goes back to t
 
 - <span class="badge">1</span> Save this map as a PNG
 - <span class="badge">2</span> Zoom to a region, in, out, reset
-- <span class="badge">3</span> Pan &nbsp;<span class="badge">4</span> Select dies
+- <span class="badge">3</span> Pan &nbsp;<span class="badge">4</span> Select dies (session 07)
 
 ![A wafer card's toolbar](images/02/card-toolbar.png)
 

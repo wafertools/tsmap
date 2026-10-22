@@ -103,7 +103,7 @@ Off by default, so each card selects on its own. Click the button to turn it on.
 
 # One box, every wafer
 
-Back on the sample lot, drag a box on one wafer and the same die positions are selected on all of them. The badge counts them. Clicking the button clears the selection.
+Back on the sample lot, drag a box on one wafer and the same die positions are selected on all of them. The badge counts them. Clicking the button clears the selection. Selecting dies on one wafer is covered in [session 07](07-drilling-down.md).
 
 ![A box dragged on W01 selects the same dies on every wafer; the badge reads 24](images/04/same-dies-selected.png)
 
