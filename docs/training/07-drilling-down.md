@@ -94,7 +94,7 @@ Everything beside the map, the Summary panel and its findings included, is analy
 
 # Saved filters
 
-Name the conditions and **Save** them to use again. **Load** applies one; **Export…** and **Import…** move the list to another machine.
+Name the conditions and **Save** them to keep them in the window's list. **Load** applies a saved filter. **Export…** writes the list to a file, and **Import…** reads such a file back in, so you can share it or use it on another machine.
 
 ![The window after saving the filter as SS wafers](images/07/filter-saved.png)
 
