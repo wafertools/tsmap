@@ -143,7 +143,13 @@ If one file holds the same wafer more than once, a column that tells the passes 
 
 # Test site
 
-Map a parallel-test site number to the **Test site** role: it appears in the die tooltip and can colour or group a chart. Do not use **Subdivide file by this column** for sites; it splits a file into one wafer per value, for flat files with no wafer column.
+Some testers probe several dies at once, each through its own site, numbered 1, 2, 3… If your file has a column with that site number, map it to the **Test site** role in column mapping.
+
+All sites stay on one wafer map. The site shows in each die's tooltip, and you can colour or group a chart by it, for example to see whether one probe site fails more often.
+
+The column must hold numbers.
+
+Don't use **Subdivide file by this column** for sites. It splits the file into one wafer per value, and is only for flat files that pack several wafers together with no wafer column.
 
 ---
 
