@@ -148,20 +148,11 @@ More in the [user guide](../user-guide.md#test-value-findings)
 
 # The Findings section
 
-Each anomaly is ranked by severity, shown as three dots: Unusual, Notable or Minor. The **Unusual** and **Notable** buttons narrow the list.
+Each anomaly is ranked by severity, shown as three dots: Unusual, Notable or Minor. The **Unusual** and **Notable** buttons narrow the list. Click a finding to show it on the map, as with a row.
 
 ![The Findings section of the sample lot](images/03/findings-list.png)
 
 ---
-
-# A finding on the map
-
-Click a finding to show it on the map. Click it again to clear.
-
-![The edge spatial pattern selected on the map](images/03/finding-on-map.png)
-
----
-
 <!-- _class: split -->
 <!-- covers: Show supporting findings -->
 

@@ -118,7 +118,7 @@ export const scenario = {
       id: '08-finding-on-map',
       title: 'Click a finding to show it on the map',
       steps: [['click', `${RIGHT} [data-wmap-finding] >> nth=0`], ['wait', 800], TOP, PARK],
-      shots: [{ name: 'finding-on-map' }],
+      shots: [],
     },
     {
       id: '09-wafer-yield',
