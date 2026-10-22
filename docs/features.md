@@ -110,6 +110,9 @@ tester, node, part type, or any wafer split) and click-through drilldown. Group 
 **Compare by** (its colour and categories) can also separate the dies within each wafer, by ring, quadrant, bin, site
 or a pass/fail test.
 
+The [Chart reference](https://wafertools.github.io/wafermap/charts/) describes every chart, plot and table: what it shows,
+how to read it and where to find it.
+
 ![Insights Overview — yield, bin pareto, ring/quadrant yield, test values](images/charts-overview.png)
 
 <div style="display:flex; gap:12px; flex-wrap:wrap;">
