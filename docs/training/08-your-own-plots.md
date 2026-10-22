@@ -55,7 +55,7 @@ Once defined it is an ordinary test: map it, colour it against limits, chart it.
 
 # The † Derived filter
 
-**† Derived** shows only the derived tests. Each has a † before its name, and its number starts at 900001 so it cannot collide with a measured test.
+**† Derived** shows only the derived tests. Each has a † before its name. Give a derived test a number the tester doesn't use: if it matches a measured test, the derived one is ignored and the log says so. Numbers from 900001 up are a safe habit.
 
 ![The test selector filtered to derived tests](images/08/selector-derived.png)
 
