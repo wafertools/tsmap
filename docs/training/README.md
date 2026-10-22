@@ -97,13 +97,17 @@ footer: tsmap training · 01 Getting data in
 ---
 ```
 
-Every deck has, in order: a `title` slide, **In this session** (up to three objectives), sections
+Every deck has, in order: a `title` slide (the session number, no time estimate), **In this session** (up to three objectives), sections
 that each open with a `divider` slide, a `lab` slide headed **Try it yourself**, **Recap**, and a
 `next` slide. Set a slide's class with `<!-- _class: divider -->`.
 
 - **One idea per slide**, usually one screenshot, and at most about three short lines.
 - The `split` class puts up to three bullets beside a screenshot.
 - Refer to a numbered callout with `<span class="badge">2</span>`.
+- Callout labels place themselves on a free corner of their box; a shot fails when a label has
+  nowhere to go, so overlapping labels never reach a slide.
+- Assume the reader is an engineer who knows wafers, dies, bins and yield: recap terms in a line,
+  don't teach them.
 - Give each image alt text that says what it shows.
 - Headings must differ within a deck: the docs build turns each into an anchor.
 - Link to another session as `01-getting-data-in.md` and to a docs page as
@@ -144,7 +148,7 @@ Not wired into `npm run verify` yet: it fails until every session is written.
 
 | # | Session | Status |
 | --- | --- | --- |
-| 00 | Welcome: wafers, dies and yield; what tsmap is; a tour of the screen | Written |
+| 00 | Welcome: a quick recap of the terms; what tsmap is; a tour of the screen | Written |
 | 01 | Getting data in: formats, opening and adding files, folder scan, test selector, column mapping, theme, log | Written |
 | 02 | Reading a map and the toolbar | Planned |
 | 03 | Findings | Planned |

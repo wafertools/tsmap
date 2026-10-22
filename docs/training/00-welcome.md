@@ -12,7 +12,7 @@ footer: tsmap training · 00 Welcome
 
 # Welcome to tsmap
 
-## Session 00 · about 15 minutes
+## Session 00
 
 tsmap training · a self-paced course
 
@@ -20,51 +20,22 @@ tsmap training · a self-paced course
 
 # In this session
 
-- The four words you need: wafer, die, wafer map, yield
+- A quick recap of the terms tsmap uses
 - What tsmap is, and the two ways to run it
 - A tour of the screen, one area at a time
 
 ---
 
-<!-- _class: divider -->
-
-# The words you need
-
-Four ideas, one slide each
-
----
-
-# Wafer
-
-A thin disc of silicon on which many identical chips are made at once.
-
-![One wafer from the sample lot, drawn as a map](images/00/wafer-card.png)
-
----
-
-# Die
-
-One chip on the wafer. Each square on a wafer map is one die.
-
-![The same wafer: every square is one die](images/00/wafer-card.png)
-
----
-
-# Wafer map
-
-A picture of the wafer with one square per die, coloured by its test result or a measured value.
-
-![The sample lot: thirteen wafer maps side by side](images/00/layout.png)
-
----
-
+<!-- _class: split -->
 <!-- covers: Bin legend entry -->
 
-# Yield
+# A quick recap
 
-The share of dies that pass. Here 2,271 of 2,873 dies pass: a yield of 79.0%.
+- **Wafer map**: one square per die, coloured by bin or by a test value
+- **Bin**: the category the tester put a die in; here bin 1 is Pass
+- **Yield**: the share of dies that pass, 79.0% for this lot
 
-![The bin legend, with the lot's yield on the left](images/00/yield.png)
+![One wafer of the sample lot: each square is one die, green for bin 1 (Pass)](images/00/wafer-card.png)
 
 ---
 
@@ -216,7 +187,7 @@ The **?** button opens the Help menu. **User guide** opens the full guide.
 
 # Eleven short sessions
 
-- Each session is a few minutes of slides, then a lab
+- Each session is a short set of slides, then a lab
 - Every lab runs in the web app, with the sample data
 - For the detail behind a slide, follow the link to the [user guide](../user-guide.md)
 

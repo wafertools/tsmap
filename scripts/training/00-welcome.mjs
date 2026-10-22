@@ -12,14 +12,14 @@ import { isVisible, hasText } from '../lib/checks.mjs';
 // The numbered areas of the loaded screen, in tour order. Each entry is a
 // callout: [selector, options]. The deck's tour slides follow this order.
 const AREAS = [
-  ['#drop-zone', { closest: '#toolbar', badgeAt: 'bl' }],
+  ['#drop-zone', { through: '#reset-btn' }],
   ['[data-wmap-gallery-meta]', {}],
   ['[data-wmap-toolbar="gallery"]', {}],
-  ['[data-wmap-view-switch]', { badgeAt: 'bl' }],
+  ['[data-wmap-view-switch]', {}],
   ['[data-wmap-gallery-legend]', {}],
   ['.wmap-gallery-card', { nth: 0 }],
-  ['[data-wmap-summary-close]', { closest: '[data-wmap-placement]', badgeAt: 'tr' }],
-  ['#log-toggle', { badgeAt: 'tr' }],
+  ['[data-wmap-summary-close]', { closest: '[data-wmap-placement]' }],
+  ['#log-toggle', {}],
 ];
 const numbered = AREAS.map(([target, opts], i) => [target, { ...opts, badge: i + 1 }]);
 const AREA_NAMES = ['toolbar', 'lot', 'map-toolbar', 'views', 'legend', 'wafer', 'summary', 'log'];
@@ -66,15 +66,9 @@ export const scenario = {
         ...AREAS.map(([target, opts], i) => ({
           name: `area-${i + 1}-${AREA_NAMES[i]}`,
           callouts: [[target, { ...opts, badge: i + 1 }]],
-          clip: { target, nth: opts.nth, closest: opts.closest, pad: 60 },
+          clip: { target, nth: opts.nth, closest: opts.closest, through: opts.through, pad: 60 },
         })),
         { name: 'wafer-card', clip: { target: '.wmap-gallery-card', nth: 0, pad: 8 } },
-        {
-          name: 'yield',
-          // The left end of the legend: the yield and the first two bins, large enough to read on a slide.
-          clip: { target: '[data-wmap-gallery-legend]', pad: 8, maxWidth: 560 },
-          callouts: [['[data-wmap-gallery-legend] >> text=/^Yield/', { pad: 3 }]],
-        },
       ],
     },
     {

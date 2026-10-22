@@ -12,7 +12,7 @@ footer: tsmap training · 01 Getting data in
 
 # Getting data in
 
-## Session 01 · about 25 minutes
+## Session 01
 
 tsmap training · a self-paced course
 

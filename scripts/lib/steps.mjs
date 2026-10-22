@@ -82,9 +82,10 @@ const CALLOUT_ATTR = 'data-capture-callout';
  * Resolve `target` (any Playwright selector) to the one element a callout or
  * crop should frame. More than one match is an error unless `nth` picks one;
  * `closest` then widens the frame to an ancestor (a CSS selector passed to
- * Element.closest), for regions with no hook of their own.
+ * Element.closest), and `through` to also take in a second element (a row of
+ * buttons from the first to the last), for regions with no hook of their own.
  */
-export async function resolveFrame(page, target, { nth, closest } = {}, what = 'callout') {
+export async function resolveFrame(page, target, { nth, closest, through } = {}, what = 'callout') {
   const all = page.locator(target);
   const count = await all.count();
   if (count === 0) throw new Error(`${what}: no element matches "${target}"`);
@@ -98,10 +99,27 @@ export async function resolveFrame(page, target, { nth, closest } = {}, what = '
     if (!frame) return { missing: true };
     const r = frame.getBoundingClientRect();
     const cs = getComputedStyle(frame);
-    return { x: r.x, y: r.y, width: r.width, height: r.height, hidden: cs.visibility === 'hidden' || cs.display === 'none' };
+    // Only the part an ancestor does not clip away is on screen: a panel that
+    // scrolls under the log bar is framed down to the bar, not through it.
+    let x1 = r.left, y1 = r.top, x2 = r.right, y2 = r.bottom;
+    for (let a = frame.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+      const o = getComputedStyle(a);
+      if (o.overflowX === 'visible' && o.overflowY === 'visible') continue;
+      const c = a.getBoundingClientRect();
+      x1 = Math.max(x1, c.left); y1 = Math.max(y1, c.top); x2 = Math.min(x2, c.right); y2 = Math.min(y2, c.bottom);
+    }
+    return { x: x1, y: y1, width: Math.max(0, x2 - x1), height: Math.max(0, y2 - y1), hidden: cs.visibility === 'hidden' || cs.display === 'none' };
   }, closest ?? null);
   if (box.missing) throw new Error(`${what}: "${target}" has no ancestor matching "${closest}"`);
   if (box.hidden || box.width < 1 || box.height < 1) throw new Error(`${what}: "${target}" is not visible (zero size or hidden)`);
+  if (through) {
+    // Widen the frame to also take in a second element, for a group with no element of its own.
+    const end = await resolveFrame(page, through, {}, `${what} (through)`);
+    const x = Math.min(box.x, end.x), y = Math.min(box.y, end.y);
+    box.width = Math.max(box.x + box.width, end.x + end.width) - x;
+    box.height = Math.max(box.y + box.height, end.y + end.height) - y;
+    box.x = x; box.y = y;
+  }
   const vw = page.viewportSize();
   if (vw && (box.x + box.width <= 0 || box.y + box.height <= 0 || box.x >= vw.width || box.y >= vw.height)) {
     throw new Error(`${what}: "${target}" is outside the viewport`);
@@ -109,6 +127,14 @@ export async function resolveFrame(page, target, { nth, closest } = {}, what = '
   return box;
 }
 
+// The numbered label is a tab joined to the box's edge, flat and in the box's
+// colour, so it reads as part of the annotation rather than as a control of the
+// app. Every call re-places the labels of every callout drawn so far. A label
+// may never cover another callout's box or another label; among the places
+// left (the box's corners outside, then its sides, then its corners inside) it
+// takes the one covering the least of the app's own text and icons, with
+// `badgeAt` (tl, tr, bl, br) tried first on a tie. When no place is left, the
+// step throws instead of drawing one label over another.
 async function drawCallout(page, target, opts = {}) {
   const found = await resolveFrame(page, target, opts, 'callout');
   const pad = opts.pad ?? 4;
@@ -122,40 +148,93 @@ async function drawCallout(page, target, opts = {}) {
     width: Math.min(found.x + found.width, vp.width - inset) - x,
     height: Math.min(found.y + found.height, vp.height - inset) - y,
   };
-  await page.evaluate(([b, pad, badge, badgeAt, attr]) => {
+  const problem = await page.evaluate(([b, pad, badge, prefer, attr, target]) => {
     const colour = '#e8590c';
-    const box = document.createElement('div');
-    box.setAttribute(attr, '');
-    Object.assign(box.style, {
-      position: 'fixed', left: `${b.x - pad}px`, top: `${b.y - pad}px`,
-      width: `${b.width + 2 * pad}px`, height: `${b.height + 2 * pad}px`,
-      border: `3px solid ${colour}`, borderRadius: '8px', boxSizing: 'border-box',
-      boxShadow: '0 0 0 2px rgba(255,255,255,0.85)', pointerEvents: 'none', zIndex: '2147483646',
+    const reg = (window.__captureCallouts ??= []);
+    const outer = { x: b.x - pad, y: b.y - pad, w: b.width + 2 * pad, h: b.height + 2 * pad };
+    const frame = document.createElement('div');
+    frame.setAttribute(attr, '');
+    Object.assign(frame.style, {
+      position: 'fixed', left: `${outer.x}px`, top: `${outer.y}px`, width: `${outer.w}px`, height: `${outer.h}px`,
+      border: `3px solid ${colour}`, borderRadius: '6px', boxSizing: 'border-box',
+      boxShadow: '0 0 0 1.5px rgba(255,255,255,0.8)', pointerEvents: 'none', zIndex: '2147483646',
     });
-    document.body.appendChild(box);
-    if (badge !== undefined && badge !== null) {
-      const dot = document.createElement('div');
-      dot.setAttribute(attr, '');
-      dot.textContent = String(badge);
-      const size = 26;
-      // On a corner of the box (top-left unless badgeAt says otherwise), kept inside the viewport.
-      const right = badgeAt.includes('r'), bottom = badgeAt.includes('b');
-      const cx = right ? b.x + b.width + pad : b.x - pad;
-      const cy = bottom ? b.y + b.height + pad : b.y - pad;
-      const left = Math.min(Math.max(2, cx - size / 2), innerWidth - size - 2);
-      const top = Math.min(Math.max(2, cy - size / 2), innerHeight - size - 2);
-      Object.assign(dot.style, {
-        position: 'fixed', left: `${left}px`, top: `${top}px`, width: `${size}px`, height: `${size}px`,
-        borderRadius: '50%', background: colour, color: '#fff', font: '700 15px/26px system-ui, sans-serif',
-        textAlign: 'center', boxShadow: '0 0 0 2px #fff', pointerEvents: 'none', zIndex: '2147483647',
-      });
-      document.body.appendChild(dot);
+    document.body.appendChild(frame);
+    reg.push({ outer, badge, prefer, target, tab: null });
+
+    const hit = (a, r, m = 0) => a.x < r.x + r.w + m && r.x < a.x + a.w + m && a.y < r.y + r.h + m && r.y < a.y + a.h + m;
+    const area = (a, r) => Math.max(0, Math.min(a.x + a.w, r.x + r.w) - Math.max(a.x, r.x)) * Math.max(0, Math.min(a.y + a.h, r.y + r.h) - Math.max(a.y, r.y));
+    for (const c of reg) { c.tab?.remove(); c.tab = null; }
+    // What a label should not hide: the app's visible text and icons.
+    const content = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim() || n.parentElement?.closest(`[${attr}]`)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) if (r.width && r.height) content.push({ x: r.x, y: r.y, w: r.width, h: r.height });
     }
-  }, [box, pad, opts.badge, opts.badgeAt ?? 'tl', CALLOUT_ATTR]);
+    for (const el of document.querySelectorAll('svg, img, input, select, textarea')) {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height && getComputedStyle(el).visibility !== 'hidden') content.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+    }
+    const placed = [];
+    for (const c of reg) {
+      if (c.badge === undefined || c.badge === null) continue;
+      const tab = document.createElement('div');
+      tab.setAttribute(attr, '');
+      tab.textContent = String(c.badge);
+      Object.assign(tab.style, {
+        position: 'fixed', left: '0px', top: '0px', visibility: 'hidden', boxSizing: 'border-box',
+        minWidth: '24px', padding: '2px 7px', background: colour, color: '#fff',
+        font: '700 14px/18px system-ui, -apple-system, sans-serif', textAlign: 'center',
+        pointerEvents: 'none', zIndex: '2147483647',
+      });
+      document.body.appendChild(tab);
+      const w = tab.offsetWidth, h = tab.offsetHeight, o = c.outer;
+      const at = {
+        tl: { x: o.x, y: o.y - h + 3, r: '5px 5px 0 0' },
+        tr: { x: o.x + o.w - w, y: o.y - h + 3, r: '5px 5px 0 0' },
+        bl: { x: o.x, y: o.y + o.h - 3, r: '0 0 5px 5px' },
+        br: { x: o.x + o.w - w, y: o.y + o.h - 3, r: '0 0 5px 5px' },
+        'in-tr': { x: o.x + o.w - w, y: o.y, r: '0 5px 0 5px' },
+        'in-tl': { x: o.x, y: o.y, r: '5px 0 5px 0' },
+        'in-br': { x: o.x + o.w - w, y: o.y + o.h - h, r: '5px 0 5px 0' },
+        'in-bl': { x: o.x, y: o.y + o.h - h, r: '0 5px 0 5px' },
+        lt: { x: o.x - w + 3, y: o.y, r: '5px 0 0 5px' },
+        rt: { x: o.x + o.w - 3, y: o.y, r: '0 5px 5px 0' },
+        lb: { x: o.x - w + 3, y: o.y + o.h - h, r: '5px 0 0 5px' },
+        rb: { x: o.x + o.w - 3, y: o.y + o.h - h, r: '0 5px 5px 0' },
+      };
+      const order = [c.prefer, ...['tl', 'tr', 'bl', 'br', 'lt', 'rt', 'lb', 'rb', 'in-tr', 'in-tl', 'in-br', 'in-bl'].filter((k) => k !== c.prefer)];
+      let spot = null, best = Infinity;
+      for (const p of order.map((k) => at[k])) {
+        const r = { x: p.x, y: p.y, w, h };
+        if (r.x < 0 || r.y < 0 || r.x + w > innerWidth || r.y + h > innerHeight) continue;
+        if (reg.some((other) => other !== c && hit(r, other.outer))) continue;
+        if (placed.some((q) => hit(r, q, 3))) continue;
+        const covered = content.reduce((sum, t) => sum + area(r, t), 0);
+        if (covered < best) { best = covered; spot = p; }
+        if (covered === 0) break;
+      }
+      if (!spot) {
+        tab.remove();
+        return `callout: no room for label ${c.badge} on "${c.target}" without covering another callout — move a callout or give it a different badgeAt`;
+      }
+      Object.assign(tab.style, { left: `${spot.x}px`, top: `${spot.y}px`, borderRadius: spot.r, visibility: 'visible' });
+      placed.push({ x: spot.x, y: spot.y, w, h });
+      c.tab = tab;
+    }
+    return null;
+  }, [box, pad, opts.badge, opts.badgeAt ?? 'tl', CALLOUT_ATTR, target]);
+  if (problem) throw new Error(problem);
 }
 
 async function clearCallouts(page) {
-  await page.evaluate((attr) => { for (const el of document.querySelectorAll(`[${attr}]`)) el.remove(); }, CALLOUT_ATTR);
+  await page.evaluate((attr) => {
+    for (const el of document.querySelectorAll(`[${attr}]`)) el.remove();
+    window.__captureCallouts = [];
+  }, CALLOUT_ATTR);
 }
 
 // ─── Wait helpers ───────────────────────────────────────────────────────────
@@ -811,7 +890,8 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
     }
 
     case 'callout':
-      // ['callout', target, { badge?, badgeAt?: 'tl'|'tr'|'bl'|'br', nth?, closest?, pad? }] — see drawCallout.
+      // ['callout', target, { badge?, badgeAt?: 'tl'|'tr'|'bl'|'br', nth?, closest?, through?, pad? }] — see drawCallout.
+      // Throws when the target is missing, ambiguous or hidden, or when a label has nowhere to go.
       await drawCallout(page, args[0], args[1] ?? {});
       break;
 
