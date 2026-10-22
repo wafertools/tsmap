@@ -33,6 +33,7 @@ const cardCount = (n) => ({
 export const scenario = {
   session: '01',
   title: 'Getting data in',
+  theme: 'github-light',
   viewport: { width: 1280, height: 720 },
   beats: [
     {

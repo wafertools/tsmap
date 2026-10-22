@@ -27,6 +27,7 @@ const AREA_NAMES = ['toolbar', 'lot', 'map-toolbar', 'views', 'legend', 'wafer',
 export const scenario = {
   session: '00',
   title: 'Welcome',
+  theme: 'github-light',
   viewport: { width: 1280, height: 720 },
   beats: [
     {
