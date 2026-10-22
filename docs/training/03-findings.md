@@ -114,7 +114,7 @@ Click a button to show only that test, bin or pattern. This is fmax_MHz, with th
 
 # Full report
 
-**Full report ▸** at the foot of the section opens the report, which begins with the same items.
+**Full report ▸** at the foot of the section opens the report, which begins with the same items. The **Summary report** button at the top of the panel opens the same report.
 
 ![The Summary report, opened from Full report](images/03/full-report.png)
 
