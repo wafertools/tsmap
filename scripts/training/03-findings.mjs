@@ -38,6 +38,8 @@ const sectionClip = (name, { row = false } = {}) => ({
   target: `${RIGHT} ` + (row ? `div:has(> div > [aria-expanded]:has-text("${name}"))` : `div:has(> [aria-expanded]:has-text("${name}"))`),
   pad: 8,
 });
+// From a section's header down to one element inside it: a tight crop that fills more of a slide than the whole panel.
+const fromHeader = (name, through, extra = {}) => ({ target: section(name), through, pad: 8, ...extra });
 const PARK = ['hover', '#toolbar-title'];
 const TOP = ['scrollTop', '#map-container'];
 const section = (name) => `${RIGHT} [aria-expanded]:has-text("${name}")`;
@@ -47,13 +49,21 @@ export const scenario = {
   title: 'Findings',
   theme: 'github-light',
   viewport: { width: 1280, height: 820 },
+  deviceScaleFactor: 2,
   beats: [
     {
       id: '01-summary-panel',
       title: 'The Summary panel beside the sample lot',
       steps: [['click', 'button:has-text("Load sample data")'], ['waitForWafers'], PARK],
       checks: [hasText(RIGHT, 'Lot PVT-LOT-05')],
-      shots: [{ name: 'summary-panel', clip: panelClip() }],
+      shots: [
+        { name: 'summary-panel', clip: panelClip({ maxHeight: 330 }) },
+        {
+          name: 'summary-button',
+          clip: { target: 'button[data-wmap-summary-toggle]:visible', through: '[data-wmap-view-switch]', pad: 40 },
+          callouts: [['button[data-wmap-summary-toggle]:visible', { badge: 1, pad: 2 }]],
+        },
+      ],
     },
     {
       id: '02-top-item',
@@ -61,10 +71,10 @@ export const scenario = {
       steps: [['scrollIntoView', section('What stands out')], PARK],
       checks: [hasText(RIGHT, 'differ by Split')],
       shots: [
-        { name: 'what-stands-out', clip: panelClip() },
+        { name: 'what-stands-out', clip: fromHeader('What stands out', CHIPS) },
         {
           name: 'top-item-chips',
-          clip: panelClip(),
+          clip: fromHeader('What stands out', CHIPS),
           callouts: [
             ['[role="group"][aria-label="Show one part on the map"]', { badge: 1, pad: 2 }],
           ],
@@ -88,7 +98,7 @@ export const scenario = {
       id: '05-chart-link',
       title: 'The Chart link on a row opens its card in Insights',
       steps: [['click', `${RIGHT} >> text=vth_n_mV: 176 dies`], ['wait', 500], PARK],
-      shots: [{ name: 'chart-link', clip: panelClip(), callouts: [[`${RIGHT} [aria-label^="Chart:"]`, { nth: 0, pad: 2 }]] }],
+      shots: [{ name: 'chart-link', clip: fromHeader('What stands out', CHIPS), callouts: [[`${RIGHT} [aria-label^="Chart:"]`, { nth: 0, pad: 2 }]] }],
     },
       {
       id: '06-full-report',
@@ -102,7 +112,7 @@ export const scenario = {
       title: 'The Findings list: severity groups and detail rows',
       steps: [['press', 'Escape'], ['wait', 500], TOP, ['scrollIntoView', section('Findings')], PARK],
       checks: [hasText(RIGHT, 'Spatial pattern: edge')],
-      shots: [{ name: 'findings-list', clip: panelClip() }],
+      shots: [{ name: 'findings-list', clip: fromHeader('Findings (', `${RIGHT} >> text=idsat_p_uA is 2.9 pp`) }],
     },
     {
       id: '08-finding-on-map',
@@ -191,21 +201,21 @@ export const scenario = {
       title: 'EDGE-LOT-01: a spatial pattern and the bins behind it',
       steps: [['press', 'Escape'], ['wait', 500], ['click', '#reset-btn'], ['wait', 800], ['loadFile', S('EDGE-LOT-01.stdf')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Lot EDGE-LOT-01')],
-      shots: [{ name: 'edge-top-item', clip: panelClip() }],
+      shots: [{ name: 'edge-top-item', clip: fromHeader('What stands out', CHIPS) }],
     },
     {
       id: '20-supporting',
       title: 'A spatial pattern has a Show N supporting findings line',
       steps: [['scrollIntoView', section('Findings')], PARK],
       checks: [hasText(RIGHT, 'Show 14 supporting findings')],
-      shots: [{ name: 'supporting-closed', clip: panelClip(), callouts: [[`${RIGHT} >> text=Show 14 supporting findings`, { pad: 2 }]] }],
+      shots: [{ name: 'supporting-closed', clip: fromHeader('Findings (', `${RIGHT} >> text=Show 14 supporting findings`), callouts: [[`${RIGHT} >> text=Show 14 supporting findings`, { pad: 2 }]] }],
     },
     {
       id: '20b-supporting-open',
       title: 'Opened, it lists the regional findings the pattern explains',
       steps: [['click', `${RIGHT} >> text=Show 14 supporting findings`], ['wait', 500], TOP, PARK],
       checks: [hasText(RIGHT, 'Hide 14 supporting findings')],
-      shots: [{ name: 'supporting-findings', clip: panelClip() }],
+      shots: [{ name: 'supporting-findings', clip: fromHeader('Findings (', `${RIGHT} >> text=Hide 14 supporting findings`, { maxHeight: 420 }) }],
     },
     {
       id: '21-edge-chip',
@@ -218,7 +228,7 @@ export const scenario = {
       title: 'A healthy lot says so: Nothing stands out',
       steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('HY-LOT-04.stdf')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Nothing stands out')],
-      shots: [{ name: 'nothing-stands-out', clip: panelClip() }],
+      shots: [{ name: 'nothing-stands-out', clip: fromHeader('What stands out', `${RIGHT} >> text=Full report`) }],
     },
     ],
 };

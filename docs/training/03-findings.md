@@ -32,6 +32,7 @@ tsmap training · a self-paced course
 
 ---
 
+<!-- _class: split -->
 # The Summary panel
 
 It docks beside the maps and describes the lot you are looking at. A **Filter…** narrows it to what is kept.
@@ -40,6 +41,17 @@ It docks beside the maps and describes the lot you are looking at. A **Filter…
 
 ---
 
+<!-- _class: split -->
+
+# Open and close it
+
+<span class="badge">1</span> **Summary** opens and closes the panel. The **▸** at the end of the panel's title closes it too.
+
+![The Summary button in the row above the maps](images/03/summary-button.png)
+
+---
+
+<!-- _class: split -->
 <!-- covers: What stands out -->
 
 # What stands out
@@ -52,9 +64,9 @@ The headline is the yield. Below it, the items that cost the lot most, largest f
 
 <!-- covers: Finding row -->
 
-# Every row shows its dies
+# Every row shows the affected dies
 
-Click a row and the map shows its dies. Click it again to clear.
+Click a row and the map shows the affected dies. Click it again to clear.
 
 ![The map after clicking the vth_n_mV row](images/03/row-on-map.png)
 
@@ -68,24 +80,26 @@ Three dots and a word say how much of the lot it affects. Items under 1% of the 
 
 ---
 
+<!-- _class: split -->
 <!-- covers: fmax_MHz 3.2σ; idsat_n_uA 2.8σ; idsat_p_uA 2.7σ; vth_p_mV 2.7σ; vth_n_mV 2.6σ; Finding chip (test) -->
 
-# Chips name the parts
+# The parts of an item
 
-Under the top item, each chip is one part of it. Here each is a test that differs by split, with its shift in σ.
+Under the top item, small rounded buttons each name one part of it. Here each is a test that differs by split, with its shift in σ.
 
-![The chips under the top item, outlined](images/03/top-item-chips.png)
+![The part buttons under the top item, outlined](images/03/top-item-chips.png)
 
 ---
 
 # Show one part
 
-Click a chip to show that part alone. This is fmax_MHz, with the dies outside its limits marked ▽ and △.
+Click a part button to show that part alone. This is fmax_MHz, with the dies outside its limits marked ▽ and △.
 
-![The gallery showing fmax_MHz after clicking its chip](images/03/chip-on-map.png)
+![The gallery showing fmax_MHz after clicking its button](images/03/chip-on-map.png)
 
 ---
 
+<!-- _class: split -->
 <!-- covers: Finding chart link -->
 
 # Chart links
@@ -106,6 +120,7 @@ Click a chip to show that part alone. This is fmax_MHz, with the dies outside it
 
 ---
 
+<!-- _class: split -->
 # A lot with nothing to report
 
 When no region, bin or wafer costs about a yield point, the panel says so and lists what it compared.
@@ -128,11 +143,12 @@ More in the [user guide](../user-guide.md#test-value-findings)
 
 ---
 
+<!-- _class: split -->
 <!-- covers: Summary › Findings; Findings severity group; Finding detail row -->
 
 # The Findings section
 
-Each anomaly is ranked by severity, shown as three dots: Unusual, Notable or Minor. The chips narrow the list.
+Each anomaly is ranked by severity, shown as three dots: Unusual, Notable or Minor. The **Unusual** and **Notable** buttons narrow the list.
 
 ![The Findings section of the sample lot](images/03/findings-list.png)
 
@@ -146,6 +162,7 @@ Click a finding to show it on the map. Click it again to clear.
 
 ---
 
+<!-- _class: split -->
 <!-- covers: Show supporting findings -->
 
 # A pattern and what backs it
@@ -156,6 +173,7 @@ A spatial pattern can have a **Show N supporting findings** line. This is EDGE-L
 
 ---
 
+<!-- _class: split -->
 # The supporting findings
 
 Opened, it lists the regional findings the pattern explains.
@@ -164,6 +182,7 @@ Opened, it lists the regional findings the pattern explains.
 
 ---
 
+<!-- _class: split -->
 # An edge ring
 
 The item names the pattern, the bins that make up the loss, and the test behind it.
@@ -174,11 +193,11 @@ The item names the pattern, the bins that make up the loss, and the test behind 
 
 <!-- covers: Finding chip (bin) -->
 
-# A bin chip
+# A bin part
 
-A bin chip carries its legend colour and shows only those dies. This is hard bin 3.
+A bin's button carries its legend colour and shows only those dies. This is hard bin 3.
 
-![EDGE-LOT-01 after clicking the Hard bin 3 chip](images/03/edge-bin-chip.png)
+![EDGE-LOT-01 after clicking the Hard bin 3 button](images/03/edge-bin-chip.png)
 
 ---
 
@@ -293,7 +312,7 @@ Pass and fail counts and the pass rate for each functional test.
 # Try it yourself
 
 1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**
-2. Click the **fmax_MHz** chip: which wafer has the most marked dies?
+2. Click the **fmax_MHz** button under the top item: which wafer has the most marked dies?
 3. Open **Findings** and click the spatial pattern: which wafers does it mark?
 4. In **Wafer Yield**, choose **Yield**: which wafer is lowest?
 5. Open **Data tables** and look at the **Wafers** table
@@ -302,7 +321,7 @@ Pass and fail counts and the pass rate for each functional test.
 
 # Recap
 
-- **What stands out** ranks losses and signals; every row shows its dies
+- **What stands out** ranks losses and signals; every row shows the affected dies
 - **Findings** lists anomalies by severity; patterns carry their supporting findings
 - The tables, **Summary report** and **Data tables** carry the numbers
 

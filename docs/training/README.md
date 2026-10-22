@@ -72,7 +72,7 @@ screen the beat expects.
   `br`), `pad`, `nth` (pick one of several matches) and `closest` (outline an ancestor). A selector
   that matches nothing, matches more than one element without `nth`, or is hidden stops the run.
 - **Clips** take a selector (`target`, with the same `nth`, `closest` and `pad`), an optional
-  `maxWidth` to keep the left part of a wide strip, or a fixed `rect` for a region with no element
+  `maxWidth` to keep the left part of a wide strip, `maxHeight` to keep the top of a tall panel, or a fixed `rect` for a region with no element
   of its own, such as a menu and its button.
 
 When anything fails, the run stops at that beat, names the beat and the step or check, and saves
@@ -83,7 +83,7 @@ Screenshots are 1280 × 720 at 1.5× scale. Prefer a crop to a full screen whene
 slide is one area: it reads better on the slide and keeps the repository small.
 
 A scenario may set `theme` (a colour theme id, such as `'github-light'`) and its own `viewport`. The runner
-stores the theme where the app reads it before the page loads. Session 03 uses GitHub Light at 1280 × 820,
+stores the theme where the app reads it before the page loads. Session 03 uses GitHub Light at 1280 × 820 and 2× scale (a slide never enlarges an image past its own pixels),
 tall enough for a whole Summary panel table in one crop; sessions 00 to 02 use the default Auto theme.
 
 ### A deck

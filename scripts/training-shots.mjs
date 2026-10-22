@@ -72,7 +72,8 @@ async function clipFor(page, clip) {
   const y = Math.max(0, Math.floor(box.y - pad));
   // maxWidth keeps only the left part of a wide frame, so a long strip stays legible on a slide.
   const right = Math.min(vp.width, Math.ceil(box.x + Math.min(box.width, spec.maxWidth ?? Infinity) + pad));
-  const bottom = Math.min(vp.height, Math.ceil(box.y + box.height + pad));
+  // maxHeight keeps only the top part of a tall frame, so a long panel can be shown larger.
+  const bottom = Math.min(vp.height, Math.ceil(box.y + Math.min(box.height, spec.maxHeight ?? Infinity) + pad));
   return { x, y, width: right - x, height: bottom - y };
 }
 
