@@ -69,6 +69,8 @@ if (problems.length) {
 }
 
 mkdirSync(OUT, { recursive: true });
+// The icon the theme shows on title and closing slides and beside every footer.
+cpSync(join(root, 'docs', 'images', 'tsmap-readme-header-256.png'), join(OUT, 'tsmap-icon.png'));
 for (const deck of decks) {
   const dir = join(OUT, deck.slug);
   rmSync(dir, { recursive: true, force: true });
@@ -105,7 +107,7 @@ writeFileSync(join(OUT, 'index.html'), `<!doctype html>
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 Inter, -apple-system, 'Segoe UI', Roboto, sans-serif; }
     header { background: var(--primary); color: #fff; padding: 14px 16px; }
-    header a { color: #fff; text-decoration: none; font-weight: 700; }
+    header a { color: #fff; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }
     main { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
     h1 { font-size: 2rem; margin: 0 0 8px; letter-spacing: -.01em; }
     p.lead { color: var(--muted); margin: 0 0 28px; }
@@ -120,7 +122,7 @@ writeFileSync(join(OUT, 'index.html'), `<!doctype html>
   </style>
 </head>
 <body>
-  <header><a href="${rewriteHref('../index.md')}">tsmap</a> · training</header>
+  <header><a href="${rewriteHref('../index.md')}"><img src="tsmap-icon.png" alt="" width="24" height="24">tsmap</a> · training</header>
   <main>
     <h1>tsmap training</h1>
     <p class="lead">A self-paced course: short slide decks, one idea per slide, each ending with a lab you do in the

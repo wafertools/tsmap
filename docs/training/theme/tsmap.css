@@ -130,12 +130,27 @@ section::after {
   right: 72px;
   bottom: 22px;
 }
+/*
+ * The tsmap icon. scripts/build-training.mjs copies docs/images/tsmap-readme-header-256.png
+ * to site/training/tsmap-icon.png, one level above each deck's index.html.
+ */
 footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   position: absolute;
   color: var(--muted);
   font-size: 16px;
   left: 72px;
   bottom: 22px;
+}
+
+footer::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  flex: none;
+  background: url('../tsmap-icon.png') center / contain no-repeat;
 }
 
 /* ── title ── */
@@ -145,6 +160,14 @@ section.title {
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, transparent), transparent 60%),
     var(--bg);
+}
+section.title::before,
+section.next::before {
+  content: '';
+  width: 96px;
+  height: 96px;
+  flex: none;
+  background: url('../tsmap-icon.png') left center / contain no-repeat;
 }
 section.title h1 { font-size: 64px; }
 section.title h2 { font-size: 30px; }
@@ -160,6 +183,7 @@ section.divider {
 section.divider h1 { color: var(--primary-fg); font-size: 56px; }
 section.divider p { color: rgba(255, 255, 255, 0.82); }
 section.divider::after, section.divider footer { color: rgba(255, 255, 255, 0.7); }
+section.divider footer::before { display: none; }
 
 /* ── split: text left, screenshot right ── */
 section.split {
@@ -194,5 +218,6 @@ section.lab ol li { margin-top: 0.45em; }
 
 /* ── next ── */
 section.next { justify-content: center; }
+section.next::before { width: 64px; height: 64px; }
 section.next h1 { font-size: 52px; }
 section.next p { font-size: 30px; }
