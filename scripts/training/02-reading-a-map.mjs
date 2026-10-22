@@ -29,7 +29,8 @@ export const scenario = {
   session: '02',
   title: 'Reading a map and the toolbar',
   theme: 'github-light',
-  viewport: { width: 1280, height: 720 },
+  viewport: { width: 1280, height: 820 },
+  deviceScaleFactor: 2,
   beats: [
     {
       id: '01-sample-lot',

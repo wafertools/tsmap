@@ -34,7 +34,8 @@ export const scenario = {
   session: '01',
   title: 'Getting data in',
   theme: 'github-light',
-  viewport: { width: 1280, height: 720 },
+  viewport: { width: 1280, height: 820 },
+  deviceScaleFactor: 2,
   beats: [
     {
       id: '01-start-screen',
@@ -292,7 +293,7 @@ export const scenario = {
       steps: [
         ['click', '#theme-select'],
         ['wait', 300],
-        ['click', '[role="option"]:text-is("Auto (system)")'],
+        ['click', '[role="option"]:text-is("GitHub Light")'],
         ['wait', 400],
         ['click', '#log-toggle'],
         ['wait', 500],
