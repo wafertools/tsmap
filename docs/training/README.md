@@ -82,6 +82,10 @@ the page as `demo/training/FAILURE-NN-<beat>.png`. A session's images only repla
 Screenshots are 1280 × 720 at 1.5× scale. Prefer a crop to a full screen whenever the point of the
 slide is one area: it reads better on the slide and keeps the repository small.
 
+A scenario may set `theme` (a colour theme id, such as `'github-light'`) and its own `viewport`. The runner
+stores the theme where the app reads it before the page loads. Session 03 uses GitHub Light at 1280 × 820,
+tall enough for a whole Summary panel table in one crop; sessions 00 to 02 use the default Auto theme.
+
 ### A deck
 
 Front matter:
@@ -155,7 +159,7 @@ Not wired into `npm run verify` yet: it fails until every session is written.
 | 00 | Welcome: a quick recap of the terms; what tsmap is; a tour of the screen | Written |
 | 01 | Getting data in: formats, opening and adding files, folder scan, test selector, column mapping, theme, log | Written |
 | 02 | Reading a map and the toolbar | Written |
-| 03 | Findings | Planned |
+| 03 | Findings | Written |
 | 04 | The lot view: gallery, stack and splits | Planned |
 | 05 | Insights | Planned |
 | 06 | Correlation | Planned |

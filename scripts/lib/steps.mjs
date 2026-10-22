@@ -965,6 +965,29 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       await page.evaluate(([x, y]) => window.scrollTo(x, y), [args[0] ?? 0, args[1] ?? 0]);
       break;
 
+    case 'scrollTop':
+      // ['scrollTop', selector, y = 0] — set one element's own scroll position, e.g. '#map-container' back to the top after
+      // a click scrolled it. Throws if the selector matches nothing.
+      await page.locator(args[0]).evaluate((el, y) => { el.scrollTop = y; }, args[1] ?? 0, { timeout: 5000 });
+      await page.waitForTimeout(300);
+      break;
+
+    case 'scrollIntoView':
+      // ['scrollIntoView', selector] — scroll the element's nearest scrolling ancestor, such as the Summary panel
+      // (which scrolls inside itself), until the element is at its top, below any sticky header inside it. The page itself never moves. Throws if the
+      // selector matches nothing or nothing scrolls.
+      await page.locator(args[0]).first().evaluate((el) => {
+        let box = el.parentElement;
+        while (box && !(/(auto|scroll)/.test(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) box = box.parentElement;
+        if (!box) throw new Error('scrollIntoView: nothing scrolls round the element');
+        // A sticky header inside the scroller (the Summary panel's title) would cover the element, so leave room for it.
+        const sticky = [...box.querySelectorAll('*')].find((e) => getComputedStyle(e).position === 'sticky');
+        const room = sticky ? sticky.getBoundingClientRect().height : 0;
+        box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - room;
+      }, null, { timeout: 5000 });
+      await page.waitForTimeout(300);
+      break;
+
     default:
       throw new Error(`Unknown setup step: "${name}"`);
   }

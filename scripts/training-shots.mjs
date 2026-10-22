@@ -99,6 +99,8 @@ async function runSession(browser, base, { file, scenario }) {
   let failure = null;
   let shots = 0;
   try {
+    // A scenario may name a colour theme; it is stored where the app reads it, before the page loads.
+    if (scenario.theme) await page.addInitScript((t) => { try { localStorage.setItem('tsmap:theme', t); } catch { /* ignore */ } }, scenario.theme);
     await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 30_000 });
     for (const beat of scenario.beats) {
       const t0 = Date.now();
