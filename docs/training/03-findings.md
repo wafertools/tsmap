@@ -83,17 +83,17 @@ Three dots and a word say how much of the lot it affects. Items under 1% of the 
 <!-- _class: split -->
 <!-- covers: fmax_MHz 3.2σ; idsat_n_uA 2.8σ; idsat_p_uA 2.7σ; vth_p_mV 2.7σ; vth_n_mV 2.6σ; Finding chip (test) -->
 
-# The parts of an item
+# Buttons under an item
 
-Under the top item, small rounded buttons each name one part of it. Here each is a test that differs by split, with its shift in σ.
+Under the top item, small rounded buttons each name something behind it. Here each is a test that differs by split, with its shift in σ.
 
-![The part buttons under the top item, outlined](images/03/top-item-chips.png)
+![The buttons under the top item, outlined](images/03/top-item-chips.png)
 
 ---
 
-# Show one part
+# Show one at a time
 
-Click a part button to show that part alone. This is fmax_MHz, with the dies outside its limits marked ▽ and △.
+Click a button to show only that test, bin or pattern. This is fmax_MHz, with the dies outside its limits marked ▽ and △.
 
 ![The gallery showing fmax_MHz after clicking its button](images/03/chip-on-map.png)
 
@@ -193,7 +193,7 @@ The item names the pattern, the bins that make up the loss, and the test behind 
 
 <!-- covers: Finding chip (bin) -->
 
-# A bin part
+# A bin button
 
 A bin's button carries its legend colour and shows only those dies. This is hard bin 3.
 
