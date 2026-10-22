@@ -89,6 +89,9 @@ pub struct CliArgs {
     /// The stepper field (`--reticle <WxH[@X,Y]>`): applies for this session only, like the geometry flags, and is not
     /// written to the saved setting. Whole numbers, so it is parsed and validated here.
     pub reticle: Option<CliReticle>,
+    /// Which probe counts when a die position was tested more than once (`--retests <last|first|best|worst>`). For this
+    /// session only, like `reticle`; validated here against the four names **Setup ▾ → Retests…** offers.
+    pub retests: Option<String>,
 }
 
 impl CliArgs {
@@ -116,7 +119,7 @@ impl CliArgs {
     pub fn is_empty(&self) -> bool {
         self.files.is_empty() && self.url.is_none() && self.url_error.is_none()
             && self.wafer_diameter.is_none() && self.edge_exclusion.is_none()
-            && self.reticle.is_none() && self.plots.is_none()
+            && self.reticle.is_none() && self.retests.is_none() && self.plots.is_none()
     }
 }
 
@@ -151,6 +154,10 @@ Options:
                          4x3 is a field 4 dies wide and 3 high; @X,Y names
                          the die at a field's bottom-left corner when it is
                          not die (0, 0), e.g. 4x3@1,0.
+  --retests <POLICY>    Which result counts when a die was probed more than
+                         once, for every wafer in this launch (same choice the
+                         Retests… dialog makes): last, first, best (a pass
+                         over a fail, then the lower hard bin) or worst.
   --edge-exclusion <MM> Edge-exclusion band width in mm, applied to every
                          wafer in this launch (same value that dialog's
                          exclusion field sets). Only takes effect once a
@@ -276,6 +283,7 @@ struct RawArgs {
     edge_exclusion: Option<String>,
     wafer_diameter: Option<String>,
     reticle: Option<String>,
+    retests: Option<String>,
     url: Option<String>,
     url_format: Option<String>,
     url_headers: Option<String>,
@@ -283,11 +291,11 @@ struct RawArgs {
 
 /// Recognized flags that take a value — `--list`/`--tests`/`--splits`/
 /// `--edge-exclusion`/`--wafer-diameter`/`--url`/`--url-format`/`--url-headers`/
-/// `--sweeps`/`--plots` (both fill `plots`)/`--reticle`. `parse_args` matches on the
+/// `--sweeps`/`--plots` (both fill `plots`)/`--reticle`/`--retests`. `parse_args` matches on the
 /// position, so a new flag is appended.
 const VALUE_FLAGS: &[&str] = &[
     "--list", "--tests", "--splits", "--edge-exclusion", "--wafer-diameter",
-    "--url", "--url-format", "--url-headers", "--sweeps", "--plots", "--reticle",
+    "--url", "--url-format", "--url-headers", "--sweeps", "--plots", "--reticle", "--retests",
 ];
 /// Recognized flags that take no value — handled elsewhere (`--new-instance`
 /// before this point, `--help`/`-h` and `--version`/`-V` via `wants_help`/
@@ -393,6 +401,17 @@ fn parse_reticle_flag(raw: Option<String>) -> Result<Option<CliReticle>, String>
     Ok(Some(CliReticle { width, height, anchor_die }))
 }
 
+/// The names `--retests` accepts, as wmap's `retestPolicy` spells them.
+const RETEST_POLICIES: &[&str] = &["last", "first", "best", "worst"];
+
+/// Parses `--retests`'s value: one of `RETEST_POLICIES`, any case. Fails with the value quoted, like the other flags.
+fn parse_retests_flag(raw: Option<String>) -> Result<Option<String>, String> {
+    let Some(s) = raw else { return Ok(None) };
+    let policy = s.trim().to_ascii_lowercase();
+    if RETEST_POLICIES.contains(&policy.as_str()) { return Ok(Some(policy)); }
+    Err(format!("--retests value \"{s}\" must be one of {}", RETEST_POLICIES.join(", ")))
+}
+
 /// Splits raw argv (already excluding argv[0]) into its parts. A token
 /// starting with `-` that isn't one of the flags above (including an
 /// unambiguous abbreviation of one, see `resolve_long_flag`) is a hard error
@@ -409,6 +428,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
     let mut edge_exclusion = None;
     let mut wafer_diameter = None;
     let mut reticle = None;
+    let mut retests = None;
     let mut url = None;
     let mut url_format = None;
     let mut url_headers = None;
@@ -433,6 +453,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
                     6 => url_format = Some(value.clone()),
                     7 => url_headers = Some(value.clone()),
                     10 => reticle = Some(value.clone()),
+                    11 => retests = Some(value.clone()),
                     _ => plots = Some(value.clone()),
                 }
             }
@@ -464,7 +485,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
             files.push(arg.clone());
         }
     }
-    Ok(RawArgs { files, list, tests, splits, plots, edge_exclusion, wafer_diameter, reticle, url, url_format, url_headers })
+    Ok(RawArgs { files, list, tests, splits, plots, edge_exclusion, wafer_diameter, reticle, retests, url, url_format, url_headers })
 }
 
 /// Parses and resolves `args` against `cwd`: `--list`'s lines are folded into
@@ -500,6 +521,7 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
     // legitimate "no exclusion" no-op.
     let wafer_diameter = parse_geometry_flag("--wafer-diameter", raw.wafer_diameter, 0.0, false)?;
     let reticle = parse_reticle_flag(raw.reticle)?;
+    let retests = parse_retests_flag(raw.retests)?;
     Ok(CliArgs {
         files,
         tests: raw.tests.map(|t| resolve_path(&t, cwd)),
@@ -508,6 +530,7 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
         edge_exclusion,
         wafer_diameter,
         reticle,
+        retests,
         // Not resolved against cwd like the file-path flags above — a URL
         // (and its format tag) is not a local path.
         url: raw.url,
@@ -673,7 +696,22 @@ mod tests {
     #[test]
     fn reticle_flag_can_be_abbreviated_but_not_ambiguously() {
         let cwd = Path::new("/cwd");
-        assert_eq!(resolve(&args(&["--ret", "2x2"]), cwd).unwrap().reticle, Some(CliReticle { width: 2, height: 2, anchor_die: None }));
+        assert_eq!(resolve(&args(&["--reti", "2x2"]), cwd).unwrap().reticle, Some(CliReticle { width: 2, height: 2, anchor_die: None }));
+        let err = resolve(&args(&["--ret", "2x2"]), cwd).unwrap_err();
+        assert!(err.contains("ambiguous"), "error was: {err}");
+    }
+
+    #[test]
+    fn retests_flag_takes_one_of_four_policies() {
+        let cwd = Path::new("/cwd");
+        let only = resolve(&args(&["--retests", "Best"]), cwd).unwrap();
+        assert_eq!(only.retests.as_deref(), Some("best"));
+        assert!(!only.is_empty(), "a retests-only launch is a real payload, applied to the open window");
+        assert_eq!(resolve(&args(&["--rete", "worst", "a.stdf"]), cwd).unwrap().retests.as_deref(), Some("worst"));
+        for bad in ["latest", "", "1"] {
+            let err = resolve(&args(&["--retests", bad]), cwd).unwrap_err();
+            assert!(err.contains("--retests"), "{bad}: error was: {err}");
+        }
     }
 
     #[test]

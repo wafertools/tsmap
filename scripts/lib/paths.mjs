@@ -15,3 +15,4 @@ export const ROOT       = resolve(fileURLToPath(import.meta.url), '../../../');
 export const DIST       = `${ROOT}/dist`;
 export const TESTDATA   = `${ROOT}/testdata`;
 export const SAMPLEDATA = `${ROOT}/sample_data`;
+export const DOCSAMPLES = `${ROOT}/docs/samples`;

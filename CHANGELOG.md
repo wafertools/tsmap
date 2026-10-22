@@ -8,6 +8,26 @@ technical record, including internal changes.
 
 ### Added
 
+- **A choice of which result counts for a retested die.** **Setup ▾ → Retests…** sets whether a die position probed more than
+  once is represented by its last result (the default), its first, its best (a pass over a fail, then the lower hard bin) or its
+  worst. It applies to every wafer loaded, at once and without reloading, reaches the map, yield, findings, Summary panel,
+  Insights, tables and exports, is remembered between sessions and is listed in **Help → Reset saved settings…**. `--retests
+  <last|first|best|worst>` sets it for one launch; `--ret` is now ambiguous between `--reticle` and `--retests`.
+  `sample_data/RETEST-LOT-07.csv` (and the web page's `tsmap-retest.csv`) also re-probe a few passing dies and give some
+  recovered dies a third probe, so each choice gives its own yield.
+
+- **Learn tsmap: short lessons with labs.** Eleven slide decks in `docs/learn/`, built with Marp and published under
+  `/tsmap/learn/`, take a new user from what a wafer map shows through loading data, reading maps, findings, the lot view,
+  Insights, correlation, drilling into dies, plots, unusual wafers and automation, each ending with a lab in the web app.
+  The index gives each lesson's reading time, worked out from its text. Screenshots come from scripted runs against the
+  web build (`npm run lessons:shots`), which stop at the named beat when a selector or check fails, with callouts drawn
+  from the live layout by a new `callout` step. `npm run lessons:check` reports every control in the recorded interactive
+  surfaces, and every section of the two user guides, the chart reference and the glossary, that no lesson covers or
+  excludes.
+
+- **Two more samples on the web page.** `tsmap-single-wafer.stdf` is one wafer, as many testers write them, and
+  `tsmap-coordless.stdf` holds a positioned wafer, a mixed one and one with no positions at all.
+
 - **The MIR's code fields are read.** Test station, test mode, retest code, protection code, burn-in time and command mode come
   in from STDF and ATDF files with the other MIR fields, shown as the file has them (a code means what a site says it means),
   and are Group by choices when they vary between wafers. A blank code, or a burn-in time of 65,535, is left out as not given.
@@ -18,6 +38,15 @@ technical record, including internal changes.
   site group of each wafer are attributes too, and the file filter shows the equipment every SDR in a file names alike.
 
 ### Fixed
+
+- **A wafer added with Add files is labelled with its lot**, `EDGE-LOT-01 · W03` beside the `EDGE-LOT-01 · W01` already shown,
+  as the wafer labels step would name it. A file with no lot ID keeps its own wafer IDs.
+- **The toolbar counts every file a lot came from**, including files added later: three files read "3 files", not the count
+  of the first load.
+- **A scanned folder lists its files by name**, in the file filter and in the order a load takes them, rather than in the
+  order the platform returned them.
+- **The Help button says it opens a menu** to screen readers, and the four Save template… buttons in Definitions file
+  formats… each name the file they save.
 
 - **An ATDF site description is read as the specification lays it out.** The site numbers are the one comma-separated field
   (`SDR:2|4|5,6,7,8|…`), and the equipment fields after it are equipment, so an ID that happens to be a number is not a site.

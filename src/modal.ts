@@ -350,3 +350,70 @@ export function clearCancelApplyRow(handlers: { onClear: () => void; onCancel: (
   row.append(clearBtn, right);
   return row;
 }
+
+/**
+ * A single-choice setting dialog (Exclude values outside limits, Retests): an intro, one radio per choice with its hint
+ * underneath, and the Clear / Cancel / Apply footer. Clear applies `fallback`; Apply applies the checked choice.
+ */
+export function showChoiceDialog<T extends string>(opts: {
+  title: string;
+  intro: string;
+  /** The radio group's accessible name. */
+  groupLabel: string;
+  choices: ReadonlyArray<{ value: T; label: string; hint: string }>;
+  current: T;
+  fallback: T;
+  onApply: (value: T) => void;
+}): void {
+  const { title, intro, groupLabel, choices, current, fallback, onApply } = opts;
+  const modalHandle = openModal({
+    title,
+    sizing: 'content',
+    contentSize: { width: 'min(90vw, 480px)', height: 'auto' },
+    mount(body) {
+      body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light)';
+
+      const introEl = document.createElement('div');
+      introEl.style.cssText = 'font-size:12px;color:var(--text-dim)';
+      introEl.textContent = intro;
+
+      const group = document.createElement('div');
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-label', groupLabel);
+      group.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+      const name = `choice-${title.toLowerCase().replace(/\W+/g, '-')}`;
+      const radios = new Map<T, HTMLInputElement>();
+      for (const choice of choices) {
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex;gap:8px;align-items:flex-start;cursor:pointer';
+        label.className = 'click-row';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = name;
+        input.value = choice.value;
+        input.checked = choice.value === current;
+        radios.set(choice.value, input);
+        const text = document.createElement('span');
+        const nameEl = document.createElement('div');
+        nameEl.textContent = choice.label;
+        const sub = document.createElement('div');
+        sub.style.cssText = 'font-size:12px;color:var(--text-dim)';
+        sub.textContent = choice.hint;
+        text.append(nameEl, sub);
+        label.append(input, text);
+        group.append(label);
+      }
+
+      const selected = (): T => choices.find(c => radios.get(c.value)!.checked)?.value ?? fallback;
+
+      const buttonRow = clearCancelApplyRow({
+        onClear: () => { onApply(fallback); modalHandle.close(); },
+        onCancel: () => modalHandle.close(),
+        onApply: () => { onApply(selected()); modalHandle.close(); },
+      });
+
+      body.append(introEl, group, buttonRow);
+      radios.get(current)?.focus();
+    },
+  });
+}

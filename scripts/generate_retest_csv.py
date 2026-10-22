@@ -9,10 +9,17 @@ roughly two thirds of the retested dies recover. A few failing dies are not
 retested, so the lot has all three kinds: passed first time, recovered on
 retest, still failing.
 
+So that each retest policy (last, first, best, worst) gives its own yield, the
+retest pass also re-probes a few dies that passed first time, about half of
+which then fail, and a third pass probes some recovered dies again, which then
+fail. Without those, "best" would equal "last" and "worst" would equal "first".
+They are drawn from a second random stream, so the first pass and the original
+retests are the same rows as before they were added.
+
 Retested dies repeat their X/Y on a later row of the same wafer, which is how a
 flat file records a retest. The sample exists so the retest handling can be seen
-(the die tooltip's retest count, and the log's note about repeated dies) without
-a customer file.
+(the die tooltip's retest count, the log's note about repeated dies, and
+Setup ▾ → Retests…) without a customer file.
 
 Deterministic: the seed is fixed, so rerunning rewrites the same file.
 
@@ -31,13 +38,17 @@ RADIUS = 10          # die-grid radius; ~314 dies inside the circle
 FAIL_RATE = 0.22     # first-pass failures
 RETEST_RATE = 0.85   # share of failing dies that are probed again
 RECOVER_RATE = 0.65  # share of retested dies that pass the second time
+RECHECK_RATE = 0.08  # share of passing dies probed again in the retest pass
+RECHECK_FAIL = 0.5   # share of those that fail the second time
+THIRD_RATE = 0.15    # share of recovered dies probed a third time, failing it
 
 VTH_LO, VTH_HI = 380.0, 520.0   # mV, the pass window
 
 rng = random.Random(7)
+extra = random.Random(8)   # the re-probes of passing dies and the third pass
 
 
-def probe(fails: bool):
+def probe(fails: bool, rng=rng):
     """One probe: (hbin, sbin, vth_mV, leakage_nA)."""
     if fails:
         vth = rng.choice([rng.uniform(300, VTH_LO - 5), rng.uniform(VTH_HI + 5, 600)])
@@ -48,7 +59,7 @@ def probe(fails: bool):
 def main():
     rows = []
     for wafer in WAFERS:
-        first_pass, retests = [], []
+        first_pass, retests, third = [], [], []
         for x in range(-RADIUS, RADIUS + 1):
             for y in range(-RADIUS, RADIUS + 1):
                 if x * x + y * y > RADIUS * RADIUS:
@@ -58,7 +69,11 @@ def main():
                 if failed and rng.random() < RETEST_RATE:
                     still_failing = rng.random() >= RECOVER_RATE
                     retests.append((x, y, *probe(still_failing)))
-        for x, y, hbin, sbin, vth, leak in first_pass + retests:
+                    if not still_failing and extra.random() < THIRD_RATE:
+                        third.append((x, y, *probe(True, extra)))
+                elif not failed and extra.random() < RECHECK_RATE:
+                    retests.append((x, y, *probe(extra.random() < RECHECK_FAIL, extra)))
+        for x, y, hbin, sbin, vth, leak in first_pass + retests + third:
             rows.append([LOT, wafer, x, y, hbin, sbin, vth, leak])
 
     OUT.parent.mkdir(parents=True, exist_ok=True)

@@ -96,6 +96,12 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     scope: 'both',
   },
   {
+    key: 'tsmap:retest-policy',
+    label: 'Retests',
+    description: 'Which result counts when a die was probed more than once, set in Retests.',
+    scope: 'both',
+  },
+  {
     key: 'tsmap:map-colors',
     label: 'Wafer map preferences',
     description: 'How you like to see wafer maps: colour schemes, overlays, legend position, number format and the Insights charts\' axis settings. Not rotation, the compact layout or log scale, which belong to the data on screen.',
@@ -213,4 +219,29 @@ export function clearStoredItems(items: readonly StoredItem[]): number {
     }
   }
   return cleared;
+}
+
+/**
+ * A setting that is one of a fixed list of names, stored under `key` (already resolved with `storageKey`) and absent
+ * while it holds `fallback`. `normalize` is the one gate: anything not in `values` reads as `fallback`. Storage that
+ * throws (denied, private mode) reads as `fallback` and quietly forgets a write — a session just does not remember it.
+ */
+export function storedChoice<T extends string>(key: string, values: readonly T[], fallback: T) {
+  const normalize = (raw: unknown): T => (values.includes(raw as T) ? (raw as T) : fallback);
+  return {
+    normalize,
+    /** The persisted value, or `fallback` when unset or unreadable. */
+    get(): T {
+      try { return normalize(localStorage.getItem(key)); } catch { return fallback; }
+    },
+    /** Persists `value` (`fallback` clears the stored value). Returns what was kept. */
+    set(value: T): T {
+      const kept = normalize(value);
+      try {
+        if (kept === fallback) localStorage.removeItem(key);
+        else localStorage.setItem(key, kept);
+      } catch { /* not remembered this session */ }
+      return kept;
+    },
+  };
 }

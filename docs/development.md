@@ -132,6 +132,25 @@ npx tsc --noEmit
 npm run tag:parser                                     # after committing the pin — it tags HEAD
 ```
 
+## Learn tsmap lessons
+
+The lesson decks in `docs/learn/` are built with Marp, and their screenshots come from scripted
+runs against the web build, never from hand captures. With `../wafermap` cloned, built and linked
+(`npm run wmap:link`), so the lessons show the wafer-map features not yet published:
+
+```bash
+npm run demo:build        # the web app in dist/; runs only the predev guards, so it works while wmap is linked
+npm run lessons:shots    # every lesson's screenshots → docs/learn/images/NN/ (-- --only 01 for one)
+npm run lessons:build    # decks → site/learn/NN-slug/index.html, plus site/learn/index.html
+npm run lessons:check    # which controls and guide topics no lesson covers yet
+```
+
+The screenshot runner uses Playwright's Chromium; set `CHROME_PATH` to use another browser. A
+broken selector or a failed check stops the run at the named beat and saves the page to
+`demo/lessons/`. `build:site` runs `lessons:build` after Zensical, so each deck replaces the page
+Zensical rendered from its source and the lessons are served at `/tsmap/learn/`. How to write a
+lesson is in [the contributor notes](learn/README.md).
+
 ## Building for deployment
 
 ```bash

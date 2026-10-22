@@ -1,0 +1,92 @@
+# What the lessons deliberately does not teach control by control.
+# Read by scripts/check-lesson-coverage.mjs (npm run lessons:check).
+#
+#   <pattern> | <reason>                  leave a control out of coverage
+#   fold <Name> = <pattern> | <reason>    count every matching row as one control called <Name>
+#
+# Patterns are `*` globs over a control's id ("Setup ▾ › Tests…"), ignoring case,
+# or `re:<regex>` over the raw id. Folds are tried in order; the first match wins.
+# Every line must match something, or the check fails.
+
+# ── Folds: rows that are data, one per item in the loaded lot ────────────────
+
+fold Wafer chip (one per wafer) = Wafer info* | one per wafer; the lot's data decides how many
+fold Bin legend entry = re:^(\d+ · [^›]*|Bin \d[\d,.]*)%$ | one per bin in the loaded lot
+fold Findings severity group = re:^[●○]{3}(Unusual|Notable|Minor) \d+$ | one per severity present in the lot
+fold Finding row = re:^[●○]{3} | one per finding the analysis produced
+fold Finding detail row = re:(than the rest of|than other |^Spatial pattern: ) | one per finding the analysis produced
+fold Finding chart link = Chart: * | one per finding the analysis produced
+fold Finding chip (bin) = re:^Hard bin \d+( \(.*\))?$ | one per bin a finding names
+fold Finding chip (test) = re:^(vth_mV|leakage_nA|freq_MHz|Idsat|vth_n_mV|vth_p_mV|idsat_n_uA|idsat_p_uA|fmax_MHz|ioff_nA|scan_chain|Iddq|Vref|Fmax)$ | one per test a finding names
+fold Finding chip (pattern) = re:^[A-Z][a-z-]+ pattern$ | one per spatial pattern a finding names
+fold Show supporting findings = Show * supporting finding* | the count depends on the finding
+fold Wafer yield row = *% yield*open wafer | one per wafer in the Summary panel's yield list
+fold Summary › Wafer Yield = Wafer Yield (* | the heading carries the lot's yield range
+fold Summary › Hard Bin Breakdown = Hard Bin Breakdown* | the heading carries the lot's die count
+fold Summary › Test Values = Test Values (* | the heading carries the lot's test count
+fold Summary › Functional Tests = Functional Tests (* | the heading carries the lot's test count
+fold Summary › Findings = Findings (* | the heading carries the lot's finding count
+fold More fields = * more field* | the count depends on the lot's metadata
+fold Dies without position = * dies without position data. Click to view. | the count depends on the lot
+fold Log (with new-warning count) = * new warnings*Log | the count depends on what the load logged
+fold Dialog › Maximize (F) = * › Maximize (F) | the same frame control on every dialog
+fold Dialog › Close (Esc) = * › Close (Esc) | the same frame control on every dialog
+fold Splits… › wafer row = re:^Splits… › W\d\d.*\.stdf | one per wafer in the lot
+fold Splits… › split name suggestion = re:^Splits… › (TT|FF|SS|FS|SF)$ | one per split name already in use
+fold Reset saved settings… › stored item = re:^Reset saved settings… › (Colour theme|Wafer split assignments) | one per setting currently stored
+fold Group by › Split = re:^Group by › .*Split \(\d+\)$ | the label carries the lot's split count
+fold Test menu › (one per test) = Test › * | one per test in the lot
+fold Wafer menu › (one per wafer) = Wafer › * | one per wafer in the lot
+fold Plot editor wafer row = re:^W\d\d( · \w+)?$ | one per wafer in the lot
+fold X axis menu entry = X axis › * | one per test or die field
+fold Y axis menu entry = Y axis › * | one per test or die field
+fold Colour menu entry = Colour › * | one per test or die field
+fold Plot mode › (a test) = re:^Plot mode › (Idsat|Vth|Ioff|Continuity)( \(.*\))?$ | one per test in the demo lot
+fold Test selector › test row = re:^\d{4}\D.*[PF]$|^\d{4}[PF]$ | one per test in the file
+fold Apply to N tests → = re:^Apply to \d+ tests → | the label carries the selection count
+fold Correlation bin chip = re:^Bin \d+$ | one per bin in the lot
+fold Column mapping › Role = re:^X positionY position | one per column; every row offers the same roles
+fold Column mapping › Subdivide file by this column = Subdivide file by this column* | one per column
+fold Filter files › Sort by column = Sort by * | one per metadata column found
+fold Filter files › Filter by column = Filter by * | one per metadata column found
+
+# ── Exclusions ──────────────────────────────────────────────────────────────
+#
+# Leaving a control out of the course is the maintainer's decision. Propose an
+# exclusion in review, with its reason, and add the line only once it is agreed.
+
+LOT-DEMO · W01▾Product: DEMO-DEVICE | only on the wafermap demo page; tsmap shows the wafer chip instead
+User guide | only on the wafermap demo page; tsmap opens the guide from Help › User guide
+
+# ── wafermap demo-page controls: not part of tsmap ───────────────────────────
+# These appear only on wafermap's own demo pages (../wafermap/docs/ui-surface.txt). tsmap has no such control.
+
+Plot mode › (a test) | wafermap demo page only; tsmap has no such control
+Single wafer | wafermap demo page only; tsmap has no such control
+Lot gallery | wafermap demo page only; tsmap has no such control
+Lot stack | wafermap demo page only; tsmap has no such control
+Open | wafermap demo page only; tsmap has no such control
+Closed | wafermap demo page only; tsmap has no such control
+Show the sweep ↓ | wafermap demo page only; tsmap has no such control
+Compact | wafermap demo page only; tsmap has no such control
+On | wafermap demo page only; tsmap has no such control
+Off | wafermap demo page only; tsmap has no such control
+Mode Hard Bin Value — Idsat | wafermap demo page only; tsmap has no such control
+Reticle cell | wafermap demo page only; tsmap has no such control
+Plot mode › Project | wafermap demo page only; tsmap has no such control
+Hard Bin | wafermap demo page only; tsmap has no such control
+Test Site | wafermap demo page only; tsmap has no such control
+Site 3 fail | wafermap demo page only; tsmap has no such control
+
+# ── Documentation topics not taught in the course ───────────────────────────
+# Topics are the section headings of the user guides, the chart reference and the
+# glossary (see check-lesson-coverage.mjs). These are reference material the decks
+# link to, or library detail a tsmap user never meets.
+
+tsmap guide › Column mapping reference | a lookup table of roles; session 01 teaches the roles and links to it
+tsmap guide › Auto-detected column names | a lookup table of header names; session 01 says common names are detected
+chart › Using a plot's JSON | for developers and hand-written files; session 10 points to the plots file format
+chart › Die attribute map | needs per-die attributes, which tsmap does not supply
+glossary › TestDef | a library type name
+glossary › Gross die yield | a library option tsmap does not use
+glossary › Gross die per wafer | a library layout calculation tsmap does not show

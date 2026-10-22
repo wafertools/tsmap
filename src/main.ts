@@ -36,6 +36,8 @@ import { getReticle, normalizeReticle, setReticle, toWmapReticleConfig, type Ret
 import { showReticleDialog } from './reticleUI';
 import { getValueFilter, setValueFilter, VALUE_FILTER_LABEL } from './valueFilter';
 import { showValueFilterDialog } from './valueFilterUI';
+import { getRetestPolicy, normalizeRetestPolicy, setRetestPolicy, RETEST_POLICY_LABEL } from './retestPolicy';
+import { showRetestPolicyDialog } from './retestPolicyUI';
 import type { InferredDiameterHint } from './waferGeometryUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
 import { showFileAssociationsModal } from './fileAssociationsUI';
@@ -300,6 +302,9 @@ let reticle: ReticleSettings | undefined = getReticle();
 // Which limit set a test value must lie inside to be used (`valueFilter` on every buildWaferMap call). Validity
 // limits by default, which only affects tests that have them. Same cache invalidation as the reticle.
 let valueFilterMode = getValueFilter();
+// Which result counts for a die probed more than once (`retestPolicy` on every buildWaferMap call). Same cache
+// invalidation as the reticle.
+let retestPolicy = getRetestPolicy();
 
 let cachedLotStats: NonNullable<Awaited<ReturnType<typeof buildLotStatsSummary>>> | null = null;
 // The wmap controller for the map currently rendered into the main `container`
@@ -814,6 +819,7 @@ function buildWmapConfig(
     dieConfig: wcr?.dieConfig,
     reticleConfig: toWmapReticleConfig(reticle),
     valueFilter: valueFilterMode,
+    retestPolicy,
     // From this file's HBR/SBR (see ParsedFile.hbinDefs/sbinDefs/passHbins,
     // types.ts) — undefined falls back to wmap's own defaults (bare bin
     // numbers, passBins [1]).
@@ -1978,8 +1984,15 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     if (given === undefined) log('warn', '--reticle ignored: not a usable stepper field');
     else { if (reticle === undefined) reticleGridShown = undefined; reticle = given; reticleChanged = true; }
   }
+  // Session only too; the Rust side has already refused a name that is not a policy.
+  let retestsChanged = false;
+  if (args.retests != null) {
+    const given = normalizeRetestPolicy(args.retests);
+    retestsChanged = given !== retestPolicy;
+    retestPolicy = given;
+  }
   if (args.files.length === 0) {
-    if ((plotsChanged || reticleChanged) && session.wafers.length > 0) rerenderCurrentLot('Rendering');
+    if ((plotsChanged || reticleChanged || retestsChanged) && session.wafers.length > 0) rerenderCurrentLot('Rendering');
     return;
   }
   const files: FileHandle[] = args.files.map(p => ({
@@ -2625,6 +2638,13 @@ function openValueFilterDialog() {
   });
 }
 
+function openRetestPolicyDialog() {
+  showRetestPolicyDialog(retestPolicy, (next) => {
+    retestPolicy = setRetestPolicy(next);
+    rerenderCurrentLot('Rendering');
+  });
+}
+
 /**
  * A reticle that has been set is drawn: the field grid is what the setting is for, and the Overlays menu still
  * hides it. The reader's choice this session wins, then their saved preference.
@@ -2936,9 +2956,10 @@ let closeHelpMenu: (() => void) | null = null;
 function openHelpMenu(anchor: HTMLElement) {
   if (closeHelpMenu) { closeHelpMenu(); return; }
 
+  anchor.setAttribute('aria-expanded', 'true');
   closeHelpMenu = openAnchoredMenu(
     anchor,
-    { stack: true, onClose: () => { closeHelpMenu = null; } },
+    { stack: true, onClose: () => { closeHelpMenu = null; anchor.setAttribute('aria-expanded', 'false'); } },
     (popup, close) => {
       popup.appendChild(makeMenuRow(close, {
         label: 'User guide',
@@ -3185,6 +3206,11 @@ function openLotMenu(anchor: HTMLElement) {
           ? 'Off: every value is used as recorded'
           : `Values outside ${VALUE_FILTER_LABEL[valueFilterMode].toLowerCase()} are treated as missing and counted`,
         onClick: openValueFilterDialog,
+      }));
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Retests…',
+        hint: `${RETEST_POLICY_LABEL[retestPolicy]} counts when a die was probed more than once`,
+        onClick: openRetestPolicyDialog,
       }));
     },
   );

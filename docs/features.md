@@ -21,7 +21,7 @@ See [Supported file formats](user-guide.md#supported-file-formats) and
 
 ## Find the right files before you open them
 
-Pointed at a directory of hundreds of lots, **Filter files…** reads only each file's header
+Pointed at a directory of hundreds of lots, **Scan a folder…** reads only each file's header
 metadata — lot ID, part type, tester, job name, wafer count, start and finish times, site
 count — and lays them out as one row per file. Sort, filter per column, or search across all
 of them, then load just the subset you actually want; the rest are never parsed. A filter can
@@ -89,6 +89,10 @@ value. One such value stretches the colour scale and drags the mean, the standar
 file), and **Setup ▾ → Exclude values outside limits…** chooses which limit set a value must lie inside to be used. An excluded
 value counts as missing in the map, the statistics and every chart, and is counted wherever a population is shown, while bins and
 the tester's recorded pass/fail are unchanged. See [Excluding values outside limits](user-guide.md#excluding-values-outside-limits).
+
+When a die was probed more than once, **Setup ▾ → Retests…** chooses which result stands for it: the last (the default), the
+first, the best or the worst. The choice reaches every figure at once, and each retested die's tooltip says how often it was
+probed. See [Retests](user-guide.md#retests).
 
 ## Wafer splits — compare process corners
 

@@ -26,6 +26,10 @@
  *     clickChartRowByTitle) already throw unconditionally — see their own
  *     comments — and are unaffected by this flag.
  *
+ *   `callout` / `clearCallouts` draw and remove a highlight box (and optional
+ *   numbered badge) over an element for the next screenshot. They overlay the
+ *   page without changing it, so they run in either mode — see drawCallout.
+ *
  * Screenshot captures keep the historical defaults (both false→lenient,
  * cosmetic allowed) so none of the 24 existing capture-definitions.mjs
  * targets change behaviour. The scenario runner passes
@@ -55,6 +59,182 @@ async function injectCursor(page, x, y) {
 
 async function removeCursor(page) {
   await page.evaluate(() => { document.getElementById('__fake-cursor__')?.remove(); });
+}
+
+// ─── Callouts (annotation drawn over the page at capture time) ────────────
+//
+// A callout is a highlight box, and optionally a numbered badge, drawn on top
+// of an element's bounding box just before a screenshot. Because the box is
+// measured from the live element at capture time, it follows the element
+// wherever a layout change moves it; a hand-drawn annotation on a saved image
+// would silently point at the wrong place instead.
+//
+// The overlay never takes part in the page: it is position:fixed with
+// pointer-events:none, so it changes nothing a later step clicks or measures.
+// That is why it is allowed with `allowCosmetic: false`, unlike the cosmetic
+// steps below, which alter real layout. It always throws when its target is
+// missing, hidden, or ambiguous: a callout drawn round the wrong element is the
+// exact failure it exists to prevent.
+
+const CALLOUT_ATTR = 'data-capture-callout';
+
+/**
+ * Resolve `target` (any Playwright selector) to the one element a callout or
+ * crop should frame. More than one match is an error unless `nth` picks one;
+ * `closest` then widens the frame to an ancestor (a CSS selector passed to
+ * Element.closest), and `through` to also take in a second element (a row of
+ * buttons from the first to the last), for regions with no hook of their own.
+ */
+export async function resolveFrame(page, target, { nth, closest, through } = {}, what = 'callout') {
+  const all = page.locator(target);
+  const count = await all.count();
+  if (count === 0) throw new Error(`${what}: no element matches "${target}"`);
+  if (count > 1 && nth === undefined) {
+    throw new Error(`${what}: "${target}" matches ${count} elements — make it unique or pass nth`);
+  }
+  const el = nth === undefined ? all : all.nth(nth);
+  if (nth !== undefined && nth >= count) throw new Error(`${what}: "${target}" has no match at nth=${nth} (found ${count})`);
+  const box = await el.evaluate((node, sel) => {
+    const frame = sel ? node.closest(sel) : node;
+    if (!frame) return { missing: true };
+    const r = frame.getBoundingClientRect();
+    const cs = getComputedStyle(frame);
+    // Only the part an ancestor does not clip away is on screen: a panel that
+    // scrolls under the log bar is framed down to the bar, not through it.
+    let x1 = r.left, y1 = r.top, x2 = r.right, y2 = r.bottom;
+    for (let a = frame.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+      const o = getComputedStyle(a);
+      if (o.overflowX === 'visible' && o.overflowY === 'visible') continue;
+      const c = a.getBoundingClientRect();
+      x1 = Math.max(x1, c.left); y1 = Math.max(y1, c.top); x2 = Math.min(x2, c.right); y2 = Math.min(y2, c.bottom);
+    }
+    return { x: x1, y: y1, width: Math.max(0, x2 - x1), height: Math.max(0, y2 - y1), hidden: cs.visibility === 'hidden' || cs.display === 'none' };
+  }, closest ?? null);
+  if (box.missing) throw new Error(`${what}: "${target}" has no ancestor matching "${closest}"`);
+  if (box.hidden || box.width < 1 || box.height < 1) throw new Error(`${what}: "${target}" is not visible (zero size or hidden)`);
+  if (through) {
+    // Widen the frame to also take in a second element, for a group with no element of its own.
+    const end = await resolveFrame(page, through, {}, `${what} (through)`);
+    const x = Math.min(box.x, end.x), y = Math.min(box.y, end.y);
+    box.width = Math.max(box.x + box.width, end.x + end.width) - x;
+    box.height = Math.max(box.y + box.height, end.y + end.height) - y;
+    box.x = x; box.y = y;
+  }
+  const vw = page.viewportSize();
+  if (vw && (box.x + box.width <= 0 || box.y + box.height <= 0 || box.x >= vw.width || box.y >= vw.height)) {
+    throw new Error(`${what}: "${target}" is outside the viewport`);
+  }
+  return box;
+}
+
+// The numbered label is a tab joined to the box's edge, flat and in the box's
+// colour, so it reads as part of the annotation rather than as a control of the
+// app. Every call re-places the labels of every callout drawn so far. A label
+// may never cover another callout's box or another label; among the places
+// left (the box's corners outside, then its sides, then its corners inside) it
+// takes the one covering the least of the app's own text and icons, with
+// `badgeAt` (tl, tr, bl, br) tried first on a tie. When no place is left, the
+// step throws instead of drawing one label over another.
+async function drawCallout(page, target, opts = {}) {
+  const found = await resolveFrame(page, target, opts, 'callout');
+  const pad = opts.pad ?? 4;
+  // A frame taller or wider than the viewport (a long side panel) is drawn to
+  // the viewport's edge, so all four sides of the box stay in the picture.
+  const vp = page.viewportSize() ?? { width: Infinity, height: Infinity };
+  const inset = pad + 3;
+  const x = Math.max(found.x, inset), y = Math.max(found.y, inset);
+  const box = {
+    x, y,
+    width: Math.min(found.x + found.width, vp.width - inset) - x,
+    height: Math.min(found.y + found.height, vp.height - inset) - y,
+  };
+  const problem = await page.evaluate(([b, pad, badge, prefer, attr, target]) => {
+    const colour = '#e8590c';
+    const reg = (window.__captureCallouts ??= []);
+    const outer = { x: b.x - pad, y: b.y - pad, w: b.width + 2 * pad, h: b.height + 2 * pad };
+    const frame = document.createElement('div');
+    frame.setAttribute(attr, '');
+    Object.assign(frame.style, {
+      position: 'fixed', left: `${outer.x}px`, top: `${outer.y}px`, width: `${outer.w}px`, height: `${outer.h}px`,
+      border: `3px solid ${colour}`, borderRadius: '6px', boxSizing: 'border-box',
+      boxShadow: '0 0 0 1.5px rgba(255,255,255,0.8)', pointerEvents: 'none', zIndex: '2147483646',
+    });
+    document.body.appendChild(frame);
+    reg.push({ outer, badge, prefer, target, tab: null });
+
+    const hit = (a, r, m = 0) => a.x < r.x + r.w + m && r.x < a.x + a.w + m && a.y < r.y + r.h + m && r.y < a.y + a.h + m;
+    const area = (a, r) => Math.max(0, Math.min(a.x + a.w, r.x + r.w) - Math.max(a.x, r.x)) * Math.max(0, Math.min(a.y + a.h, r.y + r.h) - Math.max(a.y, r.y));
+    for (const c of reg) { c.tab?.remove(); c.tab = null; }
+    // What a label should not hide: the app's visible text and icons.
+    const content = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim() || n.parentElement?.closest(`[${attr}]`)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) if (r.width && r.height) content.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+    }
+    for (const el of document.querySelectorAll('svg, img, input, select, textarea')) {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height && getComputedStyle(el).visibility !== 'hidden') content.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+    }
+    const placed = [];
+    for (const c of reg) {
+      if (c.badge === undefined || c.badge === null) continue;
+      const tab = document.createElement('div');
+      tab.setAttribute(attr, '');
+      tab.textContent = String(c.badge);
+      Object.assign(tab.style, {
+        position: 'fixed', left: '0px', top: '0px', visibility: 'hidden', boxSizing: 'border-box',
+        minWidth: '24px', padding: '2px 7px', background: colour, color: '#fff',
+        font: '700 14px/18px system-ui, -apple-system, sans-serif', textAlign: 'center',
+        pointerEvents: 'none', zIndex: '2147483647',
+      });
+      document.body.appendChild(tab);
+      const w = tab.offsetWidth, h = tab.offsetHeight, o = c.outer;
+      const at = {
+        tl: { x: o.x, y: o.y - h + 3, r: '5px 5px 0 0' },
+        tr: { x: o.x + o.w - w, y: o.y - h + 3, r: '5px 5px 0 0' },
+        bl: { x: o.x, y: o.y + o.h - 3, r: '0 0 5px 5px' },
+        br: { x: o.x + o.w - w, y: o.y + o.h - 3, r: '0 0 5px 5px' },
+        'in-tr': { x: o.x + o.w - w, y: o.y, r: '0 5px 0 5px' },
+        'in-tl': { x: o.x, y: o.y, r: '5px 0 5px 0' },
+        'in-br': { x: o.x + o.w - w, y: o.y + o.h - h, r: '5px 0 5px 0' },
+        'in-bl': { x: o.x, y: o.y + o.h - h, r: '0 5px 0 5px' },
+        lt: { x: o.x - w + 3, y: o.y, r: '5px 0 0 5px' },
+        rt: { x: o.x + o.w - 3, y: o.y, r: '0 5px 5px 0' },
+        lb: { x: o.x - w + 3, y: o.y + o.h - h, r: '5px 0 0 5px' },
+        rb: { x: o.x + o.w - 3, y: o.y + o.h - h, r: '0 5px 5px 0' },
+      };
+      const order = [c.prefer, ...['tl', 'tr', 'bl', 'br', 'lt', 'rt', 'lb', 'rb', 'in-tr', 'in-tl', 'in-br', 'in-bl'].filter((k) => k !== c.prefer)];
+      let spot = null, best = Infinity;
+      for (const p of order.map((k) => at[k])) {
+        const r = { x: p.x, y: p.y, w, h };
+        if (r.x < 0 || r.y < 0 || r.x + w > innerWidth || r.y + h > innerHeight) continue;
+        if (reg.some((other) => other !== c && hit(r, other.outer))) continue;
+        if (placed.some((q) => hit(r, q, 3))) continue;
+        const covered = content.reduce((sum, t) => sum + area(r, t), 0);
+        if (covered < best) { best = covered; spot = p; }
+        if (covered === 0) break;
+      }
+      if (!spot) {
+        tab.remove();
+        return `callout: no room for label ${c.badge} on "${c.target}" without covering another callout — move a callout or give it a different badgeAt`;
+      }
+      Object.assign(tab.style, { left: `${spot.x}px`, top: `${spot.y}px`, borderRadius: spot.r, visibility: 'visible' });
+      placed.push({ x: spot.x, y: spot.y, w, h });
+      c.tab = tab;
+    }
+    return null;
+  }, [box, pad, opts.badge, opts.badgeAt ?? 'tl', CALLOUT_ATTR, target]);
+  if (problem) throw new Error(problem);
+}
+
+async function clearCallouts(page) {
+  await page.evaluate((attr) => {
+    for (const el of document.querySelectorAll(`[${attr}]`)) el.remove();
+    window.__captureCallouts = [];
+  }, CALLOUT_ATTR);
 }
 
 // ─── Wait helpers ───────────────────────────────────────────────────────────
@@ -499,6 +679,12 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       await openWmapDropdown(page, args[0], args[1] ?? null, strict);
       break;
 
+    case 'selectWmapMenuItem':
+      // ['selectWmapMenuItem', toolbarAriaLabel, itemLabel] — any wmap toolbar
+      // dropdown (Columns, Overlays, …); throws if the item is missing.
+      await selectWmapDropdownItem(page, args[0], args[1]);
+      break;
+
     case 'selectWmapMode':
       await selectWmapDropdownItem(page, 'Plot mode', args[0]);
       break;
@@ -703,11 +889,29 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       break;
     }
 
+    case 'callout':
+      // ['callout', target, { badge?, badgeAt?: 'tl'|'tr'|'bl'|'br', nth?, closest?, through?, pad? }] — see drawCallout.
+      // Throws when the target is missing, ambiguous or hidden, or when a label has nowhere to go.
+      await drawCallout(page, args[0], args[1] ?? {});
+      break;
+
+    case 'clearCallouts':
+      await clearCallouts(page);
+      break;
+
     case 'click': {
       // Generic CSS-selector click — Playwright throws on its own if it
       // doesn't resolve. For elements with a real id/unique selector; when
       // the only handle is visible button text, use clickButtonByText.
-      await page.click(args[0]);
+      // ['click', selector, [x, y]] clicks at a point given as fractions of the
+      // element's box, as rightClick does (a map's empty corner, say).
+      if (Array.isArray(args[1])) {
+        const box = await page.locator(args[0]).first().boundingBox({ timeout: 5000 });
+        if (!box) throw new Error(`click: "${args[0]}" has no bounding box`);
+        await page.mouse.click(box.x + box.width * args[1][0], box.y + box.height * args[1][1]);
+      } else {
+        await page.click(args[0]);
+      }
       break;
     }
 
@@ -732,6 +936,27 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       break;
     }
 
+    case 'hover':
+      // Playwright-native hover on any selector — throws if it doesn't resolve.
+      // Also the way to park the pointer somewhere neutral before a capture, so
+      // no tooltip from an earlier click is left open in the picture.
+      await page.hover(args[0]);
+      await page.waitForTimeout(200);
+      break;
+
+    case 'selectOption':
+      // ['selectOption', selector, label] — pick an option of a native <select> by its visible label; throws if
+      // the select or the option is missing.
+      await page.selectOption(args[0], { label: args[1] }, { timeout: 5000 });
+      await page.waitForTimeout(200);
+      break;
+
+    case 'press':
+      // ['press', key] — a keyboard press on whatever has focus (e.g. 'Escape' to close a menu).
+      await page.keyboard.press(args[0]);
+      await page.waitForTimeout(200);
+      break;
+
     case 'fillInput': {
       // page.fill throws on its own if the selector doesn't resolve — no
       // strict-mode gating needed, matches every other Playwright-native step.
@@ -746,6 +971,73 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
 
     case 'scroll':
       await page.evaluate(([x, y]) => window.scrollTo(x, y), [args[0] ?? 0, args[1] ?? 0]);
+      break;
+
+    case 'drag': {
+      // ['drag', selector, [x1, y1], [x2, y2]] — press at one point of the element, move to another and release. The
+      // points are fractions of the element's box (0 to 1), so the drag follows the element wherever the layout puts it;
+      // with several matches the first is used. Throws if the selector matches nothing.
+      const [selector, [x1, y1], [x2, y2]] = args;
+      const box = await page.locator(selector).first().boundingBox({ timeout: 5000 });
+      if (!box) throw new Error(`drag: "${selector}" has no bounding box`);
+      await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * x2, box.y + box.height * y2, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(600);
+      break;
+    }
+
+    case 'chooseFile': {
+      // ['chooseFile', buttonSelector, filePath] — click a button that opens a file picker and give the picker a file. The web
+      // app prefers showOpenFilePicker(), which Playwright cannot see, so it is switched off to use the hidden input instead.
+      const [selector, filePath] = args;
+      await page.evaluate(() => { window.showOpenFilePicker = undefined; });
+      const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout: 10000 }), page.locator(selector).first().click()]);
+      await chooser.setFiles(filePath);
+      await page.waitForTimeout(800);
+      break;
+    }
+
+    case 'rightClick': {
+      // ['rightClick', selector, [x, y]?] — a right click on the element's first match, at a point given as fractions (0 to 1)
+      // of its box (the centre when omitted), for menus that open on a context click. Throws if the selector matches nothing.
+      const [selector, at = [0.5, 0.5]] = args;
+      const box = await page.locator(selector).first().boundingBox({ timeout: 5000 });
+      if (!box) throw new Error(`rightClick: "${selector}" has no bounding box`);
+      await page.mouse.click(box.x + box.width * at[0], box.y + box.height * at[1], { button: 'right' });
+      await page.waitForTimeout(500);
+      break;
+    }
+
+    case 'scrollTop':
+      // ['scrollTop', selector, y = 0] — set one element's own scroll position, e.g. '#map-container' back to the top after
+      // a click scrolled it. Throws if the selector matches nothing.
+      await page.locator(args[0]).evaluate((el, y) => { el.scrollTop = y; }, args[1] ?? 0, { timeout: 5000 });
+      await page.waitForTimeout(300);
+      break;
+
+    case 'setViewport':
+      // ['setViewport', width, height] — resize the page, so a wide card can be shot at a narrower layout (its
+      // table wraps and reads larger on a slide). Set it back in a later step; the size lasts for the run.
+      await page.setViewportSize({ width: args[0], height: args[1] });
+      await page.waitForTimeout(800);
+      break;
+
+    case 'scrollIntoView':
+      // ['scrollIntoView', selector] — scroll the element's nearest scrolling ancestor, such as the Summary panel
+      // (which scrolls inside itself), until the element is at its top, below any sticky header inside it. The page itself never moves. Throws if the
+      // selector matches nothing or nothing scrolls.
+      await page.locator(args[0]).first().evaluate((el) => {
+        let box = el.parentElement;
+        while (box && !(/(auto|scroll)/.test(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) box = box.parentElement;
+        if (!box) throw new Error('scrollIntoView: nothing scrolls round the element');
+        // A sticky header inside the scroller (the Summary panel's title) would cover the element, so leave room for it.
+        const sticky = [...box.querySelectorAll('*')].find((e) => getComputedStyle(e).position === 'sticky');
+        const room = sticky ? sticky.getBoundingClientRect().height : 0;
+        box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - room;
+      }, null, { timeout: 5000 });
+      await page.waitForTimeout(300);
       break;
 
     default:

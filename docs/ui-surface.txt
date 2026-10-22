@@ -21,7 +21,7 @@ Controls:
       hint: Pick files, or scan a whole folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
   · Load sample data
   · Scan a folder…
@@ -35,6 +35,18 @@ Menu — Choose how to pick files to open:
 
 Menu — Choose how to pick files to add:
     (no rows captured)
+
+Menu — Help:
+    · User guide
+        hint: File loading, mapping, splits, test selector, wafer map controls, Insights, and more
+    · Definitions file formats…
+        hint: Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first
+    · ☐Log phase timings  [unchecked]
+        hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
+    · Reset saved settings…
+        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
+    · About tsmap…
+        hint: Version, licence, and the projects this is built on
 
 ## Sample lot loaded
 
@@ -53,9 +65,9 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
-  · 1 more field
+  · 10 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -69,6 +81,8 @@ Controls:
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · 1 · Pass2,27179.0%
       hint: Right-click: charts and tables for these dies
   · 2 · Fail (1 test)42514.8%
@@ -101,10 +115,28 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact fmax_MHz is outside its limits (173 low, 4 high) on 177 of 2,873 dies (6.2%)
+  · ●●●High impact 6 tests differ by Split. Largest: fmax_MHz is higher on Split FF (2 of 13 wafers) than on the other wafers: a shift of 3.2σ, each wafer one value (q < 0.001); next: idsat_n_uA higher on FF (2.8σ), idsat_p_uA lower on SS (2.7σ), and 3 more
       hint: Click to show this test on the map, with the dies it fails
+  · fmax_MHz 3.2σ
+      hint: Click to show this test on the map, with the dies it fails
+  · idsat_n_uA 2.8σ
+      hint: Click to show this test on the map, with the dies it fails
+  · idsat_p_uA 2.7σ
+      hint: Click to show this test on the map, with the dies it fails
+  · vth_p_mV 2.7σ
+      hint: Click to show this test on the map, with the dies it fails
+  · vth_n_mV 2.6σ
+      hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: Split: 6 tests differ"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●Highfmax_MHz: 177 dies outside limits6.2%
+      hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: fmax_MHz: 177 dies outside limits"]
+      hint: Open Insights at the chart of this, under Worth a look
   · ●●●Highvth_n_mV: 176 dies outside limits6.1%
       hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: vth_n_mV: 176 dies outside limits"]
+      hint: Open Insights at the chart of this, under Worth a look
   · ●●●Highvth_p_mV: 176 dies outside limits6.1%
       hint: Click to show this test on the map, with the dies it fails
   · ●●●Highioff_nA: 116 dies outside limits4.0%
@@ -177,11 +209,26 @@ Menu — Setup ▾:
         hint: Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field
     · Exclude values outside limits…
         hint: Values outside validity limits are treated as missing and counted
+    · Retests…
+        hint: Last result counts when a die was probed more than once
+
+Menu — Help:
+    · User guide
+        hint: File loading, mapping, splits, test selector, wafer map controls, Insights, and more
+    · Definitions file formats…
+        hint: Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first
+    · ☐Log phase timings  [unchecked]
+        hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
+    · Reset saved settings…
+        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
+    · About tsmap…
+        hint: Version, licence, and the projects this is built on
 
 Menu — Plot mode:
     · Test Value ▶  [unchecked, opens menu]
     · Hard Bin  [checked]
     · Soft Bin  [unchecked]
+    · PAT verdict  [unchecked]
     · Stacked Test Values  [unchecked]
     · Stacked Hard Bins  [unchecked]
     · Stacked Soft Bins  [unchecked]
@@ -304,8 +351,23 @@ Dialog — Reticle…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
-    · Wafer diameter (mm)  [number]
-    · Edge exclusion width (mm)  [number]
+    · Field width (dies)  [number]
+    · Field height (dies)  [number]
+    · Corner die X  [number]
+    · Corner die Y  [number]
+    · Clear
+    · Cancel
+    · Apply
+
+Dialog — Retests…
+    · Maximize (F)
+        hint: Maximize (F)
+    · Close (Esc)
+        hint: Close (Esc)
+    · Last resultThe most recent probe, in the order the file reco  [radio, checked]
+    · First resultThe earliest probe.  [radio, unchecked]
+    · Best resultA pass over a fail; between two passes or two fai  [radio, unchecked]
+    · Worst resultA fail over a pass; between two passes or two fa  [radio, unchecked]
     · Clear
     · Cancel
     · Apply
@@ -315,11 +377,10 @@ Dialog — Definitions file formats…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
-    · Wafer diameter (mm)  [number]
-    · Edge exclusion width (mm)  [number]
-    · Clear
-    · Cancel
-    · Apply
+    · Save template…  [aria="Save a test definitions template"]
+    · Save template…  [aria="Save a plots template"]
+    · Save template…  [aria="Save a splits template"]
+    · Save template…  [aria="Save a bin definitions template"]
 
 Dialog — Reset saved settings…
     · Maximize (F)
@@ -355,27 +416,40 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
-  · Save as PNG   (×5)
-  · Expand   (×5)
+  · Expand   (×10)
+  · Chart actions  [opens menu]   (×10)
   · Sort: yield  [radio, unchecked]
-  · Sort: wafer ID  [radio, checked]
+  · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
   · Soft bins  [radio, unchecked]
   · Test limits  [radio, checked]
   · Tester flag  [radio, unchecked]
   · Functional  [radio, unchecked]
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
+  · Comparing groups of wafers
+  · What divides yield
+  · Group by
+      hint: Group Insights by Split, so every chart compares its groups   (×3)
+  · Part average testing (PAT)
+  · Show all 13 wafers
+  · Map the verdicts
+      hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
   · Data tab
   · Log
       hint: Show the log panel
@@ -405,10 +479,29 @@ Menu — Setup ▾:
         hint: Set the stepper field size in dies, to draw the field grid and find failures that repeat in every field
     · Exclude values outside limits…
         hint: Values outside validity limits are treated as missing and counted
+    · Retests…
+        hint: Last result counts when a die was probed more than once
+
+Menu — Help:
+    · User guide
+        hint: File loading, mapping, splits, test selector, wafer map controls, Insights, and more
+    · Definitions file formats…
+        hint: Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first
+    · ☐Log phase timings  [unchecked]
+        hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
+    · Reset saved settings…
+        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
+    · About tsmap…
+        hint: Version, licence, and the projects this is built on
 
 Menu — Group by:
     · None
     · Split (5)
+
+Menu — Chart actions:
+    · Save as PNG
+    · Edit as plot
+    · ✓About this chart  [unchecked]
 
 ## Insights (sample lot) › Overview
 
@@ -427,27 +520,40 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
-  · Save as PNG   (×5)
-  · Expand   (×5)
+  · Expand   (×10)
+  · Chart actions  [opens menu]   (×10)
   · Sort: yield  [radio, unchecked]
-  · Sort: wafer ID  [radio, checked]
+  · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
   · Soft bins  [radio, unchecked]
   · Test limits  [radio, checked]
   · Tester flag  [radio, unchecked]
   · Functional  [radio, unchecked]
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
+  · Comparing groups of wafers
+  · What divides yield
+  · Group by
+      hint: Group Insights by Split, so every chart compares its groups   (×3)
+  · Part average testing (PAT)
+  · Show all 13 wafers
+  · Map the verdicts
+      hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
   · Data tab
   · Log
       hint: Show the log panel
@@ -469,27 +575,36 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
-  · Save as PNG   (×4)
   · Expand   (×4)
+  · Chart actions  [opens menu]   (×4)
+  · Capability, Ppk and the goal plot
   · vth_n_mV▾  [aria="Test", opens menu]   (×3)
-  · Log scale  [checkbox, unchecked]
   · Axis includes limits  [checkbox, checked]   (×3)
   · Clip outliers  [checkbox, unchecked]   (×3)
+  · Log scale  [checkbox, unchecked]
   · All wafers▾  [aria="Wafer", opens menu]
+  · Bands on a line
   · Log
       hint: Show the log panel
+
+Menu — Chart actions:
+    · Save as PNG
+    · ✓About this chart  [unchecked]
 
 Menu — Test:
     · vth_n_mV
@@ -532,20 +647,23 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
-  · Save as PNG   (×2)
   · Expand   (×2)
+  · Chart actions  [opens menu]   (×2)
   · Max tests:  [number]
   · All wafers▾  [aria="Wafer", opens menu]   (×2)
   · Correlation CSV
@@ -575,17 +693,20 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
   · Statistics  [checked]
       hint: One row per test: count, spread, limits and limit yield
@@ -600,7 +721,7 @@ Controls:
   · Log
       hint: Show the log panel
 
-## Insights (sample lot) › Plot
+## Insights (sample lot) › My plots
 
 Controls:
   · Open files
@@ -617,17 +738,20 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
@@ -644,7 +768,7 @@ Controls:
   · Log
       hint: Show the log panel
 
-## Insights (sample lot) › Plot › + New plot editor
+## Insights (sample lot) › My plots › + New plot editor
 
 Controls:
   · Open files
@@ -661,17 +785,20 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
@@ -685,8 +812,8 @@ Controls:
       hint: Save all your plots to a file, to share or to keep a copy
   · Delete all plots…
       hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
-  · Save as PNG   (×2)
   · Expand   (×2)
+  · Chart actions  [opens menu]   (×2)
   · Edit
       hint: Change this plot’s type, fields, titles, limits and axes
   · Duplicate
@@ -719,9 +846,20 @@ Controls:
   · Box  [radio, unchecked]
   · Bar  [radio, unchecked]
   · Line  [radio, unchecked]
+  · Probability  [radio, unchecked]
+  · Control  [radio, unchecked]
+  · Heatmap  [radio, unchecked]
+  · Goal  [radio, unchecked]
   · vth_n_mV · 1001▾  [aria="X axis", opens menu]
   · vth_p_mV · 1002▾  [aria="Y axis", opens menu]
   · Follow Group by (a colour per wafer)▾  [aria="Colour", opens menu]
+  · + Add a condition
+      hint: Keep only what meets this condition as well as the others
+  · None: one plot▾  [aria="Panels", opens menu]
+  · None  [radio, checked]
+  · Least squares  [radio, unchecked]
+  · Orthogonal  [radio, unchecked]
+  · y = x line  [checkbox, unchecked]
   · Automatic  [radio, checked]
   · Die  [radio, unchecked]
   · Wafer  [radio, unchecked]
@@ -737,9 +875,11 @@ Menu — X axis:
     · fmax_MHz · 1006
     · Die X
     · Die Y
+    · Radial position
     · Wafer order
     · Yield
     · Dies
+    · Program rev
 
 Menu — Y axis:
     · vth_n_mV · 1001
@@ -748,15 +888,23 @@ Menu — Y axis:
     · idsat_p_uA · 1004
     · ioff_nA · 1005
     · fmax_MHz · 1006
+    · vth_n_mV · 1001 pass rate
+    · vth_p_mV · 1002 pass rate
+    · idsat_n_uA · 1003 pass rate
+    · idsat_p_uA · 1004 pass rate
+    · ioff_nA · 1005 pass rate
+    · fmax_MHz · 1006 pass rate
+    · scan_chain · 2001 pass rate
     · Die X
     · Die Y
+    · Radial position
     · Wafer order
     · Yield — Yield is per wafer: use a bar or line chart  [disabled]
     · Dies
+    · Program rev
 
 Menu — Colour:
     · Follow Group by (a colour per wafer)
-    · None
     · vth_n_mV · 1001
     · vth_p_mV · 1002
     · idsat_n_uA · 1003
@@ -764,13 +912,22 @@ Menu — Colour:
     · ioff_nA · 1005
     · fmax_MHz · 1006
     · scan_chain · 2001 (pass/fail)
+    · vth_n_mV · 1001 pass rate
+    · vth_p_mV · 1002 pass rate
+    · idsat_n_uA · 1003 pass rate
+    · idsat_p_uA · 1004 pass rate
+    · ioff_nA · 1005 pass rate
+    · fmax_MHz · 1006 pass rate
+    · scan_chain · 2001 pass rate
     · Die X
     · Die Y
+    · Radial position
     · Ring
     · Quadrant
     · Hard bin
     · Soft bin
     · Site
+    · PAT
     · Wafer order
     · Yield
     · Dies
@@ -778,10 +935,18 @@ Menu — Colour:
     · Lot
     · Part type
     · Program
+    · Test date
+    · Operator
+    · Temperature
     · Tester
     · Node
+    · Test code
+    · Setup date
+    · Program rev
+    · Wafer start date
+    · Wafer finish date
 
-## Insights (sample lot) › Plot › + New plot editor › Customise
+## Insights (sample lot) › My plots › + New plot editor › Customise
 
 Controls:
   · Open files
@@ -798,17 +963,20 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
@@ -822,8 +990,8 @@ Controls:
       hint: Save all your plots to a file, to share or to keep a copy
   · Delete all plots…
       hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
-  · Save as PNG   (×2)
   · Expand   (×2)
+  · Chart actions  [opens menu]   (×2)
   · Edit
       hint: Change this plot’s type, fields, titles, limits and axes
   · Duplicate
@@ -878,17 +1046,20 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 7 more fields
   · Maps
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
   · Distributions
   · Correlation
   · Data
-  · Plot
+  · My plots
   · None▾  [aria="Group by", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
@@ -902,8 +1073,8 @@ Controls:
       hint: Save all your plots to a file, to share or to keep a copy
   · Delete all plots…
       hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
-  · Save as PNG   (×2)
   · Expand   (×2)
+  · Chart actions  [opens menu]   (×2)
   · Edit
       hint: Change this plot’s type, fields, titles, limits and axes
   · Duplicate
@@ -940,9 +1111,9 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
-  · 1 more field
+  · 10 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -956,6 +1127,8 @@ Controls:
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · 1 · Pass2,27179.0%
       hint: Right-click: charts and tables for these dies
   · 2 · Fail (1 test)42514.8%
@@ -989,10 +1162,28 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact fmax_MHz is outside its limits (173 low, 4 high) on 177 of 2,873 dies (6.2%)
+  · ●●●High impact 6 tests differ by Split. Largest: fmax_MHz is higher on Split FF (2 of 13 wafers) than on the other wafers: a shift of 3.2σ, each wafer one value (q < 0.001); next: idsat_n_uA higher on FF (2.8σ), idsat_p_uA lower on SS (2.7σ), and 3 more
       hint: Click to show this test on the map, with the dies it fails
+  · fmax_MHz 3.2σ
+      hint: Click to show this test on the map, with the dies it fails
+  · idsat_n_uA 2.8σ
+      hint: Click to show this test on the map, with the dies it fails
+  · idsat_p_uA 2.7σ
+      hint: Click to show this test on the map, with the dies it fails
+  · vth_p_mV 2.7σ
+      hint: Click to show this test on the map, with the dies it fails
+  · vth_n_mV 2.6σ
+      hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: Split: 6 tests differ"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●Highfmax_MHz: 177 dies outside limits6.2%
+      hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: fmax_MHz: 177 dies outside limits"]
+      hint: Open Insights at the chart of this, under Worth a look
   · ●●●Highvth_n_mV: 176 dies outside limits6.1%
       hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: vth_n_mV: 176 dies outside limits"]
+      hint: Open Insights at the chart of this, under Worth a look
   · ●●●Highvth_p_mV: 176 dies outside limits6.1%
       hint: Click to show this test on the map, with the dies it fails
   · ●●●Highioff_nA: 116 dies outside limits4.0%
@@ -1040,6 +1231,161 @@ Controls:
   · Log
       hint: Show the log panel
 
+## One wafer loaded
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help  [opens menu]
+      hint: Help
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · Summary
+  · Map
+      hint: The wafer map
+  · Insights
+      hint: Charts and statistics for this wafer
+  · Download PNG
+  · Zoom (drag to zoom region)
+  · Zoom in
+  · Zoom out
+  · Reset zoom (double-click)
+  · Pan (drag to move)
+  · Select (drag to select dies)
+  · Charts and tables for this wafer (or right-click)  [opens menu]
+  · Plot mode  [opens menu]
+  · Colour scheme  [opens menu]
+  · Overlays  [opens menu]
+  · Legend style  [opens menu]
+  · Orientation  [opens menu]
+  · Expand (E)
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
+  · ▸  [aria="Close the Summary panel"]
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 6.4 of those points, hard bin 2 (Continuity) for 3.3 — about 48 dies lost. Iddq is above its high limit on 34 dies, 32 of them in Ring 4 (edge)
+      hint: Ring 4 (edge) yield is 9.9 percentage points lower than the rest of the map Click to show it on the map
+  · Edge-ring pattern
+      hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
+  · Hard bin 3 (Iddq)
+      hint: Ring 4 (edge) has HBin 3 (Iddq) and SBin 30 (Iddq - High) (same dies) occurrence 6.4 percentage points higher than the rest of the map Click to show it on the map
+  · Hard bin 2 (Continuity)
+      hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.3 percentage points higher than the rest of the map Click to show it on the map
+  · Iddq
+      hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: Ring 4 (edge): pass rate, 48 dies"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · Full report ▸
+  · ▶Findings (13)2 notable
+  · ●●○Notable 2
+  · ●○○Minor 11
+  · Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing
+      hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
+  · ▸Show 8 supporting findings
+  · Mean Vref is 0.4% higher than the rest of the map
+      hint: Ring 1 (core) mean Vref is 0.4% higher than the rest of the map Click to show it on the map
+  · ▶Hard Bin Breakdown — % of dies (N=1,177)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · ▶Test Values (3) · N=1,177
+  · Log
+      hint: Show the log panel
+
+## One wafer loaded › Insights
+
+Controls:
+  · Open files
+      hint: Open wafer-map files — or drop them anywhere
+  · ▾  [aria="Choose how to pick files to open", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Add files
+      hint: Append more files to the current view
+  · ▾  [aria="Choose how to pick files to add", opens menu]
+      hint: Pick files, or scan a whole folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Help  [opens menu]
+      hint: Help
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · Map
+      hint: The wafer map
+  · Insights
+      hint: Charts and statistics for this wafer
+  · Expand (E)
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
+  · ▸  [aria="Close the Summary panel"]
+  · Summary report
+  · Data tables
+  · ▶What stands out
+  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 6.4 of those points, hard bin 2 (Continuity) for 3.3 — about 48 dies lost. Iddq is above its high limit on 34 dies, 32 of them in Ring 4 (edge)
+      hint: Ring 4 (edge) yield is 9.9 percentage points lower than the rest of the map Click to show it on the map
+  · Edge-ring pattern
+      hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
+  · Hard bin 3 (Iddq)
+      hint: Ring 4 (edge) has HBin 3 (Iddq) and SBin 30 (Iddq - High) (same dies) occurrence 6.4 percentage points higher than the rest of the map Click to show it on the map
+  · Hard bin 2 (Continuity)
+      hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.3 percentage points higher than the rest of the map Click to show it on the map
+  · Iddq
+      hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: Ring 4 (edge): pass rate, 48 dies"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · Full report ▸
+  · ▶Findings (13)2 notable
+  · ●●○Notable 2
+  · ●○○Minor 11
+  · Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing
+      hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
+  · ▸Show 8 supporting findings
+  · Mean Vref is 0.4% higher than the rest of the map
+      hint: Ring 1 (core) mean Vref is 0.4% higher than the rest of the map Click to show it on the map
+  · ▶Hard Bin Breakdown — % of dies (N=1,177)
+  · Hard  [radio, checked]
+  · Soft  [radio, unchecked]
+  · ▶Ring Yield
+  · Ring  [radio, checked]
+  · Quadrant  [radio, unchecked]
+  · ▶Test Values (3) · N=1,177
+  · Overview
+  · Distributions
+  · Correlation
+  · Data
+  · My plots
+  · Expand   (×6)
+  · Chart actions  [opens menu]   (×6)
+  · Hard bins  [radio, checked]
+  · Soft bins  [radio, unchecked]
+  · Test limits  [radio, checked]
+  · Tester flag  [radio, unchecked]
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does
+  · Part average testing (PAT)
+  · Map the verdicts
+      hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
+  · Data tab
+  · Log
+      hint: Show the log panel
+
 ## Test selector (Setup ▾ → Tests…)
 
 Controls:
@@ -1057,8 +1403,9 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 9 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -1072,6 +1419,8 @@ Controls:
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · 1 · Pass1,25994.9%
       hint: Right-click: charts and tables for these dies
   · 3 · No set443.3%
@@ -1099,8 +1448,28 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Iset_+1.5V is below its low limit on 46 of 1,326 dies (3.5%)
-      hint: Click to show this test on the map, with the dies it fails
+  · ●●●High impact Ring 4 (edge) mean Ihrs_1e5cyc is 16.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined: a shift of 0.9σ over 504 dies (also seen as Rings 1–2)
+      hint: Ring 4 (edge) mean Ihrs_1e5cyc is 16.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Chart  [aria="Chart: Ring 4 (edge): Ihrs_1e5cyc higher"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●HighRing 4 (edge): Ihrs_1e6cyc higher0.9σ
+      hint: Ring 4 (edge) mean Ihrs_1e6cyc is 16.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Chart  [aria="Chart: Ring 4 (edge): Ihrs_1e6cyc higher"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●HighRing 4 (edge): Ihrs_1e4cyc higher0.9σ
+      hint: Ring 4 (edge) mean Ihrs_1e4cyc is 16.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Chart  [aria="Chart: Ring 4 (edge): Ihrs_1e4cyc higher"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●HighRing 4 (edge): Ihrs_1e3cyc higher0.8σ
+      hint: Ring 4 (edge) mean Ihrs_1e3cyc is 14.9% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Ilrs_1e6cyc lower0.8σ
+      hint: Ring 4 (edge) mean Ilrs_1e6cyc is 31.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Ihrs_1e2cyc higher0.8σ
+      hint: Ring 4 (edge) mean Ihrs_1e2cyc is 12.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Iset_+0.5V lower0.8σ
+      hint: Ring 4 (edge) mean Iset_+0.5V is 40.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Iset_+0.6V lower0.7σ
+      hint: Ring 4 (edge) mean Iset_+0.6V is 22.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
   · Full report ▸
   · ▶Findings (45)45 unusual
   · ●●●Unusual 45
@@ -1317,7 +1686,7 @@ Controls:
       hint: Pick files, or scan a whole folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
   · Load sample data
   · Scan a folder…
@@ -1332,7 +1701,7 @@ Controls:
   · Subdivide file by this column  [checkbox, unchecked]
   · Subdivide file by this column (3 values in sampl  [checkbox, unchecked]
   · Subdivide file by this column (9 values in sampl  [checkbox, unchecked]
-  · Subdivide file by this column (12 values in samp  [checkbox, unchecked]
+  · Subdivide file by this column (11 values in samp  [checkbox, unchecked]
   · Subdivide file by this column (2 values in sampl  [checkbox, unchecked]   (×2)
   · Subdivide file by this column (differs on every  [checkbox, unchecked]
   · Subdivide file by this column (24 values in samp  [checkbox, unchecked]
@@ -1358,7 +1727,7 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
@@ -1373,9 +1742,11 @@ Controls:
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
-  · Bin 186791.2%
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
+  · Bin 181986.1%
       hint: Right-click: charts and tables for these dies
-  · Bin 2848.8%
+  · Bin 213213.9%
       hint: Right-click: charts and tables for these dies
   · W01▾  [aria="Wafer info for W01. Click to expand."]
   · Open full view   (×3)
@@ -1394,12 +1765,12 @@ Controls:
   · Data tables
   · ▶What stands out
   · Full report ▸
-  · ▶Wafer Yield (89.9–92.1%) · median 91.5%
+  · ▶Wafer Yield (85.2–87.4%) · median 85.8%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W0191.5%0.0  [aria="W01, 91.5% yield — open wafer"]
-  · W02289.9%−1.6  [aria="W02, 89.9% yield, 2 findings — open wafer"]
-  · W0392.1%+0.6  [aria="W03, 92.1% yield — open wafer"]
+  · W01287.4%+1.6  [aria="W01, 87.4% yield, 2 findings — open wafer"]
+  · W02285.2%−0.6  [aria="W02, 85.2% yield, 2 findings, 1 unusual — open wafer"]
+  · W0385.8%0.0  [aria="W03, 85.8% yield — open wafer"]
   · ▶Hard Bin Breakdown — % of dies (N=951)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -1427,7 +1798,7 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
@@ -1442,9 +1813,11 @@ Controls:
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
-  · Bin 186791.2%
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
+  · Bin 181986.1%
       hint: Right-click: charts and tables for these dies
-  · Bin 2848.8%
+  · Bin 213213.9%
       hint: Right-click: charts and tables for these dies
   · W01▾  [aria="Wafer info for W01. Click to expand."]
   · Open full view   (×3)
@@ -1463,12 +1836,12 @@ Controls:
   · Data tables
   · ▶What stands out
   · Full report ▸
-  · ▶Wafer Yield (89.9–92.1%) · median 91.5%
+  · ▶Wafer Yield (85.2–87.4%) · median 85.8%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W0191.5%0.0  [aria="W01, 91.5% yield — open wafer"]
-  · W02289.9%−1.6  [aria="W02, 89.9% yield, 2 findings — open wafer"]
-  · W0392.1%+0.6  [aria="W03, 92.1% yield — open wafer"]
+  · W01287.4%+1.6  [aria="W01, 87.4% yield, 2 findings — open wafer"]
+  · W02285.2%−0.6  [aria="W02, 85.2% yield, 2 findings, 1 unusual — open wafer"]
+  · W0385.8%0.0  [aria="W03, 85.8% yield — open wafer"]
   · ▶Hard Bin Breakdown — % of dies (N=951)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -1496,7 +1869,7 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
@@ -1511,6 +1884,8 @@ Controls:
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Bin 11,01571.1%
       hint: Right-click: charts and tables for these dies
   · Bin 234424.1%
@@ -1537,6 +1912,8 @@ Controls:
       hint: Ring 4 (edge) has HBin 2 occurrence 19.1 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
   · Hard bin 2
       hint: Ring 4 (edge) has HBin 2 occurrence 19.1 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
+  · Chart  [aria="Chart: Ring 4 (edge): hard bin 2, 70 dies"]
+      hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
   · ▶Findings (1)1 unusual
   · ●●●Unusual 1
@@ -1586,8 +1963,9 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
+  · 9 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -1601,6 +1979,8 @@ Controls:
       hint: The wafer maps
   · Insights
       hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Bin 156084.5%
       hint: Right-click: charts and tables for these dies
   · Bin 28212.4%
@@ -1625,7 +2005,7 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Ring 4 (edge): pass rate 41.8 points below the rest of the wafer on 2/3 wafers; mostly hard bin 2 accounts for 32.0 of those points, hard bin 3 for 9.8 — about 64 dies lost. vth_mV is above its high limit on 40 dies, 27 of them in Ring 4 (edge). leakage_nA is outside its limits (1 low, 37 high) on 38 dies, 21 of them in Ring 4 (edge)
+  · ●●●High impact Ring 4 (edge): pass rate 41.8 points below the rest of the wafer on 2/3 wafers; mostly hard bin 2 accounts for 32.0 of those points, hard bin 3 for 9.8 — about 64 dies lost. vth_mV is above its high limit on 40 dies, 27 of them in Ring 4 (edge). leakage_nA is outside its limits (1 low, 37 high) on 38 dies, 21 of them in Ring 4 (edge). Ring 4 (edge) mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined. Ring 4 (edge) mean vth_mV is 9.1% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
       hint: Ring 4 (edge) has HBin and SBin 1 (same dies) occurrence 41.8 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined Click to show it on the map
   · Hard bin 2
       hint: Ring 4 (edge) has HBin and SBin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
@@ -1639,6 +2019,8 @@ Controls:
       hint: Click to show this test on the map, with the dies it fails
   · scan_chain
       hint: Click to show this test on the map, with the dies it fails
+  · Chart  [aria="Chart: Ring 4 (edge): pass rate, 64 dies"]
+      hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
   · ▶Findings (15)15 unusual
   · ●●●Unusual 15
@@ -1694,7 +2076,7 @@ Controls:
       hint: Pick files, or scan a whole folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
-  · Help
+  · Help  [opens menu]
       hint: Help
   · Load sample data
   · Scan a folder…
@@ -1758,6 +2140,14 @@ Controls:
       hint: Sort by Operator
   · ▾  [aria="Filter by Operator", opens dialog]
       hint: Filter by Operator
+  · Test code  [aria="Sort by Test code"]
+      hint: Sort by Test code
+  · ▾  [aria="Filter by Test code", opens dialog]
+      hint: Filter by Test code
+  · Setup date  [aria="Sort by Setup date"]
+      hint: Sort by Setup date
+  · ▾  [aria="Filter by Setup date", opens dialog]
+      hint: Filter by Setup date
   · Program rev  [aria="Sort by Program rev"]
       hint: Sort by Program rev
   · ▾  [aria="Filter by Program rev", opens dialog]

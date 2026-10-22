@@ -106,6 +106,8 @@ export function showDefinitionsTemplatesDialog(
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = 'Save template…';
+        // Four rows share the visible label; the accessible name says which file this one saves.
+        saveBtn.setAttribute('aria-label', `Save a ${row.label.toLowerCase()} template`);
         saveBtn.className = 'btn-secondary';
         saveBtn.addEventListener('click', async () => {
           try {

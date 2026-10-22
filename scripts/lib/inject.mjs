@@ -2,16 +2,23 @@
  * File injection into the running tsmap web app.
  *
  * The app listens for a 'drop' event on document.body. Files are injected by
- * having the PAGE fetch them from the static server's /testdata/ or
- * /sample_data/ route — no bytes ever cross the CDP bridge, so large files
+ * having the PAGE fetch them from the static server's /testdata/,
+ * /sample_data/ or /docs-samples/ route — no bytes ever cross the CDP bridge, so large files
  * don't OOM Node.
  */
 
 import { existsSync } from 'fs';
 import { relative } from 'path';
-import { TESTDATA, SAMPLEDATA } from './paths.mjs';
+import { TESTDATA, SAMPLEDATA, DOCSAMPLES } from './paths.mjs';
 
-/** Drops a single file. filePath is absolute, under testdata/ or sample_data/. */
+// Each directory the static server (server.mjs) exposes, and the route it is served under.
+const SERVED = [
+  { dir: SAMPLEDATA, route: '/sample_data/' },
+  { dir: DOCSAMPLES, route: '/docs-samples/' },
+  { dir: TESTDATA, route: '/testdata/' },
+];
+
+/** Drops a single file. filePath is absolute, under testdata/, sample_data/ or docs/samples/. */
 export async function injectFile(page, filePath, baseUrl) {
   await injectFiles(page, [filePath], baseUrl);
 }
@@ -31,10 +38,10 @@ export async function injectFiles(page, filePaths, baseUrl) {
     // already joins the full relative path, so this was previously only
     // correct for files directly at the testdata/ or sample_data/ root.
     const fileName = filePath.split('/').pop();
-    const underSampleData = filePath.startsWith(SAMPLEDATA);
-    const urlPrefix = underSampleData ? '/sample_data/' : '/testdata/';
-    const relPath = relative(underSampleData ? SAMPLEDATA : TESTDATA, filePath);
-    return { fetchUrl: `${baseUrl}${urlPrefix}${relPath}`, fileName };
+    const served = SERVED.find(({ dir }) => filePath.startsWith(dir + '/'));
+    if (!served) throw new Error(`Demo data file is not under a served directory: ${filePath}`);
+    const relPath = relative(served.dir, filePath);
+    return { fetchUrl: `${baseUrl}${served.route}${relPath}`, fileName };
   });
 
   // Wait until the app's drop listener is registered (open-btn is present and

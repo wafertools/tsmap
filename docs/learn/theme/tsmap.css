@@ -1,0 +1,223 @@
+/*
+ * @theme tsmap
+ * @auto-scaling true
+ * @size 16:9 1280px 720px
+ *
+ * Marp theme for the tsmap lesson decks (docs/learn/NN-slug.md). Matches
+ * the docs site: Inter and JetBrains Mono, the indigo primary colour, white
+ * pages in light mode and the slate scheme in dark mode, following the
+ * reader's system setting.
+ *
+ * Slide classes (set with <!-- _class: name -->):
+ *   title    the opening slide of a session
+ *   divider  a section divider
+ *   split    text on the left, one screenshot on the right
+ *   lab      the "Try it yourself" slide
+ *   next     the closing "Next session" slide
+ * Any other slide is a heading, at most a line or two of text, and a
+ * screenshot that fills the rest of the slide.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg: #ffffff;
+  --fg: rgba(0, 0, 0, 0.87);
+  --muted: rgba(0, 0, 0, 0.56);
+  --rule: rgba(0, 0, 0, 0.08);
+  --primary: #4051b5;
+  --primary-fg: #ffffff;
+  --link: #3f5bd9;
+  --code-bg: #f5f5f5;
+  --shot-border: rgba(0, 0, 0, 0.12);
+  --shot-shadow: 0 4px 18px rgba(0, 0, 0, 0.10);
+  --callout: #e8590c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: hsl(225, 15%, 9%);
+    --fg: hsla(225, 15%, 90%, 0.88);
+    --muted: hsla(225, 15%, 90%, 0.58);
+    --rule: hsla(225, 15%, 90%, 0.12);
+    --primary: #5d6cc0;
+    --link: #8ea2f2;
+    --code-bg: hsl(225, 15%, 15%);
+    --shot-border: hsla(225, 15%, 90%, 0.18);
+    --shot-shadow: 0 4px 22px rgba(0, 0, 0, 0.5);
+  }
+}
+
+section {
+  position: relative;
+  width: 1280px;
+  height: 720px;
+  box-sizing: border-box;
+  padding: 52px 72px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 28px;
+  line-height: 1.45;
+  border-top: 8px solid var(--primary);
+}
+
+h1, h2, h3 {
+  margin: 0;
+  color: var(--fg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; color: var(--muted); font-weight: 500; }
+
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.2em; }
+li + li { margin-top: 0.3em; }
+strong { font-weight: 700; }
+a { color: var(--link); text-decoration: none; border-bottom: 1px solid currentColor; }
+code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.05em 0.3em;
+}
+
+/* A numbered marker matching the callout labels in the screenshots: a flat tab, not a button. */
+.badge {
+  display: inline-block;
+  min-width: 1.1em;
+  padding: 0.05em 0.35em;
+  border-radius: 0.2em;
+  background: var(--callout);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75em;
+  line-height: 1.3;
+  text-align: center;
+  vertical-align: 0.12em;
+  margin-right: 0.35em;
+}
+
+/* The screenshot paragraph takes whatever height the slide has left. */
+section > p:has(> img) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+section > p > img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 1px solid var(--shot-border);
+  border-radius: 8px;
+  box-shadow: var(--shot-shadow);
+}
+
+/* Page number and footer, quiet. */
+section::after {
+  position: absolute;
+  color: var(--muted);
+  font-size: 16px;
+  padding: 0;
+  right: 72px;
+  bottom: 22px;
+}
+/*
+ * The tsmap icon. scripts/build-lessons.mjs copies docs/images/tsmap-readme-header-256.png
+ * to site/learn/tsmap-icon.png, one level above each deck's index.html.
+ */
+footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: absolute;
+  color: var(--muted);
+  font-size: 16px;
+  left: 72px;
+  bottom: 22px;
+}
+
+footer::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  flex: none;
+  background: url('../tsmap-icon.png') center / contain no-repeat;
+}
+
+/* ── title ── */
+section.title {
+  justify-content: center;
+  gap: 18px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, transparent), transparent 60%),
+    var(--bg);
+}
+section.title::before,
+section.next::before {
+  content: '';
+  width: 96px;
+  height: 96px;
+  flex: none;
+  background: url('../tsmap-icon.png') left center / contain no-repeat;
+}
+section.title h1 { font-size: 64px; }
+section.title h2 { font-size: 30px; }
+section.title p { color: var(--muted); font-size: 22px; }
+
+/* ── divider ── */
+section.divider {
+  justify-content: center;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-top-color: var(--primary);
+}
+section.divider h1 { color: var(--primary-fg); font-size: 56px; }
+section.divider p { color: rgba(255, 255, 255, 0.82); }
+section.divider::after, section.divider footer { color: rgba(255, 255, 255, 0.7); }
+section.divider footer::before { display: none; }
+
+/* ── split: text left, screenshot right ── */
+section.split {
+  display: grid;
+  grid-template-columns: 34% 1fr;
+  grid-template-rows: auto 1fr;
+  column-gap: 44px;
+  row-gap: 18px;
+  align-content: start;
+}
+section.split > h1 { grid-column: 1 / -1; }
+section.split > :not(h1):not(footer):not(header):not(p:has(> img)) { grid-column: 1; align-self: start; }
+section.split > p:has(> img) { grid-column: 2; grid-row: 2 / span 6; height: 100%; }
+
+/* ── lab ── */
+section.lab { border-top-color: var(--callout); }
+section.lab h1::before {
+  content: 'Lab';
+  display: inline-block;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--callout);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-right: 16px;
+  vertical-align: 8px;
+}
+section.lab ol li { margin-top: 0.45em; }
+
+/* ── next ── */
+section.next { justify-content: center; }
+section.next::before { width: 64px; height: 64px; }
+section.next h1 { font-size: 52px; }
+section.next p { font-size: 30px; }

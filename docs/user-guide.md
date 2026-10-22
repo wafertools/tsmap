@@ -117,7 +117,7 @@ The repository's `sample_data/` folder holds synthetic lots for trying each feat
 | --- | --- | --- |
 | `PVT-LOT-05.stdf` with `PVT-LOT-05_splits.csv` | 13 wafers across 5 process corners, 4-site test, correlated tests. This is the lot behind **Load sample data**. | **Group by → Split**; the Insights correlation tab |
 | `PVT-LOT-05_testdefs.csv`, `_testdefs_spec.csv`, `_testdefs_edgecases.csv` | Test-definitions files for that lot: names and test limits; test limits **and** spec limits on the same tests; and a robustness check with an unrecognised column and malformed lines, each reported in the log without dropping the rest of the file. | **Setup ▾ → Tests…** → load. The spec file adds LSL/USL lines and a capability judged against the spec limits |
-| `RETEST-LOT-07.csv` | Dies probed twice: most failing dies are retested and about two thirds recover. | The die tooltip's retest count; the log's note about repeated dies |
+| `RETEST-LOT-07.csv` | Dies probed more than once: most failing dies are retested and about two thirds recover, a few passing dies are re-probed and some of those fail, and a few recovered dies fail a third probe. | **Setup ▾ → Retests…**: each choice gives its own yield. The die tooltip's retest count; the log's note about repeated dies |
 | `MPW-LOT-08.csv` | A multi-project wafer: a small cluster of dies repeats in every reticle. | **Overlays ▾ → Compact layout** and **Layout diagnostics** |
 | `VALID-LOT-09.csv` | Long-format file with test limits and validity limits (`lo_limit`, `hi_limit`, `lvl`, `uvl`). A few readings per test are tester clamps: Idsat at its 5000 µA compliance clamp, Vth at 0 mV with no probe contact, Ioff at its ammeter rail. | **Setup ▾ → Exclude values outside limits…**: switch between validity limits and off, and compare the map, the Test Values table's **Excl.** column and the Distributions charts. Yield does not change |
 | `RRAM-LOT-06.stdf`, `_testdefs.csv`, `_plots.json` | A resistive-memory characterisation lot with 76 tests: readable names, 7 derived tests, and two sweeps. | Load the lot, load the definitions in the test selector, then **Insights → Plot → Import plots…** (or launch with `--plots`) |
@@ -300,6 +300,10 @@ column whose values are actually text. This is a hint, not a hard stop — a num
 text column (e.g. `"42"`) still parses fine — but it catches an obvious mismatch (e.g.
 mapping a wafer-ID text column to X position) before a full parse silently produces empty
 or wrong results.
+
+A file with many columns can be set up in a few clicks. **Filter columns…** narrows the list to
+the columns whose names match what you type; **Shown → Test value** then gives every column still
+listed the Test value role, and **Shown → Ignore** leaves them all out of the load.
 
 Nothing here is a hard rule — whatever role a column lands on, reassign it in the overlay before
 continuing; no data is imported until you confirm. The roles, and the column names that are
@@ -982,6 +986,28 @@ the My plots tab's footnote, the report and the CSV exports. The wafer's bins an
 is the same either way. `sample_data/VALID-LOT-09.csv` has a few clamped readings and its limits; open it and switch between
 **Validity limits** and **Off** to see what a clamp does to the scale.
 
+### Retests
+
+A prober can contact a die more than once: a retest pass over the dies that failed, a check of a few that passed, a retry after a
+contact failure. The file then holds several results for one die position, and one of them has to stand for the die. Open
+**Setup ▾ → Retests…** and choose which:
+
+- **Last result** (the default): the most recent probe, in the order the file records them.
+- **First result**: the earliest probe.
+- **Best result**: a pass over a fail; between two passes or two fails, the lower hard bin.
+- **Worst result**: a fail over a pass; between two passes or two fails, the higher hard bin.
+
+The chosen result is the die everywhere: its bin and test values on the map, the yield, the findings, the Summary panel, Insights,
+the data tables, the report and the exports. A result the tester marked as replacing an earlier one (the STDF part flags) always
+counts, whatever the choice. A retested die's tooltip says how many times it was probed, and for a CSV, JSON or Parquet
+file the log says how many positions were tested more than once. A die with no reported position is matched to its earlier probes by part ID instead, when the file's part
+IDs tell dies apart (see [Dies with no reported position](#dies-with-no-reported-position)).
+
+**Apply** takes effect at once, without reloading the file, and **Clear** returns to the default. The choice is one setting for every
+wafer loaded and is remembered between sessions; **Help → Reset saved settings…** lists it. `--retests` sets it for one launch from
+the [command line](#command-line). `sample_data/RETEST-LOT-07.csv` gives each choice its own yield: across the lot, 86.1% with the
+last result, 79.2% with the first, 91.2% with the best and 75.8% with the worst.
+
 ## Reference
 
 ### Command line
@@ -1000,6 +1026,7 @@ tsmap lot1.stdf --wafer-diameter 300       # sets the wafer diameter (mm) for th
 tsmap lot1.stdf --wafer-diameter 300 --edge-exclusion 3   # plus an edge-exclusion band (mm)
 tsmap lot1.stdf --reticle 4x3              # sets the stepper field (dies wide x high) for this launch
 tsmap lot1.stdf --reticle 4x3@1,0          # the same, with die (1, 0) at a field's bottom-left corner
+tsmap lot1.stdf --retests best             # which result counts for a die probed more than once, for this launch
 tsmap --url https://.../lot.stdf --url-format stdf   # fetch and open a URL — see below
 tsmap --help                               # full usage
 tsmap --version                            # print the version and exit
@@ -1032,11 +1059,14 @@ and an optional `@X,Y` names the die at a field's bottom-left corner when it is 
 and the field is at least one die each way; anything else is refused when you launch. Like the geometry flags it
 applies to that session only, and the setting saved from the dialog is left as it was.
 
+`--retests` makes the same choice as the [Retests… dialog](#retests): `last`, `first`, `best` or `worst`. Anything else is
+refused when you launch. It applies to that session only, and the choice saved from the dialog is left as it was.
+
 If tsmap is already running, launching it again with files hands them to the running window
 instead of opening a second blank one: with nothing currently loaded they open right away;
 with data already loaded, a dialog asks whether to replace it. Decline and the new files open
 in a separate, independent tsmap window instead, so nothing is lost either way. A launch with
-no data files — only `--plots`, `--wafer-diameter`, `--edge-exclusion` or `--reticle` — replaces nothing,
+no data files — only `--plots`, `--wafer-diameter`, `--edge-exclusion`, `--reticle` or `--retests` — replaces nothing,
 so it applies to the running window straight away without asking.
 
 ### Opening data from a URL

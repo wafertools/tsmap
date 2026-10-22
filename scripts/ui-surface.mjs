@@ -143,7 +143,7 @@ const SCENES = [
   },
   {
     // Everything inside the Insights tab: each sub-tab's chart controls, the test
-    // and wafer pickers, the Data tab's table switch, the Plot tab's buttons and
+    // and wafer pickers, the Data tab's table switch, the My plots tab's buttons and
     // the two editors that + New plot / + New sweep open.
     name: 'Insights (sample lot)',
     setup: sampleInsights,
@@ -152,15 +152,15 @@ const SCENES = [
       { name: 'Distributions', setup: (p) => press(p, 'Distributions') },
       { name: 'Correlation', setup: (p) => press(p, 'Correlation') },
       { name: 'Data', setup: (p) => press(p, 'Data') },
-      { name: 'Plot', setup: (p) => press(p, 'Plot') },
-      { name: 'Plot › + New plot editor', setup: (p) => press(p, '+ New plot'), menus: ['X axis', 'Y axis', 'Colour'] },
-      { name: 'Plot › + New plot editor › Customise', setup: (p) => press(p, 'Customise'), menus: false },
+      { name: 'My plots', setup: (p) => press(p, 'My plots') },
+      { name: 'My plots › + New plot editor', setup: (p) => press(p, '+ New plot'), menus: ['X axis', 'Y axis', 'Colour'] },
+      { name: 'My plots › + New plot editor › Customise', setup: (p) => press(p, 'Customise'), menus: false },
     ],
   },
   {
     name: 'Insights (sample lot) › + New sweep editor',
     menus: false,
-    setup: async (page) => { await sampleInsights(page); await press(page, 'Plot'); await press(page, '+ New sweep'); },
+    setup: async (page) => { await sampleInsights(page); await press(page, 'My plots'); await press(page, '+ New sweep'); },
   },
   {
     // One wafer opened from the gallery: its own toolbar, with the Map | Insights switch.
@@ -171,6 +171,14 @@ const SCENES = [
       await waitLoaded(page);
       await press(page, 'Open full view');
     },
+  },
+  {
+    // A file holding one wafer: one map with its own toolbar and the Summary panel open, and an
+    // Insights with nothing to group or compare. Its controls differ from a gallery's.
+    name: 'One wafer loaded',
+    menus: false,
+    setup: (page) => openFile(page, 'EDGE-LOT-01_W01.stdf'),
+    views: [{ name: 'Insights', setup: (p) => press(p, 'Insights') }],
   },
   {
     // A lot with 77 tests and derived-test definitions to load: the selector's own controls.
@@ -247,10 +255,32 @@ const DIALOGS = [
   ['#lot-btn', 'Bin definitions…'],
   ['#lot-btn', 'Diameter & edge exclusion…'],
   ['#lot-btn', 'Reticle…'],
+  ['#lot-btn', 'Retests…'],
   ['#help-btn', 'Definitions file formats…'],
   ['#help-btn', 'Reset saved settings…'],
   ['#help-btn', 'About tsmap…'],
 ];
+
+/**
+ * Close every open dialog before the next is opened: Escape first, then the
+ * dialog's own Close or Cancel button for one that does not take Escape.
+ */
+async function closeDialogs(page) {
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  for (let tries = 0; tries < 3; tries++) {
+    const left = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll('div[role="dialog"]')].filter(b => b.offsetParent !== null);
+      for (const box of boxes) {
+        const btn = [...box.querySelectorAll('button')].find(b => /^(Close|Cancel|Done)/.test(b.getAttribute('aria-label') || b.textContent?.trim() || ''));
+        btn?.click();
+      }
+      return boxes.length;
+    });
+    if (left === 0) return;
+    await page.waitForTimeout(400);
+  }
+}
 
 // ── Serialisation ────────────────────────────────────────────────────────────
 
@@ -393,21 +423,26 @@ async function captureView(page, lines, seenMenus, opts) {
         continue;
       }
       await page.waitForTimeout(900);
+      // The newest visible dialog is the one this row opened: reading the first
+      // one in the document recorded a dialog that had not closed under the
+      // name of every row after it.
       const inDialog = await page.evaluate(`(() => {
-        const box = document.querySelector('div[role="dialog"]');
+        const boxes = [...document.querySelectorAll('div[role="dialog"]')].filter(b => b.offsetParent !== null);
+        const box = boxes[boxes.length - 1];
         if (!box) return null;
         return {
-          title: (box.querySelector('h2, h3, [class*=title]')?.textContent || '').trim(),
+          open: boxes.length,
+          title: (box.querySelector('[id^="modal-title"], h2, h3, [class*=title]')?.textContent || '').trim(),
           controls: ${controlsIn('box')},
         };
       })()`);
       if (!inDialog) {
         lines.push('    (opened but no dialog found)');
       } else {
+        if (inDialog.open > 1) lines.push(`    (${inDialog.open} dialogs open — an earlier one did not close)`);
         for (const c of inDialog.controls) lines.push(renderControl(c, '    '));
       }
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(400);
+      await closeDialogs(page);
       lines.push('');
     }
   }

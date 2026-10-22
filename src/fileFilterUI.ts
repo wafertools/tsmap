@@ -566,6 +566,10 @@ export async function openFileFilterDialog(
         status.textContent = `Scanning ${scannedCount} / ${picked.length}…`;
         return sf;
       }).then((results) => {
+        // A folder lists its files in whatever order the platform returns them,
+        // so sort by name: the table opens in that order and a load takes the
+        // files, and so labels the wafers, in it.
+        results.sort((a, b) => a.picked.handle.name.localeCompare(b.picked.handle.name, undefined, { numeric: true }));
         scannedFiles = results;
         const tableStart = performance.now();
         if (timed) {

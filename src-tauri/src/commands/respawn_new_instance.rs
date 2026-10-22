@@ -34,6 +34,9 @@ pub fn respawn_new_instance(args: CliArgs) -> Result<(), String> {
         let anchor = reticle.anchor_die.map(|d| format!("@{},{}", d.x, d.y)).unwrap_or_default();
         cmd.arg("--reticle").arg(format!("{}x{}{anchor}", reticle.width, reticle.height));
     }
+    if let Some(retests) = &args.retests {
+        cmd.arg("--retests").arg(retests);
+    }
     cmd.args(&args.files);
     cmd.spawn().map(|_| ()).map_err(|e| format!("Failed to launch new tsmap instance: {e}"))
 }

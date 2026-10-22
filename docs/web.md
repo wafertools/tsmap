@@ -13,7 +13,8 @@ Click **Open files** to pick one or more files from your device, or drag and dro
 anywhere in the window. Multiple files are loaded as a batch and merged into a single
 gallery, with a rename step to label each wafer.
 
-For a large set, **Filter files…** scans just the header metadata of every file you pick —
+For a large set, **Scan a folder…** (on the start screen, or under the **▾** beside **Open
+files** and **Add files**) reads just the header metadata of every file in the folder —
 lot ID, part type, wafer count and so on — and shows them in a sortable, filterable table so
 you can load only the ones you want. Files are read a few at a time and released again, so
 scanning a big batch doesn't hold it all in memory.
@@ -52,7 +53,7 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
   ~500 dies each, 20 tests), snappy-compressed; opening it shows the same column-mapping
   overlay as CSV/JSON.
 - [tsmap-correlated.stdf](samples/tsmap-correlated.stdf) — STDF: 5 wafers, ~200 dies each, 30
-  tests with *designed* correlations spanning a full range of Pearson r. Open **Charts** to
+  tests with *designed* correlations spanning a full range of Pearson r. Open **Insights → Correlation** to
   see the correlation matrix and scatter plots come to life.
 - [tsmap-correlated.parquet](samples/tsmap-correlated.parquet) — Parquet: the same designed
   correlation dataset.
@@ -60,12 +61,17 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
 - [tsmap-validity.csv](samples/tsmap-validity.csv) — CSV, long format: 3 wafers with test limits
   and validity limits (`lvl`/`uvl`), where a few readings are tester clamps. Open it, then try
   **Setup ▾ → Exclude values outside limits…**.
-- [tsmap-retest.csv](samples/tsmap-retest.csv) — CSV: 3 wafers in which failing dies were probed a
-  second time, most recovering. The die tooltip shows each die's retest count.
+- [tsmap-retest.csv](samples/tsmap-retest.csv) — CSV: 3 wafers in which dies were probed more than
+  once, most failing dies recovering. Open it, then try **Setup ▾ → Retests…**: each choice gives
+  its own yield. The die tooltip shows each die's retest count.
 - [tsmap-multi-project.csv](samples/tsmap-multi-project.csv) — CSV: a multi-project wafer, mostly
   empty, for **Overlays ▾ → Compact layout**.
+- [tsmap-single-wafer.stdf](samples/tsmap-single-wafer.stdf) — STDF: one wafer with an edge-ring defect, to see how a
+  single wafer opens: one map, its own toolbar and the Summary panel.
+- [tsmap-coordless.stdf](samples/tsmap-coordless.stdf) — STDF: 3 wafers, one with a position for
+  every die, one with some dies unpositioned, and one with none, to see how each is shown.
 
-All ten contain no real device data — they are generated for demonstration.
+All twelve contain no real device data — they are generated for demonstration.
 
 Or try the **[live demo of opening tsmap from a link](demos/open-from-link.html)** — it
 builds the `?dataUrl=` link for each of these samples for you and opens the browser build

@@ -167,6 +167,7 @@ src/
   waferGeometry.ts / waferGeometryUI.ts — wmap's wafer diameter + edge-exclusion band (mm), global values
   reticle.ts / reticleUI.ts — the stepper field size (dies) behind the reticle grid and reticle-position findings
   valueFilter.ts / valueFilterUI.ts — which limit set a test value must lie inside to be used (validity limits by default); wmap applies it and counts what it excludes
+  retestPolicy.ts / retestPolicyUI.ts — which result counts for a die probed more than once (the last by default); wmap applies it
   mapPrefs.ts         — remembered wafer-map preferences (every key wmap classes as one)
   plotPrefs.ts        — the saved plots behind Insights' Plot tab (as wmap's own plots file) and the filter and the saved filters
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet

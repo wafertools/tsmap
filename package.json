@@ -17,8 +17,8 @@
     "dev:web": "vite --force --port 5301 --host",
     "build": "tsc && vite build",
     "build:web": "tsc && vite build",
-    "build:site": "npm run build:web && ${ZENSICAL:-.venv/bin/zensical} build --clean && cp -r dist site/app",
-    "build:site:dev": "npm run predev && tsc && vite build && ${ZENSICAL:-.venv/bin/zensical} build --clean && cp -r dist site/app",
+    "build:site": "npm run build:web && ${ZENSICAL:-.venv/bin/zensical} build --clean && npm run lessons:build && cp -r dist site/app",
+    "build:site:dev": "npm run predev && tsc && vite build && ${ZENSICAL:-.venv/bin/zensical} build --clean && npm run lessons:build && cp -r dist site/app",
     "preview:site": "npm run build:site:dev && echo \"\\nServing site at http://localhost:8002/ — Ctrl-C to stop\\n\" && cd site && python3 -m http.server 8002",
     "check": "tsc --noEmit",
     "check:drift": "node scripts/check-drift.mjs",
@@ -61,7 +61,10 @@
     "check:styles": "node scripts/check-style-scales.mjs",
     "check:themes": "node scripts/check-theme-docs.mjs",
     "ui:surface": "node scripts/ui-surface.mjs",
-    "ui:surface:check": "node scripts/ui-surface.mjs --check"
+    "ui:surface:check": "node scripts/ui-surface.mjs --check",
+    "lessons:shots": "node scripts/lesson-shots.mjs",
+    "lessons:build": "node scripts/build-lessons.mjs",
+    "lessons:check": "node scripts/check-lesson-coverage.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -74,6 +77,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@marp-team/marp-cli": "^4.5.1",
     "@tauri-apps/cli": "^2",
     "eslint": "^10.8.0",
     "marked": "^18.0.7",

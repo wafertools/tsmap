@@ -62,6 +62,9 @@ const GROUPS = [
       ['npm run preview:site', 'The docs site on :8002 — links and demos clickable'],
       ['npm run screenshots:only', 'Recapture one screenshot after a dialog changes'],
       ['npm run ui:surface', 'Re-record every control, label and hint to docs/ui-surface.txt'],
+      ['npm run lessons:shots', 'Recapture the lessons\' screenshots (-- --only 01 for one lesson)'],
+      ['npm run lessons:build', 'Build the lessons into site/learn/'],
+      ['npm run lessons:check', 'Which controls and guide topics no lesson covers yet'],
     ],
   },
   {

@@ -300,11 +300,20 @@ describe('runLoad', () => {
         const h = harness(cheap);
         await runLoad([file('a.stdf')], true, false, h.deps);
         expect(h.rendered).toHaveLength(1);
-        expect(h.rendered[0].fileName).toBe('old.stdf');
+        expect(h.rendered[0].fileName).toBe('2 files');
+        // No lot ID in the added file, so its wafers keep their own IDs.
         expect(h.rendered[0].wafers.map(w => w.waferId)).toEqual(['OLD', 'W01', 'W02']);
         expect(Object.keys(h.rendered[0].testDefs).sort()).toEqual(['1', '9']);
         expect(h.cleared.view).toBe(0);
         expect(h.remembered).toEqual([]);
+      });
+
+      it('labels an added wafer with its lot, as the wafer labels step would', async () => {
+        const lotFile = { ...raw(), meta: { fields: [{ key: 'lotId', value: 'LOT-A' }] }, wafers: [wafer('W03')] };
+        const h = harness({ ...cheap, platform: { parseStdfFiltered: vi.fn(async () => lotFile) } });
+        await runLoad([file('a.stdf')], true, false, h.deps);
+        expect(h.ui.renameWafers).not.toHaveBeenCalled();
+        expect(h.rendered[0].wafers.map(w => w.waferId)).toEqual(['OLD', 'LOT-A · W03']);
       });
     });
   });

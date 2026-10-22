@@ -6,6 +6,9 @@ repo_url    = "https://github.com/wafertools/tsmap"
 
 nav = [
   { "Home"         = "index.md"                        },
+  # The lessons' index. `npm run lessons:build` replaces this page in site/ with
+  # the generated list of lessons; the Markdown is the contributors' notes.
+  { "Learn tsmap"  = "learn/README.md"                 },
   { "Use tsmap" = [
     { "Tutorial"        = "tutorial.md"                },
     { "Web app"         = "web.md"                     },
