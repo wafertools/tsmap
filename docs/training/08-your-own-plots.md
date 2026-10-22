@@ -61,9 +61,39 @@ Once defined it is an ordinary test: map it, colour it against limits, chart it.
 
 ---
 
-# Expressions
+# Expressions: what they read
 
-`t[3126]` is a test's value, `testPass[2001]` the recorded verdict, and `3126..3130` a range of tests that must be reduced with `mean`, `max` or similar. A derived test can read another.
+| Write | It gives |
+| --- | --- |
+| `t[3126]` | the measured value of test 3126 |
+| `testPass[2001]` | the pass or fail the tester recorded |
+| `specPass[3126]` | whether the value is inside its limits |
+| `diePass()` | whether the die's bin counts as a pass |
+| `dieX()`, `dieY()` | the die's position |
+| `hbin()`, `sbin()`, `site()` | the die's hard bin, soft bin and probe site |
+
+A derived test can read another.
+
+---
+
+# Expressions: what you can do with them
+
+- **Arithmetic:** `+ - * / % ^`
+- **Comparisons:** `< <= > >= == !=`, joined with `and`, `or`, `not`
+- **Choosing:** `if(condition, a, b)`
+- **Functions:** `abs sqrt ln log10 exp floor ceil round sign pow min max`
+
+For example `abs(t[1020] - t[1010])`, or `if(dieX() < 5, t[1010], 0 - 1)`.
+
+A true or false expression needs **testType F**. Its result is a pass or fail, not a number.
+
+---
+
+# Expressions: ranges and missing data
+
+`3126..3130` names every test in that range that exists. A range must be reduced to one number or verdict: `mean sum min max` for values, `all any none countTrue countFalse` for verdicts, `countKnown` for either.
+
+If a die lacks a value the expression needs, the derived value is blank for that die, never zero. Reducers skip blanks. A result such as 0/0 is blank too.
 
 A derived test that cannot be computed is left out with the reason in the log, never half-computed.
 
