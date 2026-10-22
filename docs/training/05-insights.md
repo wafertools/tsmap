@@ -162,7 +162,7 @@ The line says what the chart shows and how to read it, in the words the app uses
 
 # Expand
 
-**Expand**, left of the ⋯, opens one chart large. Save as PNG from there for a clean full-size image.
+The **Expand** button, to the left of the ⋯ button, opens a chart in its own large window. Choose **Save as PNG** there for a clean full-size image.
 
 ![Yield by wafer expanded into its own window](images/05/expanded-chart.png)
 
