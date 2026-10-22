@@ -56,3 +56,28 @@ fold Filter files › Filter by column = Filter by * | one per metadata column f
 
 LOT-DEMO · W01▾Product: DEMO-DEVICE | only on the wafermap demo page; tsmap shows the wafer chip instead
 User guide | only on the wafermap demo page; tsmap opens the guide from Help › User guide
+
+# ── wafermap demo-page controls: not part of tsmap ───────────────────────────
+# These appear only on wafermap's own demo pages (../wafermap/docs/ui-surface.txt). tsmap has no such control.
+
+Plot mode › (a test) | wafermap demo page only; tsmap has no such control
+Single wafer | wafermap demo page only; tsmap has no such control
+Lot gallery | wafermap demo page only; tsmap has no such control
+Lot stack | wafermap demo page only; tsmap has no such control
+Open | wafermap demo page only; tsmap has no such control
+Closed | wafermap demo page only; tsmap has no such control
+Show the sweep ↓ | wafermap demo page only; tsmap has no such control
+Compact | wafermap demo page only; tsmap has no such control
+On | wafermap demo page only; tsmap has no such control
+Off | wafermap demo page only; tsmap has no such control
+Mode Hard Bin Value — Idsat | wafermap demo page only; tsmap has no such control
+Reticle cell | wafermap demo page only; tsmap has no such control
+Plot mode › Project | wafermap demo page only; tsmap has no such control
+Hard Bin | wafermap demo page only; tsmap has no such control
+Test Site | wafermap demo page only; tsmap has no such control
+Site 3 fail | wafermap demo page only; tsmap has no such control
+last | wafermap demo page only; tsmap has no retest choice
+first | wafermap demo page only; tsmap has no retest choice
+best | wafermap demo page only; tsmap has no retest choice
+worst | wafermap demo page only; tsmap has no retest choice
+supersedes | wafermap demo page only; tsmap has no retest choice

@@ -150,7 +150,7 @@ control (`fold <Name> = <pattern> | <reason>`), and leaves out what is not taugh
 (`<pattern> | <reason>`). Every line needs a reason and must match something. Exclusions are
 the maintainer's call: propose them, with the reason, rather than adding them.
 
-Not wired into `npm run verify` yet: it fails until every session is written.
+Now passes with the wafermap demo-page exclusions in place. Not wired into `npm run verify` yet.
 
 ## Sessions
 
@@ -216,3 +216,11 @@ exclusion…; Setup ▾ → Exclude values outside limits…; the column mapping
 associations; definitions files: Setup ▾ → Bin definitions… (Save…, Load…, recent files), Load bin
 definitions… in the column mapping, Help → Definitions file formats…; Help → Reset saved settings…
 and About tsmap.
+
+## TODO
+
+- **Retest choice.** The wafermap library can keep the last, first, best or worst result when a die
+  position is probed more than once (its `retestPolicy`, default `last`), and its demo page offers
+  that choice. tsmap has no control for it, so session 09 says tsmap keeps the last result. If tsmap
+  gains the choice, rewrite the Retests slide in `09-unusual-wafers.md` to teach it, and remove the
+  retest entries from `coverage-exclusions.txt` so the check asks for them.
