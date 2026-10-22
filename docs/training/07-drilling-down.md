@@ -190,8 +190,15 @@ One row per selected die, with its position, bins and every test value. **Export
 
 # What you right-click decides the population
 
-| Right-click | Opens on |
+| If you right-click… | the charts and tables cover… |
 | --- | --- |
+| dies you have selected | just those selected dies |
+| empty space on a map | every die on that wafer |
+| a card's header | every die on that wafer |
+| a bin in the legend | every die in that bin, on every wafer |
+| a finding in the Summary panel | the dies the finding is about |
+
+--- | --- |
 | selected dies | those dies |
 | empty map space | the whole wafer |
 | a card's header | that wafer |
