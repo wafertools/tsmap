@@ -128,9 +128,13 @@ A name for each hard or soft bin, whether a hard bin passes, and optionally its 
 
 ---
 
+<!-- covers: Colour scheme › ✓Use colours from bin definitions -->
+
 # STDF, ATDF and the rest
 
 STDF and ATDF carry bin names and pass flags themselves. CSV, JSON and Parquet carry none, so every bin is a bare number until you supply definitions.
+
+When a definitions file carries bin colours, **Colour scheme → Use colours from bin definitions** turns them on and off.
 
 ---
 
