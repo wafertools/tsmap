@@ -63,9 +63,9 @@ One bar per wafer, with the median as a line. **Sort: yield** <span class="badge
 
 <!-- _class: split -->
 
-# Weakest first
+# Sorted by yield
 
-Sorted by yield, W11 and W04 lead the low end. Both are SS.
+Highest yield first, so the weakest wafers are at the right: W04 and W11, both SS.
 
 ![Yield by wafer sorted by yield](images/05/yield-sorted.png)
 
