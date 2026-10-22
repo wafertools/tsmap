@@ -2,7 +2,8 @@
  * Static file server for driving the built tsmap web app from Playwright.
  *
  * Serves dist/ at /, testdata/ (gitignored, generated fixtures) at
- * /testdata/, and sample_data/ (committed fixtures) at /sample_data/. Using
+ * /testdata/, sample_data/ (committed fixtures) at /sample_data/, and the
+ * samples published on the docs site (docs/samples/) at /docs-samples/. Using
  * these routes lets the page fetch demo files itself instead of streaming
  * bytes through CDP — see inject.mjs.
  *
@@ -16,7 +17,7 @@
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { extname, join } from 'path';
-import { DIST, TESTDATA, SAMPLEDATA } from './paths.mjs';
+import { DIST, TESTDATA, SAMPLEDATA, DOCSAMPLES } from './paths.mjs';
 
 const MIME = {
   '.html':  'text/html',
@@ -34,6 +35,7 @@ const MIME = {
   '.atdf':  'text/plain',
   '.atd':   'text/plain',
   '.csv':   'text/csv',
+  '.parquet': 'application/octet-stream',
   '.txt':   'text/plain',
 };
 
@@ -49,6 +51,8 @@ export function startServer() {
         fsPath = join(TESTDATA, urlPath.slice('/testdata/'.length));
       } else if (urlPath.startsWith('/sample_data/')) {
         fsPath = join(SAMPLEDATA, urlPath.slice('/sample_data/'.length));
+      } else if (urlPath.startsWith('/docs-samples/')) {
+        fsPath = join(DOCSAMPLES, urlPath.slice('/docs-samples/'.length));
       } else {
         fsPath = join(DIST, urlPath);
       }

@@ -132,6 +132,25 @@ npx tsc --noEmit
 npm run tag:parser                                     # after committing the pin — it tags HEAD
 ```
 
+## Training course
+
+The slide decks in `docs/training/` are built with Marp, and their screenshots come from scripted
+runs against the web build, never from hand captures. With `../wafermap` cloned, built and linked
+(`npm run wmap:link`), so the course shows the wafer-map features not yet published:
+
+```bash
+npm run demo:build        # the web app in dist/; runs only the predev guards, so it works while wmap is linked
+npm run training:shots    # every session's screenshots → docs/training/images/NN/ (-- --only 01 for one)
+npm run training:build    # decks → site/training/NN-slug/index.html, plus site/training/index.html
+npm run training:check    # which recorded controls no deck covers yet
+```
+
+The screenshot runner uses Playwright's Chromium; set `CHROME_PATH` to use another browser. A
+broken selector or a failed check stops the run at the named beat and saves the page to
+`demo/training/`. `build:site` runs `training:build` after Zensical, so each deck replaces the page
+Zensical rendered from its source and the course is served at `/tsmap/training/`. How to write a
+session is in [the course's contributor notes](training/README.md).
+
 ## Building for deployment
 
 ```bash

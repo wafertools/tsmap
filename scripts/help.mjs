@@ -62,6 +62,9 @@ const GROUPS = [
       ['npm run preview:site', 'The docs site on :8002 — links and demos clickable'],
       ['npm run screenshots:only', 'Recapture one screenshot after a dialog changes'],
       ['npm run ui:surface', 'Re-record every control, label and hint to docs/ui-surface.txt'],
+      ['npm run training:shots', 'Recapture the training decks\' screenshots (-- --only 01 for one session)'],
+      ['npm run training:build', 'Build the training decks into site/training/'],
+      ['npm run training:check', 'Which controls no training deck covers yet, by session and section'],
     ],
   },
   {

@@ -8,6 +8,12 @@ technical record, including internal changes.
 
 ### Added
 
+- **A self-paced training course.** Slide decks in `docs/training/`, built with Marp and published under `/tsmap/training/`,
+  start with session 00 (welcome and a tour of the screen) and session 01 (getting data in). Their screenshots come from scripted
+  runs against the web build (`npm run training:shots`), which stop at the named beat when a selector or check fails, and their
+  callouts are drawn from the live layout at capture time with a new `callout` step. `npm run training:check` reports which controls
+  in the recorded interactive surfaces no deck covers yet.
+
 - **The MIR's code fields are read.** Test station, test mode, retest code, protection code, burn-in time and command mode come
   in from STDF and ATDF files with the other MIR fields, shown as the file has them (a code means what a site says it means),
   and are Group by choices when they vary between wafers. A blank code, or a burn-in time of 65,535, is left out as not given.

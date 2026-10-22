@@ -33,26 +33,10 @@ import { DIST, ROOT } from './lib/paths.mjs';
 import { startServer } from './lib/server.mjs';
 import { launchBrowser, newCapturePage } from './lib/browser.mjs';
 import { runSetup, removeTempDirs } from './lib/steps.mjs';
+import { runChecks } from './lib/checks.mjs';
 import { scenario } from './scenarios/edge-corner-lot.mjs';
 
 const SHOTS_DIR = join(ROOT, 'demo', 'screenshots');
-
-async function runChecks(page, checks) {
-  const results = [];
-  for (const check of checks) {
-    let actual, error;
-    try {
-      actual = await check.get(page);
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    }
-    const passed = error === undefined && (() => {
-      try { return !!check.expect(actual); } catch (e) { error = e instanceof Error ? e.message : String(e); return false; }
-    })();
-    results.push({ name: check.name, describe: check.describe, passed, actual, error });
-  }
-  return results;
-}
 
 async function main() {
   if (!existsSync(DIST)) {

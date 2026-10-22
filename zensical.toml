@@ -14,6 +14,9 @@ nav = [
     { "Use cases"       = "use-cases.md"               },
     { "Troubleshooting" = "troubleshooting.md"         },
   ] },
+  # The course index. `npm run training:build` replaces this page in site/ with
+  # the generated list of decks; the Markdown is the contributors' notes.
+  { "Training"     = "training/README.md"              },
   { "Integrate" = [
     { "Integrations"        = "integrating-data-selection.md" },
     { "Open-from-link demo" = "demos/open-from-link.html"     },

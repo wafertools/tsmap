@@ -131,8 +131,22 @@ in `steps.mjs` — this is the index to browse, not the whole story.
 | `click` | `selector` | Playwright-native click on any CSS selector |
 | `clickButtonByText` | `containerSelector, text` | Click a `<button>` inside a container, matched on exact text — for dialogs with no id/aria-label on their buttons |
 | `fillInput` | `selector, value` | Type into a text input (e.g. the file-filter search box) |
+| `selectOption` | `selector, label` | Pick an option of a native `<select>` by its label |
+| `press` | `key` | A key press on whatever has focus (e.g. `Escape` to close a menu) |
+| `hover` | `selector` | Hover an element; also parks the pointer where it opens no tooltip |
+| `selectWmapMenuItem` | `ariaLabel, itemLabel` | Pick an item from any wmap toolbar dropdown (e.g. `Columns`) |
 | `wait` | `ms` | Fixed pause (prefer a real completion signal when one exists) |
 | `scroll` | `x, y` | `window.scrollTo` |
+
+**Callouts (annotation drawn at capture time)**
+| Step | Args | Does |
+|---|---|---|
+| `callout` | `selector, { badge?, badgeAt?, pad?, nth?, closest? }` | Outline an element, optionally with a numbered badge, for the next screenshot. Throws when the selector matches nothing, matches several without `nth`, or is hidden |
+| `clearCallouts` | — | Remove every callout |
+
+Callouts overlay the page without changing it, so they are allowed in strict scenario runs. The
+training screenshot runner (`scripts/training-shots.mjs`) draws a shot's callouts, captures, and
+clears them; see `docs/training/README.md`.
 
 **Cosmetic (screenshot-capture only — throw if used with `allowCosmetic: false`, which the scenario runner always sets)**
 `showCursorOn`, `hideCursor`, `shrinkPanelToContent`, `shrinkModalToContent` — these exist for `capture-screenshots.mjs`'s docs-image crops and deliberately can't be used in a scenario, since they'd misrepresent real app behaviour.

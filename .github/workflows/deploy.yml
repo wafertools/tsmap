@@ -67,6 +67,11 @@ jobs:
         env:
           ZENSICAL: zensical
 
+      # After the docs build: each deck replaces the page Zensical rendered
+      # from its source. Marp only — the screenshots are committed.
+      - name: Build training decks
+        run: npm run training:build
+
       - name: Copy web app into site
         run: cp -r dist site/app
 

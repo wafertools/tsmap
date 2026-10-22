@@ -26,6 +26,10 @@
  *     clickChartRowByTitle) already throw unconditionally — see their own
  *     comments — and are unaffected by this flag.
  *
+ *   `callout` / `clearCallouts` draw and remove a highlight box (and optional
+ *   numbered badge) over an element for the next screenshot. They overlay the
+ *   page without changing it, so they run in either mode — see drawCallout.
+ *
  * Screenshot captures keep the historical defaults (both false→lenient,
  * cosmetic allowed) so none of the 24 existing capture-definitions.mjs
  * targets change behaviour. The scenario runner passes
@@ -55,6 +59,103 @@ async function injectCursor(page, x, y) {
 
 async function removeCursor(page) {
   await page.evaluate(() => { document.getElementById('__fake-cursor__')?.remove(); });
+}
+
+// ─── Callouts (annotation drawn over the page at capture time) ────────────
+//
+// A callout is a highlight box, and optionally a numbered badge, drawn on top
+// of an element's bounding box just before a screenshot. Because the box is
+// measured from the live element at capture time, it follows the element
+// wherever a layout change moves it; a hand-drawn annotation on a saved image
+// would silently point at the wrong place instead.
+//
+// The overlay never takes part in the page: it is position:fixed with
+// pointer-events:none, so it changes nothing a later step clicks or measures.
+// That is why it is allowed with `allowCosmetic: false`, unlike the cosmetic
+// steps below, which alter real layout. It always throws when its target is
+// missing, hidden, or ambiguous: a callout drawn round the wrong element is the
+// exact failure it exists to prevent.
+
+const CALLOUT_ATTR = 'data-capture-callout';
+
+/**
+ * Resolve `target` (any Playwright selector) to the one element a callout or
+ * crop should frame. More than one match is an error unless `nth` picks one;
+ * `closest` then widens the frame to an ancestor (a CSS selector passed to
+ * Element.closest), for regions with no hook of their own.
+ */
+export async function resolveFrame(page, target, { nth, closest } = {}, what = 'callout') {
+  const all = page.locator(target);
+  const count = await all.count();
+  if (count === 0) throw new Error(`${what}: no element matches "${target}"`);
+  if (count > 1 && nth === undefined) {
+    throw new Error(`${what}: "${target}" matches ${count} elements — make it unique or pass nth`);
+  }
+  const el = nth === undefined ? all : all.nth(nth);
+  if (nth !== undefined && nth >= count) throw new Error(`${what}: "${target}" has no match at nth=${nth} (found ${count})`);
+  const box = await el.evaluate((node, sel) => {
+    const frame = sel ? node.closest(sel) : node;
+    if (!frame) return { missing: true };
+    const r = frame.getBoundingClientRect();
+    const cs = getComputedStyle(frame);
+    return { x: r.x, y: r.y, width: r.width, height: r.height, hidden: cs.visibility === 'hidden' || cs.display === 'none' };
+  }, closest ?? null);
+  if (box.missing) throw new Error(`${what}: "${target}" has no ancestor matching "${closest}"`);
+  if (box.hidden || box.width < 1 || box.height < 1) throw new Error(`${what}: "${target}" is not visible (zero size or hidden)`);
+  const vw = page.viewportSize();
+  if (vw && (box.x + box.width <= 0 || box.y + box.height <= 0 || box.x >= vw.width || box.y >= vw.height)) {
+    throw new Error(`${what}: "${target}" is outside the viewport`);
+  }
+  return box;
+}
+
+async function drawCallout(page, target, opts = {}) {
+  const found = await resolveFrame(page, target, opts, 'callout');
+  const pad = opts.pad ?? 4;
+  // A frame taller or wider than the viewport (a long side panel) is drawn to
+  // the viewport's edge, so all four sides of the box stay in the picture.
+  const vp = page.viewportSize() ?? { width: Infinity, height: Infinity };
+  const inset = pad + 3;
+  const x = Math.max(found.x, inset), y = Math.max(found.y, inset);
+  const box = {
+    x, y,
+    width: Math.min(found.x + found.width, vp.width - inset) - x,
+    height: Math.min(found.y + found.height, vp.height - inset) - y,
+  };
+  await page.evaluate(([b, pad, badge, badgeAt, attr]) => {
+    const colour = '#e8590c';
+    const box = document.createElement('div');
+    box.setAttribute(attr, '');
+    Object.assign(box.style, {
+      position: 'fixed', left: `${b.x - pad}px`, top: `${b.y - pad}px`,
+      width: `${b.width + 2 * pad}px`, height: `${b.height + 2 * pad}px`,
+      border: `3px solid ${colour}`, borderRadius: '8px', boxSizing: 'border-box',
+      boxShadow: '0 0 0 2px rgba(255,255,255,0.85)', pointerEvents: 'none', zIndex: '2147483646',
+    });
+    document.body.appendChild(box);
+    if (badge !== undefined && badge !== null) {
+      const dot = document.createElement('div');
+      dot.setAttribute(attr, '');
+      dot.textContent = String(badge);
+      const size = 26;
+      // On a corner of the box (top-left unless badgeAt says otherwise), kept inside the viewport.
+      const right = badgeAt.includes('r'), bottom = badgeAt.includes('b');
+      const cx = right ? b.x + b.width + pad : b.x - pad;
+      const cy = bottom ? b.y + b.height + pad : b.y - pad;
+      const left = Math.min(Math.max(2, cx - size / 2), innerWidth - size - 2);
+      const top = Math.min(Math.max(2, cy - size / 2), innerHeight - size - 2);
+      Object.assign(dot.style, {
+        position: 'fixed', left: `${left}px`, top: `${top}px`, width: `${size}px`, height: `${size}px`,
+        borderRadius: '50%', background: colour, color: '#fff', font: '700 15px/26px system-ui, sans-serif',
+        textAlign: 'center', boxShadow: '0 0 0 2px #fff', pointerEvents: 'none', zIndex: '2147483647',
+      });
+      document.body.appendChild(dot);
+    }
+  }, [box, pad, opts.badge, opts.badgeAt ?? 'tl', CALLOUT_ATTR]);
+}
+
+async function clearCallouts(page) {
+  await page.evaluate((attr) => { for (const el of document.querySelectorAll(`[${attr}]`)) el.remove(); }, CALLOUT_ATTR);
 }
 
 // ─── Wait helpers ───────────────────────────────────────────────────────────
@@ -499,6 +600,12 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       await openWmapDropdown(page, args[0], args[1] ?? null, strict);
       break;
 
+    case 'selectWmapMenuItem':
+      // ['selectWmapMenuItem', toolbarAriaLabel, itemLabel] — any wmap toolbar
+      // dropdown (Columns, Overlays, …); throws if the item is missing.
+      await selectWmapDropdownItem(page, args[0], args[1]);
+      break;
+
     case 'selectWmapMode':
       await selectWmapDropdownItem(page, 'Plot mode', args[0]);
       break;
@@ -703,6 +810,15 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       break;
     }
 
+    case 'callout':
+      // ['callout', target, { badge?, badgeAt?: 'tl'|'tr'|'bl'|'br', nth?, closest?, pad? }] — see drawCallout.
+      await drawCallout(page, args[0], args[1] ?? {});
+      break;
+
+    case 'clearCallouts':
+      await clearCallouts(page);
+      break;
+
     case 'click': {
       // Generic CSS-selector click — Playwright throws on its own if it
       // doesn't resolve. For elements with a real id/unique selector; when
@@ -731,6 +847,27 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       if (clicked === 'no-button') throw new Error(`clickButtonByText: no button with text "${text}" in ${containerSelector}`);
       break;
     }
+
+    case 'hover':
+      // Playwright-native hover on any selector — throws if it doesn't resolve.
+      // Also the way to park the pointer somewhere neutral before a capture, so
+      // no tooltip from an earlier click is left open in the picture.
+      await page.hover(args[0]);
+      await page.waitForTimeout(200);
+      break;
+
+    case 'selectOption':
+      // ['selectOption', selector, label] — pick an option of a native <select> by its visible label; throws if
+      // the select or the option is missing.
+      await page.selectOption(args[0], { label: args[1] }, { timeout: 5000 });
+      await page.waitForTimeout(200);
+      break;
+
+    case 'press':
+      // ['press', key] — a keyboard press on whatever has focus (e.g. 'Escape' to close a menu).
+      await page.keyboard.press(args[0]);
+      await page.waitForTimeout(200);
+      break;
 
     case 'fillInput': {
       // page.fill throws on its own if the selector doesn't resolve — no
