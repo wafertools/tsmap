@@ -224,3 +224,21 @@ and About tsmap.
   that choice. tsmap has no control for it, so session 09 says tsmap keeps the last result. If tsmap
   gains the choice, rewrite the Retests slide in `09-unusual-wafers.md` to teach it, and remove the
   retest entries from `coverage-exclusions.txt` so the check asks for them.
+- **Slides that may now overflow** after the latest wording edits (found with a script that checks
+  whether a slide's content reaches the footer): 05 "What divides yield", 07 "Saved filters",
+  08 "From test name", 09 "Diameter and edge exclusion" and "Exclude values outside limits…",
+  10 "Recent definitions files" and "Reset saved settings…". Open each built deck, trim the text or
+  switch the slide to a layout that fits, and rebuild with `npm run training:build`.
+- **Proofreading items not yet done.** A review of sessions 05 to 10 against their screenshots was
+  applied for the wording. These picture fixes remain: 06 `grouped.png` should show one group
+  chosen in **Show**; 07 `legend-menu.png` still shows a selection box; 05 `switch-and-tabs.png`
+  is cropped at the top and `comparing-groups.png` and `what-divides-yield.png` are cropped on the
+  right; 09 `mixed-footer.png`, `layout-diagnostics.png` and `mpw-wafer.png` have a leftover hover,
+  tooltip or open Summary panel; 10 `help-menu.png` has no heading. Also unresolved from the review:
+  the 08 "Chart types" slide does not explain box, probability, control and goal; 09 "Compact" says
+  labels give the original coordinates but no labels are shown.
+- **Review page.** The review artifact (https://claude.ai/artifact/Nx7DWHT3fc4rg7Hb9CBVSU) was last
+  republished before many of these edits. Republish it from `site/training` when you want the
+  reviewer to see them. About 26 older comment threads on it were not re-read in this session.
+- **Checks.** `npm run training:check` passes (285 of 285). `npm run check`, `npm run lint` and
+  `npm test` were not run after the final edits.
