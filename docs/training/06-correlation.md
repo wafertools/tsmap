@@ -36,7 +36,7 @@ tsmap training · a self-paced course
 
 # The Correlation tab
 
-A matrix of every pair of tests on the left, and a scatter of one pair on the right, a point per die.
+A matrix of the correlation between pairs of tests on the left, and a scatter of one pair on the right, a point per die.
 
 ![The Correlation tab: the matrix and the test scatter](images/06/correlation-tab.png)
 
@@ -55,7 +55,7 @@ Each cell is the Pearson correlation, r, of two tests over the dies. Blue is pos
 
 # Fewer tests
 
-**Max tests** runs from 5 to 100, 20 by default. With five, the card counts the strong and moderate pairs among them.
+You can set **Max tests** between 5 and 100 (default 20). The card counts pairs with |r| of 0.7 or more as strong and 0.4 to 0.7 as moderate. With five tests it finds 2 strong and 4 moderate.
 
 ![The matrix limited to five tests](images/06/max-tests.png)
 
@@ -65,7 +65,7 @@ Each cell is the Pearson correlation, r, of two tests over the dies. Blue is pos
 
 # Open a pair
 
-Click a cell and the scatter shows that pair. Above the scatter, **r** is the correlation and **n** the number of dies. Here idsat_p_uA falls as vth_p_mV rises, r = −0.865.
+Click a cell and the scatter shows that pair. Above the scatter, **r** is the correlation and **n** the number of dies. Here idsat_p_uA falls as vth_p_mV rises, r = −0.865. The matrix rounds it to two decimals.
 
 ![The scatter after clicking the idsat_p_uA, vth_p_mV cell](images/06/scatter-pair.png)
 
@@ -81,7 +81,7 @@ Click a cell and the scatter shows that pair. Above the scatter, **r** is the co
 
 # Bin buttons
 
-The buttons under the scatter show or hide the dies of each bin, so you can see whether failing dies sit at one end of the relationship.
+The **Bin 1**, **Bin 2** and **Bin 3** buttons above the plot show or hide the dies of each bin. Click one to switch it off or on, so you can see whether failing dies sit at one end of the relationship.
 
 ![The scatter with only bin 1 shown, the Bin 1 button outlined](images/06/scatter-bins.png)
 
@@ -89,9 +89,9 @@ The buttons under the scatter show or hide the dies of each bin, so you can see 
 
 <!-- _class: split -->
 
-# A warning to heed
+# The Mixed Split warning
 
-When the dies pool several values of a field such as the split, the card warns that the correlation may mislead: a trend can come from the groups' offsets, not from the relationship inside each group.
+When the dies pool several values of a field such as the split, the card warns that the correlation may mislead. A trend can appear only because the groups sit at different levels, not because the two tests are related inside each group. This is known as Simpson's paradox.
 
 ![The Mixed Split warning above the matrix](images/06/mixed-warning.png)
 
@@ -109,7 +109,7 @@ The **Wafer** menu narrows the scatter to one wafer. The **X** and **Y** menus p
 
 # Inside one wafer
 
-On W07 alone, r is −0.564, not −0.865. Part of the pooled figure came from the splits sitting at different levels. The warning is gone because only one wafer is left.
+On W07 alone, r is −0.564, not −0.865. Part of the pooled figure may come from the splits sitting at different levels. The warning is gone because only one wafer is left.
 
 ![The scatter for W07 · TT only](images/06/one-wafer.png)
 
@@ -119,7 +119,7 @@ On W07 alone, r is −0.564, not −0.865. Part of the pooled figure came from t
 
 # Group by
 
-With **Group by** on, the matrix shows one group at a time, and the scatter colours its points by group.
+With **Group by** on, the scatter colours its points by group. The **Show** menu picks one group, and the matrix then uses only that group's dies. With **All groups** the matrix still pools every wafer.
 
 ![The Correlation tab grouped by Split](images/06/grouped.png)
 
@@ -133,7 +133,7 @@ With **Group by** on, the matrix shows one group at a time, and the scatter colo
 
 # Drag a box
 
-Drag a rectangle over the scatter to select the dies inside it, across as many wafers as they fall on. A menu opens with charts and tables of just those dies: a histogram, capability, new plots, statistics, wafers and dies.
+Drag a rectangle over the scatter to select the dies inside it, across as many wafers as they fall on. A menu opens with the **Value histogram** and **Process capability** charts, **New plot…** and **New sweep…**, and the **Test statistics**, **Wafers** and **Dies** tables, all for just those dies.
 
 ![A box dragged over the scatter, with the menu of charts and tables](images/06/drag-box.png)
 
@@ -146,9 +146,9 @@ Drag a rectangle over the scatter to select the dies inside it, across as many w
 # Try it yourself
 
 1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**, then **Insights → Correlation**
-2. Click the strongest orange cell: which two tests, and what is r?
-3. Pick **W07 · TT** in the **Wafer** menu: does r change?
-4. Set **Group by** to **Split**: does the relationship hold in each group?
+2. Click the strongest orange cell (each pair appears twice): which two tests, and what is r?
+3. Pick **W07 · TT** in the **Wafer** menu: how does r change?
+4. Set **Group by** to **Split**, then pick one group in **Show**: does the relationship hold in that group?
 5. Drag a box over the scatter and open **Test statistics**
 
 ---

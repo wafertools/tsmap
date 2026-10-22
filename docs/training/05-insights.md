@@ -55,7 +55,7 @@ Yield first, then bins, pass rates and regions, then what is worth a look. Scrol
 
 # Yield by wafer
 
-One bar per wafer, with the median as a line. **Sort: yield** <span class="badge">1</span> ranks them; click a bar to open that wafer.
+One bar per wafer, with the median as a line. **Sort: yield** <span class="badge">1</span> orders the bars from highest to lowest yield; click a bar to open that wafer.
 
 ![Yield by wafer in wafer order, with Sort: yield outlined](images/05/yield-by-wafer.png)
 
@@ -76,7 +76,7 @@ Highest yield first, so the weakest wafers are at the right: W04 and W11, both S
 
 # Bin pareto
 
-Dies in each bin, largest first, with the running share as a line. **Hard bins** or **Soft bins** switches the bin type. Click a bar to chart or tabulate its dies.
+A pareto chart: one bar per bin, largest first, with the running share of all dies as a line. **Hard bins** or **Soft bins** switches the bin type. Click a bar to chart or tabulate its dies.
 
 ![The hard bin pareto, with Soft bins outlined](images/05/bin-pareto.png)
 
@@ -86,7 +86,7 @@ Dies in each bin, largest first, with the running share as a line. **Hard bins**
 
 # Soft bins
 
-Soft bins are the test program's own failure categories, so the same loss is split more finely.
+Soft bins are the test program's own failure categories. They are numbered separately from hard bins, so the two charts can differ; in the sample lot they happen to match.
 
 ![The soft bin pareto](images/05/bin-pareto-soft.png)
 
@@ -107,7 +107,7 @@ The share of judged dies that pass each test, lowest first. The three buttons ch
 
 # Tester flag
 
-**Test limits** judges the measured value against the limits. **Tester flag** uses the pass or fail the tester recorded. When the two disagree the card says how many dies they judged differently.
+**Test limits** judges the measured value against the limits. **Tester flag** uses the pass or fail the tester recorded. When the two disagree the card says how many dies they judged differently. In the sample lot they agree, so no note appears.
 
 ![Pass rate by tester flag](images/05/pass-rate-flag.png)
 
@@ -128,7 +128,7 @@ The share of judged dies that pass each test, lowest first. The three buttons ch
 
 # Worth a look
 
-The same items as **What stands out** (session 03), each drawn as the chart that shows it, with one sentence saying why. **Show on map** goes back to the map showing it.
+The same items as **What stands out** (session 03), each drawn as the chart that shows it. Each card starts with a line saying why it is shown. **Show on map** opens the map that shows that item.
 
 ![A Worth a look card, with Show on map outlined](images/05/worth-a-look.png)
 
@@ -152,7 +152,7 @@ Every chart has a ⋯ menu. **Save as PNG** saves the chart, **Edit as plot** op
 
 # About this chart
 
-The line says what the chart shows and how to read it, in the words the app uses.
+The line explains what the chart shows and how to read it. The **About this chart** entry turns it on or off.
 
 ![Yield by wafer with the About this chart line shown](images/05/about-chart.png)
 
@@ -179,7 +179,7 @@ The **Expand** button, to the left of the ⋯ button, opens a chart in its own l
 
 # What divides yield
 
-Each wafer field, such as the split or the lot, is compared for yield and for the commonest fail bins, with each wafer counted once. Rows are ranked by q: low means the groups differ by more than wafer-to-wafer noise. A **Group by** button on each row regroups the tab.
+Each wafer field, such as the split or the lot, is compared for yield and for the most common fail bins. Each wafer counts once. Rows are ranked by q: a low q means the groups differ by more than normal wafer-to-wafer variation. It does not say why. The **Group by** button on a row regroups the tab by that field.
 
 ![The What divides yield card, left part](images/05/what-divides-yield.png)
 
@@ -189,7 +189,7 @@ Each wafer field, such as the split or the lot, is compared for yield and for th
 
 # Part average testing
 
-PAT screens out dies that pass every limit but sit far from their wafer's distribution. The card shows, per wafer, the dies within PAT limits, the outliers and the rate. **Show all 13 wafers** lists every wafer.
+Part average testing (PAT) looks for dies that pass every limit but sit far from the rest of their wafer. In PAT, a "part" is a die. The card shows, per wafer, the dies within PAT limits, the outliers and the rate. **Show all 13 wafers** lists every wafer.
 
 ![The Part average testing card, left part](images/05/pat-card.png)
 
@@ -199,17 +199,17 @@ PAT screens out dies that pass every limit but sit far from their wafer's distri
 
 # Map the verdicts
 
-**Map the verdicts** returns to the maps coloured by PAT verdict: within the limits, outlier or fails anyway. It is also **PAT verdict** in **Plot mode**.
+**Map the verdicts** returns to the maps coloured by PAT verdict: within the limits, outlier or fails its bin or limits. You can also choose **PAT verdict** in the **Plot mode** menu on the map toolbar.
 
-![The gallery in PAT verdict mode](images/05/pat-map.png)
+![Wafer maps coloured by PAT verdict: within limits, outlier, fails](images/05/pat-map.png)
 
 ---
 
 # What PAT does not do
 
-It shows what PAT would have flagged. It is not the screening itself, and a wafer needs 30 or more passing values on a test before it has PAT limits.
+This card shows which dies PAT would have flagged. It does not screen anything: real screening belongs in the test program. A wafer needs at least 30 passing values on a test before it gets PAT limits.
 
-More in the [user guide](../user-guide.md#grouping-data-in-the-insights-tab)
+More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#1012-part-average-testing-pat)
 
 ---
 
@@ -226,7 +226,7 @@ When a wafer field varies across the lot, **Group by** offers it. **None** shows
 
 # Grouped by Split
 
-Yield and the pareto now draw a bar per split. SS is lowest at 54.1%; TT is highest at 96.3%.
+Yield by split now has one bar per split, and the bin pareto has a bar per split inside each bin, showing each split's share. SS is lowest at 54.1%; TT is highest at 96.3%.
 
 ![The Overview grouped by Split](images/05/grouped-overview.png)
 
@@ -259,7 +259,7 @@ Each test is rescaled against its own limits: the low limit becomes 0 and the hi
 
 # Reading the colours
 
-A box centred between 0 and 1, with its whiskers inside, has room. A box pressed against 0 or 1, or wider than the gap, does not.
+A box shows the middle half of the dies, and its whiskers the lowest and highest values. A box centred between 0 and 1, with its whiskers inside, is comfortably inside both limits. A box pressed against 0 or 1, or wider than the gap, is not.
 
 Tests are sorted with the lowest Ppk first, and each box is coloured by it. Capable is 1.33 or more, marginal is 1.0 or more, poor is under 1.0. Ppk is the distance from the mean to the nearest limit, in units of three standard deviations.
 
@@ -279,7 +279,7 @@ A test needs both limits to be rescaled this way. One without them still appears
 
 # One test at a time
 
-The **Test** menu picks the test for the box plot, the histogram and the trend together. Clicking a test in the capability chart does the same.
+Each card has a **Test** menu, and changing it on one changes the box plot, the histogram and the trend together. Clicking a test in the capability chart does the same.
 
 ![The Test menu listing every test](images/05/test-menu.png)
 
@@ -289,7 +289,7 @@ The **Test** menu picks the test for the box plot, the histogram and the trend t
 
 # Axis controls
 
-<span class="badge">1</span> widens the axis to the limits. <span class="badge">2</span> narrows it to the bulk of the data. <span class="badge">3</span> uses a log axis once every value is positive.
+<span class="badge">1</span> **Axis includes limits** widens the axis to the limits. <span class="badge">2</span> **Clip outliers** narrows it to the bulk of the data. <span class="badge">3</span> **Log scale**, on the box plot only, uses a log axis once every value is positive.
 
 ![The box plot's three axis controls, outlined](images/05/box-controls.png)
 
@@ -297,7 +297,7 @@ The **Test** menu picks the test for the box plot, the histogram and the trend t
 
 # Clipping changes only the axis
 
-The chart counts the values outside the axis, and every statistic still uses them.
+The chart states how many values fall outside the axis, and every statistic still includes them.
 
 ![The box plot with Clip outliers on](images/05/box-clipped.png)
 
@@ -318,7 +318,7 @@ The histogram has a **Wafer** menu: all wafers pooled, or one wafer. Type to fil
 
 # Wafer-to-wafer trend
 
-Each wafer's mean in slot order, with a band of one standard deviation. There is deliberately no sort: a drift only reads in sequence.
+Each wafer's mean in wafer (slot) order, with a band of one standard deviation of the dies at each wafer. There is deliberately no sort control: a drift only shows up in sequence.
 
 ![The wafer-to-wafer trend of ioff_nA](images/05/trend.png)
 
@@ -330,7 +330,7 @@ Each wafer's mean in slot order, with a band of one standard deviation. There is
 
 # Comparing groups
 
-With **Group by** on, Distributions opens with the comparison of the groups, counting each wafer once. **q** corrects for looking at many tests; read q, not p. **Largest shift** is the size of the effect.
+With **Group by** on, Distributions opens with the comparison of the groups, counting each wafer once. **Welch p** and **Rank p** are the chance of seeing a difference this large if the groups were really the same. **q** adjusts p for looking at many tests at once: read q, not p. **Largest shift** is the size of the difference, so a small q with a small shift is real but unimportant.
 
 ![The Comparison by split table](images/05/comparing-groups.png)
 
@@ -364,7 +364,7 @@ At the foot of the Overview, a link opens the **Data** tab: every number behind 
 
 # Statistics
 
-The **Data** tab holds the same numbers as tables. Each table has its own CSV button: <span class="badge">1</span> and <span class="badge">2</span>.
+The **Data** tab holds the same numbers as tables, in three sub-tabs: Statistics, Wafers and Dies. Statistics has two tables, each with its own CSV button: <span class="badge">1</span> **Test values CSV** and <span class="badge">2</span> **Functional CSV**.
 
 ![The Statistics table with its two CSV buttons outlined](images/05/data-statistics.png)
 
@@ -384,7 +384,7 @@ One row per wafer: its lot fields, die counts, yield and the mean of each test.
 
 # Dies
 
-One row per die: position, ring, quadrant, site, bins, every test and the PAT verdict. **Copy** and **Export CSV** save it; **Wide** has a column per test, **Long** a row per die and test.
+One row per die: position, ring, quadrant, site, bins, every test and the PAT verdict. **Copy** puts it on the clipboard and **Export CSV** saves a file; **Wide** has a column per test, **Long** a row per die and test.
 
 ![The Dies table](images/05/data-dies.png)
 

@@ -34,7 +34,7 @@ tsmap training · a self-paced course
 
 # What a derived test is
 
-A test computed from other tests on the same die, such as a ratio or a margin, instead of measured. A row in a test definitions file with an **expression** is one.
+A derived test is computed from other tests on the same die, such as a ratio or a margin, instead of being measured. You define one by giving a row of your test definitions file, the CSV that names and describes the tests, an **expression**.
 
 Once defined it is an ordinary test: map it, colour it against limits, chart it. These slides use RRAM-LOT-06, a resistive-memory lot with its definitions file.
 
@@ -55,7 +55,9 @@ Once defined it is an ordinary test: map it, colour it against limits, chart it.
 
 # The † Derived filter
 
-**† Derived** shows only the derived tests. Each has a † before its name. Give a derived test a number the tester doesn't use: if it matches a measured test, the derived one is ignored and the log says so. Numbers from 900001 up are a safe habit.
+**† Derived** shows only the derived tests. Each has a † before its name.
+
+Give every derived test a test number that no measured test uses. If it matches a measured test, the derived row is ignored and the log says so. Numbers from 900001 up are a safe choice.
 
 ![The test selector filtered to derived tests](images/08/selector-derived.png)
 
@@ -66,13 +68,13 @@ Once defined it is an ordinary test: map it, colour it against limits, chart it.
 | Write | It gives |
 | --- | --- |
 | `t[3126]` | the measured value of test 3126 |
-| `testPass[2001]` | the pass or fail the tester recorded |
+| `testPass[2001]` | the pass or fail result stored in the data file |
 | `specPass[3126]` | whether the value is inside its limits |
 | `diePass()` | whether the die's bin counts as a pass |
 | `dieX()`, `dieY()` | the die's position |
 | `hbin()`, `sbin()`, `site()` | the die's hard bin, soft bin and probe site |
 
-A derived test can read another.
+A derived test can use the value of another derived test.
 
 ---
 
@@ -83,17 +85,17 @@ A derived test can read another.
 - **Choosing:** `if(condition, a, b)`
 - **Functions:** `abs sqrt ln log10 exp floor ceil round sign pow min max`
 
-For example `abs(t[1020] - t[1010])`, or `if(dieX() < 5, t[1010], 0 - 1)`.
+For example `abs(t[1020] - t[1010])`, or `if(dieX() < 5, t[1010], 0 - 1)`: the second and third values are the result when the condition is true and when it is false.
 
-A true or false expression needs **testType F**. Its result is a pass or fail, not a number.
+A true or false expression must have **F** in the **testType** column of the definitions file, because its result is a pass or fail, not a number.
 
 ---
 
 # Expressions: ranges and missing data
 
-`3126..3130` names every test in that range that exists. A range must be reduced to one number or verdict: `mean sum min max` for values, `all any none countTrue countFalse` for verdicts, `countKnown` for either.
+`3126..3130` names every test in that range that exists. A range must be combined into one number or one verdict with `mean sum min max` (numbers), `all any none countTrue countFalse` (verdicts) or `countKnown` (either). These functions skip blank values.
 
-If a die lacks a value the expression needs, the derived value is blank for that die, never zero. Reducers skip blanks. A result such as 0/0 is blank too.
+If a die lacks a value the expression needs, the derived value is blank for that die, never zero. A result such as 0/0 is blank too.
 
 A derived test that cannot be computed is left out with the reason in the log, never half-computed.
 
@@ -103,11 +105,11 @@ More in the [user guide](../user-guide.md#derived-tests)
 
 <!-- _class: split -->
 
-# Derived tests in Plot mode
+# Derived tests in the map's test list
 
-They appear in the test list marked †, with a note: Derived, not measured. Type in the list's box to filter it.
+In the map toolbar's test list, derived tests are marked †, with the note Derived, not measured. Type in the box to search.
 
-![Plot mode listing the three plateau derived tests](images/08/plot-mode-derived.png)
+![The test list searched for plateau, showing three † derived tests](images/08/plot-mode-derived.png)
 
 ---
 
@@ -129,7 +131,7 @@ Choosing **† Set plateau** colours every die by its computed value.
 
 # My plots
 
-The **My plots** tab holds charts you build. **+ New sweep** starts a sweep: a run of tests, such as one quantity measured at a series of voltages, read as a curve.
+In Insights, the **My plots** tab holds charts you build. **+ New sweep** starts a sweep: a series of tests with consecutive numbers, such as one quantity measured at a series of voltages, drawn as a curve.
 
 ![My plots with no plots yet](images/08/my-plots-empty.png)
 
@@ -147,7 +149,7 @@ Reads a plots file and adds its plots. RRAM-LOT-06's plots file brings two sweep
 
 # What the card measures
 
-The first two curves are measured: where they **cross**, and how far apart they are at chosen levels (the **width**). On a log axis the width is a ratio, such as ×17.8.
+A sweep card reports two results for its first two curves. **Crossing** is where they meet. **Width** is how far apart they are at levels set in the sweep, drawn as dashed lines. On a log axis the width is a ratio, such as ×17.8.
 
 ---
 
@@ -166,7 +168,7 @@ The first two curves are measured: where they **cross**, and how far apart they 
 
 # From test name
 
-**Test order** uses the position in the run, **Values** one number per test, and **From test name** reads the swept value from the test's text. The editor lists what it read from the first names. **+ Add series** adds a curve.
+For each series, choose where each test's X value comes from. **Test order** uses its position in the series. **Values** lets you type one number per test. **From test name** reads the number from the test's name, here the cycle counts in names like "LRS read I @ 1e2 cycles". The editor lists what it read from the first names. **+ Add series** adds a curve.
 
 ![The endurance sweep reading cycles from the test names](images/08/sweep-editor-name.png)
 
@@ -188,7 +190,7 @@ If a later lot uses the same test numbers for other measurements, the sweep does
 
 # Add examples
 
-On the sample lot, **Add examples** draws plots chosen from its data: one of each chart type it can show. **+ New plot** starts a blank one on the first two tests.
+On the sample lot, **Add examples** adds a set of example plots chosen from the lot's data, covering every chart type it can show. **+ New plot** opens a scatter already set to the lot's first two tests.
 
 ![My plots after Add examples: a scatter with fit lines and a histogram by split](images/08/examples.png)
 
@@ -198,7 +200,7 @@ On the sample lot, **Add examples** draws plots chosen from its data: one of eac
 
 # Edit, Duplicate, Delete
 
-Each card has three buttons. **Delete** can be undone for ten seconds. Changes in the editor are drawn at once and kept as you make them.
+Each card has three buttons. **Delete** can be undone straight afterwards. Changes in the editor are drawn at once and kept as you make them.
 
 ---
 
@@ -207,7 +209,7 @@ Each card has three buttons. **Delete** can be undone for ten seconds. Changes i
 
 # The plot editor
 
-The chart on the left, its settings on the right. **Setup** chooses what the chart shows, **Customise** how it looks. **Reset** and **Cancel** both put the plot back as it was when you opened it.
+The chart on the left, its settings on the right. **Setup** chooses what the chart shows, **Customise** how it looks. **Reset** puts the plot back as it was when you opened it. **Cancel** does the same and closes the editor. Closing with ✕ keeps your changes.
 
 ![The plot editor on a new scatter plot](images/08/plot-editor.png)
 
@@ -238,7 +240,7 @@ Each opens a list of fields: any test, a die's position, ring, bin or site, a wa
 
 # Colour by Split
 
-One colour per split. **Follow Group by** is the default: the colours follow the Group by control above the charts, so changing it recolours every plot.
+One colour per split. **Follow Group by** is the default: the colours follow the Group by control above the charts, so changing it recolours every plot that is set to **Follow Group by**.
 
 ![The scatter coloured by Split](images/08/colour-split.png)
 
@@ -248,7 +250,7 @@ One colour per split. **Follow Group by** is the default: the colours follow the
 
 # More settings
 
-**Filter** (**+ Add a condition**) keeps only the dies that meet every condition you add. **Panels** draws one small plot per value of a field. A scatter's **Fit line** is **Least squares** or **Orthogonal**, and **y = x line** marks agreement. **One mark per** chooses Automatic, Die or Wafer.
+**Filter** (**+ Add a condition**) keeps only the dies that meet every condition you add. **Panels** draws one small plot per value of a field. A scatter's **Fit line** is **None**, **Least squares** or **Orthogonal**, and **y = x line** draws the line where X equals Y. **One mark per** sets what each point stands for: a die, a whole wafer, or Automatic, the finest level the fields allow.
 
 ---
 
@@ -268,7 +270,7 @@ A plot shows the dies that pass both. Changing one never edits the other, and sw
 
 # Customise
 
-Titles, each axis's minimum, maximum, **Linear** or **Log** scale and **Reverse direction**, reference lines, and which limits are drawn: **Test + spec**, **Test**, **Spec** or **None**.
+On the **Customise** page you can set titles, each axis's minimum and maximum, its **Linear** or **Log** scale, **Reverse direction**, reference lines, and which limits are drawn (**Test + spec**, **Test**, **Spec** or **None**).
 
 ![The Customise page of the plot editor](images/08/customise.png)
 
@@ -304,7 +306,7 @@ A plot is a recipe, not a picture: which fields go where, and nothing about the 
 
 # Undo
 
-After deleting, **Undo** brings the whole list back for ten seconds.
+Right after deleting, **Undo** brings the whole list back.
 
 ![My plots after deleting, with Undo outlined](images/08/plots-deleted.png)
 
@@ -315,7 +317,7 @@ After deleting, **Undo** brings the whole list back for ten seconds.
 
 # From the right-click menu
 
-Every saved plot is a row in the menu on a selection, drawn over just those dies. **New plot…** and **New sweep…** at its foot start a draft on them.
+Every saved plot is a row in the menu on a selection, drawn over just those dies. **New plot…** and **New sweep…** at the end of its Plots section start a draft on them.
 
 ![The right-click menu with New plot… and New sweep… outlined](images/08/menu-new-plot.png)
 
@@ -325,7 +327,7 @@ Every saved plot is a row in the menu on a selection, drawn over just those dies
 
 # A draft
 
-A draft is kept only if you press **Add to my plots**.
+A draft is kept only if you press **Add to my plots**. **Cancel** discards it.
 
 ![A draft plot over one die selected on W02](images/08/draft-plot.png)
 
@@ -336,9 +338,9 @@ A draft is kept only if you press **Add to my plots**.
 # Try it yourself
 
 1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**, then **Insights → My plots → Add examples**
-2. **Edit** the first plot and switch **Chart type** to **Box**
-3. Set **Colour** to **Split**: which split differs most?
-4. Open **Customise** and put a reference line on the axis
+2. **Edit** the first plot and set **Chart type** to **Box**
+3. Set **X axis** to **Split**: which split differs most?
+4. Open **Customise** and put a reference line on the value axis
 5. **Export plots…**, then **Delete all plots…** and **Undo**
 
 ---
@@ -346,7 +348,7 @@ A draft is kept only if you press **Add to my plots**.
 # Recap
 
 - A **derived test** is computed from others and marked †
-- A **sweep** reads a run of tests as a curve and measures where two cross
+- A **sweep** reads a run of tests as a curve and measures where its first two curves cross
 - **My plots** are recipes kept on this machine and redrawn on the next lot
 
 More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#plots)
