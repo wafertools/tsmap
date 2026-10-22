@@ -274,8 +274,6 @@ Titles, each axis's minimum, maximum, **Linear** or **Log** scale and **Reverse 
 
 ---
 
-<!-- covers: Reference lines -->
-
 # Reference lines
 
 A reference line marks a value of your own on a value axis: a target, a guard band, a customer's limit. It lets you see at a glance how the data sits against a number that matters to you but isn't one of the test's own limits.
