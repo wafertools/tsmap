@@ -248,13 +248,29 @@ How values spread: process capability, a box plot per wafer, a histogram and the
 
 ---
 
+<!-- _class: split -->
 # Process capability
 
-Every test with limits on one scale: the low limit at 0 and the high limit at 1, lowest Ppk first. Ppk is the distance from the mean to the nearest limit, in three standard deviations. Capable is 1.33 or more; poor is under 1.0.
+Each test is rescaled against its own limits: the low limit becomes 0 and the high limit becomes 1. That puts tests in different units on one scale.
 
 ![The Process capability card](images/05/capability.png)
 
+---
+
+# Reading the colours
+
+A box centred between 0 and 1, with its whiskers inside, has room. A box pressed against 0 or 1, or wider than the gap, does not.
+
+Tests are sorted with the lowest Ppk first, and each box is coloured by it. Capable is 1.33 or more, marginal is 1.0 or more, poor is under 1.0. Ppk is the distance from the mean to the nearest limit, in units of three standard deviations.
+
 *(The guide's page on capability, Ppk and the goal plot is linked from the card.)*
+
+---
+
+# Tests with no limits
+
+A test needs both limits to be rescaled this way. One without them still appears, rescaled onto its own range instead, and is drawn muted and dashed with no Ppk. Its position says only how its values spread, not how close they are to a limit. All six tests in the sample lot have limits.
+
 
 ---
 
