@@ -248,7 +248,18 @@ One colour per split. **Follow Group by** is the default: the colours follow the
 
 # More settings
 
-**Filter** (**+ Add a condition**) keeps only the dies that meet conditions. **Panels** draws one small plot per value of a field. A scatter's **Fit line** is **Least squares** or **Orthogonal**, and **y = x line** marks agreement. **One mark per** chooses Automatic, Die or Wafer.
+**Filter** (**+ Add a condition**) keeps only the dies that meet every condition you add. **Panels** draws one small plot per value of a field. A scatter's **Fit line** is **Least squares** or **Orthogonal**, and **y = x line** marks agreement. **One mark per** chooses Automatic, Die or Wafer.
+
+---
+
+# A plot's filter and the page filter
+
+There are two filters, and they are separate.
+
+- **The page filter**, **Filter…** in the toolbar, is a view setting. It narrows every tab, plot, map and table at once, and is not saved with a plot.
+- **A plot's own Filter** belongs to that plot and is saved with it. It narrows that plot only.
+
+A plot shows the dies that pass both. Changing one never edits the other, and switching one off leaves the other in force. A plot's filter can therefore only narrow what the page filter lets through, never widen it.
 
 ---
 
