@@ -134,6 +134,28 @@ export const scenario = {
       }],
     },
     {
+      id: '07d-detached',
+      title: 'Open full view detaches the wafer; its card becomes a placeholder with a Reattach button',
+      steps: [['click', `${CARD} >> nth=0 >> button[aria-label="Open full view"]`], ['wait', 1500], PARK],
+      checks: [isVisible('button[aria-label="Reattach to gallery"]', 'the placeholder shows Reattach to gallery')],
+      shots: [{
+        name: 'reattach',
+        clip: { target: `${CARD} >> nth=0`, pad: 8, maxHeight: 200 },
+        callouts: [['button[aria-label="Reattach to gallery"]', { pad: 2 }]],
+      }],
+    },
+    {
+      id: '07e-reattached',
+      title: 'Reattach to gallery puts the wafer back',
+      steps: [['click', 'button[aria-label="Reattach to gallery"]'], ['wait', 1000], PARK],
+      checks: [{
+        name: 'no-placeholder',
+        describe: 'no Reattach button is left: the wafer is back in the gallery',
+        get: (page) => page.locator('button[aria-label="Reattach to gallery"]').count(),
+        expect: (n) => n === 0,
+      }],
+    },
+    {
       id: '08-same-dies-off',
       title: 'Select the same dies on every wafer, off',
       steps: [PARK],
@@ -245,5 +267,19 @@ export const scenario = {
         },
       ],
     },
-  ],
+    {
+      id: '17-single-wafer',
+      title: 'One wafer loaded: Expand (E) and the Map | Insights switch',
+      steps: [['closeSplitsDialog'], ['click', '#reset-btn'], ['wait', 800], ['loadFile', `${SAMPLEDATA}/EDGE-LOT-01_W01.stdf`], ['wait', 3000], PARK],
+      checks: [isVisible('button[aria-label="Expand (E)"]', 'the Expand (E) button is showing'), isVisible('[data-wmap-view-switch]', 'the Map | Insights switch is showing')],
+      shots: [{
+        name: 'single-wafer-buttons',
+        clip: { rect: { x: 0, y: 30, width: 1280, height: 100 } },
+        callouts: [
+          ['button[aria-label="Expand (E)"]', { badge: 1, pad: 2 }],
+          ['[data-wmap-view-switch]', { badge: 2, pad: 2 }],
+        ],
+      }],
+    },
+    ],
 };

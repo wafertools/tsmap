@@ -205,15 +205,24 @@ Data with no lot ID can't be matched this way, so its splits are not remembered.
 ---
 
 <!-- _class: split -->
-<!-- covers: Open full view; Reattach to gallery -->
+<!-- covers: Open full view -->
 
-# Detach a wafer and bring it back
+# Detach a wafer
 
 **Open full view**, the expand button in a card's header, detaches that wafer into its own window with the full single-map toolbar.
 
+![A wafer card's header with the Open full view button outlined](images/04/open-full-view.png)
+
+---
+
+<!-- _class: split -->
+<!-- covers: Reattach to gallery -->
+
+# Bring it back
+
 The vacated card becomes a placeholder. Its **Reattach to gallery** button puts the wafer back; closing the window does the same.
 
-![A wafer card's header with the Open full view button outlined](images/04/open-full-view.png)
+![The placeholder card, with the Reattach to gallery button outlined](images/04/reattach.png)
 
 ---
 
@@ -221,7 +230,9 @@ The vacated card becomes a placeholder. Its **Reattach to gallery** button puts 
 
 # Expand a single wafer
 
-With one wafer loaded, the view switch reads **Map | Insights**. **Expand (E)** opens the map in an enlarged overlay. **F** maximises it; **Esc** closes it.
+With one wafer loaded, the view switch reads <span class="badge">2</span> **Map | Insights**. <span class="badge">1</span> **Expand (E)** opens the map in an enlarged overlay. **F** maximises it; **Esc** closes it.
+
+![The single-wafer toolbar with the Expand button and the Map | Insights switch outlined](images/04/single-wafer-buttons.png)
 
 ---
 
