@@ -12,8 +12,25 @@ technical record, including internal changes.
   in from STDF and ATDF files with the other MIR fields, shown as the file has them (a code means what a site says it means),
   and are Group by choices when they vary between wafers. A blank code, or a burn-in time of 65,535, is left out as not given.
 
+- **The equipment a file's SDR names is read, for STDF and ATDF.** Handler or prober, probe card, load board, DIB, cable, contactor,
+  laser and extra equipment (each a type and an ID) come in for the wafers of the SDR's probe head and site group, and are Group by
+  choices when they vary. A wafer whose WIR names no site group gets what every SDR of its head agrees on. The probe head and
+  site group of each wafer are attributes too, and the file filter shows the equipment every SDR in a file names alike.
+
+### Fixed
+
+- **An ATDF site description is read as the specification lays it out.** The site numbers are the one comma-separated field
+  (`SDR:2|4|5,6,7,8|…`), and the equipment fields after it are equipment, so an ID that happens to be a number is not a site.
+
 ### Changed
 
+- **The bundled STDF and ATDF sample files follow the specifications.** Each carries what the specs require of a data stream (the
+  part count and master results records), the equipment its SDR names, and, in the four sample lots, the wafer geometry and named
+  bins. A PTR's reserved OPT_FLAG bit is set, an ATDF file's FAR names the ATDF version, and its MIR, WIR and WRR carry the required
+  fields and times. The EDGE, HY, CLUST and PARAM lots are cut from the current wafermap example data (tests Iddq, Vref and Fmax,
+  with one-sided limits). `scripts/validate_stdf_atdf.py`, written from the two specifications and sharing nothing with the parser,
+  checks every generated file (`npm run check:fixtures`, part of `npm run verify`); the generators share one set of record builders
+  (`scripts/stdf_spec.py`, `scripts/atdf_spec.py`).
 - **Every wafer attribute is a Group by choice, except the wafer-configuration sizes and orientation.** Tester serial number,
   facility, floor, program revision, exec type and version, flow, spec, family, date code, process, design revision and the
   rest of the MIR appear in Group by, Compare by and "What divides yield" whenever they vary. The per-wafer start and finish

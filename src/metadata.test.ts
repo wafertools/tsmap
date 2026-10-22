@@ -121,6 +121,14 @@ describe('wmapAttributes — tsmap\'s curation as wmap\'s `attributes` option', 
     }
   });
 
+  it('offers the SDR equipment and the probe head as Group by choices, named for what they are', () => {
+    for (const [key, label] of [['handlerId', 'Handler'], ['probeCardId', 'Probe card'], ['loadBoardId', 'Load board'], ['dibId', 'DIB'], ['headNum', 'Probe head'], ['siteGroup', 'Site group']] as const) {
+      expect(labelFor(key), key).toBe(label);
+      expect(attrs[key].facet, key).toBe(true);
+    }
+    expect(facetValueOf(wafer('W1', 1, undefined, { probeCardId: 'PC-7' }), 'probeCardId')).toBe('PC-7');
+  });
+
   it('labels the MIR codes in plain words and shows their values as the file has them', () => {
     expect(labelFor('stationNum')).toBe('Test station');
     expect(labelFor('modeCode')).toBe('Test mode');

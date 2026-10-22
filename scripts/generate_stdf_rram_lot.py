@@ -56,13 +56,10 @@ import random
 import sys
 from pathlib import Path
 
-# Record encoders shared with the corner-lot generator. Its module-level
+# Record builders: the corner lot's single-head wrappers over stdf_spec.py (the one spec-conformant set). Its module-level
 # random.seed runs on import, so ours is set after.
-from generate_stdf_corner_lot import (
-    cn, u1, u2, u4, i2, r4, b1, c1, record,
-    FAR, MIR, PIR, PRR, PTR,
-    far, wcr, sdr, hbr, sbr, wir, wrr, pir, ftr_rec, wafer_dies,
-)
+import stdf_spec as S
+from generate_stdf_corner_lot import far, wcr, sdr, hbr, sbr, wir, wrr, pir, ftr_rec, wafer_dies
 
 random.seed(2026)
 
@@ -97,42 +94,17 @@ NUM_TESTS = len(TESTS) + 1
 
 
 def mir(lot_id: str) -> bytes:
-    body = (
-        u4(0) + u4(0) + u1(1) + c1('P') + c1(' ') + c1(' ') +
-        u2(0xFFFF) + c1(' ') +
-        cn(lot_id) + cn('RRAM-1T1R') + cn('node-02') + cn('UltraTester-9000') +
-        cn('rram_char') + cn('1.0') +
-        cn('') * 18
-    )
-    return record(*MIR, body)
+    return S.mir(lot_id, 'RRAM-1T1R', 'rram_char', 'UltraTester-9000', 'node-02', job_rev='1.0')
 
 
 def prr(site: int, x: int, y: int, hbin: int, part_id: int, passed: bool) -> bytes:
-    body = (
-        u1(1) + u1(site) + b1(0x00 if passed else 0x08) + u2(NUM_TESTS) +
-        u2(hbin) + u2(hbin) + i2(x) + i2(y) + u4(100) +
-        cn(str(part_id)) + cn('') + b'\x00'
-    )
-    return record(*PRR, body)
+    return S.prr(1, site, x, y, hbin, hbin, part_id, passed, num_test=NUM_TESTS)
 
 
 def ptr(test_num: int, site: int, value: float, passed: bool, name: str,
         lo: float | None, hi: float | None, units: str, first: bool) -> bytes:
-    """A PTR whose first occurrence always carries units, limits or not — the
-    corner-lot helper writes units only for tests with limits."""
-    optional = b''
-    if first:
-        opt_flag = (0x40 if lo is None else 0) | (0x80 if hi is None else 0)
-        optional = (
-            b1(opt_flag) + b1(0) + b1(0) + b1(0) +
-            r4(lo if lo is not None else 0.0) + r4(hi if hi is not None else 0.0) +
-            cn(units) + cn('') + cn('') + cn('')
-        )
-    body = (
-        u4(test_num) + u1(1) + u1(site) + b1(0x00 if passed else 0x80) + b1(0x00) +
-        r4(value) + cn(name) + cn('') + optional
-    )
-    return record(*PTR, body)
+    """A PTR whose first occurrence always carries units, limits or not."""
+    return S.ptr(test_num, 1, site, value, passed, name, lo, hi, units, first)
 
 
 def sigmoid(z: float) -> float:
@@ -193,9 +165,9 @@ def generate(stdf_path: Path) -> None:
     buf += far()
     buf += mir(LOT)
     # Same grid and die pitch as the corner lot: 16.9 mm fits radius 8 in 300 mm.
+    buf += sdr(SITES)      # SDRs follow the MIR directly
     buf += wcr(wafr_siz=300.0, die_ht=16.9, die_wid=16.9, wf_units=3, wf_flat='D',
                center_x=0, center_y=0, pos_x='R', pos_y='U')
-    buf += sdr(SITES)
 
     dies = wafer_dies(8)
     part = 1
@@ -241,6 +213,7 @@ def generate(stdf_path: Path) -> None:
         buf += hbr(b, bins[b], pf, name)
     for b, (pf, name) in names.items():
         buf += sbr(b, bins[b], pf, name)
+    buf += S.file_end(part - 1, bins[1])
     stdf_path.write_bytes(buf)
 
     write_testdefs(stdf_path.with_name(f'{LOT}_testdefs.csv'))

@@ -36,7 +36,6 @@ Values intentionally exceed spec limits on edge dies — no clamping applied.
 Pass/fail is set by spec comparison but the raw measured value is always written.
 """
 
-import struct
 import math
 import random
 import sys
@@ -45,101 +44,21 @@ from fixture_paths import fixture_path
 
 random.seed(42)
 
-# ── STDF record helpers ───────────────────────────────────────────────────────
+# ── STDF records ──────────────────────────────────────────────────────────────
+# One head, as every file here: thin wrappers over the one spec-conformant set of record builders, stdf_spec.py.
+import stdf_spec as S
 
-def cn(s: str) -> bytes:
-    b = s.encode('ascii')
-    return bytes([len(b)]) + b
-
-def u1(v: int) -> bytes: return struct.pack('B', v & 0xFF)
-def u2(v: int) -> bytes: return struct.pack('<H', v & 0xFFFF)
-def u4(v: int) -> bytes: return struct.pack('<I', v & 0xFFFFFFFF)
-def i2(v: int) -> bytes: return struct.pack('<h', v)
-def r4(v: float) -> bytes: return struct.pack('<f', v)
-def b1(v: int) -> bytes: return bytes([v & 0xFF])
-def c1(c: str) -> bytes: return c.encode('ascii')[:1]
-
-def record(rec_typ: int, rec_sub: int, body: bytes) -> bytes:
-    return struct.pack('<HBB', len(body), rec_typ, rec_sub) + body
-
-FAR = (0,  10)
-MIR = (1,  10)
-SDR = (1,  80)
-WIR = (2,  10)
-WRR = (2,  20)
-PIR = (5,  10)
-PRR = (5,  20)
-PTR = (15, 10)
-
-def far() -> bytes:
-    return record(*FAR, u1(2) + u1(4))
-
-def mir(lot_id: str) -> bytes:
-    body = (
-        u4(0) + u4(0) + u1(1) + c1('P') + c1(' ') + c1(' ') +
-        u2(0xFFFF) + c1(' ') +
-        cn(lot_id) + cn('CHIP-CORR') + cn('node-01') + cn('UltraTester-9000') +
-        cn('corr_test') + cn('2.0') +
-        cn('') * 18
-    )
-    return record(*MIR, body)
-
-def sdr(sites: list[int]) -> bytes:
-    body = u1(1) + u1(1) + u1(len(sites)) + b''.join(u1(s) for s in sites) + cn('') * 14
-    return record(*SDR, body)
-
-def wir(wafer_id: str) -> bytes:
-    return record(*WIR, u1(1) + u1(255) + u4(0) + cn(wafer_id))
-
-def wrr(wafer_id: str, part_cnt: int, good_cnt: int) -> bytes:
-    body = (
-        u1(1) + u1(255) + u4(0) +
-        u4(part_cnt) + u4(0xFFFFFFFF) + u4(0xFFFFFFFF) +
-        u4(good_cnt) + u4(0xFFFFFFFF) +
-        cn(wafer_id) + cn('') * 5
-    )
-    return record(*WRR, body)
-
-def pir(site: int) -> bytes:
-    return record(*PIR, u1(1) + u1(site))
-
+def far() -> bytes: return S.far()
+def mir(lot_id: str) -> bytes: return S.mir(lot_id, 'CHIP-CORR', 'corr_test', 'UltraTester-9000', 'node-01', job_rev='2.0')
+def sdr(sites: list[int]) -> bytes: return S.sdr(1, 1, sites)
+def wir(wafer_id: str) -> bytes: return S.wir(1, wafer_id, site_grp=1)
+def wrr(wafer_id: str, part_cnt: int, good_cnt: int) -> bytes: return S.wrr(1, wafer_id, part_cnt, good_cnt, site_grp=1)
+def pir(site: int) -> bytes: return S.pir(1, site)
 def prr(site: int, x: int, y: int, hbin: int, sbin: int, part_id: int, passed: bool) -> bytes:
-    body = (
-        u1(1) + u1(site) +
-        b1(0x00 if passed else 0x08) +
-        u2(NUM_TESTS) +
-        u2(hbin) + u2(sbin) +
-        i2(x) + i2(y) +
-        u4(100) +
-        cn(str(part_id)) + cn('') + b'\x00'
-    )
-    return record(*PRR, body)
-
+    return S.prr(1, site, x, y, hbin, sbin, part_id, passed, num_test=NUM_TESTS)
 def ptr_rec(test_num: int, site: int, value: float, passed: bool, test_txt: str,
             lo: float | None, hi: float | None, units: str, first: bool) -> bytes:
-    test_flg = 0x00 if passed else 0x80
-    if first and (lo is not None or hi is not None):
-        has_lo = lo is not None
-        has_hi = hi is not None
-        opt_flag = 0x00
-        if not has_lo: opt_flag |= 0x40
-        if not has_hi: opt_flag |= 0x80
-        optional = (
-            b1(opt_flag) + b1(0) + b1(0) + b1(0) +
-            r4(lo if has_lo else 0.0) +
-            r4(hi if has_hi else 0.0) +
-            cn(units) + cn('') + cn('') + cn('')
-        )
-    else:
-        optional = b''
-    body = (
-        u4(test_num) + u1(1) + u1(site) +
-        b1(test_flg) + b1(0x00) +
-        r4(value) +
-        cn(test_txt) + cn('') +
-        optional
-    )
-    return record(*PTR, body)
+    return S.ptr(test_num, 1, site, value, passed, test_txt, lo, hi, units, first)
 
 # ── Wafer geometry ────────────────────────────────────────────────────────────
 
@@ -255,6 +174,7 @@ def generate(output_path: Path) -> None:
 
     dies = wafer_dies(8)
     part_counter = 1
+    lot_good = 0
 
     for wafer_id in WAFERS:
         buf += wir(wafer_id)
@@ -285,10 +205,13 @@ def generate(output_path: Path) -> None:
                 buf += prr(site, x, y, hbin, hbin, part_counter, die_passed)
                 part_counter += 1
                 part_cnt += 1
-                if die_passed: good_cnt += 1
+                if die_passed:
+                    good_cnt += 1
+                    lot_good += 1
 
         buf += wrr(wafer_id, part_cnt, good_cnt)
 
+    buf += S.file_end(part_counter - 1, lot_good)
     output_path.write_bytes(buf)
     total_dies = len(WAFERS) * len(dies)
     print(f"Written {len(buf):,} bytes → {output_path}")

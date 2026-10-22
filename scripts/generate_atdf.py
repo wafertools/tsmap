@@ -5,10 +5,10 @@
 import math, random, sys
 from pathlib import Path
 from fixture_paths import fixture_path
+import atdf_spec as a   # the one spec-conformant set of ATDF record builders
 
 random.seed(42)
 
-DELIM = '|'
 TESTS = [
     (1001, 'leakage_nA',  'nA',  0.0,   5.0),
     (1002, 'vth_mV',      'mV',  180.0, 380.0),
@@ -18,32 +18,26 @@ FT_NUM, FT_NAME = 2001, 'scan_chain'
 SITES  = [1, 2, 3, 4]
 WAFERS = ['W01', 'W02', 'W03']
 
-def rec(name: str, *fields) -> str:
-    return f"{name}:{DELIM.join(str(f) for f in fields)}"
-
 def wafer_dies(radius=8):
     return [(x, y) for y in range(-radius, radius+1)
                    for x in range(-radius, radius+1)
                    if x*x + y*y <= radius*radius * 1.1]
 
 def generate(out: Path):
-    lines = []
-    lines.append(rec('FAR', 'A' + DELIM + '4'))  # FAR:A|4  (delim=|, ver=4)
-    lines.append(rec('MIR', 'LOT-001','CHIP-X','test_program','node-01','UltraTester-9000'))
-    lines.append(rec('SDR', '1','1', f'1{DELIM}2{DELIM}3{DELIM}4'))  # head, grp, sites
+    lines = [a.far(), a.mir('LOT-001', 'CHIP-X', 'test_program', 'node-01', 'UltraTester-9000'), a.sdr(1, 1, SITES)]
 
     dies = wafer_dies(8)
     part_id = 1
+    lot_good = 0
 
     for wafer_id in WAFERS:
-        lines.append(rec('WIR', '1', '0', '1', wafer_id))
+        lines.append(a.wir(1, wafer_id, site_grp=1))
         part_cnt = good_cnt = 0
 
         for batch_start in range(0, len(dies), len(SITES)):
             batch = dies[batch_start:batch_start+len(SITES)]
             for si, (x, y) in enumerate(batch):
-                site = SITES[si]
-                lines.append(rec('PIR', '1', site))
+                lines.append(a.pir(1, SITES[si]))
 
             for si, (x, y) in enumerate(batch):
                 site = SITES[si]
@@ -57,30 +51,26 @@ def generate(out: Path):
                         value = hi * 1.1
                     passed = lo <= value <= hi
                     if not passed: failed.append(tnum)
-                    pf = 'P' if passed else 'F'
-                    # PTR: TEST_NUM|HEAD|SITE|RESULT|Pass/Fail|AlarmFlags|TEST_TXT|ALARM_ID|LimitCompare|UNITS|LO_LIMIT|HI_LIMIT
-                    if batch_start == 0 and si == 0:
-                        lines.append(rec('PTR', tnum,'1',site,f'{value:.4f}',pf,'','',tname,'','',units,lo,hi))
-                    else:
-                        lines.append(rec('PTR', tnum,'1',site,f'{value:.4f}',pf))
+                    # The first PTR of a test carries its name, units and limits; the rest stop after ALARM_ID.
+                    lines.append(a.ptr(tnum, 1, site, value, passed, tname, lo, hi, units, first=(batch_start == 0 and si == 0)))
 
                 ft_pass = not (edge and random.random() < 0.05)
                 if not ft_pass: failed.append(FT_NUM)
-                lines.append(rec('FTR', FT_NUM,'1',site,'P' if ft_pass else 'F'))
+                lines.append(a.ftr(FT_NUM, 1, site, ft_pass, FT_NAME))
 
                 die_pass = len(failed) == 0
                 hbin = 1 if die_pass else (2 if len(failed)==1 else 3)
-                sbin = hbin
-                pf = 'P' if die_pass else 'F'
-                # PRR: HEAD|SITE|PART_ID|NUM_TEST|Pass/Fail|HARD_BIN|SOFT_BIN|X|Y
-                lines.append(rec('PRR', '1',site,part_id,4,pf,hbin,sbin,x,y))
+                lines.append(a.prr(1, site, x, y, hbin, hbin, part_id, die_pass))
                 part_id += 1
                 part_cnt += 1
-                if die_pass: good_cnt += 1
+                if die_pass:
+                    good_cnt += 1
+                    lot_good += 1
 
-        lines.append(rec('WRR', '1','0',part_cnt,wafer_id,'1','0',good_cnt))
+        lines.append(a.wrr(1, wafer_id, part_cnt, good_cnt, site_grp=1))
 
-    out.write_text('\n'.join(lines) + '\n')
+    lines.append(a.file_end(part_id - 1, lot_good))
+    out.write_text(''.join(lines))
     print(f"Written {out} — {len(WAFERS)} wafers × ~{len(dies)} dies")
 
 if __name__ == '__main__':

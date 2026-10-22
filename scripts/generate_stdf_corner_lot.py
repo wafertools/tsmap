@@ -35,147 +35,33 @@ Charts view's Group-by dropdown.
 
 import math
 import random
-import struct
 import sys
 from pathlib import Path
 from fixture_paths import fixture_path
 
 random.seed(7)
 
-# ── STDF record helpers (see generate_stdf.py for the annotated version) ──────
+# ── STDF records ──────────────────────────────────────────────────────────────
+# One head, as every file here: thin wrappers over the one spec-conformant set of record builders, stdf_spec.py.
+import stdf_spec as S
 
-def cn(s: str) -> bytes:
-    b = s.encode('ascii')
-    return bytes([len(b)]) + b
-
-def u1(v: int) -> bytes: return struct.pack('B', v & 0xFF)
-def u2(v: int) -> bytes: return struct.pack('<H', v & 0xFFFF)
-def u4(v: int) -> bytes: return struct.pack('<I', v & 0xFFFFFFFF)
-def i2(v: int) -> bytes: return struct.pack('<h', v)
-def i4(v: int) -> bytes: return struct.pack('<i', v)
-def r4(v: float) -> bytes: return struct.pack('<f', v)
-def b1(v: int) -> bytes: return bytes([v & 0xFF])
-def c1(c: str) -> bytes: return c.encode('ascii')[:1]
-
-def record(rec_typ: int, rec_sub: int, body: bytes) -> bytes:
-    return struct.pack('<HBB', len(body), rec_typ, rec_sub) + body
-
-FAR = (0, 10)
-MIR = (1, 10)
-SDR = (1, 80)
-WIR = (2, 10)
-WRR = (2, 20)
-WCR = (2, 30)
-HBR = (1, 40)
-SBR = (1, 50)
-PIR = (5, 10)
-PRR = (5, 20)
-PTR = (15, 10)
-FTR = (15, 20)
-
-def far() -> bytes:
-    return record(*FAR, u1(2) + u1(4))
-
-def mir(lot_id: str) -> bytes:
-    body = (
-        u4(0) + u4(0) + u1(1) + c1('P') + c1(' ') + c1(' ') +
-        u2(0xFFFF) + c1(' ') +
-        cn(lot_id) + cn('CHIP-PVT') + cn('node-01') + cn('UltraTester-9000') +
-        cn('corner_test') + cn('1.0') +
-        cn('') * 18
-    )
-    return record(*MIR, body)
-
-def sdr(sites: list[int]) -> bytes:
-    body = u1(1) + u1(1) + u1(len(sites)) + b''.join(u1(s) for s in sites) + cn('') * 14
-    return record(*SDR, body)
-
-def wcr(wafr_siz: float, die_ht: float, die_wid: float, wf_units: int, wf_flat: str,
-        center_x: int, center_y: int, pos_x: str, pos_y: str) -> bytes:
-    # STDF V4 WCR: WAFR_SIZ DIE_HT DIE_WID WF_UNITS WF_FLAT CENTER_X CENTER_Y POS_X
-    # POS_Y. There is no HEAD_NUM/SITE_GRP — this used to write them, and the
-    # parser read them back the same wrong way.
-    body = (
-        r4(wafr_siz) + r4(die_ht) + r4(die_wid) +
-        u1(wf_units) + c1(wf_flat) +
-        i2(center_x) + i2(center_y) +
-        c1(pos_x) + c1(pos_y)
-    )
-    return record(*WCR, body)
-
-def hbr(bin_num: int, cnt: int, pf: str, name: str) -> bytes:
-    body = u1(1) + u1(255) + u2(bin_num) + u4(cnt) + c1(pf) + cn(name)
-    return record(*HBR, body)
-
-def sbr(bin_num: int, cnt: int, pf: str, name: str) -> bytes:
-    body = u1(1) + u1(255) + u2(bin_num) + u4(cnt) + c1(pf) + cn(name)
-    return record(*SBR, body)
-
-def wir(wafer_id: str) -> bytes:
-    return record(*WIR, u1(1) + u1(255) + u4(0) + cn(wafer_id))
-
-def wrr(wafer_id: str, part_cnt: int, good_cnt: int) -> bytes:
-    body = (
-        u1(1) + u1(255) + u4(0) +
-        u4(part_cnt) + u4(0xFFFFFFFF) + u4(0xFFFFFFFF) +
-        u4(good_cnt) + u4(0xFFFFFFFF) +
-        cn(wafer_id) + cn('') * 5
-    )
-    return record(*WRR, body)
-
-def pir(site: int) -> bytes:
-    return record(*PIR, u1(1) + u1(site))
-
+def far() -> bytes: return S.far()
+def mir(lot_id: str) -> bytes: return S.mir(lot_id, 'CHIP-PVT', 'corner_test', 'UltraTester-9000', 'node-01', job_rev='1.0')
+def sdr(sites: list[int]) -> bytes: return S.sdr(1, 1, sites)
+def wir(wafer_id: str) -> bytes: return S.wir(1, wafer_id, site_grp=1)
+def wrr(wafer_id: str, part_cnt: int, good_cnt: int) -> bytes: return S.wrr(1, wafer_id, part_cnt, good_cnt, site_grp=1)
+def pir(site: int) -> bytes: return S.pir(1, site)
 def prr(site: int, x: int, y: int, hbin: int, sbin: int, part_id: int, passed: bool) -> bytes:
-    body = (
-        u1(1) + u1(site) +
-        b1(0x00 if passed else 0x08) +
-        u2(NUM_TESTS) +
-        u2(hbin) + u2(sbin) +
-        i2(x) + i2(y) +
-        u4(100) +
-        cn(str(part_id)) + cn('') + b'\x00'
-    )
-    return record(*PRR, body)
-
+    return S.prr(1, site, x, y, hbin, sbin, part_id, passed, num_test=NUM_TESTS)
 def ptr_rec(test_num: int, site: int, value: float, passed: bool, test_txt: str,
             lo: float | None, hi: float | None, units: str, first: bool) -> bytes:
-    test_flg = 0x00 if passed else 0x80
-    if first and (lo is not None or hi is not None):
-        has_lo, has_hi = lo is not None, hi is not None
-        opt_flag = 0x00
-        if not has_lo: opt_flag |= 0x40
-        if not has_hi: opt_flag |= 0x80
-        optional = (
-            b1(opt_flag) + b1(0) + b1(0) + b1(0) +
-            r4(lo if has_lo else 0.0) +
-            r4(hi if has_hi else 0.0) +
-            cn(units) + cn('') + cn('') + cn('')
-        )
-    else:
-        optional = b''
-    body = (
-        u4(test_num) + u1(1) + u1(site) +
-        b1(test_flg) + b1(0x00) +
-        r4(value) +
-        cn(test_txt) + cn('') +
-        optional
-    )
-    return record(*PTR, body)
-
-def ftr_rec(test_num: int, site: int, passed: bool, test_txt: str) -> bytes:
-    body = (
-        u4(test_num) + u1(1) + u1(site) +
-        b1(0x00 if passed else 0x80) + b1(0xFF) +
-        u4(0) + u4(0) + u4(0) + u4(0) +
-        i4(0) + i4(0) + i2(0) + u2(0) + u2(0) +   # xfail/yfail are I*4 per spec
-        u2(0) +                                    # fail_pin (Dn: 0 bits)
-        cn('') + cn('') + cn('') +                 # vect_nam, time_set, op_code
-        cn(test_txt) +                             # test_txt — the spec's name slot
-        cn('') + cn('') + cn('') +                 # alarm_id, prog_txt, rslt_txt
-        u1(0) + u2(0)                              # patg_num, spin_map (Dn: 0 bits)
-    )
-    return record(*FTR, body)
+    return S.ptr(test_num, 1, site, value, passed, test_txt, lo, hi, units, first)
+def ftr_rec(test_num: int, site: int, passed: bool, test_txt: str) -> bytes: return S.ftr(test_num, 1, site, passed, test_txt)
+def wcr(wafr_siz: float, die_ht: float, die_wid: float, wf_units: int, wf_flat: str,
+        center_x: int, center_y: int, pos_x: str, pos_y: str) -> bytes:
+    return S.wcr(wafr_siz, die_ht, die_wid, wf_units, wf_flat, center_x, center_y, pos_x, pos_y)
+def hbr(bin_num: int, cnt: int, pf: str, name: str) -> bytes: return S.hbr(bin_num, cnt, pf, name)
+def sbr(bin_num: int, cnt: int, pf: str, name: str) -> bytes: return S.sbr(bin_num, cnt, pf, name)
 
 # ── Wafer geometry ──────────────────────────────────────────────────────────
 
@@ -270,6 +156,7 @@ def generate(output_path: Path) -> None:
     buf = bytearray()
     buf += far()
     buf += mir(output_path.stem)
+    buf += sdr(SITES)
     # Die pitch must actually contain every die's grid position (radius=8
     # steps, see wafer_dies below) within the 300mm wafer, or wmap correctly
     # rejects it as a geometry-conflict warning (a probed die is always a
@@ -282,10 +169,10 @@ def generate(output_path: Path) -> None:
     # constraint).
     buf += wcr(wafr_siz=300.0, die_ht=16.9, die_wid=16.9, wf_units=3, wf_flat='D',
                center_x=0, center_y=0, pos_x='R', pos_y='U')
-    buf += sdr(SITES)
 
     dies = wafer_dies(8)
     part_counter = 1
+    lot_good = 0
     bin_counts = {1: 0, 2: 0, 3: 0}
 
     for wafer_id, corner in WAFER_CORNERS:
@@ -323,6 +210,7 @@ def generate(output_path: Path) -> None:
                 part_cnt += 1
                 if die_passed:
                     good_cnt += 1
+                    lot_good += 1
 
         buf += wrr(wafer_id, part_cnt, good_cnt)
 
@@ -335,6 +223,7 @@ def generate(output_path: Path) -> None:
     buf += sbr(1, bin_counts[1], 'P', 'Pass')
     buf += sbr(2, bin_counts[2], 'F', 'Fail (1 test)')
     buf += sbr(3, bin_counts[3], 'F', 'Fail (multi)')
+    buf += S.file_end(part_counter - 1, lot_good)
 
     output_path.write_bytes(buf)
 

@@ -16,7 +16,6 @@ Die count by radius (approximate):
 import argparse
 import math
 import random
-import struct
 import sys
 from pathlib import Path
 from fixture_paths import fixture_path
@@ -24,103 +23,9 @@ from fixture_testnums import test_numbers
 
 random.seed(42)
 
-# ── STDF record helpers (shared with generate_stdf.py) ───────────────────────
-
-def cn(s: str) -> bytes:
-    b = s.encode('ascii')
-    return bytes([len(b)]) + b
-
-def u1(v: int) -> bytes: return struct.pack('B', v & 0xFF)
-def u2(v: int) -> bytes: return struct.pack('<H', v & 0xFFFF)
-def u4(v: int) -> bytes: return struct.pack('<I', v & 0xFFFFFFFF)
-def i2(v: int) -> bytes: return struct.pack('<h', v)
-def i4(v: int) -> bytes: return struct.pack('<i', v)
-def r4(v: float) -> bytes: return struct.pack('<f', v)
-def b1(v: int) -> bytes: return bytes([v & 0xFF])
-def c1(c: str) -> bytes: return c.encode('ascii')[:1]
-
-def record(rec_typ: int, rec_sub: int, body: bytes) -> bytes:
-    return struct.pack('<HBB', len(body), rec_typ, rec_sub) + body
-
-FAR = (0,  10)
-MIR = (1,  10)
-SDR = (1,  80)
-WIR = (2,  10)
-WRR = (2,  20)
-PIR = (5,  10)
-PRR = (5,  20)
-PTR = (15, 10)
-FTR = (15, 20)
-
-def far() -> bytes:
-    return record(*FAR, u1(2) + u1(4))
-
-def mir(lot_id: str, part_typ: str, job_nam: str, tstr_typ: str, node_nam: str) -> bytes:
-    body = (
-        u4(0) + u4(0) + u1(1) + c1('P') + c1(' ') + c1(' ') + u2(0xFFFF) + c1(' ') +
-        cn(lot_id) + cn(part_typ) + cn(node_nam) + cn(tstr_typ) + cn(job_nam) +
-        cn('1.0') + cn('') * 22
-    )
-    return record(*MIR, body)
-
-def sdr(head: int, site_grp: int, sites: list[int]) -> bytes:
-    body = u1(head) + u1(site_grp) + u1(len(sites)) + b''.join(u1(s) for s in sites) + cn('') * 16
-    return record(*SDR, body)
-
-def wir(head: int, wafer_id: str) -> bytes:
-    return record(*WIR, u1(head) + u1(255) + u4(0) + cn(wafer_id))
-
-def wrr(head: int, wafer_id: str, part_cnt: int, good_cnt: int) -> bytes:
-    body = (
-        u1(head) + u1(255) + u4(0) + u4(part_cnt) +
-        u4(0xFFFFFFFF) + u4(0xFFFFFFFF) + u4(good_cnt) + u4(0xFFFFFFFF) +
-        cn(wafer_id) + cn('') * 5
-    )
-    return record(*WRR, body)
-
-def pir(head: int, site: int) -> bytes:
-    return record(*PIR, u1(head) + u1(site))
-
-def prr(head: int, site: int, x: int, y: int, hbin: int, sbin: int,
-        part_id: int, passed: bool) -> bytes:
-    part_flg = 0x00 if passed else 0x08
-    body = (
-        u1(head) + u1(site) + b1(part_flg) + u2(4) +
-        u2(hbin) + u2(sbin) + i2(x) + i2(y) +
-        u4(100) + cn(str(part_id)) + cn('') + b'\x00'
-    )
-    return record(*PRR, body)
-
-def ptr_rec(test_num: int, head: int, site: int, value: float,
-            passed: bool, test_txt: str,
-            lo: float | None = None, hi: float | None = None,
-            units: str = '', first: bool = False) -> bytes:
-    test_flg = 0x00 if passed else 0x80
-    if first and (lo is not None or hi is not None):
-        has_lo, has_hi = lo is not None, hi is not None
-        opt_flag = (0x00 | (0x40 if not has_lo else 0) | (0x80 if not has_hi else 0))
-        optional = (
-            b1(opt_flag) + b1(0) + b1(0) + b1(0) +
-            r4(lo if has_lo else 0.0) + r4(hi if has_hi else 0.0) +
-            cn(units) + cn('') + cn('') + cn('')
-        )
-    else:
-        optional = b''
-    body = u4(test_num) + u1(head) + u1(site) + b1(test_flg) + b1(0) + r4(value) + cn(test_txt) + cn('') + optional
-    return record(*PTR, body)
-
-def ftr_rec(test_num: int, head: int, site: int, passed: bool, test_txt: str) -> bytes:
-    test_flg = 0x00 if passed else 0x80
-    body = (
-        u4(test_num) + u1(head) + u1(site) + b1(test_flg) + b1(0xFF) +
-        u4(0) + u4(0) + u4(0) + u4(0) + i4(0) + i4(0) + i2(0) + u2(0) + u2(0) +
-        u2(0) +                       # fail_pin (Dn: 0 bits); xfail/yfail above are I*4 per spec
-        cn('') + cn('') + cn('') +    # vect_nam, time_set, op_code
-        cn(test_txt) +                # test_txt — the spec's name slot
-        cn('') + cn('') + cn('') +    # alarm_id, prog_txt, rslt_txt
-        u1(0) + u2(0)                 # patg_num, spin_map (Dn: 0 bits)
-    )
-    return record(*FTR, body)
+# ── STDF records ──────────────────────────────────────────────────────────────
+# The one spec-conformant set of record builders: stdf_spec.py.
+from stdf_spec import far, mir, sdr, wir, wrr, pir, prr, ptr as ptr_rec, ftr as ftr_rec, file_end
 
 def wafer_dies(radius: int) -> list[tuple[int, int]]:
     return [
@@ -149,6 +54,7 @@ def generate(output_path: Path, n_tests: int, radius: int, n_wafers: int) -> Non
     buf += sdr(1, 1, sites)
 
     part_counter = 1
+    lot_good = 0
     for wafer_id in wafers:
         buf += wir(1, wafer_id)
         part_cnt = good_cnt = 0
@@ -187,9 +93,11 @@ def generate(output_path: Path, n_tests: int, radius: int, n_wafers: int) -> Non
                 part_cnt += 1
                 if die_passed:
                     good_cnt += 1
+                    lot_good += 1
 
         buf += wrr(1, wafer_id, part_cnt, good_cnt)
 
+    buf += file_end(part_counter - 1, lot_good)
     output_path.write_bytes(buf)
     mb = len(buf) / 1_048_576
     total_dies = n_wafers * len(dies)

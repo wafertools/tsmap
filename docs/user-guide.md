@@ -714,7 +714,8 @@ how tsmap feeds data into it:
   program, temperature, test date, operator, or a [split](#wafer-splits) you've assigned (a split is one wafer
   attribute, like any other). They are attached to each wafer at load time. STDF and ATDF contribute every field in
   their MIR record (test station, mode, retest and protection codes, burn-in time, tester serial number, facility and
-  floor, among others) and the fields of the wafer's WIR and WRR; CSV and JSON contribute the lot column plus any columns
+  floor, among others), the fields of the wafer's WIR and WRR, and for STDF the equipment its SDR names for the wafer's
+  probe head (handler, probe card, load board and so on); CSV and JSON contribute the lot column plus any columns
   you mapped as metadata. Only attributes that actually *vary* across the loaded wafers appear in the dropdown, and each
   carries the name it has in the file filter (**Part type**, **Program**, **Test date**). Every attribute is offered
   except the wafer-configuration sizes and orientation, which describe the map rather than the wafer; a code is shown as

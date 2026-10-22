@@ -703,6 +703,19 @@ pub fn split_common_fields(per_wafer: Vec<Vec<MetaField>>) -> (Vec<MetaField>, V
     (common, residual)
 }
 
+/// The equipment an SDR names, as (type key, ID key) pairs in the record's own order — HAND_TYP/HAND_ID, CARD_TYP/CARD_ID,
+/// LOAD_*, DIB_*, CABL_*, CONT_*, LASR_*, EXTR_*. One list for the STDF and the ATDF reader, so the two emit the same keys.
+pub const SDR_EQUIPMENT: [(&str, &str); 8] = [
+    ("handlerType", "handlerId"),         // handler or prober
+    ("probeCardType", "probeCardId"),
+    ("loadBoardType", "loadBoardId"),
+    ("dibType", "dibId"),                 // device interface board
+    ("cableType", "cableId"),             // interface cable
+    ("contactorType", "contactorId"),
+    ("laserType", "laserId"),
+    ("extraEquipType", "extraEquipId"),
+];
+
 /// Lot records (STDF/ATDF MIR) in a file, and which one each wafer was tested
 /// under. The spec allows one per file, but concatenated streams — some
 /// systems' way of returning a multi-lot selection as one response — carry
@@ -715,6 +728,8 @@ pub struct LotRecords {
     count: usize,
     per_wafer: Vec<Vec<MetaField>>,
     file_fields: Vec<MetaField>,
+    /// The equipment each SDR names, by the head and site group it describes (a later SDR for the same pair replaces an earlier).
+    equipment: Vec<(u8, u8, Vec<MetaField>)>,
 }
 
 impl LotRecords {
@@ -722,6 +737,40 @@ impl LotRecords {
     pub fn set_lot(&mut self, fields: Vec<MetaField>) {
         self.current = fields;
         self.count += 1;
+    }
+
+    /// An SDR's equipment (handler, probe card, load board…) for the wafers of `head` and `site_grp`.
+    pub fn add_equipment(&mut self, head: u8, site_grp: u8, fields: Vec<MetaField>) {
+        if fields.is_empty() { return; }
+        match self.equipment.iter_mut().find(|e| e.0 == head && e.1 == site_grp) {
+            Some(e) => e.2 = fields,
+            None => self.equipment.push((head, site_grp, fields)),
+        }
+    }
+
+    /// The equipment for a wafer opened on `head` and `site_grp`. The SDR for that exact pair when there is one; otherwise (a WIR
+    /// that names no site group, or a group no SDR described) what every SDR of the head agrees on, since a wafer is not known
+    /// to have been tested on equipment its head's site groups do not share.
+    pub fn equipment_for(&self, head: u8, site_grp: u8) -> Vec<MetaField> {
+        if let Some(e) = self.equipment.iter().find(|e| e.0 == head && e.1 == site_grp) {
+            return e.2.clone();
+        }
+        let mut of_head = self.equipment.iter().filter(|e| e.0 == head);
+        let Some(first) = of_head.next() else { return Vec::new() };
+        let rest: Vec<_> = of_head.collect();
+        first.2.iter()
+            .filter(|f| rest.iter().all(|e| e.2.iter().any(|g| g.key == f.key && g.value == f.value)))
+            .cloned()
+            .collect()
+    }
+
+    /// The equipment every SDR in the file names alike: what a file-level view (the file filter) can say of the whole file.
+    pub fn common_equipment(&self) -> Vec<MetaField> {
+        let Some(first) = self.equipment.first() else { return Vec::new() };
+        first.2.iter()
+            .filter(|f| self.equipment.iter().all(|e| e.2.iter().any(|g| g.key == f.key && g.value == f.value)))
+            .cloned()
+            .collect()
     }
 
     /// File-level fields that are not lot identity (WCR geometry, the V4-2007 VUR).

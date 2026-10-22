@@ -27,9 +27,12 @@ const WRR: &[&str] = &[
     "ABRT_CNT","GOOD_CNT","FUNC_CNT","FABWF_ID","FRAME_ID","MASK_ID",
     "USR_DESC","EXC_DESC",
 ];
-// SDR: site description. HEAD_NUM, SITE_GRP, SITE_CNT, then SITE_NUM (a
-// sub-delimited list), followed by per-site descriptor fields we don't surface.
-const SDR: &[&str] = &["HEAD_NUM","SITE_GRP","SITE_CNT","SITE_NUM"];
+// SDR: site description, per the spec (table 2-13; sample `SDR:2|4|5,6,7,8|Delta Flex|D511||B101|17`). HEAD_NUM, SITE_GRP, then the
+// site numbers as ONE comma-separated array field, then each equipment's type and ID. There is no SITE_CNT in ATDF.
+const SDR: &[&str] = &[
+    "HEAD_NUM","SITE_GRP","SITE_NUM","HAND_TYP","HAND_ID","CARD_TYP","CARD_ID","LOAD_TYP","LOAD_ID",
+    "DIB_TYP","DIB_ID","CABL_TYP","CABL_ID","CONT_TYP","CONT_ID","LASR_TYP","LASR_ID","EXTR_TYP","EXTR_ID",
+];
 // Spec sample: WCR:D|R|D|5|.3|.25|1|23|19 — the orientation fields come first,
 // and there is no HEAD_NUM/SITE_GRP (STDF's WCR has none either).
 const WCR: &[&str] = &[
@@ -117,6 +120,20 @@ fn site_key(head: &str, site: &str) -> u32 {
 /// value for a tester that does not identify its head.
 fn atdf_head(field: &str) -> u8 {
     field.trim().parse().unwrap_or(1)
+}
+
+/// An ATDF SDR: its head, site group (255 when blank, STDF's "not specified"), site numbers and the equipment it names.
+fn atdf_sdr(f: &HashMap<&str, &str>) -> (u8, u8, Vec<u32>, Vec<MetaField>) {
+    let head = atdf_head(get(f, "HEAD_NUM"));
+    let grp = get(f, "SITE_GRP").parse().unwrap_or(255);
+    let sites = get(f, "SITE_NUM").split(',').filter_map(|s| s.trim().parse().ok()).collect();
+    let mut fields = Vec::new();
+    // SDR's fields after the site array are the equipment pairs, in the order SDR_EQUIPMENT lists them.
+    for ((typ, id), names) in SDR_EQUIPMENT.iter().zip(SDR[3..].chunks(2)) {
+        push_field(&mut fields, typ, nonempty(get(f, names[0])));
+        push_field(&mut fields, id, nonempty(get(f, names[1])));
+    }
+    (head, grp, sites, fields)
 }
 
 /// ATDF PTR/MPR/FTR Pass/Fail Flag: `P` passed, `A` passed alternate limits,
@@ -417,25 +434,27 @@ fn parse_atdf_str(raw: &str, selected: Option<&std::collections::HashSet<u32>>) 
                 }
             }
             "SDR" => {
-                // Site description → ParsedStdf.sites, matching the STDF parser
-                // (which fills sites from SDR). HEAD_NUM at [0]; every numeric field
-                // from the SITE_CNT position (index 2) onward is a site number — our
-                // generators emit the site list with the primary delimiter.
+                // Site description → ParsedStdf.sites, as the STDF parser fills it, and the equipment it names for the wafers of
+                // its head and site group (see LotRecords).
                 let f = field_map(SDR, &raw_fields);
-                let head: u32 = get(&f, "HEAD_NUM").parse().unwrap_or(1);
-                for raw in raw_fields.iter().skip(2) {
-                    if let Ok(site) = raw.trim().parse::<u32>() {
-                        sites.push(SiteInfo { head_num: head, site_num: site });
-                    }
+                let (head, grp, site_list, equipment) = atdf_sdr(&f);
+                for site in site_list {
+                    sites.push(SiteInfo { head_num: head as u32, site_num: site });
                 }
+                lots.add_equipment(head, grp, equipment);
             }
             "WIR" => {
                 let f = field_map(WIR, &raw_fields);
+                let head = atdf_head(get(&f, "HEAD_NUM"));
+                let grp: u8 = get(&f, "SITE_GRP").parse().unwrap_or(255);
                 let mut fields = Vec::new();
+                // The probe head, and the site group (255 is "not specified"), as the STDF reader emits them.
+                push_field(&mut fields, "headNum", Some(head.to_string()));
+                if grp != 255 { push_field(&mut fields, "siteGroup", Some(grp.to_string())); }
                 push_field(&mut fields, "waferStartT",
                     nonempty(get(&f, "START_T")).map(|v| meta_value("waferStartT", v)));
-                open.wir(atdf_head(get(&f, "HEAD_NUM")), get(&f, "WAFER_ID").to_string(), fields,
-                         &mut lots, &mut wafers);
+                fields.extend(lots.equipment_for(head, grp));
+                open.wir(head, get(&f, "WAFER_ID").to_string(), fields, &mut lots, &mut wafers);
             }
             "WRR" => {
                 let f = field_map(WRR, &raw_fields);
@@ -621,6 +640,8 @@ fn parse_atdf_file_meta_str(raw: &str) -> ParseResult<crate::types::FileMeta> {
     let mut earliest_start: Option<String> = None;
     let mut latest_finish: Option<String> = None;
     let mut site_nums: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    // The equipment the file's SDRs name, as the file filter shows it: only what they all agree on.
+    let mut equipment = LotRecords::default();
 
     let mut raw_fields: Vec<&str> = Vec::new();
     for rec in &records {
@@ -641,14 +662,10 @@ fn parse_atdf_file_meta_str(raw: &str) -> ParseResult<crate::types::FileMeta> {
                 lot_meta.fields = fields_from(&f, MIR_KEYS);
             }
             "SDR" => {
-                // Same skip(2) convention as the full parse's own SDR handling —
-                // HEAD_NUM/SITE_GRP occupy the first two positions, SITE_NUM is a
-                // sub-delimited list from position 2 onward.
-                for raw_site in raw_fields.iter().skip(2) {
-                    if let Ok(site) = raw_site.trim().parse::<u32>() {
-                        site_nums.insert(site);
-                    }
-                }
+                let f = field_map(SDR, &raw_fields);
+                let (head, grp, site_list, fields) = atdf_sdr(&f);
+                site_nums.extend(site_list);
+                equipment.add_equipment(head, grp, fields);
             }
             // Both comparisons are plain string compares, which is only sound
             // because meta_value has normalised these to fixed-width ISO 8601
@@ -674,6 +691,7 @@ fn parse_atdf_file_meta_str(raw: &str) -> ParseResult<crate::types::FileMeta> {
         }
     }
 
+    lot_meta.fields.extend(equipment.common_equipment());
     Ok(crate::types::FileMeta {
         lot_meta,
         wafer_count,
@@ -1109,12 +1127,49 @@ mod tests {
     fn sdr_populates_sites() {
         // Parity with the STDF parser, which fills ParsedStdf.sites from SDR.
         let inner = pir(1,1) + &prr(1,1,0,0,1,1);
-        let text = format!("{}{}SDR:1|1|1|2|3|4\n{}{}{}", far(), mir_full(), wir("W01"), inner, wrr("W01", 1, 1));
+        let text = format!("{}{}SDR:1|1|1,2,3,4\n{}{}{}", far(), mir_full(), wir("W01"), inner, wrr("W01", 1, 1));
         let path = tmp(&text);
         let result = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
         let site_nums: Vec<u32> = result.sites.iter().map(|s| s.site_num).collect();
         assert_eq!(site_nums, vec![1, 2, 3, 4]);
         assert!(result.sites.iter().all(|s| s.head_num == 1));
+    }
+
+    /// The spec's own SDR sample (`SDR:2|4|5,6,7,8|Delta Flex|D511||B101|17`): the site numbers are one comma-separated field, and
+    /// the equipment that follows (handler type and ID, then the probe card's type left blank and its ID) is not read as sites.
+    #[test]
+    fn sdr_reads_the_site_array_and_the_equipment_as_the_spec_lays_it_out() {
+        let inner = pir(2,5) + &prr(2,5,0,0,1,1);
+        let wir2 = "WIR:2||4|W01\n";
+        let wrr2 = "WRR:2|||W01|4||||1\n";
+        let text = format!("{}{}SDR:2|4|5,6,7,8|Delta Flex|D511||B101|17\n{}{}{}", far(), mir_full(), wir2, inner, wrr2);
+        let path = tmp(&text);
+        let r = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
+        let sites: Vec<u32> = r.sites.iter().map(|s| s.site_num).collect();
+        assert_eq!(sites, vec![5, 6, 7, 8], "B101 and 17 are not sites");
+        assert!(r.sites.iter().all(|s| s.head_num == 2));
+        let w = &r.wafers[0];
+        let get = |k: &str| w.fields.iter().find(|f| f.key == k).map(|f| f.value.as_str());
+        assert_eq!((get("handlerType"), get("handlerId"), get("probeCardType"), get("probeCardId")),
+                   (Some("Delta Flex"), Some("D511"), None, Some("B101")));
+        assert_eq!(get("loadBoardType"), Some("17"));
+        assert_eq!((get("headNum"), get("siteGroup")), (Some("2"), Some("4")));
+    }
+
+    /// A WIR that names no site group gets what every SDR of its head agrees on; the file filter's view is what every SDR agrees on.
+    #[test]
+    fn sdr_equipment_without_a_site_group_is_what_the_heads_sdrs_share() {
+        let text = format!("{}{}SDR:1|1|1|PRB|P-1|PC|C-1\nSDR:1|2|2|PRB|P-1|PC|C-2\n{}{}{}{}{}{}", far(), mir_full(),
+            "WIR:1||1|A\n", pir(1,1) + &prr(1,1,0,0,1,1), "WRR:1|||A|1||||1\n",
+            "WIR:1|||B\n", pir(1,1) + &prr(1,1,0,0,1,1), "WRR:1|||B|1||||1\n");
+        let path = tmp(&text);
+        let r = parse_atdf_sync(path.to_str().unwrap().to_string()).unwrap();
+        let get = |w: usize, k: &str| r.wafers[w].fields.iter().find(|f| f.key == k).map(|f| f.value.clone());
+        assert_eq!((get(0, "handlerId"), get(0, "probeCardId")), (Some("P-1".into()), Some("C-1".into())));
+        assert_eq!((get(1, "handlerId"), get(1, "probeCardId"), get(1, "siteGroup")), (Some("P-1".into()), None, None));
+        let meta = parse_atdf_file_meta(text.as_bytes()).unwrap();
+        let lot = |k: &str| meta.lot_meta.fields.iter().find(|f| f.key == k).map(|f| f.value.clone());
+        assert_eq!((lot("handlerId"), lot("probeCardId")), (Some("P-1".into()), None));
     }
 
     #[test]

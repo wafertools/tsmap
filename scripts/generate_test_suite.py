@@ -13,7 +13,6 @@ Die geometry uses wafer_dies(radius) exactly — no slicing — so every file ha
 a proper circular wafer shape.
 """
 
-import struct
 import math
 import random
 import json
@@ -24,150 +23,20 @@ from fixture_testnums import test_numbers
 
 random.seed(42)
 
-# ── STDF record helpers (copied from generate_stdf.py) ───────────────────────
+# ── STDF and ATDF records ─────────────────────────────────────────────────────
+# The one spec-conformant set of record builders: stdf_spec.py and atdf_spec.py.
+from stdf_spec import far, mir, sdr, wir, wrr, pir, prr, ptr as ptr_rec, ftr as ftr_rec, file_end
+import atdf_spec as atdf
 
-def cn(s: str) -> bytes:
-    b = s.encode('ascii')
-    return bytes([len(b)]) + b
-
-def u1(v: int) -> bytes: return struct.pack('B', v & 0xFF)
-def u2(v: int) -> bytes: return struct.pack('<H', v & 0xFFFF)
-def u4(v: int) -> bytes: return struct.pack('<I', v & 0xFFFFFFFF)
-def i2(v: int) -> bytes: return struct.pack('<h', v)
-def i4(v: int) -> bytes: return struct.pack('<i', v)
-def r4(v: float) -> bytes: return struct.pack('<f', v)
-def b1(v: int) -> bytes: return bytes([v & 0xFF])
-def c1(c: str) -> bytes: return c.encode('ascii')[:1]
-
-def record(rec_typ: int, rec_sub: int, body: bytes) -> bytes:
-    return struct.pack('<HBB', len(body), rec_typ, rec_sub) + body
-
-FAR  = (0,  10)
-MIR  = (1,  10)
-SDR  = (1,  80)
-WIR  = (2,  10)
-WRR  = (2,  20)
-PIR  = (5,  10)
-PRR  = (5,  20)
-PTR  = (15, 10)
-FTR  = (15, 20)
-
-def far() -> bytes:
-    return record(*FAR, u1(2) + u1(4))
-
-def mir(lot_id: str, part_typ: str, job_nam: str, tstr_typ: str, node_nam: str) -> bytes:
-    body = (
-        u4(0) + u4(0) + u1(1) + c1('P') + c1(' ') + c1(' ') + u2(0xFFFF) + c1(' ') +
-        cn(lot_id) + cn(part_typ) + cn(node_nam) + cn(tstr_typ) + cn(job_nam) +
-        cn('1.0') + cn('') + cn('') + cn('') + cn('') + cn('') +
-        cn('25C') + cn('') + cn('') + cn('') + cn('') + cn('') +
-        cn('') + cn('') + cn('') + cn('') + cn('') + cn('') + cn('') +
-        cn('') + cn('') + cn('')
-    )
-    return record(*MIR, body)
-
-def sdr(head: int, site_grp: int, sites: list[int]) -> bytes:
-    body = u1(head) + u1(site_grp) + u1(len(sites)) + b''.join(u1(s) for s in sites) + cn('') * 18
-    return record(*SDR, body)
-
-def wir(head: int, wafer_id: str) -> bytes:
-    return record(*WIR, u1(head) + u1(255) + u4(0) + cn(wafer_id))
-
-def wrr(head: int, wafer_id: str, part_cnt: int, good_cnt: int) -> bytes:
-    body = (
-        u1(head) + u1(255) + u4(0) + u4(part_cnt) +
-        u4(0xFFFFFFFF) + u4(0xFFFFFFFF) + u4(good_cnt) + u4(0xFFFFFFFF) +
-        cn(wafer_id) + cn('') + cn('') + cn('') + cn('') + cn('')
-    )
-    return record(*WRR, body)
-
-def pir(head: int, site: int) -> bytes:
-    return record(*PIR, u1(head) + u1(site))
-
-def prr(head: int, site: int, x: int, y: int, hbin: int, sbin: int,
-        part_id: int, passed: bool) -> bytes:
-    part_flg = 0x00 if passed else 0x08
-    body = (
-        u1(head) + u1(site) + b1(part_flg) + u2(4) +
-        u2(hbin) + u2(sbin) + i2(x) + i2(y) +
-        u4(100) + cn(str(part_id)) + cn('') + b'\x00'
-    )
-    return record(*PRR, body)
-
-def ptr_rec(test_num: int, head: int, site: int, value: float, passed: bool,
-            test_txt: str, lo: float | None = None, hi: float | None = None,
-            units: str = '', first: bool = False) -> bytes:
-    test_flg = 0x00 if passed else 0x80
-    if first and (lo is not None or hi is not None):
-        has_lo, has_hi = lo is not None, hi is not None
-        opt_flag = (0x40 if not has_lo else 0) | (0x80 if not has_hi else 0)
-        optional = (
-            b1(opt_flag) + b1(0) + b1(0) + b1(0) +
-            r4(lo if has_lo else 0.0) + r4(hi if has_hi else 0.0) +
-            cn(units) + cn('') + cn('') + cn('')
-        )
-    else:
-        optional = b''
-    body = (
-        u4(test_num) + u1(head) + u1(site) + b1(test_flg) + b1(0) +
-        r4(value) + cn(test_txt) + cn('') + optional
-    )
-    return record(*PTR, body)
-
-def ftr_rec(test_num: int, head: int, site: int, passed: bool, test_txt: str) -> bytes:
-    test_flg = 0x00 if passed else 0x80
-    body = (
-        u4(test_num) + u1(head) + u1(site) + b1(test_flg) + b1(0xFF) +
-        u4(0) + u4(0) + u4(0) + u4(0) + i4(0) + i4(0) + i2(0) + u2(0) + u2(0) +
-        u2(0) +                       # fail_pin (Dn: 0 bits); xfail/yfail above are I*4 per spec
-        cn('') + cn('') + cn('') +    # vect_nam, time_set, op_code
-        cn(test_txt) +                # test_txt — the spec's name slot
-        cn('') + cn('') + cn('') +    # alarm_id, prog_txt, rslt_txt
-        u1(0) + u2(0)                 # patg_num, spin_map (Dn: 0 bits)
-    )
-    return record(*FTR, body)
-
-# ── ATDF helpers ──────────────────────────────────────────────────────────────
-
-D = '|'
-
-def atdf_far() -> str:
-    return f'FAR:A{D}4'
-
-def atdf_mir(lot_id: str, part_typ: str, job_nam: str, tstr_typ: str, node_nam: str) -> str:
-    return f'MIR:{lot_id}{D}{part_typ}{D}{job_nam}{D}{node_nam}{D}{tstr_typ}'
-
-def atdf_sdr() -> str:
-    return f'SDR:1{D}1{D}1'
-
-def atdf_wir(wafer_id: str) -> str:
-    # START_T blank, not '0': ATDF times are `hh:mm:ss DD-MMM-YYYY` text, so a
-    # bare 0 (STDF's "not recorded") was shown as a start time of "0".
-    return f'WIR:1{D}{D}1{D}{wafer_id}'
-
-def atdf_wrr(wafer_id: str, part_cnt: int, good_cnt: int) -> str:
-    # ATDF WRR: HEAD|FINISH_T|PART_CNT|WAFER_ID|SITE_GRP|RTST_CNT|ABRT_CNT|GOOD_CNT
-    return f'WRR:1{D}{D}{part_cnt}{D}{wafer_id}{D}1{D}{D}0{D}{good_cnt}'   # FINISH_T blank — see atdf_wir
-
-def atdf_pir(site: int) -> str:
-    return f'PIR:1{D}{site}'
-
-def atdf_prr(site: int, part_id: int, hbin: int, sbin: int, x: int, y: int, passed: bool) -> str:
-    pf = 'P' if passed else 'F'
-    return f'PRR:1{D}{site}{D}{part_id}{D}4{D}{pf}{D}{hbin}{D}{sbin}{D}{x}{D}{y}'
-
-def atdf_ptr(test_num: int, site: int, value: float, passed: bool, test_txt: str,
-             units: str = '', lo: float | None = None, hi: float | None = None,
-             first: bool = False) -> str:
-    pf = 'P' if passed else 'F'
-    if first and (lo is not None or hi is not None):
-        lo_s = f'{lo:.4f}' if lo is not None else ''
-        hi_s = f'{hi:.4f}' if hi is not None else ''
-        # ATDF PTR: …|pass/fail|alarm flags|TEST_TXT|ALARM_ID|limit compare|UNITS|LO|HI.
-        # One extra blank field here used to push the name into ALARM_ID and
-        # the units into LO_LIMIT — the parser read every limit wrong.
-        return f'PTR:{test_num}{D}1{D}{site}{D}{value:.4f}{D}{pf}{D}{D}{test_txt}{D}{D}{D}{units}{D}{lo_s}{D}{hi_s}'
-    return f'PTR:{test_num}{D}1{D}{site}{D}{value:.4f}{D}{pf}'
+def atdf_far() -> str: return atdf.far()
+def atdf_mir(lot_id, part_typ, job_nam, tstr_typ, node_nam) -> str: return atdf.mir(lot_id, part_typ, job_nam, node_nam, tstr_typ)
+def atdf_sdr() -> str: return atdf.sdr(1, 1, [1, 2, 3, 4])
+def atdf_wir(wafer_id) -> str: return atdf.wir(1, wafer_id)
+def atdf_wrr(wafer_id, part_cnt, good_cnt) -> str: return atdf.wrr(1, wafer_id, part_cnt, good_cnt)
+def atdf_pir(site) -> str: return atdf.pir(1, site)
+def atdf_prr(site, part_id, hbin, sbin, x, y, passed) -> str: return atdf.prr(1, site, x, y, hbin, sbin, part_id, passed)
+def atdf_ptr(test_num, site, value, passed, test_txt, units='', lo=None, hi=None, first=False) -> str:
+    return atdf.ptr(test_num, 1, site, value, passed, test_txt, lo, hi, units, first)
 
 # ── Wafer geometry ────────────────────────────────────────────────────────────
 
@@ -234,6 +103,7 @@ def generate_stdf_atdf(
 
     SITES = [1, 2, 3, 4]
     part_counter = 1
+    lot_good = 0
     wafer_ids = [f'W{i:02d}' for i in range(1, num_wafers + 1)]
 
     for wafer_id in wafer_ids:
@@ -290,12 +160,15 @@ def generate_stdf_atdf(
                 part_cnt += 1
                 if die_passed:
                     good_cnt += 1
+                    lot_good += 1
 
         stdf_buf += wrr(1, wafer_id, part_cnt, good_cnt)
         atdf_lines.append(atdf_wrr(wafer_id, part_cnt, good_cnt))
 
+    stdf_buf += file_end(part_counter - 1, lot_good)
+    atdf_lines.append(atdf.file_end(part_counter - 1, lot_good))
     stdf_path.write_bytes(stdf_buf)
-    atdf_path.write_text('\n'.join(atdf_lines) + '\n')
+    atdf_path.write_text(''.join(atdf_lines))
 
 def generate_json(
     lot_id: str, num_wafers: int, dies: list[tuple[int, int]],

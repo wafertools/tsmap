@@ -83,7 +83,7 @@ const GROUPS = [
 // you. Adding a name here is a deliberate "no, you don't type this".
 const INTERNAL = [
   'build', 'build:guide', 'build:site', 'build:site:dev', 'build:web',
-  'check', 'check:buttons', 'check:docs', 'check:rust', 'check:styles', 'check:themes', 'demo:build', 'demo:data', 'dev',
+  'check', 'check:buttons', 'check:docs', 'check:fixtures', 'check:rust', 'check:styles', 'check:themes', 'demo:build', 'demo:data', 'dev',
   'install-bin', 'lint', 'parser:sync', 'preview', 'screenshots', 'screenshots:data',
   'test', 'test:rust',
 ];

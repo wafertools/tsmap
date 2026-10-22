@@ -84,6 +84,9 @@ fn mir_fields(b: &[u8], o: ByteOrder) -> Vec<MetaField> {
 struct WirData { wafer_id: String, fields: Vec<MetaField> }
 fn decode_wir(b: &[u8], o: ByteOrder) -> WirData {
     let mut fields = Vec::new();
+    // The probe head that tested the wafer, and its site group (255 is STDF's "not specified").
+    if let Some(&head) = b.first() { push_field(&mut fields, "headNum", Some(head.to_string())); }
+    if let Some(&grp) = b.get(1).filter(|&&g| g != 255) { push_field(&mut fields, "siteGroup", Some(grp.to_string())); }
     push_field(&mut fields, "waferStartT", read_u4(b, 2, o).and_then(epoch_to_iso));
     let (wafer_id, _) = read_cn_str(b, 6);
     WirData { wafer_id, fields }
@@ -194,6 +197,41 @@ fn decode_sdr(b: &[u8]) -> (u32, Vec<u32>) {
         if let Some(&s) = b.get(3 + i) { sites.push(s as u32); }
     }
     (head, sites)
+}
+
+/// An SDR's head, site group and the equipment it names (HAND_TYP … EXTR_ID, blank ones left out). The equipment follows
+/// the SITE_NUM array, so a record cut short just yields fewer fields.
+fn sdr_equipment(b: &[u8]) -> (u8, u8, Vec<MetaField>) {
+    let head = b.first().copied().unwrap_or(1);
+    let grp = b.get(1).copied().unwrap_or(255);
+    let mut fields = Vec::new();
+    if b.len() > 3 {
+        let mut cn = CnSeq::new(b, 3 + b[2] as usize);
+        for (typ, id) in SDR_EQUIPMENT {
+            push_field(&mut fields, typ, nonempty(cn.next()));
+            push_field(&mut fields, id, nonempty(cn.next()));
+        }
+    }
+    (head, grp, fields)
+}
+
+/// An SDR: its sites, and the equipment it names for the wafers of its head and site group.
+fn read_sdr(b: &[u8], lots: &mut LotRecords, sites: &mut Vec<SiteInfo>) {
+    let (head, site_nums) = decode_sdr(b);
+    for site in site_nums {
+        sites.push(SiteInfo { head_num: head, site_num: site });
+    }
+    let (head, grp, fields) = sdr_equipment(b);
+    lots.add_equipment(head, grp, fields);
+}
+
+/// A WIR: opens the wafer, carrying the equipment its head and site group were described with.
+fn read_wir(b: &[u8], o: ByteOrder, open: &mut OpenWafers, lots: &mut LotRecords, wafers: &mut Vec<WaferData>) {
+    let wir = decode_wir(b, o);
+    let head = b.first().copied().unwrap_or(1);
+    let mut fields = wir.fields;
+    fields.extend(lots.equipment_for(head, b.get(1).copied().unwrap_or(255)));
+    open.wir(head, wir.wafer_id, fields, lots, wafers);
 }
 
 // ── Warnings ───────────────────────────────────────────────────────────────────
@@ -925,16 +963,8 @@ fn parse_stdf_records(iter: &mut dyn RecordSource) -> ParseResult<ParsedStdf> {
             (0, 30) => { // VUR (V4-2007) — file-level, and precedes the MIR
                 lots.extend_file(vur_fields(b));
             }
-            (1, 80) => { // SDR
-                let (head, site_nums) = decode_sdr(b);
-                for site in site_nums {
-                    sites.push(SiteInfo { head_num: head, site_num: site });
-                }
-            }
-            (2, 10) => { // WIR
-                let wir = decode_wir(b, order);
-                open.wir(b.first().copied().unwrap_or(1), wir.wafer_id, wir.fields, &mut lots, &mut wafers);
-            }
+            (1, 80) => { read_sdr(b, &mut lots, &mut sites); } // SDR
+            (2, 10) => { read_wir(b, order, &mut open, &mut lots, &mut wafers); } // WIR
             (2, 20) => { // WRR
                 if let Some(mut wafer) = open.wrr(b.first().copied().unwrap_or(1)) {
                     complete_wafer(&mut wafer, decode_wrr(b, order));
@@ -1056,6 +1086,8 @@ fn file_meta_records(iter: &mut dyn RecordSource) -> ParseResult<crate::types::F
     // File-level fields kept apart from the MIR's, which are assigned outright:
     // VUR precedes the MIR, so folding it in first would be overwritten.
     let mut file_fields: Vec<MetaField> = Vec::new();
+    // The equipment the file's SDRs name, as the file filter shows it: only what they all agree on.
+    let mut equipment = LotRecords::default();
 
     while let Some(raw) = iter.next_record() {
         let b = raw.body;
@@ -1065,6 +1097,8 @@ fn file_meta_records(iter: &mut dyn RecordSource) -> ParseResult<crate::types::F
             (1, 80) => { // SDR
                 let (_, sites) = decode_sdr(b);
                 site_nums.extend(sites);
+                let (head, grp, fields) = sdr_equipment(b);
+                equipment.add_equipment(head, grp, fields);
             }
             (2, 10) => { // WIR
                 wafer_count += 1;
@@ -1088,6 +1122,7 @@ fn file_meta_records(iter: &mut dyn RecordSource) -> ParseResult<crate::types::F
     }
 
     lot_meta.fields.extend(file_fields);
+    lot_meta.fields.extend(equipment.common_equipment());
     Ok(crate::types::FileMeta {
         lot_meta,
         wafer_count,
@@ -1224,16 +1259,8 @@ fn filtered_records(iter: &mut dyn RecordSource, selected: &std::collections::Ha
             (0, 30) => { // VUR (V4-2007) — see vur_fields.
                 lots.extend_file(vur_fields(b));
             }
-            (1, 80) => { // SDR
-                let (head, site_nums) = decode_sdr(b);
-                for site in site_nums {
-                    sites.push(SiteInfo { head_num: head, site_num: site });
-                }
-            }
-            (2, 10) => { // WIR
-                let wir = decode_wir(b, order);
-                open.wir(b.first().copied().unwrap_or(1), wir.wafer_id, wir.fields, &mut lots, &mut wafers);
-            }
+            (1, 80) => { read_sdr(b, &mut lots, &mut sites); } // SDR
+            (2, 10) => { read_wir(b, order, &mut open, &mut lots, &mut wafers); } // WIR
             (2, 20) => { // WRR
                 if let Some(mut wafer) = open.wrr(b.first().copied().unwrap_or(1)) {
                     complete_wafer(&mut wafer, decode_wrr(b, order));
@@ -1384,14 +1411,8 @@ pub fn parse_stdf_from_bytes_timed(bytes: &[u8]) -> ParseResult<(ParsedStdf, Par
             // lot metadata onto the accumulator, which broke every `bench`
             // build (see the equivalence test below).
             (1, 10) => { lots.set_lot(mir_fields(b, order)); }
-            (1, 80) => {
-                let (head, site_nums) = decode_sdr(b);
-                for site in site_nums { sites.push(SiteInfo { head_num: head, site_num: site }); }
-            }
-            (2, 10) => {
-                let wir = decode_wir(b, order);
-                open.wir(b.first().copied().unwrap_or(1), wir.wafer_id, wir.fields, &mut lots, &mut wafers);
-            }
+            (1, 80) => { read_sdr(b, &mut lots, &mut sites); } // SDR
+            (2, 10) => { read_wir(b, order, &mut open, &mut lots, &mut wafers); } // WIR
             (2, 20) => {
                 if let Some(mut wafer) = open.wrr(b.first().copied().unwrap_or(1)) {
                     complete_wafer(&mut wafer, decode_wrr(b, order));
@@ -2402,6 +2423,52 @@ mod tests {
             assert_eq!(d[1].supersedes, Some("position"));
             assert_eq!((d[2].part_id.as_deref(), d[2].supersedes), (None, None), "both bits set is contradictory");
             assert_eq!((d[3].part_id.as_deref(), d[3].supersedes), (Some("7"), Some("partId")));
+        }
+
+        /// An SDR names the equipment for a head and site group; a wafer carries what its WIR's head and group were described
+        /// with. A WIR that names no group gets what every SDR of its head agrees on, and its head and group are fields too.
+        #[test]
+        fn wafers_carry_the_equipment_their_head_and_site_group_were_described_with() {
+            let order = ByteOrder::Little;
+            let b = Builder::new(order);
+            let mut out = Builder::new(order);
+            out.rec(0, 10, &[2, 4]);
+            let sdr = |out: &mut Builder, head: u8, grp: u8, pairs: [(&str, &str); 8]| {
+                let mut r = vec![head, grp, 1, 1];
+                for (t, i) in pairs { r.extend(b.cn(t)); r.extend(b.cn(i)); }
+                out.rec(1, 80, &r);
+            };
+            let none = ("", "");
+            sdr(&mut out, 1, 1, [("PRB-X", "P-100"), ("PC", "C-1"), none, none, none, none, none, none]);
+            sdr(&mut out, 1, 2, [("PRB-X", "P-100"), none, ("LB", "L-9"), none, none, none, none, none]);
+            let wafer = |out: &mut Builder, head: u8, grp: u8, id: &str| {
+                let mut w = vec![head, grp];
+                w.extend_from_slice(&b.u4(0));
+                w.extend(b.cn(id));
+                out.rec(2, 10, &w);
+                let mut r = vec![head, grp];
+                r.extend_from_slice(&[0; 24]);
+                r.push(0);
+                out.rec(2, 20, &r);
+            };
+            wafer(&mut out, 1, 1, "A");
+            wafer(&mut out, 1, 2, "B");
+            wafer(&mut out, 1, 255, "C");
+            let r = parse_stdf_from_bytes(&out.buf).unwrap();
+            let get = |w: usize, k: &str| r.wafers[w].fields.iter().find(|f| f.key == k).map(|f| f.value.clone());
+            assert_eq!((get(0, "handlerType"), get(0, "handlerId"), get(0, "probeCardId"), get(0, "loadBoardId")),
+                       (Some("PRB-X".into()), Some("P-100".into()), Some("C-1".into()), None));
+            assert_eq!((get(1, "handlerId"), get(1, "probeCardId"), get(1, "loadBoardId")),
+                       (Some("P-100".into()), None, Some("L-9".into())));
+            // No group named: only what both SDRs agree on.
+            assert_eq!((get(2, "handlerType"), get(2, "handlerId"), get(2, "probeCardId"), get(2, "loadBoardId")),
+                       (Some("PRB-X".into()), Some("P-100".into()), None, None));
+            assert_eq!((get(0, "headNum"), get(0, "siteGroup")), (Some("1".into()), Some("1".into())));
+            assert_eq!((get(2, "headNum"), get(2, "siteGroup")), (Some("1".into()), None), "255 is not a group");
+            // The file filter's view of the file: only what every SDR names alike.
+            let meta = parse_stdf_file_meta(&out.buf).unwrap();
+            let lot = |k: &str| meta.lot_meta.fields.iter().find(|f| f.key == k).map(|f| f.value.clone());
+            assert_eq!((lot("handlerId"), lot("probeCardId")), (Some("P-100".into()), None));
         }
 
         /// Wafers: one open wafer per head (the spec's two-head example), a WIR
