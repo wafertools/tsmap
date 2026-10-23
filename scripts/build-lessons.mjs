@@ -82,6 +82,8 @@ if (problems.length) {
 mkdirSync(OUT, { recursive: true });
 // The icon the theme shows on title and closing slides and beside every footer.
 cpSync(join(root, 'docs', 'images', 'tsmap-readme-header-256.png'), join(OUT, 'tsmap-icon.png'));
+// The picture above the lesson list: the screen lesson 00 introduces.
+cpSync(join(LEARN, 'images', '00', 'layout.png'), join(OUT, 'tsmap-screen.png'));
 for (const deck of decks) {
   const dir = join(OUT, deck.slug);
   rmSync(dir, { recursive: true, force: true });
@@ -123,6 +125,8 @@ writeFileSync(join(OUT, 'index.html'), `<!doctype html>
     main { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
     h1 { font-size: 2rem; margin: 0 0 8px; letter-spacing: -.01em; }
     p.lead { color: var(--muted); margin: 0 0 28px; }
+    figure { margin: 0 0 28px; }
+    figure img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 10px; }
     ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
     li a { display: flex; gap: 16px; align-items: flex-start; padding: 16px 18px; background: var(--card); border: 1px solid var(--rule); border-radius: 10px; color: inherit; text-decoration: none; }
     li a:hover { border-color: var(--primary); }
@@ -142,6 +146,7 @@ writeFileSync(join(OUT, 'index.html'), `<!doctype html>
     <p class="lead">Short lessons, one idea per slide, each ending with a lab in the
       <a href="https://wafertools.github.io/tsmap/app/">web app</a>. New to tsmap? Start with 00. Otherwise pick the lesson
       you need. Use the arrow keys to move through a lesson.</p>
+    <figure><img src="tsmap-screen.png" alt="tsmap with a lot of 13 wafers loaded: the bin legend, a map for each wafer and the summary panel" width="1280" height="820"></figure>
     <ol>
 ${items}
     </ol>

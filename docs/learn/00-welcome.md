@@ -26,6 +26,14 @@ Learn tsmap
 
 ---
 
+# What you will be using
+
+A lot of 13 wafers open in tsmap: the bin legend, one map per wafer and a summary of what stands out.
+
+![tsmap with the sample lot loaded](images/00/layout.png)
+
+---
+
 <!-- covers: glossary › Wafer; glossary › Die; glossary › Lot; glossary › Prober; glossary › ATE -->
 
 # Wafers, dies and lots
