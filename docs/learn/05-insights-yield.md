@@ -5,7 +5,7 @@ paginate: true
 title: "05 · Insights: where yield is lost"
 description: "Yield by wafer, bins, pass rates, part average testing, what divides yield, and Group by."
 teaser: "Which wafers, bins and tests lose yield, and what divides it."
-footer: Learn tsmap · 05 Insights: where yield is lost
+footer: "Learn tsmap · 05 Insights: where yield is lost"
 ---
 
 <!-- _class: title -->

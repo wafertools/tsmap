@@ -34,6 +34,18 @@ const FULLSCREEN_RESUME = readFileSync(join(root, 'scripts', 'lessons', 'fullscr
 
 const problems = [];
 
+// The docs site (zensical) reads each deck's front matter as strict YAML, and a value left unquoted that holds ": " or " #"
+// is not valid YAML, so it fails the whole site build with no hint which page. Marp is lenient, so check it here.
+function yamlProblems(src, file) {
+  const m = /^---\n([\s\S]*?)\n---/.exec(src);
+  if (!m) return [];
+  return m[1].split('\n').flatMap((line) => {
+    const kv = /^(\w+):\s*(.+)$/.exec(line);
+    if (!kv || /^["'[{|>]/.test(kv[2])) return [];
+    return /: | #/.test(kv[2]) ? [`${file}: the front matter value for "${kv[1]}" holds ": " or " #", so it must be in quotes to be valid YAML`] : [];
+  });
+}
+
 function frontMatter(src) {
   const m = /^---\n([\s\S]*?)\n---/.exec(src);
   const fm = {};
@@ -48,6 +60,7 @@ const decks = readdirSync(LEARN).filter((f) => /^\d\d-[\w-]+\.md$/.test(f)).sort
   const src = readFileSync(join(LEARN, file), 'utf8');
   const fm = frontMatter(src);
   const slug = file.replace(/\.md$/, '');
+  problems.push(...yamlProblems(src, file));
   if (!fm.title) problems.push(`${file}: no "title:" in the front matter`);
   if (!fm.description) problems.push(`${file}: no "description:" in the front matter (the index page shows it)`);
   if (fm.theme !== 'tsmap') problems.push(`${file}: front matter must say "theme: tsmap"`);

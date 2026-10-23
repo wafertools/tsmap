@@ -5,7 +5,7 @@ paginate: true
 title: "06 · Insights: distributions and data"
 description: "Distributions and capability, comparing groups of wafers, the wafer-to-wafer trend and the data tables behind every chart."
 teaser: "How values spread, how groups compare, and the tables behind every chart."
-footer: Learn tsmap · 06 Insights: distributions and data
+footer: "Learn tsmap · 06 Insights: distributions and data"
 ---
 
 <!-- _class: title -->
