@@ -85,7 +85,7 @@ export const scenario = {
         isVisible('text="User guide"', 'the Help menu lists User guide'),
       ],
       shots: [
-        { name: 'help-menu', callouts: [['#help-btn', { pad: 3 }], ['text="User guide"', { pad: 3 }]] },
+        { name: 'help-menu', clip: { target: '#help-btn', through: 'text="User guide"', pad: 90 }, callouts: [['#help-btn', { pad: 3 }], ['text="User guide"', { pad: 3 }]] },
       ],
     },
   ],

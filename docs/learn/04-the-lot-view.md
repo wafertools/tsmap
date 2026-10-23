@@ -4,6 +4,7 @@ theme: tsmap
 paginate: true
 title: "04 · The lot view"
 description: Stack a lot into one map, select the same dies on every wafer, and name wafer splits.
+teaser: "Stack a lot into one map, select the same dies on every wafer, and name splits."
 footer: Learn tsmap · 04 The lot view
 ---
 
@@ -34,7 +35,7 @@ Learn tsmap
 
 # One card per wafer
 
-A gallery shows each wafer on its own card. This is EDGE-LOT-01, eight wafers with an edge-ring defect. The buttons above act on all the cards at once (lesson 02).
+A gallery shows each wafer on its own card. This is [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.stdf&dataFormat=stdf), eight wafers with an edge-ring defect. The buttons above act on all the cards at once (lesson 02).
 
 ![EDGE-LOT-01 as a gallery, one card per wafer](images/04/gallery.png)
 
@@ -96,7 +97,7 @@ The **Σ** button picks how the wafers combine at each position. With **Std Dev*
 
 # Select dies on one wafer
 
-Drag a box on a map: the dies inside it are selected and the rest fade. **Ctrl** or **Cmd** + click adds or removes a die; a click outside the wafer clears it. Lesson 07 charts a selection.
+Drag a box on a map: the dies inside it are selected and the rest fade. **Ctrl** or **Cmd** + click adds or removes a die; a click outside the wafer clears it. Lesson 08 charts a selection.
 
 ![A box dragged on W01: its dies stay bright, the rest fade](images/04/select-one.png)
 
@@ -118,7 +119,7 @@ Drag a box on one wafer and the same positions are selected on every wafer. The 
 
 ![A box dragged on W01 selects the same dies on every wafer; the badge reads 24](images/04/same-dies-selected.png)
 
-*(Charts of the selected dies are covered in lesson 07.)*
+*(Charts of the selected dies are covered in lesson 08.)*
 
 ---
 
@@ -127,6 +128,8 @@ Drag a box on one wafer and the same positions are selected on every wafer. The 
 # Pick whole wafers
 
 **Ctrl** or **Cmd** + click a card's header to pick that wafer; the toolbar counts the picked wafers. Right-click a picked card and the charts and tables cover every die of every picked wafer.
+
+![Two wafer cards picked, with the toolbar counting them](images/04/pick-wafers.png)
 
 ---
 
@@ -148,11 +151,11 @@ A split is a name you give a wafer that the test data file doesn't include, such
 ---
 
 <!-- _class: split -->
-<!-- covers: Splits… › wafer row; Splits… › Select all; Splits… › Select none; Dialog › Maximize (F); Dialog › Close (Esc) -->
+<!-- covers: Splits… › wafer row; Splits… › Select all; Splits… › Select none -->
 
 # The Splits dialog
 
-The banner says where things stand. The sample lot's corners are already assigned. **Maximize (F)** and **Close (Esc)**, top right, are on every dialog.
+The banner says where things stand. The sample lot's corners are already assigned.
 
 ![The Wafer splits dialog for the sample lot](images/04/splits-dialog.png)
 
@@ -181,7 +184,7 @@ Untick it and the cards show plain wafer IDs. The assignments are unchanged eith
 
 # Assign a split
 
-Tick wafers and type a name <span class="badge">1</span>, then **Assign to selected** <span class="badge">2</span>. **Clear split** <span class="badge">3</span> clears the ticked wafers; **Clear all** clears every wafer.
+Tick wafers and type a name <span class="badge" role="img" aria-label="callout 1">1</span>, then **Assign to selected** <span class="badge" role="img" aria-label="callout 2">2</span>. **Clear split** <span class="badge" role="img" aria-label="callout 3">3</span> clears the ticked wafers; **Clear all** clears every wafer.
 
 ![The dialog after Clear all, with five wafers ticked and TT typed](images/04/splits-assign-ready.png)
 
@@ -203,7 +206,7 @@ Every action applies at once. Names in use appear beside **In use**: click one t
 
 # Save, load, finish
 
-<span class="badge">1</span> writes every wafer's split to a CSV. <span class="badge">2</span> reads one back, matching by lot and wafer ID. <span class="badge">3</span> closes the dialog.
+**Save splits…** <span class="badge" role="img" aria-label="callout 1">1</span> writes every wafer's split to a CSV. **Load splits…** <span class="badge" role="img" aria-label="callout 2">2</span> reads one back, matching by lot and wafer ID. **Done** <span class="badge" role="img" aria-label="callout 3">3</span> closes the dialog.
 
 ![The Save splits, Load splits and Done buttons, outlined](images/04/splits-save-load.png)
 
@@ -248,11 +251,19 @@ The vacated card becomes a placeholder. Its **Reattach to gallery** button puts 
 
 # Try it yourself
 
-1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**
+1. Open [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.stdf&dataFormat=stdf) in the web app
 2. **Plot mode → Stacked Hard Bins**: where do the failing bins gather?
 3. **Stacked Test Values**, then **Σ → Std Dev**
 4. Back to **Hard Bin**, turn on **Select the same dies on every wafer** and drag a box
-5. **Setup ▾ → Splits…**: tick W01 and W03, then assign a new name
+5. **Setup ▾ → Splits…**: tick W01 and W03, assign a new name, then **Clear all** so the next lesson starts clean
+
+---
+
+<!-- _class: answers -->
+
+# Check your results
+
+2. The failing bins gather in a **ring at the wafer's edge**. One wafer alone looks like scattered failures; stacked, the ring is plain.
 
 ---
 
@@ -271,6 +282,6 @@ More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#
 
 # Next lesson
 
-[05 · Insights →](05-insights.md)
+[05 · Insights: where yield is lost →](05-insights-yield.md)
 
-Charts and statistics for the whole lot.
+Which wafers, bins and tests lose yield, and what divides it.

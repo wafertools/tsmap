@@ -50,6 +50,8 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
 - [tsmap-sample.atdf](samples/tsmap-sample.atdf) — ATDF: the same dataset in ASCII form.
 - [tsmap-sample.csv](samples/tsmap-sample.csv) — CSV: the same dataset; opening it shows the
   column-mapping overlay.
+- [tsmap-few-tests.csv](samples/tsmap-few-tests.csv) — CSV: the first four tests of the same dataset, so the
+  column-mapping overlay is short enough to read at a glance.
 - [tsmap-sample.json](samples/tsmap-sample.json) — JSON: the same dataset as per-die
   `testValues`.
 - [tsmap-sample.parquet](samples/tsmap-sample.parquet) — Parquet: the same shape (3 wafers,
@@ -73,8 +75,18 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
   single wafer opens: one map, its own toolbar and the Summary panel.
 - [tsmap-coordless.stdf](samples/tsmap-coordless.stdf) — STDF: 3 wafers, one with a position for
   every die, one with some dies unpositioned, and one with none, to see how each is shown.
+- [tsmap-edge-ring-lot.stdf](samples/tsmap-edge-ring-lot.stdf) — STDF: lot `EDGE-LOT-01`, 8 wafers
+  with an edge-ring defect that shows up when the wafers are stacked.
+- [tsmap-hy-lot.stdf](samples/tsmap-hy-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers with a
+  yield spread and several findings on the Summary panel.
+- [tsmap-rram-lot.stdf](samples/tsmap-rram-lot.stdf) — STDF: lot `RRAM-LOT-06`, a resistive-memory
+  lot with sweep tests. Load [tsmap-rram-testdefs.csv](samples/tsmap-rram-testdefs.csv) with
+  **Setup ▾ → Tests… → Load definitions** for readable names and derived tests, and
+  [tsmap-rram-plots.json](samples/tsmap-rram-plots.json) in the plot editor for two sweep plots.
+- [tsmap-scan-folder.zip](samples/tsmap-scan-folder.zip) — six single-wafer STDF files from four
+  lots. Unzip it and use **Open files ▾ → Scan a folder…** to try the file scan.
 
-All twelve contain no real device data — they are generated for demonstration.
+All of these contain no real device data — they are generated for demonstration.
 
 Or try the **[live demo of opening tsmap from a link](demos/open-from-link.html)** — it
 builds the `?dataUrl=` link for each of these samples for you and opens the browser build

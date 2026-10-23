@@ -53,5 +53,7 @@ export default {
   html: true,
   lang: 'en-GB',
   themeSet: [resolve(root, 'docs', 'learn', 'theme')],
+  // Emoji stay as text, drawn by the reader's own font as the app draws them, not as images.
+  options: { emoji: { unicode: false, shortcode: false } },
   engine: ({ marp }) => marp.use(coversRemover).use(linkRewriter),
 };

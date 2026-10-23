@@ -9,7 +9,7 @@ A desktop and web application for loading and visualising semiconductor wafer ma
 
 **[Documentation & web app →](https://wafertools.github.io/tsmap/)**
 
-New to wafer maps or to tsmap? **[Learn tsmap →](https://wafertools.github.io/tsmap/learn/)** is eleven short lessons, each a set of slides with a lab in the web app.
+New to wafer maps or to tsmap? **[Learn tsmap →](https://wafertools.github.io/tsmap/learn/)** is thirteen short lessons, each a set of slides with a lab in the web app.
 
 Desktop builds for Linux, macOS and Windows are attached to every
 [release](https://github.com/wafertools/tsmap/releases/latest), alongside

@@ -4,16 +4,17 @@
  * @size 16:9 1280px 720px
  *
  * Marp theme for the tsmap lesson decks (docs/learn/NN-slug.md). Matches
- * the docs site: Inter and JetBrains Mono, the indigo primary colour, white
- * pages in light mode and the slate scheme in dark mode, following the
- * reader's system setting.
+ * the docs site: Inter and JetBrains Mono, the indigo primary colour and white
+ * pages. The slides are always light, because the screenshots on them are.
  *
  * Slide classes (set with <!-- _class: name -->):
  *   title    the opening slide of a session
  *   divider  a section divider
  *   split    text on the left, one screenshot on the right
  *   side     the same, for a tall screenshot: the text sits beside it and it takes the slide's full height
+ *   plain-table  add to a slide with a table to drop the arrow before each right-hand cell
  *   lab      the "Try it yourself" slide
+ *   answers  the answers to the lab's questions, on the slide after it
  *   next     the closing "Next session" slide
  * Any other slide is a heading, at most a line or two of text, and a
  * screenshot that fills the rest of the slide.
@@ -32,22 +33,9 @@
   --code-bg: #f5f5f5;
   --shot-border: rgba(0, 0, 0, 0.12);
   --shot-shadow: 0 4px 18px rgba(0, 0, 0, 0.10);
-  --callout: #e8590c;
+  --callout: #c2410c;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: hsl(225, 15%, 9%);
-    --fg: hsla(225, 15%, 90%, 0.88);
-    --muted: hsla(225, 15%, 90%, 0.58);
-    --rule: hsla(225, 15%, 90%, 0.12);
-    --primary: #5d6cc0;
-    --link: #8ea2f2;
-    --code-bg: hsl(225, 15%, 15%);
-    --shot-border: hsla(225, 15%, 90%, 0.18);
-    --shot-shadow: 0 4px 22px rgba(0, 0, 0, 0.5);
-  }
-}
 
 section {
   position: relative;
@@ -63,6 +51,7 @@ section {
   font-family: Inter, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 28px;
   line-height: 1.45;
+  font-variant-numeric: tabular-nums;
   border-top: 8px solid var(--primary);
 }
 
@@ -127,6 +116,8 @@ tbody td:nth-child(2)::before {
   line-height: 1;
   font-weight: 700;
 }
+/* Reference tables list things side by side rather than "if this, then that": no arrow. */
+section.plain-table tbody td:nth-child(2)::before { content: none; }
 
 /* A numbered marker matching the callout labels in the screenshots: a flat tab, not a button. */
 .badge {
@@ -283,6 +274,24 @@ section.lab h1::before {
   vertical-align: 8px;
 }
 section.lab ol li { margin-top: 0.45em; }
+
+/* ── answers ── */
+section.answers { border-top-color: var(--primary); }
+section.answers h1::before {
+  content: 'Answers';
+  display: inline-block;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-fg);
+  background: var(--primary);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-right: 16px;
+  vertical-align: 8px;
+}
+section.answers ol li { margin-top: 0.45em; }
 
 /* ── next ── */
 section.next { justify-content: center; }

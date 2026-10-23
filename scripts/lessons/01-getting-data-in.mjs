@@ -18,7 +18,8 @@ const SCAN = [
   'EDGE-LOT-01_W01.stdf', 'EDGE-LOT-01_W02.stdf',
   'HY-LOT-04_W01.stdf', 'HY-LOT-04_W02.stdf', 'PARAM-LOT-02_W01.stdf', 'CLUST-LOT-03_W01.stdf',
 ].map(S);
-const WIDE_CSV = `${DOCSAMPLES}/tsmap-sample.csv`;
+// Four tests, not twenty, so the whole column mapping fits one screenshot at a size that can be read.
+const WIDE_CSV = `${DOCSAMPLES}/tsmap-few-tests.csv`;
 const LONG_CSV = S('TESTNUM-LONG-01.csv');
 
 const MODAL = '.tsmap-modal-box';
@@ -163,10 +164,20 @@ export const scenario = {
         {
           name: 'test-selector',
           clip: { target: SELECTOR, pad: 8 },
+        },
+        {
+          name: 'selector-filters',
+          clip: { target: SELECTOR, maxHeight: 200, pad: 8 },
           callouts: [
             [`${SELECTOR} input[type="search"]`, { badge: 1 }],
             [`${SELECTOR} [role="group"][aria-label="Test type"]`, { badge: 2, badgeAt: 'tr' }],
             [`${SELECTOR} input[aria-label^="Select a range"]`, { badge: 3 }],
+          ],
+        },
+        {
+          name: 'selector-definitions',
+          clip: { target: `${SELECTOR} button:has-text("Save definitions")`, through: `${SELECTOR} button:has-text("Load definitions")`, pad: 40 },
+          callouts: [
             [`${SELECTOR} button:has-text("Save definitions")`, { badge: 4, badgeAt: 'bl' }],
             [`${SELECTOR} button:has-text("Load definitions")`, { badge: 5, badgeAt: 'br' }],
           ],
@@ -202,11 +213,19 @@ export const scenario = {
         ['wait', 1000],
         ['loadFile', WIDE_CSV],
         ['waitForOverlay', '.mapping-panel'],
+        // A short window, narrower than usual, so the nine rows fill it and read larger on the slide.
+        ['setViewport', 880, 500],
       ],
-      checks: [hasText('.mapping-panel', '25 columns'), isVisible('#map-render', 'the Continue button is showing')],
+      checks: [hasText('.mapping-panel', '9 columns'), isVisible('#map-render', 'the Continue button is showing')],
       shots: [
         {
+          name: 'mapping-test-value',
+          clip: { target: '.mapping-table tbody tr:has-text("test_000")', pad: 60, maxWidth: 900 },
+          callouts: [['.mapping-table tbody tr:has-text("test_000")', { badge: 1, pad: 2 }]],
+        },
+        {
           name: 'mapping-wide',
+          clip: { target: '.mapping-panel', pad: 8 },
           callouts: [
             ['.mapping-table tbody tr:has-text("test_000")', { badge: 1, pad: 2 }],
             ['.pass-bin-group', { badge: 2, pad: 3, badgeAt: 'tr' }],
@@ -233,7 +252,8 @@ export const scenario = {
       id: '11-mapping-confirmed',
       title: 'Change one role, then Continue: the mapping is remembered for these columns',
       steps: [
-        ['selectOption', '.mapping-table tbody tr:has-text("test_019") select', '— ignore —'],
+        ['setViewport', 1280, 820],
+        ['selectOption', '.mapping-table tbody tr:has-text("test_003") select', '— ignore —'],
         ['click', '#map-render'],
         ['waitForWafers'],
         ['hover', '#toolbar-title'],
@@ -307,8 +327,8 @@ export const scenario = {
         ['click', '#log-toggle'],
         ['wait', 500],
       ],
-      checks: [isVisible('#log-panel', 'the log panel is open'), hasText('#log-list', 'tsmap-sample.csv')],
-      shots: [{ name: 'log-panel', callouts: [['#log-panel', { badgeAt: 'tr' }]] }],
+      checks: [isVisible('#log-panel', 'the log panel is open'), hasText('#log-list', 'tsmap-few-tests.csv')],
+      shots: [{ name: 'log-panel', clip: { target: '#log-panel', pad: 12 }, callouts: [['#log-panel', { badgeAt: 'tr' }]] }],
     },
   ],
 };

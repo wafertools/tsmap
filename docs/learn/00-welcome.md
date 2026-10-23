@@ -20,7 +20,7 @@ Learn tsmap
 
 # In this lesson
 
-- Some words a wafer map uses: die, lot, test, bin, yield
+- The words used in wafer testing: die, lot, test, bin, yield (the [glossary](https://wafertools.github.io/tsmap/learn/glossary/) lists them all)
 - What tsmap is, the two ways to run it, and the library it is built on
 - A tour of the screen, one area at a time
 
@@ -98,7 +98,7 @@ Open STDF, ATDF, CSV, JSON or Parquet files and get interactive wafer maps, find
 The same data parser, maps and charts run in both. Only the desktop app has:
 
 - recent files, and dropping a whole folder
-- the command line, `tsmap://` links and file associations (lesson 10)
+- the command line, `tsmap://` links and file associations (lesson 12)
 
 More in the [user guide](../user-guide.md#desktop-vs-browser-differences)
 
@@ -143,7 +143,7 @@ Eight screen areas, numbered once, then one at a time
 
 <!-- covers: Open files; Add files; Setup ▾; Clear files; tsmap guide › Clearing data -->
 
-# <span class="badge">1</span> The app toolbar
+# <span class="badge" role="img" aria-label="callout 1">1</span> The app toolbar
 
 Open and add files, set up the lot, and clear it. Lesson 01 covers loading.
 
@@ -153,7 +153,7 @@ Open and add files, set up the lot, and clear it. Lesson 01 covers loading.
 
 <!-- covers: More fields -->
 
-# <span class="badge">2</span> The lot header
+# <span class="badge" role="img" aria-label="callout 2">2</span> The lot header
 
 The lot, part type, program and other fields read from the file.
 
@@ -161,7 +161,7 @@ The lot, part type, program and other fields read from the file.
 
 ---
 
-# <span class="badge">3</span> The map toolbar
+# <span class="badge" role="img" aria-label="callout 3">3</span> The map toolbar
 
 What the maps show and how they look. Lesson 02 takes it button by button.
 
@@ -171,7 +171,7 @@ What the maps show and how they look. Lesson 02 takes it button by button.
 
 <!-- covers: Maps; Insights -->
 
-# <span class="badge">4</span> Maps and Insights
+# <span class="badge" role="img" aria-label="callout 4">4</span> Maps and Insights
 
 Switch between the wafer maps and the charts and statistics for the lot.
 
@@ -179,7 +179,7 @@ Switch between the wafer maps and the charts and statistics for the lot.
 
 ---
 
-# <span class="badge">5</span> The bin legend
+# <span class="badge" role="img" aria-label="callout 5">5</span> The bin legend
 
 How many dies fell into each bin, with the lot's yield first. Click any bin to display just that bin on the maps.
 
@@ -189,7 +189,7 @@ How many dies fell into each bin, with the lot's yield first. Click any bin to d
 
 <!-- covers: Wafer chip (one per wafer) -->
 
-# <span class="badge">6</span> One card per wafer
+# <span class="badge" role="img" aria-label="callout 6">6</span> One card per wafer
 
 Each wafer gets its own map. The ▾ beside its name shows the wafer's details.
 
@@ -200,7 +200,7 @@ Each wafer gets its own map. The ▾ beside its name shows the wafer's details.
 <!-- _class: side -->
 <!-- covers: Summary; Close the Summary panel -->
 
-# <span class="badge">7</span> The Summary panel
+# <span class="badge" role="img" aria-label="callout 7">7</span> The Summary panel
 
 What stands out in the lot, the findings, and the yield of every wafer.
 
@@ -210,7 +210,7 @@ What stands out in the lot, the findings, and the yield of every wafer.
 
 <!-- covers: Log -->
 
-# <span class="badge">8</span> The log
+# <span class="badge" role="img" aria-label="callout 8">8</span> The log
 
 What each load did, with any warnings. Click **Log** to open it.
 
@@ -228,16 +228,25 @@ The **?** button opens the Help menu. **User guide** opens the full guide.
 
 ---
 
+<!-- covers: Dialog › Maximize (F); Dialog › Close (Esc) -->
+
+# Every dialog
+
+**Maximize (F)** and **Close (Esc)**, top right, are on every dialog. Press **F** to fill the window, and **Esc** to close it.
+
+---
+
 <!-- _class: divider -->
 
 # How the lessons work
 
 ---
 
-# Eleven short lessons
+# Thirteen short lessons
 
 - Each is a few minutes of slides, then a short lab in the web app
-- New to tsmap? Go in order. Otherwise pick the lesson you need
+- Use the arrow keys to move through the slides, and press **F** for full screen. It comes back with the next key press in the next lesson
+- New to tsmap? Go in order: lessons 00 to 06 are the core path. Otherwise pick the lesson you need
 - For the detail behind a slide, follow the link to the [user guide](../user-guide.md)
 
 ---

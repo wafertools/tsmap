@@ -4,6 +4,7 @@ theme: tsmap
 paginate: true
 title: "03 · Findings"
 description: What stands out, the findings list, and the Summary panel's tables, read on the sample lot.
+teaser: "What tsmap noticed in the lot, and how to read it."
 footer: Learn tsmap · 03 Findings
 ---
 
@@ -46,7 +47,7 @@ It docks beside the maps and describes the lot you are looking at. A **Filter…
 
 # Open and close it
 
-<span class="badge">1</span> **Summary** opens and closes the panel. The **▸** at the end of the panel's title closes it too.
+<span class="badge" role="img" aria-label="callout 1">1</span> **Summary** opens and closes the panel. The **▸** at the end of the panel's title closes it too.
 
 ![The Summary button in the row above the maps](images/03/summary-button.png)
 
@@ -96,7 +97,7 @@ Under the top item, small rounded buttons each name something behind it. Here ea
 
 # Show one at a time
 
-Click a button to show only that test, bin or pattern. This is fmax_MHz, with the dies outside its limits marked ▽ and △.
+Click a button to show only that test, bin or pattern. This is `fmax_MHz`, with the dies outside its limits marked ▽ and △.
 
 ![The gallery showing fmax_MHz after clicking its button](images/03/chip-on-map.png)
 
@@ -107,7 +108,7 @@ Click a button to show only that test, bin or pattern. This is fmax_MHz, with th
 
 # Chart links
 
-**Chart** opens Insights at this item's card, under **Worth a look**. *(Insights is covered in lesson 05.)*
+**Chart** opens Insights at this item's card, under **Worth a look**. *(Insights is covered in lessons 05 and 06.)*
 
 ![The Chart link on the top item](images/03/chart-link.png)
 
@@ -126,7 +127,7 @@ Click a button to show only that test, bin or pattern. This is fmax_MHz, with th
 <!-- _class: split -->
 # A lot with nothing to report
 
-When no region, bin or wafer costs about a yield point, the panel says so and lists what it compared.
+When no region, bin or wafer costs about a yield point, the panel says so and lists what it compared. This is [`HY-LOT-04`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-hy-lot.stdf&dataFormat=stdf).
 
 ![What stands out for HY-LOT-04](images/03/nothing-stands-out.png)
 
@@ -164,7 +165,7 @@ Each finding is ranked by **severity**: Unusual, Notable or Minor. Severity is h
 - **Regions**: rings, quadrants, finer sectors, and test sites that yield or read differently
 - **Clusters** of failing dies, and **edge arcs** at the rim
 - **Spatial patterns** such as a donut, scratch or centre spot
-- **Reticle positions**, once a reticle is set (lesson 09)
+- **Reticle positions**, once a reticle is set (lesson 11)
 
 ---
 
@@ -173,7 +174,7 @@ Each finding is ranked by **severity**: Unusual, Notable or Minor. Severity is h
 
 # A pattern and what backs it
 
-A spatial pattern can have a **Show N supporting findings** line. This is EDGE-LOT-01.
+A spatial pattern can have a **Show N supporting findings** line. This is [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.stdf&dataFormat=stdf).
 
 ![A spatial pattern with its supporting findings closed](images/03/supporting-closed.png)
 
@@ -207,11 +208,14 @@ A bin's button carries its legend colour and shows only those dies. This is hard
 
 ---
 
+<!-- _class: split -->
 <!-- covers: wmap guide › Why some findings name two bins -->
 
 # One group, two bins
 
 "Hard bin and soft bin 3 (same dies)" is one group of dies counted in both bin types, not two problems. A finding about the pass bin is folded into the yield finding for the same reason.
+
+![A finding that names hard bin 3 and soft bin 30 over the same dies](images/03/same-dies.png)
 
 ---
 
@@ -237,7 +241,7 @@ One bar per wafer, in slot order, so a slot-related pattern shows. A badge count
 
 # Sorted by yield
 
-**Yield** re-sorts the wafers from lowest to highest. A row a point or more below the median is tinted, darker as the gap grows.
+**Yield** re-sorts the wafers from lowest to highest, so the weakest come first. (The **Sort: yield** chart in lesson 05 goes the other way.) A row a point or more below the median is tinted, darker as the gap grows.
 
 ![Wafer Yield sorted by yield](images/03/wafer-yield-sorted.png)
 
@@ -293,7 +297,7 @@ Yield by ring from the centre out, each row with its difference from the wafer's
 
 # Test Values
 
-Per test: the mean, **Ppk** and the share of dies within limits. Ppk uses the overall spread, wafer-to-wafer variation included.
+Per test: the mean, **Ppk** (lesson 06 explains it) and the share of dies within limits. Ppk uses the overall spread, wafer-to-wafer variation included.
 
 ![The Test Values table](images/03/test-values.png)
 
@@ -313,7 +317,7 @@ Pass and fail counts and the pass rate for each functional test.
 
 # Summary report
 
-<span class="badge">1</span> opens a printable report: the findings, bins, regions and the full per-test table. It is the report **Full report ▸** opens. Save it as a PDF from the print dialog.
+**Summary report** <span class="badge" role="img" aria-label="callout 1">1</span> opens a printable report: the findings, bins, regions and the full per-test table. It is the report **Full report ▸** opens. Save it as a PDF from the print dialog.
 
 ![The Summary report and Data tables buttons, outlined](images/03/report-buttons.png)
 
@@ -323,7 +327,7 @@ Pass and fail counts and the pass rate for each functional test.
 
 # Data tables
 
-<span class="badge">2</span> opens statistics, every die, and one row per wafer, each with **Copy** and **Export CSV**. Insights does not need to be on.
+**Data tables** <span class="badge" role="img" aria-label="callout 2">2</span> opens the same tables as the **Data** tab in Insights (lesson 06): statistics, every die, and one row per wafer, each with **Copy** and **Export CSV**. Insights does not need to be on.
 
 ![The Data tables dialog](images/03/data-tables.png)
 
@@ -338,6 +342,16 @@ Pass and fail counts and the pass rate for each functional test.
 3. Open **Findings** and click the spatial pattern: which wafers does it mark?
 4. In **Wafer Yield**, choose **Yield**: which wafer is lowest?
 5. Open **Data tables** and look at the **Wafers** table
+
+---
+
+<!-- _class: answers -->
+
+# Check your results
+
+2. **W11** has the most marked dies: 73 of its 221 dies are outside the `fmax_MHz` limits. W04 has 55.
+3. The edge pattern marks **W05, W06, W10 and W12**, the four wafers the finding counts.
+4. **W11** is lowest, at 49.8% yield. W04 is next, at 58.4%.
 
 ---
 
@@ -358,4 +372,4 @@ More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#
 
 [04 · The lot view →](04-the-lot-view.md)
 
-Gallery, stack and splits.
+Stack a lot into one map, select the same dies on every wafer, and name splits.

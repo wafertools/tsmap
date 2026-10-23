@@ -4,6 +4,7 @@ theme: tsmap
 paginate: true
 title: "02 · Reading a map and the toolbar"
 description: Plot modes, colour schemes, overlays, orientation, the gallery layout, and one wafer close up.
+teaser: "Plot modes, colours, overlays, orientation and the gallery layout."
 footer: Learn tsmap · 02 Reading a map
 ---
 
@@ -36,7 +37,7 @@ A file that holds a single wafer
 
 # One map
 
-A file with one wafer opens as one full-size map, with the Summary panel open beside it. This is EDGE-LOT-01's first wafer.
+A file with one wafer opens as one full-size map, with the Summary panel open beside it. This is [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-single-wafer.stdf&dataFormat=stdf)'s first wafer.
 
 ![One wafer: the map, its legend and the Summary panel](images/02/one-wafer.png)
 
@@ -46,10 +47,10 @@ A file with one wafer opens as one full-size map, with the Summary panel open be
 
 # One toolbar
 
-- <span class="badge">1</span> Save, zoom, pan, select and chart this map
-- <span class="badge">2</span> What it shows and how it looks
-- <span class="badge">3</span> **Expand (E)**: **F** maximises, **Esc** closes
-- <span class="badge">4</span> **Map | Insights**
+- <span class="badge" role="img" aria-label="callout 1">1</span> Save, zoom, pan, select and chart this map
+- <span class="badge" role="img" aria-label="callout 2">2</span> What it shows and how it looks
+- <span class="badge" role="img" aria-label="callout 3">3</span> **Expand (E)**: **F** maximises, **Esc** closes
+- <span class="badge" role="img" aria-label="callout 4">4</span> **Map | Insights**
 
 ![The one-wafer toolbar, its four groups numbered](images/02/one-wafer-toolbar.png)
 
@@ -69,7 +70,7 @@ One wafer has nothing to stack, group or compare, so these appear only for a lot
 
 - the stacked plot modes, **Columns** and **Select the same dies** (lesson 04)
 - the Summary panel's **Wafer Yield** list (lesson 03)
-- in Insights, **Group by**, What divides yield and the comparisons (lesson 05)
+- in Insights, **Group by**, What divides yield and the comparisons (lessons 05 and 06)
 
 ---
 
@@ -122,7 +123,7 @@ Each die coloured by its reading. ▽ and △ mark dies below and above the test
 
 # Two more buttons for values
 
-<span class="badge">1</span> Log scale. <span class="badge">2</span> Colorbar range: the test limits, the same on every wafer, or the data's own range.
+<span class="badge" role="img" aria-label="callout 1">1</span> Log scale. <span class="badge" role="img" aria-label="callout 2">2</span> Colorbar range: the test limits, the same on every wafer, or the data's own range.
 
 ![The gallery in Test Value mode, with its two extra buttons outlined](images/02/test-value.png)
 
@@ -143,7 +144,7 @@ Each die coloured by its reading. ▽ and △ mark dies below and above the test
 
 # Pass or fail, two ways
 
-In Test Value mode **Overlays** adds <span class="badge">1</span> **Limit pass/fail**, judged by the test limits, and <span class="badge">2</span> **Test pass/fail**, the verdict the tester recorded.
+In Test Value mode **Overlays** adds <span class="badge" role="img" aria-label="callout 1">1</span> **Limit pass/fail**, judged by the test limits, and <span class="badge" role="img" aria-label="callout 2">2</span> **Test pass/fail**, the verdict the tester recorded.
 
 ![The Overlays menu in Test Value mode](images/02/passfail-menu.png)
 
@@ -263,9 +264,9 @@ The first turn also shows the XY indicator. **Reset orientation** goes back to t
 
 # Each wafer's toolbar
 
-- <span class="badge">1</span> Save this map as a PNG
-- <span class="badge">2</span> Zoom to a region, in, out, reset
-- <span class="badge">3</span> Pan &nbsp;<span class="badge">4</span> Select dies (lesson 07)
+- <span class="badge" role="img" aria-label="callout 1">1</span> Save this map as a PNG
+- <span class="badge" role="img" aria-label="callout 2">2</span> Zoom to a region, in, out, reset
+- <span class="badge" role="img" aria-label="callout 3">3</span> Pan &nbsp;<span class="badge" role="img" aria-label="callout 4">4</span> Select dies (lesson 08)
 
 ![A wafer card's toolbar](images/02/card-toolbar.png)
 
@@ -304,7 +305,7 @@ The **▾** beside a wafer's name lists everything the file says about that wafe
 # Reading the colours
 
 - **Grey** is no result for that die: not a fail
-- **Dimmed** at the rim is the edge exclusion; **faded** is a die a filter drops (lessons 07 and 09)
+- **Dimmed** at the rim is the edge exclusion; **faded** is a die a filter drops (lessons 08 and 11)
 - The legend lists pass bins first, then failing bins from the most dies down
 
 ---
@@ -323,9 +324,17 @@ A **⚠** or **⛔** button appears in the toolbar only when there is something 
 
 1. Open the [single wafer](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-single-wafer.stdf&dataFormat=stdf) and find the toolbar's four groups
 2. **Clear files**, then **Load sample data**
-3. **Plot mode → Test Value → fmax_MHz**: which corner reads lowest?
+3. **Plot mode → Test Value → fmax_MHz**: which split reads lowest?
 4. **Overlays → Ring boundaries**, then back to **Hard Bin**
 5. Zoom into W04 · SS and hover a failing die
+
+---
+
+<!-- _class: answers -->
+
+# Check your results
+
+3. **SS** reads lowest: its mean `fmax_MHz` is about 1640 MHz, against about 1800 for TT and 1980 for FF. SS is the slow corner.
 
 ---
 

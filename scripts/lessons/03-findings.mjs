@@ -192,14 +192,14 @@ export const scenario = {
     {
       id: '18-data-tables',
       title: 'Data tables opens every number as a table',
-      steps: [['click', `${RIGHT} button:has-text("Data tables")`], ['wait', 1000], ['click', `${REPORT} >> text=/^Data tables — /`], ['wait', 400]],
+      steps: [['setViewport', 900, 620], ['click', `${RIGHT} button:has-text("Data tables")`], ['wait', 1000], ['click', `${REPORT} >> text=/^Data tables — /`], ['wait', 400]],
       checks: [hasText(REPORT, 'Data tables')],
-      shots: [{ name: 'data-tables' }],
+      shots: [{ name: 'data-tables', clip: { target: REPORT, pad: 12 } }],
     },
     {
       id: '19-edge-lot',
       title: 'EDGE-LOT-01: a spatial pattern and the bins behind it',
-      steps: [['press', 'Escape'], ['wait', 500], ['click', '#reset-btn'], ['wait', 800], ['loadFile', S('EDGE-LOT-01.stdf')], ['waitForWafers'], TOP, PARK],
+      steps: [['press', 'Escape'], ['wait', 500], ['setViewport', 1280, 820], ['click', '#reset-btn'], ['wait', 800], ['loadFile', S('EDGE-LOT-01.stdf')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Lot EDGE-LOT-01')],
       shots: [{ name: 'edge-top-item', clip: fromHeader('What stands out', CHIPS) }],
     },
@@ -216,6 +216,13 @@ export const scenario = {
       steps: [['click', `${RIGHT} >> text=Show 14 supporting findings`], ['wait', 500], TOP, PARK],
       checks: [hasText(RIGHT, 'Hide 14 supporting findings')],
       shots: [{ name: 'supporting-findings', clip: fromHeader('Findings (', `${RIGHT} >> text=Hide 14 supporting findings`, { maxHeight: 420 }) }],
+    },
+    {
+      id: '20c-same-dies',
+      title: 'A finding that names two bins: the same dies counted in both bin types',
+      steps: [['scrollIntoView', `${RIGHT} >> text=/same dies/ >> nth=0`], PARK],
+      checks: [hasText(RIGHT, 'same dies')],
+      shots: [{ name: 'same-dies', clip: { target: `${RIGHT} [data-wmap-finding]:has-text("same dies") >> nth=0`, pad: 3 } }],
     },
     {
       id: '21-edge-chip',

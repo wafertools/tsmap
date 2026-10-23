@@ -168,6 +168,17 @@ export const scenario = {
       steps: [['click', `${CARD} canvas`, [0.03, 0.03]], ['wait', 400], PARK],
     },
     {
+      id: '07h-pick-wafers',
+      title: 'Ctrl + click a card header to pick that wafer: the toolbar counts the picked wafers',
+      steps: [['ctrlClick', `${CARD} >> nth=0 >> text=/^W01/`], ['wait', 300], ['ctrlClick', `${CARD} >> nth=2 >> text=/^W03/`], ['wait', 500], PARK],
+      shots: [{ name: 'pick-wafers', clip: { rect: { x: 0, y: 50, width: 1280, height: 420 } } }],
+    },
+    {
+      id: '07i-unpick-wafers',
+      title: 'Ctrl + click again to put them back',
+      steps: [['ctrlClick', `${CARD} >> nth=0 >> text=/^W01/`], ['wait', 300], ['ctrlClick', `${CARD} >> nth=2 >> text=/^W03/`], ['wait', 400], PARK],
+    },
+    {
       id: '08-same-dies-off',
       title: 'Select the same dies on every wafer, off',
       steps: [PARK],

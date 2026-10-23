@@ -149,7 +149,7 @@ async function drawCallout(page, target, opts = {}) {
     height: Math.min(found.y + found.height, vp.height - inset) - y,
   };
   const problem = await page.evaluate(([b, pad, badge, prefer, attr, target]) => {
-    const colour = '#e8590c';
+    const colour = '#c2410c';
     const reg = (window.__captureCallouts ??= []);
     const outer = { x: b.x - pad, y: b.y - pad, w: b.width + 2 * pad, h: b.height + 2 * pad };
     const frame = document.createElement('div');
@@ -914,6 +914,11 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       }
       break;
     }
+
+    case 'ctrlClick':
+      // ['ctrlClick', selector]: a click with Ctrl held, as a card header's "pick this wafer" asks for.
+      await page.click(args[0], { modifiers: ['Control'] });
+      break;
 
     case 'clickButtonByText': {
       // Click a <button> inside containerSelector matched on exact,

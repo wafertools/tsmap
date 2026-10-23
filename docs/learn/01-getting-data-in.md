@@ -4,6 +4,7 @@ theme: tsmap
 paginate: true
 title: "01 · Getting data in"
 description: Sample data, file formats, opening, adding and scanning files, the test selector, column mapping, the colour theme and the log.
+teaser: "Opening your own files, choosing tests and mapping columns."
 footer: Learn tsmap · 01 Getting data in
 ---
 
@@ -129,7 +130,7 @@ Several files at once ask for a label per wafer. A plain ID such as W01 gets its
 
 # One lot from separate files
 
-The two files hold one wafer each. They load as one lot, EDGE-LOT-01.
+The two files hold one wafer each. They load as one lot, `EDGE-LOT-01`. The six files used here are in the scan-folder zip on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
 
 ![Two wafers of EDGE-LOT-01, loaded from two files](images/01/scanned-lot.png)
 
@@ -167,7 +168,7 @@ The third wafer joins the same gallery, Summary and yield.
 - **A link** that tells the web app which file to load
 - **The command line**, which opens the files you name in the desktop app
 
-Both are in [lesson 10](10-automation.md).
+Both are in [lesson 12](12-automation.md).
 
 ---
 
@@ -192,11 +193,11 @@ A small lot imports every test. **Setup ▾ → Tests…** opens the selector at
 
 # Narrow, then select
 
-- <span class="badge">1</span> Search by name or number
-- <span class="badge">2</span> Show one type of test
-- <span class="badge">3</span> Select a range, such as `1001-1004`
+- <span class="badge" role="img" aria-label="callout 1">1</span> Search by name or number
+- <span class="badge" role="img" aria-label="callout 2">2</span> Show one type of test
+- <span class="badge" role="img" aria-label="callout 3">3</span> Select a range, such as `1001-1004`
 
-![The selector's search, type filter and range box](images/01/test-selector.png)
+![The selector's search, type filter and range box, each numbered](images/01/selector-filters.png)
 
 ---
 
@@ -206,6 +207,11 @@ A small lot imports every test. **Setup ▾ → Tests…** opens the selector at
 
 - A lot with many tests opens the selector first, nothing ticked
 - The footer estimates memory: amber is slow, red asks first
+
+---
+
+# Many files, many tests
+
 - Several files: **Scan all N files** lists tests from every file
 - Later, removing a test applies at once; adding one rereads the files
 
@@ -225,9 +231,9 @@ Click into a name and type. **Enter** keeps it; only the displayed name changes.
 
 # Save and load definitions
 
-<span class="badge">4</span> **Save definitions** writes the selection, names, limits, units and test type to a CSV. <span class="badge">5</span> **Load definitions** reapplies it, which also gives limits to a program that shipped without them.
+<span class="badge" role="img" aria-label="callout 4">4</span> **Save definitions** writes the selection, names, limits, units and test type to a CSV. <span class="badge" role="img" aria-label="callout 5">5</span> **Load definitions** reapplies it, which also gives limits to a program that shipped without them.
 
-![The selector's Save definitions and Load definitions buttons](images/01/test-selector.png)
+![The selector's Save definitions and Load definitions buttons](images/01/selector-definitions.png)
 
 ---
 
@@ -263,9 +269,9 @@ Every column gets a role. Common names are detected for you; check, then **Conti
 
 # Wide format
 
-One column per test. Each test column takes the **Test value** role <span class="badge">1</span>.
+One column per test. Each test column takes the **Test value** role <span class="badge" role="img" aria-label="callout 1">1</span>.
 
-![The column mapping for a wide CSV](images/01/mapping-wide.png)
+![A test column with the Test value role](images/01/mapping-test-value.png)
 
 ---
 
@@ -292,7 +298,7 @@ One row per die per test: a test number or name column, and a result column.
 
 # Many columns at once
 
-<span class="badge">1</span> Filter the columns by name, then give every shown column one role: <span class="badge">2</span> **Test value** or <span class="badge">3</span> **Ignore**.
+<span class="badge" role="img" aria-label="callout 1">1</span> Filter the columns by name, then give every shown column one role: <span class="badge" role="img" aria-label="callout 2">2</span> **Test value** or <span class="badge" role="img" aria-label="callout 3">3</span> **Ignore**.
 
 ![The column filter and the two bulk buttons](images/01/mapping-bulk.png)
 
@@ -315,6 +321,12 @@ One row per die per test: a test number or name column, and a result column.
 The roles you confirm are remembered for that set of columns. **Reset to auto-detected** forgets them.
 
 ![The same file again: the saved mapping applied](images/01/mapping-saved.png)
+
+---
+
+# Bin names
+
+A file may carry only bin numbers. Tables show them as bare numbers until you load a bin definitions file, which also names the bins in the legend. Lesson [12](12-automation.md) covers it.
 
 ---
 
@@ -357,10 +369,19 @@ What each load did. Warnings are counted on the **Log** button until you open it
 
 # Try it yourself
 
-1. Open the [sample CSV in the web app](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sample.csv&dataFormat=csv): check the roles, then **Continue →**
+1. Open the [small sample CSV in the web app](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-few-tests.csv&dataFormat=csv): check the roles, then **Continue →**
 2. **Clear files**, then **Load sample data**
 3. **Setup ▾ → Tests…**: rename a test, then apply
-4. Switch to a dark theme, then open the log
+4. Download and unzip the [scan-folder zip](https://wafertools.github.io/tsmap/samples/tsmap-scan-folder.zip), then **Open files ▾ → Scan a folder…**: how many files does it list?
+5. Switch to a dark theme, then open the log
+
+---
+
+<!-- _class: answers -->
+
+# Check your results
+
+4. **Six** files, from four lots. Set the filter to one lot to list only its files.
 
 ---
 
@@ -381,4 +402,4 @@ More in the user guide: [Loading your data](../user-guide.md#loading-your-data)
 
 [02 · Reading a map and the toolbar →](02-reading-a-map.md)
 
-Plot modes, colours, overlays and zoom.
+Plot modes, colours, overlays, orientation and the gallery layout.
