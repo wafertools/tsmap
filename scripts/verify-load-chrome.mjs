@@ -159,7 +159,7 @@ if (scenario === 'append') {
   // so the indicator must dock over live content rather than cover it.
   await loadSample();
   await page.evaluate(() => { window.__frames.length = 0; });
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#add-btn')]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await page.click('#add-btn'); await page.getByText('Choose files…').first().click(); })()]);
   await chooser.setFiles(FIX);
   await page.waitForSelector('#map-render', { timeout: 60000 });
   await page.click('#map-render');
@@ -191,14 +191,14 @@ if (scenario === 'append') {
 } else if (scenario === 'cancel-mapping') {
   // Cancelling a gate mid-load must END the load, not leave it open. The
   // 'waiting' phase opened it; nothing else will close it.
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#open-btn')]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await page.click('#open-btn'); await page.getByText('Choose files…').first().click(); })()]);
   await chooser.setFiles(FIX);
   await page.waitForSelector('#map-cancel', { timeout: 60000 });
   await page.click('#map-cancel');
   await page.waitForTimeout(2500);
 } else if (scenario === 'cancel-selector') {
   // A lot too big to import without asking: small lots skip the selector.
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#open-btn')]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await page.click('#open-btn'); await page.getByText('Choose files…').first().click(); })()]);
   await chooser.setFiles(BIG_LOT);
   await page.waitForSelector('#tsmap-test-selector-overlay', { timeout: 60000 });
   await page.getByRole('button', { name: 'Cancel' }).click();
@@ -228,7 +228,7 @@ if (scenario === 'append') {
 } else {
   // The PROGRESSIVE path, driven through the real button + filechooser so the
   // 'waiting' phase is exercised too (setInputFiles skips the click handler).
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#open-btn')]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await page.click('#open-btn'); await page.getByText('Choose files…').first().click(); })()]);
   await chooser.setFiles(FIX);
   await page.waitForSelector('#map-render', { timeout: 60000 });
   await page.click('#map-render');
@@ -252,8 +252,7 @@ const final = await page.evaluate(() => {
   const btn = (id) => { const e = document.getElementById(id); if (!e) return 'missing';
     const cs = getComputedStyle(e);
     return (e.disabled === true || cs.pointerEvents === 'none' || +cs.opacity < 0.9) ? 'DISABLED' : 'enabled'; };
-  return { open: btn('open-btn'), add: btn('add-btn'), openMore: btn('open-more-btn'),
-           addMore: btn('add-more-btn'), label: document.getElementById('file-label')?.textContent ?? '',
+  return { open: btn('open-btn'), add: btn('add-btn'), label: document.getElementById('file-label')?.textContent ?? '',
            indicator: !!document.getElementById('render-progress'),
            cards: document.querySelectorAll('.wmap-gallery-card canvas').length,
            content: document.querySelectorAll('#map-container canvas').length };
@@ -265,7 +264,7 @@ for (const f of frames) {
     + `bar=${f.barVisible === false ? 'HIDDEN' : (f.barPct || '-')} open=${f.open ?? '-'} add=${f.add ?? '-'} view=${f.content} "${f.msg}"`
     + (f.surfaces > 1 ? `   <-- ${f.names}` : ''));
 }
-console.log(`  FINAL  open=${final.open} add=${final.add} openMore=${final.openMore} addMore=${final.addMore} `
+console.log(`  FINAL  open=${final.open} add=${final.add} `
   + `indicator=${final.indicator} cards=${final.cards} view=${final.content} label="${final.label}"`);
 
 const fail = [];
@@ -308,7 +307,6 @@ if (final.open !== 'enabled') fail.push('Open files left disabled after the load
 // demand a bug.
 if (!CANCELS.has(scenario)) {
   if (final.add !== 'enabled') fail.push('Add files left disabled after the load');
-  if (final.addMore !== 'enabled') fail.push('Add-more caret left disabled after the load');
 }
 if (!CANCELS.has(scenario)) {
   if (!/wafer/.test(final.label)) fail.push('topbar does not show the file identity at the end');

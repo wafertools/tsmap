@@ -55,15 +55,17 @@ section {
   border-top: 8px solid var(--primary);
 }
 
-h1, h2, h3 {
+/* .h1 and .h2 are the same styles on a div: the PDF of the whole course keeps real headings only for lessons and sections,
+   so that its bookmarks list those and not every slide title. */
+h1, h2, h3, .h1, .h2 {
   margin: 0;
   color: var(--fg);
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;
 }
-h1 { font-size: 42px; }
-h2 { font-size: 32px; color: var(--muted); font-weight: 500; }
+h2, .h2 { font-size: 32px; color: var(--muted); font-weight: 500; }
+h1, .h1 { font-size: 42px; color: var(--fg); font-weight: 700; }
 
 p, ul, ol { margin: 0; }
 ul, ol { padding-left: 1.2em; }
@@ -216,8 +218,8 @@ section.next::before {
   flex: none;
   background: url('../tsmap-icon.png') left center / contain no-repeat;
 }
-section.title h1 { font-size: 64px; }
-section.title h2 { font-size: 30px; }
+section.title :is(h1, .h1) { font-size: 64px; }
+section.title :is(h2, .h2) { font-size: 30px; }
 section.title p { color: var(--muted); font-size: 22px; }
 
 /* ── divider ── */
@@ -227,7 +229,7 @@ section.divider {
   color: var(--primary-fg);
   border-top-color: var(--primary);
 }
-section.divider h1 { color: var(--primary-fg); font-size: 56px; }
+section.divider :is(h1, .h1) { color: var(--primary-fg); font-size: 56px; }
 section.divider p { color: rgba(255, 255, 255, 0.82); }
 section.divider::after, section.divider footer { color: rgba(255, 255, 255, 0.7); }
 section.divider footer::before { display: none; }
@@ -241,8 +243,8 @@ section.split {
   row-gap: 18px;
   align-content: start;
 }
-section.split > h1 { grid-column: 1 / -1; }
-section.split > :not(h1):not(footer):not(header):not(p:has(> img:not(.emoji))) { grid-column: 1; align-self: start; }
+section.split > :is(h1, .h1) { grid-column: 1 / -1; }
+section.split > :not(h1):not(.h1):not(footer):not(header):not(p:has(> img:not(.emoji))) { grid-column: 1; align-self: start; }
 section.split > p:has(> img:not(.emoji)) { grid-column: 2; grid-row: 2 / span 6; height: 100%; }
 
 /* ── side: text left, a tall screenshot at the full height of the slide ── */
@@ -259,7 +261,7 @@ section.side > p:has(> img:not(.emoji)) { grid-column: 2; grid-row: 1 / span 8; 
 
 /* ── lab ── */
 section.lab { border-top-color: var(--callout); }
-section.lab h1::before {
+section.lab :is(h1, .h1)::before {
   content: 'Lab';
   display: inline-block;
   font-size: 18px;
@@ -277,7 +279,7 @@ section.lab ol li { margin-top: 0.45em; }
 
 /* ── answers ── */
 section.answers { border-top-color: var(--primary); }
-section.answers h1::before {
+section.answers :is(h1, .h1)::before {
   content: 'Answers';
   display: inline-block;
   font-size: 18px;
@@ -293,8 +295,11 @@ section.answers h1::before {
 }
 section.answers ol li { margin-top: 0.45em; }
 
+/* ── glossary (the glossary slides of the one-PDF course) ── */
+section.glossary { font-size: 24px; justify-content: flex-start; gap: 18px; }
+
 /* ── next ── */
 section.next { justify-content: center; }
 section.next::before { width: 64px; height: 64px; }
-section.next h1 { font-size: 52px; }
+section.next :is(h1, .h1) { font-size: 52px; }
 section.next p { font-size: 30px; }

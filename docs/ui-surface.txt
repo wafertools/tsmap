@@ -11,29 +11,25 @@ entries visible — they are invisible while each menu is only ever seen alone.
 ## Start screen (nothing loaded)
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files  [disabled]
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", disabled, opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [disabled, opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
   · Load sample data
-  · Scan a folder…
-      hint: Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load. Folders are read in your browser — no files are uploaded.
   · Log
       hint: Show the log panel
 
-Menu — Choose how to pick files to open:
+Menu — Open files ▾:
     · Choose files…
         hint: Pick individual files in the usual dialog
+    · Scan a folder…
+        hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table Folders are read in your browser — no files are uploaded.
 
-Menu — Choose how to pick files to add:
+Menu — Add files ▾:
     (no rows captured)
 
 Menu — Help:
@@ -51,14 +47,10 @@ Menu — Help:
 ## Sample lot loaded
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -67,7 +59,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 10 more fields
+  · 14 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -184,13 +176,13 @@ Controls:
   · Log
       hint: Show the log panel
 
-Menu — Choose how to pick files to open:
+Menu — Open files ▾:
     · Choose files…
         hint: Pick individual files in the usual dialog
     · Scan a folder…
         hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table Folders are read in your browser — no files are uploaded.
 
-Menu — Choose how to pick files to add:
+Menu — Add files ▾:
     · Choose files…
         hint: Pick individual files in the usual dialog
     · Scan a folder…
@@ -402,14 +394,10 @@ Dialog — About tsmap…
 ## Insights (sample lot)
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -418,7 +406,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -454,13 +442,13 @@ Controls:
   · Log
       hint: Show the log panel
 
-Menu — Choose how to pick files to open:
+Menu — Open files ▾:
     · Choose files…
         hint: Pick individual files in the usual dialog
     · Scan a folder…
         hint: Read every wafer-map file in a folder, then filter by lot metadata and pick from a table Folders are read in your browser — no files are uploaded.
 
-Menu — Choose how to pick files to add:
+Menu — Add files ▾:
     · Choose files…
         hint: Pick individual files in the usual dialog
     · Scan a folder…
@@ -506,14 +494,10 @@ Menu — Chart actions:
 ## Insights (sample lot) › Overview
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -522,7 +506,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -561,14 +545,10 @@ Controls:
 ## Insights (sample lot) › Distributions
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -577,7 +557,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -633,14 +613,10 @@ Menu — Wafer:
 ## Insights (sample lot) › Correlation
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -649,7 +625,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -679,14 +655,10 @@ Controls:
 ## Insights (sample lot) › Data
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -695,7 +667,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -724,14 +696,10 @@ Controls:
 ## Insights (sample lot) › My plots
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -740,7 +708,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -771,14 +739,10 @@ Controls:
 ## Insights (sample lot) › My plots › + New plot editor
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -787,7 +751,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -879,6 +843,9 @@ Menu — X axis:
     · Wafer order
     · Yield
     · Dies
+    · Test station
+    · Probe head
+    · Site group
     · Program rev
 
 Menu — Y axis:
@@ -901,6 +868,9 @@ Menu — Y axis:
     · Wafer order
     · Yield — Yield is per wafer: use a bar or line chart  [disabled]
     · Dies
+    · Test station
+    · Probe head
+    · Site group
     · Program rev
 
 Menu — Colour:
@@ -940,6 +910,10 @@ Menu — Colour:
     · Temperature
     · Tester
     · Node
+    · Test station
+    · Probe head
+    · Site group
+    · Test mode
     · Test code
     · Setup date
     · Program rev
@@ -949,14 +923,10 @@ Menu — Colour:
 ## Insights (sample lot) › My plots › + New plot editor › Customise
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -965,7 +935,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -1032,14 +1002,10 @@ Controls:
 ## Insights (sample lot) › + New sweep editor
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1048,7 +1014,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 7 more fields
+  · 11 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -1097,14 +1063,10 @@ Controls:
 ## Single wafer (full view)
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1113,7 +1075,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 10 more fields
+  · 14 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -1234,14 +1196,10 @@ Controls:
 ## One wafer loaded
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1250,7 +1208,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
   · Summary
   · Map
       hint: The wafer map
@@ -1310,14 +1268,10 @@ Controls:
 ## One wafer loaded › Insights
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1326,7 +1280,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
   · Map
       hint: The wafer map
   · Insights
@@ -1389,14 +1343,10 @@ Controls:
 ## Test selector (Setup ▾ → Tests…)
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1405,7 +1355,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 9 more fields
+  · 13 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -1676,21 +1626,15 @@ Controls:
 ## Column mapping (CSV)
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files  [disabled]
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", disabled, opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [disabled, opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
   · Load sample data
-  · Scan a folder…
-      hint: Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load. Folders are read in your browser — no files are uploaded.
   · Log
       hint: Show the log panel
   · Shown → Test value
@@ -1713,14 +1657,10 @@ Controls:
 ## Column mapping (CSV) › Lot with retests loaded
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1784,14 +1724,10 @@ Controls:
 ## Column mapping (CSV) › Log panel
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1855,14 +1791,10 @@ Controls:
 ## Multi-project wafer (compact layout offered)
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1949,14 +1881,10 @@ Menu — Overlays:
 ## Wafers with no die positions
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Setup ▾  [opens menu]
       hint: Test and bin definitions, wafer splits, geometry, and analysis options
   · Clear files
@@ -1965,7 +1893,7 @@ Controls:
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
-  · 9 more fields
+  · 12 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -2066,21 +1994,15 @@ Controls:
 ## Filter files (folder scan)
 
 Controls:
-  · Open files
-      hint: Open wafer-map files — or drop them anywhere
-  · ▾  [aria="Choose how to pick files to open", opens menu]
-      hint: Pick files, or scan a whole folder
-  · Add files  [disabled]
-      hint: Append more files to the current view
-  · ▾  [aria="Choose how to pick files to add", disabled, opens menu]
-      hint: Pick files, or scan a whole folder
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [disabled, opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
   · Help  [opens menu]
       hint: Help
   · Load sample data
-  · Scan a folder…
-      hint: Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load. Folders are read in your browser — no files are uploaded.
   · Log
       hint: Show the log panel
   · Maximize (F)
@@ -2136,10 +2058,34 @@ Controls:
       hint: Sort by Node
   · ▾  [aria="Filter by Node", opens dialog]
       hint: Filter by Node
+  · Test station  [aria="Sort by Test station"]
+      hint: Sort by Test station
+  · ▾  [aria="Filter by Test station", opens dialog]
+      hint: Filter by Test station
+  · Handler type  [aria="Sort by Handler type"]
+      hint: Sort by Handler type
+  · ▾  [aria="Filter by Handler type", opens dialog]
+      hint: Filter by Handler type
+  · Handler  [aria="Sort by Handler"]
+      hint: Sort by Handler
+  · ▾  [aria="Filter by Handler", opens dialog]
+      hint: Filter by Handler
+  · Probe card type  [aria="Sort by Probe card type"]
+      hint: Sort by Probe card type
+  · ▾  [aria="Filter by Probe card type", opens dialog]
+      hint: Filter by Probe card type
+  · Probe card  [aria="Sort by Probe card"]
+      hint: Sort by Probe card
+  · ▾  [aria="Filter by Probe card", opens dialog]
+      hint: Filter by Probe card
   · Operator  [aria="Sort by Operator"]
       hint: Sort by Operator
   · ▾  [aria="Filter by Operator", opens dialog]
       hint: Filter by Operator
+  · Test mode  [aria="Sort by Test mode"]
+      hint: Sort by Test mode
+  · ▾  [aria="Filter by Test mode", opens dialog]
+      hint: Filter by Test mode
   · Test code  [aria="Sort by Test code"]
       hint: Sort by Test code
   · ▾  [aria="Filter by Test code", opens dialog]

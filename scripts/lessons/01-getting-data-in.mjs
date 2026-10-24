@@ -43,23 +43,23 @@ export const scenario = {
       title: 'The start screen offers sample data, a folder scan and drag and drop',
       checks: [hasText('#map-container', 'Supports STDF, ATDF, CSV, JSON and Parquet')],
       shots: [
-        { name: 'load-sample', clip: { target: 'text=Open a file to get started', through: 'text=Folders are read in your browser', pad: 14 }, callouts: [['button:has-text("Load sample data")', {}]] },
+        { name: 'load-sample', clip: { target: 'text=Open files to get started', through: 'text=Folders are read in your browser', pad: 14 }, callouts: [['button:has-text("Load sample data")', {}]] },
         {
           name: 'drop-anywhere',
-          callouts: [['#drop-hint', { badge: 1, badgeAt: 'bl' }], ['text=or drag files anywhere in this window', { badge: 2 }]],
+          callouts: [['#drop-hint', { badge: 1, badgeAt: 'bl' }], ['text=or drop files anywhere in this window', { badge: 2 }]],
         },
       ],
     },
     {
       id: '02-open-menu',
-      title: 'The ▾ beside Open files: Choose files… or Scan a folder…',
-      steps: [['click', '#open-more-btn'], ['wait', 300]],
+      title: 'The Open files menu: Choose files… or Scan a folder…',
+      steps: [['click', '#open-btn'], ['wait', 300]],
       checks: [isVisible('text="Choose files…"', 'the menu offers Choose files…')],
       shots: [
         {
           name: 'open-menu',
           clip: { rect: { x: 0, y: 0, width: 560, height: 200 } },
-          callouts: [['#open-more-btn', { pad: 3 }]],
+          callouts: [['#open-btn', { pad: 3 }]],
         },
       ],
     },

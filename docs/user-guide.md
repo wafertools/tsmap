@@ -130,14 +130,11 @@ The repository's `sample_data/` folder holds synthetic lots for trying each feat
 
 ### Open files
 
-Click **Open files** in the toolbar to open a file picker. You can select one file or
-multiple files at once. On the desktop the picker opens a native OS dialog; in the browser
-it opens the browser file dialog.
-
-The **▾** beside it answers the other half of the question — *which* file, or how to find it:
-*Choose files…* (the same picker), *Scan a folder…*, and, on the desktop, your
-[recent files](#recent-files). **Add files ▾** offers the same two ways of picking, for
-appending to what is already loaded.
+Click **Open files ▾** in the toolbar and choose how to find your data: *Choose files…*
+opens a file picker (select one file or several; a native OS dialog on the desktop, the
+browser's file dialog on the web), *Scan a folder…* reads a whole folder, and, on the
+desktop, your [recent files](#recent-files) are listed below. **Add files ▾** offers the same
+two ways of picking, for appending to what is already loaded.
 
 ### Drag and drop
 
@@ -164,8 +161,8 @@ Click an entry to reopen it — this replaces the current view the same way **Op
 so it is not a way to append, which is why recents are not offered under **Add files ▾**.
 Click the **×** beside an entry to remove it from the list.
 
-They are reachable whether or not a file is currently loaded, since the caret is always
-available. Not shown in the browser version: reopening needs a native file path, which browser
+They are reachable whether or not a file is currently loaded, since the Open files menu is
+always available. Not shown in the browser version: reopening needs a native file path, which browser
 file pickers do not provide.
 
 ### Adding files to an existing lot
@@ -204,9 +201,8 @@ When you have far more files than you want to load — a directory of hundreds o
 you don't have to pick them in the file dialog at all. Point tsmap at the folder and let it
 tell you what's in there.
 
-Both **Open files** and **Add files** carry a **▾** beside them offering *Choose files…* or
-*Scan a folder…*, so you can scan a folder whether you're replacing what's loaded or adding
-to it. The start screen also has a **Scan a folder…** button, and **dropping a folder onto
+Both **Open files ▾** and **Add files ▾** offer *Choose files…* or *Scan a folder…*, so you
+can scan a folder whether you're replacing what's loaded or adding to it. **Dropping a folder onto
 the window** does the same thing (dropping *files* still loads them directly; a dropped
 folder always replaces, since a drag can't say "add").
 

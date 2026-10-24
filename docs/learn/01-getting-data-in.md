@@ -61,11 +61,11 @@ Drop one or more files anywhere in the window. It is the same as picking them. I
 
 ---
 
-<!-- covers: tsmap guide › Open files; Open files; Choose how to pick files to open; Choose how to pick files to open › Choose files…; Choose how to pick files to open › Scan a folder… -->
+<!-- covers: tsmap guide › Open files; Open files ▾; Open files ▾ › Choose files…; Open files ▾ › Scan a folder… -->
 
 # Open files ▾
 
-**Open files** picks files. The **▾** beside it offers **Choose files…** or **Scan a folder…**
+**Open files ▾** opens a menu that offers **Choose files…** or **Scan a folder…**
 
 ![The Open files menu](images/01/open-menu.png)
 
@@ -88,7 +88,7 @@ Hundreds of files? Let tsmap tell you what is in them.
 ---
 
 <!-- _class: split -->
-<!-- covers: tsmap guide › Scanning a folder; Scan a folder…; Filter files › Sort by column; Filter files › Filter by column; Columns ▾; Clear filters -->
+<!-- covers: tsmap guide › Scanning a folder; Filter files › Sort by column; Filter files › Filter by column; Columns ▾; Clear filters -->
 
 # The file filter
 
@@ -136,7 +136,7 @@ The two files hold one wafer each. They load as one lot, `EDGE-LOT-01`. The six 
 
 ---
 
-<!-- covers: Add files; Choose how to pick files to add; Choose how to pick files to add › * -->
+<!-- covers: Add files ▾; Add files ▾ › * -->
 
 <!-- covers: tsmap guide › Adding files to an existing lot -->
 

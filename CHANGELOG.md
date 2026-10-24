@@ -8,6 +8,7 @@ technical record, including internal changes.
 
 ### Changed
 
+- **Open files and Add files are menu buttons.** Each opens its choices straight away: *Choose files…*, *Scan a folder…* and, on the desktop, recent files. The ▾ no longer sits beside a button that skips the menu. The start screen says that a folder can be dropped onto the window on the desktop.
 - **Easier-to-read lesson slides.** In the Learn tsmap slides, each row of a two-column table has a rule under it, a bold left cell and an arrow into the right cell. A bullet that starts with a numbered badge uses the badge as its marker and wraps under its text, the badge no longer leaves a gap before a comma, and slides with no screenshot set their text larger.
 
 ## [0.1.49] — 2026-10-22

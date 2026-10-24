@@ -76,8 +76,6 @@ const container       = document.getElementById('map-container')!;
 const dropZone        = document.getElementById('drop-zone')!;
 const openBtn         = document.getElementById('open-btn')!;
 const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
-const openMoreBtn     = document.getElementById('open-more-btn') as HTMLButtonElement;
-const addMoreBtn      = document.getElementById('add-more-btn') as HTMLButtonElement;
 const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
@@ -1110,7 +1108,6 @@ function renderWafers(
   // exists to remove. `endLoad` re-enables from the other side once the load
   // really is finished.
   addBtn.disabled = wafers.length === 0 || busy;
-  addMoreBtn.disabled = addBtn.disabled;
   // One trigger for every lot-scoped dialog (see openLotMenu). Its rows
   // handle their own availability — "Tests…" greys out for a file with
   // no test data — so this only needs the "is anything loaded at all" gate.
@@ -1389,9 +1386,9 @@ function clearViewForLoad(): void {
  * and it has room, whereas the toolbar legitimately sheds decorative text when
  * cramped. The toolbar hint stays on as the reminder once data is loaded.
  *
- * The wording covers FILES only, deliberately. Dropping a folder is
- * desktop-only — it needs `platform.isDirectory`, which the web platform does
- * not implement — and "Scan a folder…" sits directly below it on both builds.
+ * The wording mentions a folder on desktop only: dropping one needs
+ * `platform.isDirectory`, which the web platform does not implement. The
+ * toolbar's Open files menu offers "Scan a folder…" on both builds.
  */
 function showEmptyState() {
   session.wafers = [];
@@ -1407,7 +1404,6 @@ function showEmptyState() {
   session.binaryScanScope = 'largest';
   clearLotStatsCache();
   addBtn.disabled = true;
-  addMoreBtn.disabled = true;
   setToolbarGroupVisible(false);
   destroyMainView();
   container.classList.remove('gallery');
@@ -1466,9 +1462,9 @@ function showEmptyState() {
           </g>
         </g>
       </svg>
-      <div style="font-size:15px;color:var(--text-dim);">Open a file to get started</div>
+      <div style="font-size:15px;color:var(--text-dim);">Open files to get started</div>
       <div style="font-size:12px;color:var(--text-veryfaint);">Supports STDF, ATDF, CSV, JSON and Parquet</div>
-      <div style="font-size:12px;color:var(--text-veryfaint);">or drag files anywhere in this window</div>
+      <div style="font-size:12px;color:var(--text-veryfaint);">${isTauri ? 'or drop files or a folder anywhere in this window' : 'or drop files anywhere in this window'}</div>
     </div>`;
 
   const column = container.firstElementChild as HTMLElement;
@@ -1498,22 +1494,6 @@ function showEmptyState() {
     }
   });
   column.appendChild(sampleBtn);
-
-  // The discovery moment for "I have a directory of files and don't know which
-  // I want". It lives here rather than in the toolbar because it is a way of
-  // CHOOSING files, not a third thing to do with them — the toolbar's two
-  // buttons are the two operations (replace, append), and a third button beside
-  // them implied a third operation that never existed.
-  const scanFolderBtn = document.createElement('button');
-  scanFolderBtn.type = 'button';
-  scanFolderBtn.id = 'scan-folder-btn';
-  scanFolderBtn.className = 'btn-secondary';
-  scanFolderBtn.style.cssText = 'margin-top:4px;';   // layout only
-  scanFolderBtn.textContent = 'Scan a folder…';
-  attachTooltip(scanFolderBtn, 'Scan every wafer-map file in a folder, then filter by lot metadata and choose which to load'
-    + (isTauri ? '' : `. ${NO_UPLOAD_NOTE}`));
-  scanFolderBtn.addEventListener('click', () => void scanFolderAndFilter(false));
-  column.appendChild(scanFolderBtn);
 
   if (!isTauri) {
     const note = document.createElement('div');
@@ -1684,14 +1664,10 @@ function setControlsBusy(isBusy: boolean): void {
   busy = isBusy;
   openBtn.style.pointerEvents = isBusy ? 'none' : '';
   openBtn.style.opacity       = isBusy ? '0.5' : '';
-  openMoreBtn.style.pointerEvents = isBusy ? 'none' : '';
-  openMoreBtn.style.opacity       = isBusy ? '0.5' : '';
   if (isBusy) {
     addBtn.disabled = true;
-    addMoreBtn.disabled = true;
-  } else if (session.wafers.length > 0) {
+    } else if (session.wafers.length > 0) {
     addBtn.disabled = false;
-    addMoreBtn.disabled = false;
   }
 }
 
@@ -2135,14 +2111,14 @@ async function openScanInFilter(scan: FolderScan, isAppend: boolean) {
 let closePickMenu: (() => void) | null = null;
 
 /**
- * The caret half of Open/Add — "how should I find the files?", for a verb the
+ * The menu behind Open/Add — "how should I find the files?", for a verb the
  * button has already answered.
  *
  * This is the whole reason the toolbar has two buttons rather than three. The
  * old "Filter files…" was a third sibling that answered a *different* question
  * from its neighbours (how to pick, not what to do), so it read as a third
  * operation and then had to re-ask the verb at the end. Keeping the verb on the
- * button and putting the picking method behind its caret separates the two axes
+ * button and putting the picking method in its menu separates the two axes
  * without a button per combination.
  */
 function openPickMenu(anchor: HTMLElement, isAppend: boolean) {
@@ -2259,14 +2235,12 @@ async function pickAndHandle(isAppend: boolean) {
 /** Start the ordinary "pick individual files" flow for a verb. Assigned below
  *  per platform — desktop goes through the native dialog, the browser through
  *  the hidden `#file-input` (whose click must stay in the user-gesture chain).
- *  Both the toolbar buttons and the caret menu's "Choose files…" row call this,
+ *  Both toolbar menus' "Choose files…" row calls this,
  *  so the menu is not silently desktop-only. */
 let startFilePick: (isAppend: boolean) => void = () => {};
 
 if (isTauri) {
   startFilePick = (isAppend) => { void pickAndHandle(isAppend); };
-  openBtn.addEventListener('click', () => startFilePick(false));
-  addBtn.addEventListener('click', () => startFilePick(true));
 } else {
   // On web, trigger the native file input synchronously from the click event
   // so the browser treats it as a user gesture (async calls block the picker).
@@ -2315,16 +2289,14 @@ if (isTauri) {
     fileInput.click();
   };
 
-  openBtn.addEventListener('click', () => startFilePick(false));
-  addBtn.addEventListener('click', () => startFilePick(true));
 }
 
 // Platform-independent: both rows the caret menu offers work on either platform
 // (`startFilePick` is assigned above, `scanFolderAndFilter` handles both), so
 // this is wired once rather than inside each branch — which is how the carets
 // ended up desktop-only on the first attempt.
-openMoreBtn.addEventListener('click', () => openPickMenu(openMoreBtn, false));
-addMoreBtn.addEventListener('click', () => openPickMenu(addMoreBtn, true));
+openBtn.addEventListener('click', () => openPickMenu(openBtn, false));
+addBtn.addEventListener('click', () => openPickMenu(addBtn, true));
 
 resetBtn.addEventListener('click', () => {
   if (session.wafers.length === 0) return;

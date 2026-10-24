@@ -529,7 +529,7 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       // The standalone "Filter files…" toolbar button is gone — it was a third
       // sibling to Open/Add that differed on a different axis (how to pick, not
       // what to do). The filter table is now reached by scanning a folder, so
-      // this drives the empty state's #scan-folder-btn instead.
+      // this drives the Open files menu's Scan a folder… row instead.
       //
       // That input is `webkitdirectory`, and Chromium REFUSES a list of
       // individual files for one ("requires passing a path to a directory") —
@@ -560,7 +560,7 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       await page.evaluate(() => { window.showDirectoryPicker = undefined; });
       const [chooser] = await Promise.all([
         page.waitForEvent('filechooser'),
-        page.click('#scan-folder-btn'),
+        (async () => { await page.click('#open-btn'); await page.getByText('Scan a folder…').first().click(); })(),
       ]);
       await chooser.setFiles(scanDir);
       break;

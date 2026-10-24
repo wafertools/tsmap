@@ -16,8 +16,7 @@ Click **Open files** to pick one or more files from your device, or drag and dro
 anywhere in the window. Multiple files are loaded as a batch and merged into a single
 gallery, with a rename step to label each wafer.
 
-For a large set, **Scan a folder…** (on the start screen, or under the **▾** beside **Open
-files** and **Add files**) reads just the header metadata of every file in the folder —
+For a large set, **Scan a folder…** (under **Open files ▾** or **Add files ▾**) reads just the header metadata of every file in the folder —
 lot ID, part type, wafer count and so on — and shows them in a sortable, filterable table so
 you can load only the ones you want. Files are read a few at a time and released again, so
 scanning a big batch doesn't hold it all in memory.

@@ -54,7 +54,7 @@ export const CAPTURES = [
   {
     file: 'empty-toolbar',
     group: 'ui',
-    description: 'Empty-state toolbar — Open files / Filter files / Add files / Recent / theme / help',
+    description: 'Empty-state toolbar — Open files ▾ / Add files ▾ / theme / help',
     selector: '#toolbar',
   },
 

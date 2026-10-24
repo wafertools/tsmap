@@ -141,7 +141,7 @@ runs against the web build, never from hand captures. With `../wafermap` cloned,
 ```bash
 npm run demo:build        # the web app in dist/; runs only the predev guards, so it works while wmap is linked
 npm run lessons:shots    # every lesson's screenshots → docs/learn/images/NN/ (-- --only 01 for one)
-npm run lessons:build    # decks → site/learn/NN-slug/index.html, plus site/learn/index.html
+npm run lessons:build    # decks → site/learn/NN-slug/index.html, plus site/learn/index.html and the whole course as one PDF
 npm run lessons:check    # which controls and guide topics no lesson covers yet
 ```
 

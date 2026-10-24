@@ -35,11 +35,11 @@ export const scenario = {
       id: '01-start-screen',
       title: 'The start screen, before anything is loaded',
       checks: [
-        hasText('#map-container', 'Open a file to get started'),
+        hasText('#map-container', 'Open files to get started'),
         isVisible('button:has-text("Load sample data")'),
       ],
       shots: [
-        { name: 'start-screen', clip: { target: 'text=Open a file to get started', through: 'text=Folders are read in your browser', pad: 14 }, callouts: [['button:has-text("Load sample data")', {}]] },
+        { name: 'start-screen', clip: { target: 'text=Open files to get started', through: 'text=Folders are read in your browser', pad: 14 }, callouts: [['button:has-text("Load sample data")', {}]] },
       ],
     },
     {

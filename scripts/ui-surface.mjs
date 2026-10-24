@@ -76,7 +76,7 @@ const SAMPLE = (name) => join(ROOT, 'sample_data', name);
 async function waitLoaded(page) {
   await page.getByRole('button', { name: 'Summary report' }).first().waitFor({ timeout: 60000 });
   await page.waitForFunction(() => {
-    const add = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add files');
+    const add = [...document.querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Add files'));
     return add !== undefined && !add.disabled;
   }, null, { timeout: 60000 });
   await page.waitForTimeout(1500); // findings and legends settle after the busy state clears
@@ -235,7 +235,7 @@ const SCENES = [
         await page.evaluate(() => { window.showDirectoryPicker = undefined; });
         const [chooser] = await Promise.all([
           page.waitForEvent('filechooser'),
-          page.getByRole('button', { name: 'Scan a folder…' }).first().click(),
+          (async () => { await page.locator('#open-btn').click(); await page.getByText('Scan a folder…').first().click(); })(),
         ]);
         await chooser.setFiles(dir);
         await page.locator('.tsmap-modal-box table tbody tr').first().waitFor({ timeout: 30000 });

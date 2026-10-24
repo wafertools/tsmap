@@ -22,6 +22,7 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve, join } from 'path';
 import { marpCli } from '@marp-team/marp-cli';
 import { rewriteHref } from './lessons/marp.config.mjs';
+import { composeCourseBook } from './lessons/course-book.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const LEARN = join(root, 'docs', 'learn');
@@ -61,6 +62,10 @@ const decks = readdirSync(LEARN).filter((f) => /^\d\d-[\w-]+\.md$/.test(f)).sort
   const fm = frontMatter(src);
   const slug = file.replace(/\.md$/, '');
   problems.push(...yamlProblems(src, file));
+  // A "---" straight under a line of text is a heading underline, not a slide break: the two slides merge into one.
+  const lines = src.split('\n');
+  const closed = lines.indexOf('---', 1);
+  lines.forEach((l, i) => { if (i > closed && l === '---' && lines[i - 1].trim() !== '') problems.push(`${file}:${i + 1}: a "---" slide break needs a blank line above it, or it underlines the text above and merges two slides`); });
   if (!fm.title) problems.push(`${file}: no "title:" in the front matter`);
   if (!fm.description) problems.push(`${file}: no "description:" in the front matter (the index page shows it)`);
   if (fm.theme !== 'tsmap') problems.push(`${file}: front matter must say "theme: tsmap"`);
@@ -113,6 +118,29 @@ for (const deck of decks) {
   const images = join(LEARN, 'images', deck.session);
   if (existsSync(images)) cpSync(images, join(dir, 'images', deck.session), { recursive: true });
   console.log(`  ✓ ${deck.file} → ${join(dir, 'index.html').slice(root.length + 1)}`);
+}
+
+// The whole course as one PDF, with bookmarks for each lesson and section and jumps between lessons. It needs a browser
+// (Chrome, Chromium or Edge; CHROME_PATH picks one). Without one the rest of the build still goes ahead, and the index
+// simply has no PDF link.
+const PDF_NAME = 'learn-tsmap.pdf';
+const PDF_CONFIG = join(root, 'scripts', 'lessons', 'marp.pdf.config.mjs');
+let pdfBuilt = false;
+{
+  // Written inside the output folder, so the theme's icon and each lesson's copied screenshots are found beside it.
+  const dir = join(OUT, '_pdf');
+  mkdirSync(dir, { recursive: true });
+  const book = join(dir, 'course.md');
+  writeFileSync(book, composeCourseBook(LEARN, decks).markdown);
+  try {
+    const code = await marpCli(['--config-file', PDF_CONFIG, '--no-stdin', '--allow-local-files', '--pdf', '--pdf-outlines', '--pdf-outlines.pages=false', book, '-o', join(OUT, PDF_NAME)]);
+    pdfBuilt = code === 0 && existsSync(join(OUT, PDF_NAME));
+    if (!pdfBuilt) console.warn(`  ! the course PDF was not built (Marp exited with ${code})`);
+  } catch (e) {
+    console.warn(`  ! the course PDF was skipped: ${String(e.message ?? e).split('\n')[0]}`);
+  }
+  rmSync(dir, { recursive: true, force: true });
+  if (pdfBuilt) console.log(`  ✓ ${PDF_NAME} → ${join(OUT, PDF_NAME).slice(root.length + 1)}`);
 }
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -200,7 +228,7 @@ ${core.map(lessonItem).join('\n')}
     <ul class="lessons">
 ${rest.map(lessonItem).join('\n')}
     </ul>
-    <footer>Stuck on a word? See the <a href="glossary/index.html">glossary</a>. No data to hand? The <a href="${SAMPLES_URL}">sample files</a> are the ones the labs use.
+    <footer>${pdfBuilt ? `Prefer to read offline or print? <a href="${PDF_NAME}">Download the whole course as a PDF</a>. ` : ''}Stuck on a word? See the <a href="glossary/index.html">glossary</a>. No data to hand? The <a href="${SAMPLES_URL}">sample files</a> are the ones the labs use.
       For the detail behind any slide, see the <a href="${rewriteHref('../user-guide.md')}">user guide</a>.</footer>`,
 }));
 console.log(`  ✓ index → ${join(OUT, 'index.html').slice(root.length + 1)}  (${decks.length} lessons)`);

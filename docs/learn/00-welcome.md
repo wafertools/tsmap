@@ -141,7 +141,7 @@ Eight screen areas, numbered once, then one at a time
 
 ---
 
-<!-- covers: Open files; Add files; Setup ▾; Clear files; tsmap guide › Clearing data -->
+<!-- covers: Open files ▾; Add files ▾; Setup ▾; Clear files; tsmap guide › Clearing data -->
 
 # <span class="badge" role="img" aria-label="callout 1">1</span> The app toolbar
 

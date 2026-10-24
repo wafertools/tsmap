@@ -143,6 +143,7 @@ A wafer diagram with each ring labelled with its yield. Ring 1 is the centre and
 A wafer diagram with each quadrant labelled with its yield; a quadrant well below the rest shows a one-sided loss. Click a region for its dies.
 
 ![The Quadrant yield card](images/05/quadrant-yield.png)
+
 ---
 
 <!-- _class: split -->

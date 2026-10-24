@@ -1692,19 +1692,13 @@
       <div id="toolbar">
         <span id="toolbar-title">tsmap</span>
         <div id="drop-zone" title="Open wafer-map files — or drop them anywhere">
-          <span class="tb-split">
-            <button id="open-btn" class="tb-btn tb-btn--primary" title="Open wafer-map files — or drop them anywhere">Open files</button>
-            <button id="open-more-btn" class="tb-btn tb-btn--primary" aria-haspopup="menu" aria-expanded="false"
-              aria-label="Choose how to pick files to open" title="Pick files, or scan a whole folder"><span class="tb-caret">▾</span></button>
-          </span>
+          <button id="open-btn" class="tb-btn tb-btn--primary" aria-haspopup="menu" aria-expanded="false"
+            title="Choose files, scan a folder, or reopen a recent file — or drop files anywhere">Open files <span class="tb-caret">▾</span></button>
           <!-- accept is set by main.ts from DATA_PICKER_EXTENSIONS (lib.ts) — one list for every picker -->
           <input id="file-input" type="file" multiple style="display:none" />
         </div>
-        <span class="tb-split">
-          <button id="add-btn" class="tb-btn" disabled title="Append more files to the current view">Add files</button>
-          <button id="add-more-btn" class="tb-btn" disabled aria-haspopup="menu" aria-expanded="false"
-            aria-label="Choose how to pick files to add" title="Pick files, or scan a whole folder"><span class="tb-caret">▾</span></button>
-        </span>
+        <button id="add-btn" class="tb-btn" disabled aria-haspopup="menu" aria-expanded="false"
+          title="Append more files to the current view: choose files or scan a folder">Add files <span class="tb-caret">▾</span></button>
         <span class="tb-sep" style="display:none"></span>
         <button id="lot-btn" class="tb-btn" style="display:none" aria-haspopup="menu" aria-expanded="false"
           title="Test and bin definitions, wafer splits, geometry, and analysis options">Setup <span class="tb-caret">▾</span></button>

@@ -76,7 +76,13 @@ export async function addFile(page, filePath) {
   await page.evaluate(() => { window.showOpenFilePicker = undefined; });
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
-    page.click('#add-btn'),
+    openPickerFromMenu(page, '#add-btn'),
   ]);
   await chooser.setFiles(filePath);
+}
+
+/** Opens a toolbar file menu (Open files / Add files) and picks "Choose files…". */
+export async function openPickerFromMenu(page, buttonSelector) {
+  await page.click(buttonSelector);
+  await page.getByText('Choose files…').first().click();
 }
