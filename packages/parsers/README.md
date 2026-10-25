@@ -463,4 +463,21 @@ will invent field names.
 
 ## Versioning
 
-This crate has its own release lifecycle, independent of any consuming application's version. See the parent repository's `CLAUDE.md` for the bump/build/publish steps.
+The crate is versioned independently of tsmap, the application it lives alongside. Each release is tagged
+`parser-vX.Y.Z` in the [tsmap repository](https://github.com/wafertools/tsmap).
+
+## Community
+
+Questions, ideas, or a file that does not parse? Use [GitHub
+Discussions](https://github.com/wafertools/.github/discussions), or open an
+[issue](https://github.com/wafertools/tsmap/issues) with a sample file if you can share one.
+
+## Support
+
+testdata-parser is free, open-source and MIT-licensed. If it saves you time, you can support its
+development on [Ko-fi](https://ko-fi.com/wafertools): tips help cover development hardware and
+running costs. Bug reports and sample files help just as much.
+
+## Licence
+
+[MIT](https://github.com/wafertools/tsmap/blob/main/LICENSE) — © 2026 Paul Robins.
