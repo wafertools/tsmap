@@ -280,6 +280,12 @@ The STDF and ATDF parsers are written in this crate, not taken from a library �
 - [`zip`](https://crates.io/crates/zip) — `.zip` archive extraction
 - [`winreg`](https://crates.io/crates/winreg) (Windows only) — file-association registration under `HKEY_CURRENT_USER\Software\Classes`
 
+## Support
+
+tsmap is free, open-source and MIT-licensed. If it saves you time, you can support its
+development on [Ko-fi](https://ko-fi.com/wafertools): tips help cover development hardware
+and running costs. Bug reports and sample files help just as much.
+
 ## Licence
 
 [MIT](LICENSE) — © 2026 Paul Robins. The shared parser crate published as

@@ -28,6 +28,12 @@ nav = [
   { "What's New"   = "https://wafertools.github.io/whats-new/" },
 ]
 
+# Footer links. The icon set ships with Zensical (templates/.icons/simple/).
+[[project.extra.social]]
+icon = "simple/kofi"
+link = "https://ko-fi.com/wafertools"
+name = "Support wafertools on Ko-fi"
+
 [project.theme]
 favicon = "images/tsmap-favicon.ico"
 logo    = "images/tsmap-readme-header-256.png"

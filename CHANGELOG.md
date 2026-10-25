@@ -6,6 +6,10 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Support tsmap on Ko-fi.** **Help → Support tsmap on Ko-fi** opens the project's [Ko-fi page](https://ko-fi.com/wafertools), which About tsmap also links to. The published `@wafertools/testdata-parser` package lists the same page as its `funding` link.
+
 ### Changed
 
 - **Open files and Add files are menu buttons.** Each opens its choices straight away: *Choose files…*, *Scan a folder…* and, on the desktop, recent files. The ▾ no longer sits beside a button that skips the menu. The start screen says that a folder can be dropped onto the window on the desktop.
