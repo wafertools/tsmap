@@ -37,6 +37,7 @@ screen the beat expects.
     npm run lessons:shots -- --list        # lessons, beats and screenshot names
     npm run lessons:build                  # decks → site/learn/, with an index page
     npm run lessons:check                  # coverage of the recorded controls
+    npm run lessons:check:overflow         # slides that run past the slide box (after lessons:build)
 
 `CHROME_PATH` picks the browser, and `HEADED=1` shows it while a scenario runs.
 `lessons:check` needs `../wafermap` checked out beside tsmap to read its controls too.

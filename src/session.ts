@@ -57,6 +57,9 @@ export interface LotSession {
   /** Whether the current test list came from the largest file only or all files — so
    *  "Tests…" can still offer to widen the scan if it wasn't already. */
   binaryScanScope: 'largest' | 'all';
+  /** The test numbers the load's first scan listed: what identifies the test program for the remembered selection
+   *  (`testSelectionMemory.ts`), so a later change in Tests… is kept under the same key. */
+  testProgram: number[] | null;
 }
 
 /** What an empty app holds. A function, not a constant: the collections are fresh each time. */
@@ -75,6 +78,7 @@ export function emptySession(): LotSession {
     binaryFiles: [],
     testNames: null,
     binaryScanScope: 'largest',
+    testProgram: null,
   };
 }
 

@@ -8,6 +8,10 @@ technical record, including internal changes.
 
 ### Added
 
+- **Wafer geometry from a file's columns.** In a CSV, JSON or Parquet file, columns headed **Wafer diameter**, **Die width**, **Die height**, **Wafer flat**, **Centre die X/Y** and **X/Y increases** (the labels a die-list export writes, or the STDF names) now draw the map the way an STDF file's wafer configuration does. A size needs its unit (`300 mm`); wafers that disagree use the first wafer's value, and the log says what was read, skipped or in conflict.
+- **Pinned tests are remembered.** The ☆ on a row of a chart's test picker pins the test to the top of every picker; the pins are kept between sessions and listed under **Help → Reset saved settings…** as "Pinned tests".
+- **The test selection is remembered per test program.** Confirming the test selector keeps the choice for that set of tests; the next lot with the same tests opens the selector on it, and the log says so. A lot with a different set of tests (another program, or a revision that adds or drops one) starts empty, and a `--tests` list takes precedence. Listed under **Help → Reset saved settings…** as "Test selections".
+- **Keyboard shortcuts.** **Help → Keyboard shortcuts…**, or the **?** key anywhere outside a text field or an open window, lists the keys for maps, windows and menus.
 - **Support tsmap on Ko-fi.** **Help → Support tsmap on Ko-fi** opens the project's [Ko-fi page](https://ko-fi.com/wafertools), which About tsmap also links to. The published `@wafertools/testdata-parser` package lists the same page as its `funding` link.
 
 ### Changed

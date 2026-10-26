@@ -1257,6 +1257,8 @@ export function showTestSelectorOverlay(
   //    past ~40M values can fail. Derived tests do not count: they never reach
   //    the parser. The desktop build parses natively and has no such ceiling.
   //
+  // Load cost is close to linear in die × test pairs, at roughly 0.5 µs and 20 bytes a pair: 50M pairs is about half a
+  // minute, and 200M about two minutes and several GB. Fewer tests selected loads proportionally quicker.
   const WARN_PAIRS   = 50_000_000;   // ~50M die×test pairs — slow, show amber
   const DANGER_PAIRS = 200_000_000;  // ~200M die×test pairs — very slow, confirm
 

@@ -162,6 +162,13 @@ Drag a rectangle over the scatter: the dies inside it, on any wafer, open the me
 
 2. **`idsat_p_uA`** against **`vth_p_mV`** reads r = −0.865: when one rises the other falls. (`vth_n_mV` against `idsat_n_uA` is a little stronger, at −0.870.)
 3. On W07 · TT alone r is **−0.564**, weaker than the pooled −0.865. The warning has gone, because one wafer is not a mix of splits.
+
+---
+
+<!-- _class: answers -->
+
+# Check your results, continued
+
 4. Inside TT, r is **−0.529**: still clearly negative, but weaker than pooled. Some of the pooled figure came from the splits sitting at different levels.
 5. The menu names how many dies you selected; it depends on the box you drag.
 

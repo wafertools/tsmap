@@ -119,11 +119,11 @@ Each die coloured by its reading. ▽ and △ mark dies below and above the test
 
 ---
 
-<!-- covers: Toggle log scale; Colorbar range: test limits (click for data range); wmap guide › Test Value mode — colorbar range and test limits -->
+<!-- covers: Toggle log scale; Colour bar range: test limits (click for data range); wmap guide › Test Value mode — colour bar range and test limits -->
 
 # Two more buttons for values
 
-<span class="badge" role="img" aria-label="callout 1">1</span> Log scale. <span class="badge" role="img" aria-label="callout 2">2</span> Colorbar range: the test limits, the same on every wafer, or the data's own range.
+<span class="badge" role="img" aria-label="callout 1">1</span> Log scale. <span class="badge" role="img" aria-label="callout 2">2</span> Colour bar range: the test limits, the same on every wafer, or the data's own range.
 
 ![The gallery in Test Value mode, with its two extra buttons outlined](images/02/test-value.png)
 
@@ -300,7 +300,7 @@ The **▾** beside a wafer's name lists everything the file says about that wafe
 
 ---
 
-<!-- covers: wmap guide › Die appearance; wmap guide › Legend and colorbar -->
+<!-- covers: wmap guide › Die appearance; wmap guide › Legend and colour bar -->
 
 # Reading the colours
 

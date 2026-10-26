@@ -87,7 +87,7 @@ A derived test can use the value of another derived test.
 - **Choosing**: `if(condition, a, b)`, a when true, b when false
 - **Functions**: `abs sqrt ln log10 exp floor ceil round sign pow min max`
 
-For example `abs(t[1020] - t[1010])`, or `if(dieX() < 5, t[1010], 0 - 1)`. A true-or-false expression needs **F** as its test type.
+For example `abs(t[1020] - t[1010])`, or `if(dieX() < 5, t[1010], -1)`. A true-or-false expression needs **F** as its test type.
 
 ---
 
@@ -161,7 +161,7 @@ Reads a plots file and adds its plots. `RRAM-LOT-06`'s plots file brings two swe
 # What the card measures
 - A sweep card reports two results for its first two curves
 - **Crossing** is where they meet
-- **Width** is how far apart they are at levels set in the sweep, drawn as dashed lines
+- **Width** is how far apart they are at the sweep's set levels (dashed lines)
 - On a log axis the width is a ratio, such as ×17.8
 
 ![The Endurance sweep card, with its Crossing and Width readouts under the chart](images/09/sweep-measures.png)

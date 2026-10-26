@@ -63,7 +63,7 @@ export interface RenameRow {
 export function buildRenameRows(entries: FileWaferEntry[]): RenameRow[] {
   const rows: RenameRow[] = [];
   for (const entry of entries) {
-    const source = makeWaferSource(entry.parsed.meta, entry.fileName);
+    const source = makeWaferSource(entry.parsed.meta, entry.fileName, entry.parsed.wafers);
     const fileDefs: FileDefs = { testDefs: entry.parsed.testDefs, passHbins: entry.parsed.passHbins };
     const lotId = entry.parsed.meta.fields.find(f => f.key === 'lotId')?.value;
     for (const wafer of entry.parsed.wafers) {

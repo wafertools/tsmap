@@ -120,7 +120,7 @@ export const scenario = {
         ['wait', 1000], PARK,
       ],
       checks: [
-        isVisible(`${GT} button[aria-label^="Colorbar range"]`, 'the Colorbar range button has appeared'),
+        isVisible(`${GT} button[aria-label^="Colour bar range"]`, 'the Colour bar range button has appeared'),
         isVisible(`${GT} button[aria-label="Toggle log scale"]`, 'the Log scale button has appeared'),
       ],
       shots: [
@@ -129,7 +129,7 @@ export const scenario = {
           clip: { rect: { x: 0, y: 40, width: 1280, height: 520 } },
           callouts: [
             [`${GT} button[aria-label="Toggle log scale"]`, { badge: 1, pad: 2 }],
-            [`${GT} button[aria-label^="Colorbar range"]`, { badge: 2, pad: 2 }],
+            [`${GT} button[aria-label^="Colour bar range"]`, { badge: 2, pad: 2 }],
           ],
         },
         { name: 'test-value-card', clip: { target: CARD, nth: 0, pad: 8 } },
@@ -177,7 +177,7 @@ export const scenario = {
         ['click', btn('Overlays')], ['wait', 300],
         ['click', `${menu('Overlays')} ${row('Clear overlays')}`], ['wait', 300], ['press', 'Escape'], ['wait', 400],
       ],
-      checks: [isVisible(`${GT} button[aria-label^="Colorbar range"]`, 'the value gradient is back')],
+      checks: [isVisible(`${GT} button[aria-label^="Colour bar range"]`, 'the value gradient is back')],
       shots: [],
     },
     {

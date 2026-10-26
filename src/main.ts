@@ -48,6 +48,9 @@ import { makeLoadDefinitionsButton } from './recentDefinitionsUI';
 import { getRecentDefinitions, addRecentDefinition, recentDefinitionKey, describeAge, type DefinitionKind } from './recentDefinitions';
 import { storageKey } from './storageKeys';
 import { showResetSettingsDialog } from './resetSettingsUI';
+import { isShortcutsKey, showShortcutsDialog } from './shortcutsUI';
+import { adoptSavedPinnedTests, restoreAndWatchPinnedTests } from './pinnedTestsPrefs';
+import { rememberSelection } from './testSelectionMemory';
 import { initPwa } from './pwa';
 import { TSMAP_GUIDE_HTML } from './guideExtension';
 import { UnseenProblems } from './logBadge';
@@ -2441,6 +2444,7 @@ async function openFilterTests() {
         + 'describe it. Load those files separately to define it.');
     }
     testSelection = result.selection;
+    if (session.testProgram) rememberSelection(session.testProgram, testSelection);
     adoptDerived(result.derived);
     break;
   }
@@ -2524,7 +2528,7 @@ async function openFilterTests() {
   const reparsedBySource = new Map<WaferSource, FileDefs>();
   const allWafers: WaferData[] = [];
   for (const e of entries) {
-    const source = makeWaferSource(e.parsed.meta, e.fileName);
+    const source = makeWaferSource(e.parsed.meta, e.fileName, e.parsed.wafers);
     reparsedBySource.set(source, { testDefs: e.parsed.testDefs, passHbins: e.parsed.passHbins });
     for (const w of e.parsed.wafers) allWafers.push({ ...w, source });
   }
@@ -2943,6 +2947,12 @@ function openHelpMenu(anchor: HTMLElement) {
       }));
 
       popup.appendChild(makeMenuRow(close, {
+        label: 'Keyboard shortcuts…',
+        hint: 'The keys for maps, windows and menus. Press ? anywhere to open this list',
+        onClick: () => { showShortcutsDialog(); },
+      }));
+
+      popup.appendChild(makeMenuRow(close, {
         label: 'Definitions file formats…',
         hint: 'Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first',
         onClick: () => {
@@ -2986,7 +2996,7 @@ function openHelpMenu(anchor: HTMLElement) {
         label: 'Reset saved settings…',
         hint: 'See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it',
         onClick: () => {
-          showResetSettingsDialog({ isDesktop: isTauri, onLog: log });
+          showResetSettingsDialog({ isDesktop: isTauri, onLog: log, onCleared: adoptSavedPinnedTests });
         },
       }));
 
@@ -3199,6 +3209,10 @@ function openLotMenu(anchor: HTMLElement) {
 }
 
 helpBtn.addEventListener('click', () => openHelpMenu(helpBtn));
+restoreAndWatchPinnedTests();
+document.addEventListener('keydown', (e) => {
+  if (isShortcutsKey(e)) { e.preventDefault(); showShortcutsDialog(); }
+});
 lotBtn.addEventListener('click', () => openLotMenu(lotBtn));
 
 // Replace the native `title` tooltips on tsmap's top-toolbar chrome with the

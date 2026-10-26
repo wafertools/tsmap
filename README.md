@@ -186,7 +186,11 @@ src/
   loadPipeline.ts     — the load flow (`runLoad`): archives, mapping, test scan + selector, parse, naming, append, render — dialogs and platform injected
   logBadge.ts         — the Log button's new-warning/new-error counts
   resetSettingsUI.ts  — Help ▸ Reset saved settings… — shows what is stored and forgets it
+  shortcutsUI.ts      — Help ▸ Keyboard shortcuts… (and the ? key) — the keys for maps, windows and menus
   recentDefinitions.ts   — recently used definitions files (tests/bins/splits), both platforms
+  pinnedTestsPrefs.ts    — the tests pinned to the top of the chart test pickers, saved across sessions
+  columnGeometry.ts      — wafer geometry (diameter, die size, flat, centre, axis directions) read from a flat file's own columns, in STDF WCR form
+  testSelectionMemory.ts — the test selection last confirmed for a set of tests, offered again for the same test program
   recentDefinitionsUI.ts — the shared "Load definitions ▾" split button those are offered behind
 
   anchoredMenu.ts     — shared popup menu shell for the Recent / Help / Lot toolbar menus

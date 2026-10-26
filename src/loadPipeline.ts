@@ -28,6 +28,8 @@ import type { DerivedSelection } from './testSelectorUI';
 import type { BinDef } from '@wafertools/wafermap';
 import type { FileDefs, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 import { session } from './session';
+import { rememberedSelection, rememberSelection } from './testSelectionMemory';
+import { geometryFromColumns, hasOwnWcr } from './columnGeometry';
 
 /**
  * Per-source def map for a set of renamed wafers, optionally extending the
@@ -294,6 +296,8 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
   let testSelection: number[] | null = null;
   let overlayTestOverrides: Map<number, TestOverride> = new Map();
 
+  // A fresh load is a new test program (or none); an append keeps the one already loaded.
+  if (!isAppend) session.testProgram = null;
   if (firstPassTestDefs && Object.keys(firstPassTestDefs).length > 0) {
     const csvDieCount = Array.from(preParsed.values())
       .reduce((s, p) => s + p.wafers.reduce((ws, w) => ws + w.results.count, 0), 0);
@@ -307,6 +311,11 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
     let carrySelection: number[] = [];
     let carryOverrides = new Map<number, TestOverride>();
     let carryDerived: DerivedSelection = deps.derivedForSelector();
+    // The tests the first open lists identify the test program: the choice made on them is kept under that set, and
+    // offered again when a lot with the same tests is opened. A `--tests` list is an explicit choice and wins over it.
+    const programTests = Object.keys(firstPassTestDefs).map(Number);
+    const rememberedForProgram = rememberedSelection(programTests);
+    if (!isAppend) session.testProgram = programTests;
     // Only the very first open of this load gets the cheap-lot default below —
     // a "scan all files" re-open must carry the user's actual selection, even
     // when that selection is deliberately empty.
@@ -330,6 +339,10 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
         testSelection = [...allTestNums];
         log('info', `${testSelection.length} test${testSelection.length !== 1 ? 's' : ''} imported — use Setup ▾ → Tests… to filter them`);
         break;
+      }
+      if (firstOpen && !testListPreload && rememberedForProgram && rememberedForProgram.length > 0) {
+        carrySelection = rememberedForProgram;
+        log('info', `Test selection restored from the last lot with these tests: ${rememberedForProgram.length} of ${allTestNums.size}`);
       }
       firstOpen = false;
 
@@ -372,6 +385,7 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
       overlayTestOverrides = result.overrides;
       deps.adoptDerived(result.derived);
       testSelection = result.selection;
+      rememberSelection(programTests, testSelection);
       log('info', `Test filter: ${testSelection.length} of ${allTestNums.size} tests selected`);
       break;
     }
@@ -455,11 +469,20 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
   const allWafers = entries.flatMap(e => e.parsed.wafers);
   const needsRename = needsWaferLabelPrompt(entries);
 
+  // Wafer geometry stated in a flat file's own columns (see columnGeometry.ts): say what was taken, and what was not.
+  for (const e of entries) {
+    if (hasOwnWcr(e.parsed.meta.fields)) continue;
+    const { fields, notes } = geometryFromColumns(e.parsed.wafers, e.parsed.meta.fields ?? []);
+    for (const note of notes) log('warn', `${e.fileName}: ${note}`);
+    const stated = fields.filter(f => f.key !== 'wfUnits').map(f => f.key);
+    if (stated.length) log('info', `${e.fileName}: wafer geometry read from the file's columns (${stated.join(', ')})`);
+  }
+
   const appending = isAppend && session.wafers.length > 0;
   const getRenamed = async (): Promise<RenamedWafer[] | null> => {
     if (!needsRename) {
       // needsRename is false only for a single entry, so all wafers share its source.
-      const source = makeWaferSource(entries[0].parsed.meta, entries[0].fileName);
+      const source = makeWaferSource(entries[0].parsed.meta, entries[0].fileName, entries[0].parsed.wafers);
       const lotId = entries[0].parsed.meta.fields.find(f => f.key === 'lotId')?.value;
       return Promise.resolve(allWafers.map(w => ({
         // Added to a gallery, a wafer with a lot ID is labelled the way the wafer

@@ -60,6 +60,18 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     scope: 'both',
   },
   {
+    key: 'tsmap:pinned-tests',
+    label: 'Pinned tests',
+    description: 'The tests you pinned to the top of the test pickers in the charts.',
+    scope: 'both',
+  },
+  {
+    key: 'tsmap:test-selections',
+    label: 'Test selections',
+    description: 'Which tests you chose to import, remembered for each set of tests, so the same test program starts from your last choice.',
+    scope: 'both',
+  },
+  {
     key: 'tsmap:csv-mappings',
     label: 'Saved column mappings',
     description: 'Which CSV/JSON/Parquet column means what, remembered per column layout.',

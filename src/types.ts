@@ -108,6 +108,8 @@ export interface LotMeta {
 export interface WaferSource {
   sourceFile: string;
   fields: MetaField[];
+  /** Wafer geometry the file's own columns stated, in WCR form (sizes in mm) — read, not shown: see `columnGeometry.ts`. */
+  geometryColumns?: MetaField[];
 }
 
 /**

@@ -64,7 +64,8 @@
     "ui:surface:check": "node scripts/ui-surface.mjs --check",
     "lessons:shots": "node scripts/lesson-shots.mjs",
     "lessons:build": "node scripts/build-lessons.mjs",
-    "lessons:check": "node scripts/check-lesson-coverage.mjs"
+    "lessons:check": "node scripts/check-lesson-coverage.mjs",
+    "lessons:check:overflow": "node scripts/check-lesson-overflow.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
@@ -80,10 +81,10 @@
     "@marp-team/marp-cli": "^4.5.1",
     "@tauri-apps/cli": "^2.12.4",
     "eslint": "^10.13.0",
-    "marked": "^18.1.1",
+    "marked": "^18.1.2",
     "playwright": "^1.64.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.0",
+    "typescript-eslint": "^8.72.1",
     "vite": "^8.3.5",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.5"

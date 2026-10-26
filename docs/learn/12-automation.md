@@ -99,13 +99,24 @@ On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and
 ---
 
 <!-- _class: split -->
-<!-- covers: Help › User guide; Help › Definitions file formats…; Help › ☐Log phase timings; Help › Reset saved settings…; Help › About tsmap… -->
+<!-- covers: Help › User guide; Help › Keyboard shortcuts…; Help › Definitions file formats…; Help › ☐Log phase timings; Help › Reset saved settings…; Help › Support tsmap on Ko-fi; Help › About tsmap… -->
 
 # The Help menu
 
-**User guide** opens the full guide in its own window. **Log phase timings** adds timing lines to the log while a file loads, which helps when reporting a slow load. **About tsmap…** shows the version. The other two entries are **Definitions file formats…**, covered in the next section, and **Reset saved settings…**, covered after it.
+- **User guide** opens the full guide
+- **Keyboard shortcuts…** lists the keys; **?** opens it from anywhere
+- **Log phase timings** adds timing lines to the log during a load
+- **About tsmap…** shows the version
 
 ![The Help menu](images/12/help-menu.png)
+
+---
+
+# The rest of the Help menu
+
+- **Definitions file formats…** is covered in the next section
+- **Reset saved settings…** is covered after it
+- **Support tsmap on Ko-fi** opens the project's tip page
 
 ---
 

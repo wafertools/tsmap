@@ -65,6 +65,7 @@ const GROUPS = [
       ['npm run lessons:shots', 'Recapture the lessons\' screenshots (-- --only 01 for one lesson)'],
       ['npm run lessons:build', 'Build the lessons into site/learn/'],
       ['npm run lessons:check', 'Which controls and guide topics no lesson covers yet'],
+      ['npm run lessons:check:overflow', 'Slides whose content runs past the slide (after lessons:build)'],
     ],
   },
   {

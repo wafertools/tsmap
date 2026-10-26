@@ -1,6 +1,7 @@
 // Pure, DOM-free utility functions extracted from main.ts for testability.
 
 import { hardBins, hasBins, keepTests, testNumbers } from './columns';
+import { geometryFromColumns, hasOwnWcr } from './columnGeometry';
 import type { LotMeta, MetaField, ParsedFile, TestDef, TestOverride, WaferData, WaferSource } from './types';
 import type { RustParsedFile, StdfTestNames } from './platform';
 import type { TestDef as WmapTestDef } from '@wafertools/wafermap';
@@ -588,8 +589,12 @@ export function testNumbersForColumns(cols: readonly string[]): number[] {
  * per-wafer. The lot `fields` are carried verbatim (generic key/value); the
  * curation table in metadata.ts owns labels and which fields are surfaced.
  */
-export function makeWaferSource(meta: LotMeta, sourceFile: string): WaferSource {
-  return { sourceFile, fields: meta.fields ?? [] };
+export function makeWaferSource(meta: LotMeta, sourceFile: string, wafers?: ReadonlyArray<{ fields?: MetaField[] }>): WaferSource {
+  const fields = meta.fields ?? [];
+  // A file with its own WCR (STDF/ATDF) says its geometry there; geometry columns matter for the flat formats.
+  const geometry = wafers && !hasOwnWcr(fields)
+    ? geometryFromColumns(wafers, fields).fields : [];
+  return geometry.length ? { sourceFile, fields, geometryColumns: geometry } : { sourceFile, fields };
 }
 
 /**
@@ -709,7 +714,7 @@ export interface WcrGeometry {
  * geometric inference unchanged.
  */
 export function wcrGeometryFrom(source: WaferSource | undefined): WcrGeometry | null {
-  const fields = source?.fields;
+  const fields = source ? [...source.fields, ...(source.geometryColumns ?? [])] : undefined;
   if (!fields?.length) return null;
   const get = (key: string): string | undefined => fields.find(f => f.key === key)?.value;
 

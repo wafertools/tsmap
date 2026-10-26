@@ -369,7 +369,7 @@ STDF and ATDF files from production testers often contain hundreds of parametric
 functional tests. For a large file tsmap shows a test selector overlay before the full parse so
 you can choose which tests to import. A small lot (a few million test-by-die values or fewer,
 such as the bundled sample) imports every test at once and logs "N tests imported"; **Setup ▾ →
-Tests…** opens the same selector afterwards. The selector also always appears when `--tests` is
+Tests…** opens the same selector afterwards. When you confirm a selection, tsmap keeps it for that set of tests: the next time a lot with the same tests is opened, the selector starts from your last choice (the log says so), and a lot from a different test program, or the same one with a test added or dropped, starts empty. The selector also always appears when `--tests` is
 given. This keeps memory usage and load time proportional
 to what you actually need.
 
@@ -511,6 +511,7 @@ wafers, and the log names the files.
 
 After parsing, tsmap renders the wafer map. A single-wafer file shows one full-screen map
 with the summary panel open by default; a multi-wafer lot shows a side-by-side gallery.
+**Help → Keyboard shortcuts…**, or the **?** key, lists the keys for maps, windows and menus.
 
 For a full walkthrough of toolbar controls, plot modes, overlays, zoom and pan, die hover
 tooltips, the findings panel, the summary panel, and gallery controls, see the
@@ -702,6 +703,8 @@ reachable with nothing loaded.
 
 ### Grouping data in the Insights tab
 
+The [Chart reference](https://wafertools.github.io/wafermap/charts/) describes each chart, plot and table: what it shows, how to read it and where to find it.
+
 The **Insights** side of the **Maps | Insights** switch at the far right of the toolbar row (both the single-wafer view and the gallery have
 their own) switches to a grid of statistical panels — yield, per-test pass rate, bin pareto,
 process capability, boxplot, histogram, wafer-to-wafer trend, correlation, and scatter — sharing
@@ -843,7 +846,7 @@ its tooltip shows the expression, so it is never mistaken for a measurement.
 - **What an expression can read:** `t[3126]` is a test's value, `testPass[2001]` the tester's
   recorded pass/fail, `specPass[3126]` whether the value is inside its limits, and `diePass()`
   the die's bin verdict. The die's own fields are `dieX()`, `dieY()`, `hbin()`, `sbin()` and `site()`, so a test can be cut by
-  bin (`hbin() == 5`) or position (`if(dieX() < 5, t[1010], 0 - 1)`); a field the die lacks is no value, not zero. `3126..3130` names every test in that range that exists — so a
+  bin (`hbin() == 5`) or position (`if(dieX() < 5, t[1010], -1)`); a field the die lacks is no value, not zero. `3126..3130` names every test in that range that exists — so a
   program numbered in steps of two needs nothing special. A range must be reduced with
   `mean`, `sum`, `min`, `max`, `all`, `any`, `none`, `countTrue`, `countFalse` or
   `countKnown`. The full list of operators and functions is in the
@@ -1526,6 +1529,8 @@ endurance sweep does the latter, reading each cycle count (`1e3`) from its test 
 
 ### Column mapping reference
 
+**Wafer geometry in your columns.** A column whose header is **Wafer diameter**, **Die width**, **Die height**, **Wafer flat**, **Centre die X**, **Centre die Y**, **X increases** or **Y increases** (the labels a wafer map's die-list export writes, or the STDF names `WAFR_SIZ`, `DIE_WID`, `DIE_HT`, `WF_FLAT`, `CENTER_X`, `CENTER_Y`, `POS_X`, `POS_Y`) is used to draw the map, the way an STDF file's own wafer configuration is, as well as shown as display info. A size must carry its unit (`300 mm`, `12 in`): a bare number is left alone and the log says so. A side or direction is a word (`Bottom`, `Right`) or its letter. If wafers state different values, the first wafer's is used for all of them and the log says so. A diameter you set in **Setup ▾ → Diameter & edge exclusion** still takes precedence.
+
 The roles a column can take in the [column mapping overlay](#column-mapping-csv-json-and-parquet),
 and the header names that are filled in automatically.
 
@@ -1619,7 +1624,7 @@ tsmap saves a few things between sessions so you don't have to set them up again
 theme, your wafer-map preferences (colour schemes, overlays, legend position, number format and the
 Insights charts' axis settings, but not a rotation, the compact layout or log scale, which belong to the
 data on screen), recently opened files, recently used definitions files, column mappings (per column
-layout), wafer split assignments (per lot), your saved plots, filter and saved filters, any wafer diameter and edge-exclusion override, the reticle, the limit set values must lie inside, and
+layout), the tests you selected (per set of tests), the tests you pinned in the charts' test pickers, wafer split assignments (per lot), your saved plots, filter and saved filters, any wafer diameter and edge-exclusion override, the reticle, the limit set values must lie inside, and
 the last file filter. The desktop app also remembers its window's size, position and whether it was
 maximised, and opens the next launch the same way; a first launch opens centred at 80% of the screen.
 This one is kept in the app's configuration folder rather than in the list below, so **Reset saved
