@@ -139,7 +139,7 @@ One colour per split. **Follow Group by** is the default: the colours follow the
 
 # More settings
 - **Filter**: keep only the dies that meet conditions
-- **Panels**: one small plot per value of a field
+- **Panels**: one small plot per value of a field; a **Columns** control above them, or the keys **1** to **5** while the pointer is over the plot, sets how many sit side by side
 - **Fit line**: least squares, or orthogonal for two measures of one thing
 - **One mark per**: a point per die or per wafer
 

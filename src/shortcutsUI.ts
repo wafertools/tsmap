@@ -29,7 +29,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   {
     title: 'On a gallery and the Insights tab',
     rows: [
-      ['1 – 5', 'Set that many columns of cards'],
+      ['1 – 5', 'Set that many columns of cards (over a plot of panels: that plot\'s columns)'],
       ['0', 'Set the columns back to Auto'],
     ],
   },
