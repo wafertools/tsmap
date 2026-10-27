@@ -4,6 +4,7 @@
 [![Build](https://github.com/wafertools/tsmap/actions/workflows/build.yml/badge.svg)](https://github.com/wafertools/tsmap/actions/workflows/build.yml)
 [![release](https://img.shields.io/github/v/release/wafertools/tsmap)](https://github.com/wafertools/tsmap/releases)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![support](https://img.shields.io/badge/support-wafertools-ff5e5b)](https://wafertools.github.io/support/)
 
 A desktop and web application for loading and visualising semiconductor wafer map data. Built with [Tauri v2](https://tauri.app/) (Rust backend), a WASM parser for the browser, and [wafermap](https://github.com/wafertools/wafermap) (canvas rendering).
 
@@ -286,9 +287,10 @@ The STDF and ATDF parsers are written in this crate, not taken from a library â€
 
 ## Support
 
-tsmap is free, open-source and MIT-licensed. If it saves you time, you can support its
-development on [Ko-fi](https://ko-fi.com/wafertools): tips help cover development hardware
-and running costs. Bug reports and sample files help just as much.
+tsmap is free, open-source and MIT-licensed, and will stay that way. If it saves you time,
+you can leave a tip on [Ko-fi](https://ko-fi.com/wafertools). If your company relies on it,
+please consider a monthly sponsorship: [how to support wafertools](https://wafertools.github.io/support/).
+Bug reports and sample files help just as much.
 
 ## Licence
 

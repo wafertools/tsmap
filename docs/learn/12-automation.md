@@ -99,7 +99,7 @@ On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and
 ---
 
 <!-- _class: split -->
-<!-- covers: Help › User guide; Help › Keyboard shortcuts…; Help › Definitions file formats…; Help › ☐Log phase timings; Help › Reset saved settings…; Help › Support tsmap on Ko-fi; Help › About tsmap… -->
+<!-- covers: Help › User guide; Help › Keyboard shortcuts…; Help › Definitions file formats…; Help › ☐Log phase timings; Help › Reset saved settings…; Help › Support tsmap…; Help › About tsmap… -->
 
 # The Help menu
 
@@ -116,7 +116,7 @@ On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and
 
 - **Definitions file formats…** is covered in the next section
 - **Reset saved settings…** is covered after it
-- **Support tsmap on Ko-fi** opens the project's tip page
+- **Support tsmap…** opens the page on how to support the project
 
 ---
 

@@ -65,7 +65,7 @@ for (const [from, to] of EXTRAS) {
 }
 
 // wasm-pack has no Cargo.toml field to generate this from, so it is set here.
-manifest.funding = 'https://ko-fi.com/wafertools';
+manifest.funding = 'https://wafertools.github.io/support/';
 
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 console.log(`sync-parser-pkg: ${copied.join(', ')} → pkg/, listed in files[]`);

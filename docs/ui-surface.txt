@@ -43,8 +43,8 @@ Menu — Help:
         hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
     · Reset saved settings…
         hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
-    · Support tsmap on Ko-fi
-        hint: tsmap is free and open source — tips help cover development hardware and running costs
+    · Support tsmap…
+        hint: tsmap is free and open source. Tips and company sponsorships fund its development
     · About tsmap…
         hint: Version, licence, and the projects this is built on
 
@@ -219,8 +219,8 @@ Menu — Help:
         hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
     · Reset saved settings…
         hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
-    · Support tsmap on Ko-fi
-        hint: tsmap is free and open source — tips help cover development hardware and running costs
+    · Support tsmap…
+        hint: tsmap is free and open source. Tips and company sponsorships fund its development
     · About tsmap…
         hint: Version, licence, and the projects this is built on
 
@@ -489,8 +489,8 @@ Menu — Help:
         hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
     · Reset saved settings…
         hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
-    · Support tsmap on Ko-fi
-        hint: tsmap is free and open source — tips help cover development hardware and running costs
+    · Support tsmap…
+        hint: tsmap is free and open source. Tips and company sponsorships fund its development
     · About tsmap…
         hint: Version, licence, and the projects this is built on
 

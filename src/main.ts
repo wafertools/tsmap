@@ -3008,9 +3008,9 @@ function openHelpMenu(anchor: HTMLElement) {
       popup.appendChild(sep);
 
       popup.appendChild(makeMenuRow(close, {
-        label: 'Support tsmap on Ko-fi',
-        hint: 'tsmap is free and open source — tips help cover development hardware and running costs',
-        onClick: () => { platform.openExternal(KOFI_URL); },
+        label: 'Support tsmap…',
+        hint: 'tsmap is free and open source. Tips and company sponsorships fund its development',
+        onClick: () => { platform.openExternal(SUPPORT_URL); },
       }));
 
       popup.appendChild(makeMenuRow(close, {
@@ -3032,8 +3032,8 @@ function openHelpMenu(anchor: HTMLElement) {
  * map. It doubles as the answer to "which version am I running?", which
  * previously existed only as a line in the log panel.
  */
-/** The project's Ko-fi page — Help → Support tsmap on Ko-fi, and a link in About. */
-const KOFI_URL = 'https://ko-fi.com/wafertools';
+/** How to support the project (Ko-fi, GitHub Sponsors) — Help → Support tsmap…, and a link in About. */
+const SUPPORT_URL = 'https://wafertools.github.io/support/';
 
 function showAboutModal(): void {
   openModal({
@@ -3107,7 +3107,7 @@ function showAboutModal(): void {
       links.appendChild(link('wafermap', 'https://github.com/wafertools/wafermap',
         'the wafer rendering and analysis library this is built on — usable in your own application'));
       links.appendChild(link('wafertools', 'https://wafertools.github.io/', 'both projects, and what changed recently'));
-      links.appendChild(link('Ko-fi', KOFI_URL, 'free and open source; support its development here'));
+      links.appendChild(link('Support', SUPPORT_URL, 'free and open source; how to support its development'));
       body.appendChild(links);
     },
   });
