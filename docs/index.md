@@ -101,7 +101,7 @@ build or the desktop app with a single URL.
 
 ## Community
 
-Questions, ideas, or want to show off a wafer map you built? Use [GitHub Discussions](https://github.com/wafertools/.github/discussions).
+Questions or ideas? Use [GitHub Discussions](https://github.com/wafertools/.github/discussions).
 
 ## Links
 

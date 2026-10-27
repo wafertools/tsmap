@@ -26,7 +26,7 @@ intranet, for sites with no external internet access. See
 
 ## Community
 
-Questions, ideas, or want to show off a wafer map you built? Use [GitHub
+Questions or ideas? Use [GitHub
 Discussions](https://github.com/wafertools/.github/discussions).
 
 ## Features
