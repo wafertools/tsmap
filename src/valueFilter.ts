@@ -8,7 +8,9 @@ export type ValueFilterMode = 'validity' | 'spec' | 'test' | 'none';
 
 export const DEFAULT_VALUE_FILTER: ValueFilterMode = 'validity';
 
-const MODES: readonly ValueFilterMode[] = ['validity', 'spec', 'test', 'none'];
+/** Every mode, in the order the dialog lists them; also what a setup file's value is checked against. */
+export const VALUE_FILTER_MODES: readonly ValueFilterMode[] = ['validity', 'spec', 'test', 'none'];
+const MODES = VALUE_FILTER_MODES;
 
 export const VALUE_FILTER_LABEL: Readonly<Record<ValueFilterMode, string>> = {
   validity: 'Validity limits',

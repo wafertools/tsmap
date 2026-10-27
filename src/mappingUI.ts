@@ -5,7 +5,10 @@ import { escapeHtml as esc, testNumbersForColumns } from './lib';
 import { upgradeTitleTooltips } from './tooltip';
 import { openModal } from './modal';
 import { parseBinDefsFile, type BinDefEntry } from './binDefs';
-import { storageKey } from './storageKeys';
+import { buildBinRows, countSampleBins, parsePassField, rowsWithEntries } from './binEditor';
+import { showBinEditor } from './binEditorUI';
+import type { RecentLoadRow } from './recentDefinitionsUI';
+import { loadSavedMapping, saveMapping, forgetMapping } from './savedMappings';
 import { limitFieldForHeader } from './limitNames';
 
 export interface CsvTestCol {
@@ -290,42 +293,6 @@ export function detectRoles(
   return { roles, notes };
 }
 
-// ── localStorage persistence ──────────────────────────────────────────────────
-
-const LS_KEY = storageKey('tsmap:csv-mappings');
-
-function fingerprintHeaders(headers: string[]): string {
-  return [...headers].sort().join('\x00');
-}
-
-function loadSavedMapping(headers: string[]): Partial<CsvMapping> | null {
-  try {
-    const store = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}');
-    return store[fingerprintHeaders(headers)] ?? null;
-  } catch { return null; }
-}
-
-function saveMapping(headers: string[], mapping: CsvMapping) {
-  try {
-    const store = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}');
-    store[fingerprintHeaders(headers)] = mapping;
-    localStorage.setItem(LS_KEY, JSON.stringify(store));
-  } catch { /* quota exceeded — silently skip */ }
-}
-
-/** Drop the remembered mapping for this header set, so the next load of the
- *  same file auto-detects again. Backs the overlay's "Reset to auto-detected"
- *  button — without it, resetting the on-screen roles would be undone the next
- *  time the file was opened, and there was no in-app route back to detection
- *  at all once a mapping had been saved. */
-function forgetMapping(headers: string[]) {
-  try {
-    const store = JSON.parse(localStorage.getItem(LS_KEY) ?? '{}');
-    delete store[fingerprintHeaders(headers)];
-    localStorage.setItem(LS_KEY, JSON.stringify(store));
-  } catch { /* unavailable — nothing to forget */ }
-}
-
 // ── Role options (matches showcase) ──────────────────────────────────────────
 
 const ROLE_OPTIONS: { value: ColRole; label: string }[] = [
@@ -559,11 +526,21 @@ function showLongFormatModal(): Promise<boolean> {
 
 // ── Main: build overlay ───────────────────────────────────────────────────────
 
+/** What the **Name bins…** editor needs from the app: the same files, recents and log the Setup dialog uses. */
+export interface BinNamingHost {
+  pick: () => Promise<string | null>;
+  recents: () => RecentLoadRow[];
+  recentNote?: string;
+  save: (csv: string) => Promise<void>;
+  onLog: (level: 'info' | 'warn' | 'error', message: string) => void;
+}
+
 export async function showMappingOverlay(
   result: HeadersResult,
   onConfirm: (mapping: CsvMapping, binDefs: BinDefEntry[]) => void,
   onCancel: () => void,
   onLoadBinDefs: () => Promise<string | null>,
+  binNaming?: BinNamingHost,
 ): Promise<void> {
   const { headers, sample, rowCount } = result;
   const saved = loadSavedMapping(headers);
@@ -680,6 +657,8 @@ export async function showMappingOverlay(
           <input id="pass-bin-input" type="text" value="${savedPassBins}"
                  title="Comma-separated hard bin numbers counted as pass, e.g. 1 or 1,2">
           <span class="muted">(hard bins, comma-separated)</span>
+          <button id="map-name-bins" type="button" class="btn-secondary"
+                  title="Name the bins in this file, give them colours and tick the ones that pass, in a table — the bins come from the sample of rows this window holds">Name bins…</button>
           <button id="map-load-bindefs" type="button" class="btn-secondary"
                   title="Load a bin-definitions CSV for real bin names (and pass/fail flags) instead of typing bare numbers">Load bin definitions…</button>
           <span id="map-bindefs-status" class="muted"></span>
@@ -836,6 +815,43 @@ export async function showMappingOverlay(
     }
     loadedBinDefs = parsed;
     bindefsStatus.textContent = `${parsed.length} bin definition${parsed.length !== 1 ? 's' : ''} loaded`;
+  });
+
+  // The bins this window can see are the sample's: the first rows and some spread through the file. A rare
+  // bin may be missing, so the editor adds one by number, and Setup ▾ → Bin definitions… lists every bin
+  // once the file is loaded.
+  const nameBinsBtn = overlay.querySelector<HTMLButtonElement>('#map-name-bins')!;
+  if (!binNaming) nameBinsBtn.hidden = true;
+  nameBinsBtn.addEventListener('click', () => {
+    if (!binNaming) return;
+    const current = readMapping(overlay, passBinInput);
+    const typed = parsePassField(passBinInput.value);
+    const rows = rowsWithEntries(buildBinRows({
+      passHbins: typed.length ? typed : [1],
+      hardCounts: countSampleBins(sample, current.hbin),
+      softCounts: countSampleBins(sample, current.sbin),
+    }), loadedBinDefs);
+    showBinEditor({
+      rows,
+      mixed: new Set<number>(),
+      preload: true,
+      countsHeader: 'In sample',
+      intro: 'Name the bins in this file, choose their colours and tick the hard bins that count as pass. The list is the bins found in the '
+        + `sample of ${sample.length} rows this window holds, so a rare bin may be missing: add it by number. Once the file is loaded, `
+        + 'Setup ▾ → Bin definitions… lists every bin it has.',
+      pick: binNaming.pick,
+      recents: binNaming.recents,
+      recentNote: binNaming.recentNote,
+      save: binNaming.save,
+      onLog: binNaming.onLog,
+      onApply: (applied, entries) => {
+        // Hard bins always carry their pass flag, so the entries and the Pass bin(s) field say the same thing.
+        loadedBinDefs = entries.filter(e => e.type === 'hard' || e.name !== undefined || e.color !== undefined);
+        if (applied.passChanged && applied.passHbins) passBinInput.value = applied.passHbins.join(', ');
+        const named = entries.filter(e => e.name !== undefined || e.color !== undefined).length;
+        bindefsStatus.textContent = named > 0 ? `${named} bin${named !== 1 ? 's' : ''} named` : '';
+      },
+    });
   });
 
   const closeOverlay = () => {

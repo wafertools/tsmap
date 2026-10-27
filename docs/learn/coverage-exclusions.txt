@@ -55,6 +55,7 @@ fold Filter files › Filter by column = Filter by * | one per metadata column f
 # Leaving a control out of the course is the maintainer's decision. Propose an
 # exclusion in review, with its reason, and add the line only once it is agreed.
 
+re:^Bin definitions… › (Tick [hs]\d+|Pass of [hs]\d+: .*)$ | one tick box and one pass toggle per bin in the lot, a row of the table the slide teaches (with Mark pass and Mark fail)
 LOT-DEMO · W01▾Product: DEMO-DEVICE | only on the wafermap demo page; tsmap shows the wafer chip instead
 User guide | only on the wafermap demo page; tsmap opens the guide from Help › User guide
 

@@ -257,7 +257,9 @@ const DIALOGS = [
   ['#lot-btn', 'Reticle…'],
   ['#lot-btn', 'Retests…'],
   ['#help-btn', 'Definitions file formats…'],
-  ['#help-btn', 'Reset saved settings…'],
+  ['#lot-btn', 'Setup file…'],
+  ['#preferences-btn', 'Reset saved settings…'],
+  ['#preferences-btn', 'Export or import settings…'],
   ['#help-btn', 'About tsmap…'],
 ];
 

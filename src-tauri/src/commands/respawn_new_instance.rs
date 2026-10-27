@@ -17,6 +17,12 @@ pub fn respawn_new_instance(args: CliArgs) -> Result<(), String> {
     if let Some(splits) = &args.splits {
         cmd.arg("--splits").arg(splits);
     }
+    if let Some(bins) = &args.bins {
+        cmd.arg("--bins").arg(bins);
+    }
+    if let Some(setup) = &args.setup {
+        cmd.arg("--setup").arg(setup);
+    }
     if let Some(plots) = &args.plots {
         cmd.arg("--plots").arg(plots);
     }

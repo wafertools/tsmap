@@ -39,6 +39,10 @@ Learn tsmap
 - Defined by an **expression** in a row of the test definitions file
 - Then an ordinary test: map it, chart it, set limits
 
+<!-- covers: Derived tests… -->
+
+**Derived tests…** in the test selector adds, edits and deletes them in a table. Each expression is checked as you type: ✓ with what it produces, or ✗ with the reason and where, and a **Reads** column lists the tests it depends on. Apply is refused while a test would be dropped.
+
 These slides use [`RRAM-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-rram-lot.stdf&dataFormat=stdf), a resistive-memory lot. Its [test definitions](https://wafertools.github.io/tsmap/samples/tsmap-rram-testdefs.csv) and [plots file](https://wafertools.github.io/tsmap/samples/tsmap-rram-plots.json) are on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
 
 ---

@@ -156,7 +156,7 @@ export const CAPTURES = [
     selector: '.tsmap-modal-box',
   },
 
-  // ── §2 File associations dialog (Help menu, desktop-only) ──────────────────
+  // ── §2 File associations dialog (Preferences menu, desktop-only) ──────────────────
   // This row (main.ts) is gated on `isTauri`, so it never renders against the
   // plain web `dist/` build the rest of this harness drives — there's no way
   // to reach it by clicking through the app. screenshotFn instead stubs
@@ -198,7 +198,7 @@ export const CAPTURES = [
       });
       await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
 
-      await page.click('#help-btn');
+      await page.click('#preferences-btn');
       await page.waitForTimeout(200);
       const clicked = await page.evaluate(() => {
         const menus = [...document.body.children].filter(el => el.tagName === 'DIV' && el.style.position === 'fixed');
@@ -208,7 +208,7 @@ export const CAPTURES = [
         }
         return false;
       });
-      if (!clicked) throw new Error('"File associations…" row not found in the Help menu — isTauri mock may not have taken effect');
+      if (!clicked) throw new Error('"File associations…" row not found in the Preferences menu — isTauri mock may not have taken effect');
 
       await page.waitForSelector('.tsmap-modal-box', { timeout: 5_000 });
       await page.waitForSelector('.tsmap-modal-box input[type=checkbox]', { timeout: 5_000 });

@@ -14,6 +14,14 @@ import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
 const S = (f) => `${SAMPLEDATA}/${f}`;
+/** A text check by pattern: how many supporting findings a pattern has depends on the sample data, so the lesson must not hard-code it. */
+const matchesText = (selector, pattern, describe) => ({
+  name: `text ${selector}`,
+  describe,
+  get: (page) => page.locator(selector).innerText({ timeout: 5000 }),
+  expect: (t) => typeof t === 'string' && pattern.test(t),
+});
+
 const RIGHT = '[data-wmap-placement]:has([data-wmap-summary-close])';
 const PANEL = '[data-wmap-summary-close]';
 const panelClip = (extra = {}) => ({ target: PANEL, closest: '[data-wmap-placement]', pad: 8, ...extra });
@@ -207,15 +215,15 @@ export const scenario = {
       id: '20-supporting',
       title: 'A spatial pattern has a Show N supporting findings line',
       steps: [['scrollIntoView', section('Findings')], PARK],
-      checks: [hasText(RIGHT, 'Show 14 supporting findings')],
-      shots: [{ name: 'supporting-closed', clip: fromHeader('Findings (', `${RIGHT} >> text=Show 14 supporting findings`), callouts: [[`${RIGHT} >> text=Show 14 supporting findings`, { pad: 2 }]] }],
+      checks: [matchesText(RIGHT, /Show \d+ supporting findings/, 'the pattern offers its supporting findings')],
+      shots: [{ name: 'supporting-closed', clip: fromHeader('Findings (', `${RIGHT} >> text=/Show \\d+ supporting findings/`), callouts: [[`${RIGHT} >> text=/Show \\d+ supporting findings/`, { pad: 2 }]] }],
     },
     {
       id: '20b-supporting-open',
       title: 'Opened, it lists the regional findings the pattern explains',
-      steps: [['click', `${RIGHT} >> text=Show 14 supporting findings`], ['wait', 500], TOP, PARK],
-      checks: [hasText(RIGHT, 'Hide 14 supporting findings')],
-      shots: [{ name: 'supporting-findings', clip: fromHeader('Findings (', `${RIGHT} >> text=Hide 14 supporting findings`, { maxHeight: 420 }) }],
+      steps: [['click', `${RIGHT} >> text=/Show \\d+ supporting findings/`], ['wait', 500], TOP, PARK],
+      checks: [matchesText(RIGHT, /Hide \d+ supporting findings/, 'the supporting findings are open')],
+      shots: [{ name: 'supporting-findings', clip: fromHeader('Findings (', `${RIGHT} >> text=/Hide \\d+ supporting findings/`, { maxHeight: 420 }) }],
     },
     {
       id: '20c-same-dies',

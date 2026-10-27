@@ -1178,7 +1178,7 @@
       }
       /* The right-hand group must never be the thing that scrolls out of view,
          so it can't shrink; everything to its left yields first. */
-      #theme-select, #help-btn { flex-shrink: 0; }
+      #theme-select, #preferences-btn, #help-btn { flex-shrink: 0; }
       #toolbar-title { font-weight: 600; color: var(--text-secondary); margin-right: 4px; }
       @media (max-width: 1100px) { #drop-hint { display: none; } }
       @media (max-width: 700px)  { #toolbar-title { display: none; } }
@@ -1631,14 +1631,14 @@
       .tsmap-modal.append-modal .append-warnings { margin-bottom: 16px; }
       .tsmap-modal.append-modal .append-summary { margin-bottom: 12px; }
 
-      /* ── Help button + modal ───────────────────────────────────────── */
-      #help-btn {
+      /* ── Help and Settings buttons + modal ───────────────────────────────────────── */
+      #help-btn, #preferences-btn {
         background: none; border: none;
         color: var(--text-muted);
         padding: 0; cursor: pointer; flex-shrink: 0;
         display: flex; align-items: center; justify-content: center;
       }
-      #help-btn:hover { color: var(--accent); }
+      #help-btn:hover, #preferences-btn:hover { color: var(--accent); }
 
       /* ── Log panel ─────────────────────────────────────────────── */
       #log-bar {
@@ -1706,6 +1706,7 @@
         <button id="reset-btn" class="tb-btn tb-btn--danger" style="display:none" title="Unload all files and return to the start screen">Clear files</button>
         <span id="drop-hint">or drop a file anywhere</span>
         <span id="file-label"></span>
+        <button id="preferences-btn" class="btn-icon" aria-label="Preferences" title="Preferences" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         <button id="help-btn" class="btn-icon" aria-label="Help" title="Help" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
       </div>
       <div id="map-container"></div>

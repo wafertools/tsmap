@@ -311,7 +311,7 @@ scripts and web workers on that scheme.
 **Cause:** registering `.stdf`/`.atdf`/`.parquet` for double-click opening requires OS
 integration the browser cannot provide.
 
-**Fix:** use the desktop app — **Help → File associations…**.
+**Fix:** use the desktop app — **Preferences → File associations…**.
 
 **How to confirm:** double-clicking a data file opens tsmap. The full browser/desktop split is
 tabulated in [Differences from the desktop app](web.md#differences-from-the-desktop-app).

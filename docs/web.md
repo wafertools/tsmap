@@ -74,15 +74,14 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
   single wafer opens: one map, its own toolbar and the Summary panel.
 - [tsmap-coordless.stdf](samples/tsmap-coordless.stdf) — STDF: 3 wafers, one with a position for
   every die, one with some dies unpositioned, and one with none, to see how each is shown.
-- [tsmap-edge-ring-lot.stdf](samples/tsmap-edge-ring-lot.stdf) — STDF: lot `EDGE-LOT-01`, 8 wafers
-  with an edge-ring defect that shows up when the wafers are stacked.
-- [tsmap-hy-lot.stdf](samples/tsmap-hy-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers with a
-  yield spread and several findings on the Summary panel.
+- [tsmap-edge-ring-lot.stdf](samples/tsmap-edge-ring-lot.stdf) — STDF: lot `EDGE-LOT-01`, 8 wafers of 300 mm
+  with 10×8 mm dies (799 dies a wafer), with an edge-ring defect that shows up when the wafers are stacked.
 - [tsmap-dense-lot.stdf](samples/tsmap-dense-lot.stdf) — STDF: lot `PARAM-LOT-02`, 6 wafers of 300 mm with 5 mm dies
   (2,709 dies a wafer), a parametric shift. A dense wafer, to try the gallery's **Columns** (keys **1** to **5**,
   **0** for Auto) and to aim at small dies.
-- [tsmap-large-die-lot.stdf](samples/tsmap-large-die-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers of 150 mm with
-  10 mm dies (145 dies a wafer), a high-yield lot. A sparse wafer, the opposite of the dense lot.
+- [tsmap-hy-lot.stdf](samples/tsmap-hy-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers of 150 mm with 10 mm dies
+  (145 dies a wafer), a high-yield lot with little for the Summary panel to find. A sparse wafer, the opposite of
+  the dense lot above.
 - [tsmap-rram-lot.stdf](samples/tsmap-rram-lot.stdf) — STDF: lot `RRAM-LOT-06`, a resistive-memory
   lot with sweep tests. Load [tsmap-rram-testdefs.csv](samples/tsmap-rram-testdefs.csv) with
   **Setup ▾ → Tests… → Load definitions** for readable names and derived tests, and
@@ -122,7 +121,7 @@ All five formats are supported in the browser:
 | Offline use | Yes — the app installs a service worker on first visit and then opens with no network at all | Yes |
 | Install as an app | Yes in Chrome, Chromium and Edge — see [Installing tsmap as an app](#installing-tsmap-as-an-app). Firefox on the desktop cannot install web apps at all | Yes (installer) |
 | Opening data from a URL | `?dataUrl=&dataFormat=` query param, subject to the target server's CORS policy | `--url`/`--url-format` CLI flags, a `tsmap://open?url=...&format=...` link, or both — plus optional header-based auth via `--url-headers` |
-| File associations (open `.stdf`/`.atdf`/`.parquet` by double-click) | Not available | **Help → File associations…** |
+| File associations (open `.stdf`/`.atdf`/`.parquet` by double-click) | Not available | **Preferences → File associations…** |
 
 ## Browser requirements
 

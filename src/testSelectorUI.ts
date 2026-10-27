@@ -1,10 +1,12 @@
 import type { TestDef, TestOverride } from './types';
 import { createRangeSelection } from './listSelection';
-import { webValueBudgetWarning } from './lib';
+import { webValueBudgetWarning, toWmapTestDefs } from './lib';
 import { ICONS } from '@wafertools/wafermap/render';
 import { DERIVED_MARK, DERIVED_KEY, fmtExact } from '@wafertools/wafermap';
 import { attachTooltip } from './tooltip';
 import { buildToggleGroup } from './toggleGroup';
+import { showTestEditor } from './testEditorUI';
+import { showDerivedEditor } from './derivedEditorUI';
 import { makeLoadDefinitionsButton, type RecentLoadRow } from './recentDefinitionsUI';
 import { errMsg } from './lib';
 import { normalizeHeaderKey } from './headerKey';
@@ -981,8 +983,8 @@ export function showTestSelectorOverlay(
       // so the dialog doubles as a read-only preview of a test's full definition.
       // Values are *effective* (override-aware, like displayName()) rather than
       // the raw parsed def — the only visible confirmation that a loaded
-      // limit/type override actually took effect, since there's no inline
-      // editor for these fields (Save/Load definitions is the whole edit workflow).
+      // limit/type override actually took effect. They are edited in the table behind
+      // "Edit limits…" (testEditorUI.ts), or by loading a definitions file.
       const eff = effectiveLimits(e.num, e.def);
 
       const limitsSpan = document.createElement('span');
@@ -1239,6 +1241,69 @@ export function showTestSelectorOverlay(
   });
   btnRow.appendChild(clearDerivedBtn);
 
+  // Limits, units and type, in a table over the whole list. The selector's own Escape handler stands
+  // down while it is open, so closing the editor never closes the selector under it.
+  let editorOpen = false;
+  const editBtn = document.createElement('button');
+  editBtn.textContent = 'Edit limits…';
+  editBtn.className = 'btn-secondary';
+  attachTooltip(editBtn, 'Edit names, limits, units and type for every listed test in a table');
+  editBtn.addEventListener('click', () => {
+    editorOpen = true;
+    showTestEditor({
+      entries: entries.filter(e => !e.derived).map(e => ({ num: e.num, def: e.def, override: testOverrides.get(e.num) })),
+      onApply: (changes) => {
+        for (const [num, ov] of changes) {
+          if (!ov) { testOverrides.delete(num); continue; }
+          // A name set in the list belongs to the same override; the editor's own wins.
+          testOverrides.set(num, ov);
+        }
+        renderList();
+        updateFooter();
+      },
+      onClosed: () => { editorOpen = false; },
+      onLog: (level, message) => options.onLog?.(level, message),
+    });
+  });
+  btnRow.appendChild(editBtn);
+
+  // Derived tests: add, edit, delete, with wmap checking each expression. The measured tests an expression
+  // may read are the ones that will be imported, so the check is told which those are.
+  const derivedBtn = document.createElement('button');
+  derivedBtn.textContent = 'Derived tests…';
+  derivedBtn.className = 'btn-secondary';
+  attachTooltip(derivedBtn, 'Add, edit or delete tests computed per die from other tests');
+  derivedBtn.addEventListener('click', () => {
+    editorOpen = true;
+    const measured = entries.filter(e => !e.derived);
+    const effective: Record<string, TestDef> = {};
+    for (const e of measured) {
+      const eff = effectiveLimits(e.num, e.def);
+      effective[String(e.num)] = { ...e.def, ...eff, name: displayName(e.num, e.def) || String(e.num) };
+    }
+    showDerivedEditor({
+      entries: entries.filter(e => e.derived).map(e => resolvedEntry(e.num, e.def, e.derived)),
+      ctx: { measured: toWmapTestDefs(effective), selected: new Set(measured.filter(e => selected.has(e.num)).map(e => e.num)) },
+      onApply: (next) => {
+        const before = new Set(derivedTests.map(d => d.num));
+        const wasSelected = new Set(derivedTests.filter(d => selected.has(d.num)).map(d => d.num));
+        for (const d of derivedTests) { testOverrides.delete(d.num); selected.delete(d.num); }
+        derivedTests = next;
+        for (const d of next) {
+          // The editor's values are the whole definition now; an earlier rename must not shadow them.
+          testOverrides.delete(d.num);
+          if (wasSelected.has(d.num) || !before.has(d.num)) selected.add(d.num);
+        }
+        rebuildEntries();
+        renderList();
+        updateFooter();
+      },
+      onClosed: () => { editorOpen = false; },
+      onLog: (level, message) => options.onLog?.(level, message),
+    });
+  });
+  btnRow.appendChild(derivedBtn);
+
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
   cancelBtn.className = 'btn-secondary';
@@ -1358,7 +1423,7 @@ export function showTestSelectorOverlay(
   // so no extra guard is needed here.
 
   function onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') { cleanup(); onCancel(); }
+    if (e.key === 'Escape' && !editorOpen) { cleanup(); onCancel(); }
   }
   document.addEventListener('keydown', onKeyDown);
 

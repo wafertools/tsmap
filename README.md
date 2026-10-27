@@ -44,7 +44,7 @@ Discussions](https://github.com/wafertools/.github/discussions).
 - **Wafer splits** — attach a process corner or experiment group to each wafer, load and save the assignment as CSV, and group every chart by it
 - **Test selector** — for files with many tests, a two-pass flow lets you choose which tests to import before the full parse; **Setup ▾ → Tests…** re-opens the selector after load
 - **Open from a URL** — `tsmap --url <url> --url-format <format>` on desktop, `?dataUrl=&dataFormat=` on the browser build, or a `tsmap://open?url=…` deep link from your own web page. `--url-headers <file>` covers data APIs that authenticate via a header. See [Integrations](https://wafertools.github.io/tsmap/integrating-data-selection/) and the [live demo](https://wafertools.github.io/tsmap/demos/open-from-link.html)
-- **File associations** — **Help → File associations…** (desktop) registers tsmap as the default handler for `.stdf`/`.atdf`/`.parquet`, so double-clicking one in a file manager opens it here
+- **File associations** — **Preferences → File associations…** (desktop) registers tsmap as the default handler for `.stdf`/`.atdf`/`.parquet`, so double-clicking one in a file manager opens it here
 - **PNG export** — save any wafer map from the toolbar
 - **Cross-platform** — Linux (Wayland/X11), macOS, Windows 11; also runs in the browser via WASM
 
@@ -174,6 +174,12 @@ src/
   mapPrefs.ts         — remembered wafer-map preferences (every key wmap classes as one)
   plotPrefs.ts        — the saved plots behind Insights' Plot tab (as wmap's own plots file) and the filter and the saved filters
   binDefs.ts          — hard/soft bin names + pass/fail flags, overriding HBR/SBR or supplying them for CSV/JSON/Parquet
+  savedMappings.ts / settingsFile.ts / settingsFilesUI.ts — the saved column mappings and the other saved settings as files (export, import), with Preferences → Export or import settings…
+  setupFile.ts / setupFileUI.ts — the setup file: diameter, edge exclusion, reticle, retest policy and value filter in one CSV, with its Setup ▾ dialog and --setup
+  derivedEditor.ts / derivedEditorUI.ts — the Derived tests… table in the test selector: add, edit and delete derived tests, each expression checked by wmap
+  testEditor.ts / testEditorUI.ts — the Edit limits… table in the test selector: the model (rows, what differs from the data, overrides) and its dialog
+  binEditor.ts / binEditorUI.ts — the Bin definitions… editor: the model (rows, loaded file as edits, pass bins, yield) and its dialog
+  definitionsTable.ts — the editable table the definitions dialogs share: edited markers, per-row revert, range selection
   limitNames.ts       — the one table of limit column names (test vs spec limits), shared by the definitions reader and the column mapping
   headerKey.ts        — the header normalisation every column-name alias table is keyed by
   definitionsTemplatesUI.ts — "Definitions file formats…": save example test/splits/bin-definitions files with nothing loaded
@@ -186,7 +192,7 @@ src/
   session.ts          — the loaded lot (wafers, test/bin definitions, derived tests, scan state) as one object
   loadPipeline.ts     — the load flow (`runLoad`): archives, mapping, test scan + selector, parse, naming, append, render — dialogs and platform injected
   logBadge.ts         — the Log button's new-warning/new-error counts
-  resetSettingsUI.ts  — Help ▸ Reset saved settings… — shows what is stored and forgets it
+  resetSettingsUI.ts  — Preferences ▸ Reset saved settings… — shows what is stored and forgets it
   shortcutsUI.ts      — Help ▸ Keyboard shortcuts… (and the ? key) — the keys for maps, windows and menus
   recentDefinitions.ts   — recently used definitions files (tests/bins/splits), both platforms
   pinnedTestsPrefs.ts    — the tests pinned to the top of the chart test pickers, saved across sessions
@@ -221,7 +227,7 @@ packages/parsers/     — shared Rust crate (native + WASM targets), published a
 src-tauri/src/
   lib.rs              — app setup: single-instance, tsmap:// scheme registration, and
                         --url resolution before the window opens
-  cli_files.rs        — CLI parsing: positional paths, --list/--tests/--splits/--plots,
+  cli_files.rs        — CLI parsing: positional paths, --list/--tests/--splits/--bins/--setup/--plots,
                         --url/--url-format/--url-headers, and the tsmap:// link form
   migrate.rs          — one-time move of app data from an older bundle identifier
                         or last_dir's old hardcoded path, run before the window opens

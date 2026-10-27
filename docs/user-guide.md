@@ -348,7 +348,12 @@ treated as pass for yield calculation. Default is `1`. Enter multiple bin number
 by commas (e.g. `1,7`).
 
 CSV/JSON/Parquet have no equivalent of STDF/ATDF's HBR/SBR records, so bins have no names —
-just numbers — unless you supply them. The **Load bin definitions…** button next to the
+just numbers — unless you supply them. **Name bins…**, next to the Pass bin(s) field, opens a table of
+the bins in this file: type a name or a hex colour for each and tick the hard bins that pass; the
+Pass bin(s) field follows what you tick. The list comes from the sample of rows the mapping window
+holds (the first rows and some spread through the file), so a rare bin can be missing; type its number
+and **Add hard bin** or **Add soft bin**. Once the file is loaded, **Setup ▾ → Bin definitions…** lists
+every bin it really has, with die counts. The **Load bin definitions…** button next to the
 Pass bin(s) field loads a bin-definitions CSV (real hard/soft bin names, and pass/fail flags
 that override this field) before you continue. See [Bin definitions](#bin-definitions)
 below for the file format, and for STDF/ATDF's own version of this (overriding what HBR/SBR
@@ -408,6 +413,25 @@ Each test row shows the test number (in dim monospace), the test name, and — w
 in the file — the units and test limits. If a **Load definitions** (or `--tests`) has overridden a
 test's limits, units, or type, the row shows those overridden values, with a tooltip noting
 they were loaded from file.
+
+#### Editing limits, units and type
+
+**Edit limits…** (next to Save definitions) opens a table of every listed test: its name, test
+limits, spec limits, validity limits, units, and whether it is parametric or functional. Type
+into a cell to change it; a number cell takes a number, and the **Data** column reads *changed* for any row that
+differs from what the data file states. Hover a column heading for what that kind of limit does.
+
+- **A blank cell means the data's own value.** Clear a cell and the data's value comes back; an edit can
+  change a limit but cannot remove one the data states. Typing the data's value back removes the change.
+- **Use the data's values** (tick rows first) discards every change on those rows; **Revert** on a row
+  goes back to how the table opened, and **Revert all** does it for the whole table.
+- A unit that differs from the data's only by an SI prefix (mV for V) converts the limits you give to the
+  data's unit, exactly as it does in a definitions file. Functional tests are pass/fail only, so limits
+  are ignored on them.
+- A low limit above its high limit is refused when you press **Apply**.
+
+Apply puts the changes in the selector, where they take effect with the tests, when you import; **Save
+definitions** then writes them. Derived tests are edited by their expression, not in this table.
 
 #### Renaming a test
 
@@ -470,8 +494,8 @@ toggle if you didn't widen the scan at load time.
 **Setup ▾ → Tests…** is the single place for everything about tests:
 
 - **Which tests are imported** — tick and untick, search, select a range.
-- **What they are called, and their limits** — rename, set test limits, units, and
-  parametric/functional type.
+- **What they are called, and their limits** — rename a test in the list, or open **Edit limits…**
+  to set test, spec and validity limits, units, and parametric/functional type in a table.
 - **Save definitions / Load definitions ▾** — the CSV round-trip described above.
 
 **Narrowing or relabelling applies immediately, in memory.** Only *widening* the selection —
@@ -698,7 +722,7 @@ rather than silently changing chart groupings and map labels behind your back.
 forgets the saved copy for that lot, so re-opening it later comes back unassigned rather than
 restoring what you just cleared. That is the per-lot control; to forget saved splits for *every*
 lot at once — along with anything else tsmap remembers — use
-[Help → Reset saved settings…](#what-tsmap-remembers-and-how-to-forget-it), which stays
+[Preferences → Reset saved settings…](#what-tsmap-remembers-and-how-to-forget-it), which stays
 reachable with nothing loaded.
 
 ### Grouping data in the Insights tab
@@ -765,7 +789,7 @@ wafer and your plots are in the menu, drawn over just those dies.
 
 **Export plots…** writes every plot to a file, and **Import plots…** adds the plots of such a file to yours (as
 copies where one already exists, never replacing). That is how a set of plots moves to another machine or to a
-colleague. To load a file when tsmap starts, name it with [`--plots`](#command-line). **Help → Reset saved settings…** lists your saved plots like any other remembered setting.
+colleague. To load a file when tsmap starts, name it with [`--plots`](#command-line). **Preferences → Reset saved settings…** lists your saved plots like any other remembered setting.
 
 The **filter** (**Filter…**, the last button in the toolbar row of the map, the gallery and Insights alike) is kept the same
 way: tsmap remembers its conditions, and whether it was on or off, and applies it to the next lot and after a restart. It
@@ -778,7 +802,7 @@ Filters you use again can be **saved by name** in the Filter window, and tsmap k
 there writes the list as a `wafermap-filters` file and **Import…** adds the filters of such a file (as copies where one already
 exists, never replacing), with the file dialog of your system. The file is plain JSON, so a filter can be written by hand or
 generated by a script; its format is described in the wafermap guide's [Filtering wafers and dies](https://wafertools.github.io/wafermap/guide/galleries/#the-filter).
-**Help → Reset saved settings…** lists the saved filters, and the filter in force, like any other remembered setting.
+**Preferences → Reset saved settings…** lists the saved filters, and the filter in force, like any other remembered setting.
 
 **Delete all plots…** removes every saved plot, sweeps included, after asking you to confirm; the question says how many, and that **Export plots…** first keeps a copy. **Undo** brings the whole list back for ten seconds.
 
@@ -869,9 +893,20 @@ front of the name — hover the mark for the expression. Select, deselect, renam
 them like any other test; a deselected derived test stays defined but is not computed. The
 **Derived** filter button shows only derived tests. It overlaps the other two: a derived
 test is also parametric or functional, and appears under that filter as well. Loading a
-definitions file replaces the derived tests along with the selection; **Save definitions**
+definitions file replaces the derived tests along with the selection (the table above starts from whatever is defined); **Save definitions**
 writes the selected ones back. The footer counts them ("84 of 84 tests selected (7
 derived)").
+
+**Writing derived tests in the app.** **Derived tests…** in the selector footer opens a table of them,
+each with a number, name, expression, units, test limits and type. **Add derived test** starts a row on
+the next unused number from 900001 and puts the cursor in its expression; **Delete** removes a row.
+Every expression is checked as you type, by the same rules the map is built with: the **Check** column
+reads ✓ with *Number* or *Verdict (functional)*, or ✗ with the reason and the position, and **Reads** lists
+the tests it depends on by number and name. A derived test may read another. **Apply** is refused while any
+test would be dropped, so what you apply is what gets computed — including a read of a test that is
+listed but not selected for import, which the **Check** column names. Units that do not match across a
+`+` or `-` are flagged but not refused; give the derived test its own units. Changes take effect on
+import, like the rest of the selector, and **Save definitions** writes them to the file.
 
 Derived tests stay defined from one load to the next, so they are ready for the next lot
 from the same test program. **Remove derived tests** in the selector footer drops them all,
@@ -892,16 +927,29 @@ records, so a bin like `2` shows up as "Contact Open" without any extra step. CS
 Parquet have no equivalent record at all — every bin is just a bare number — unless you supply
 definitions yourself.
 
-**For CSV/JSON/Parquet**, load a bin-definitions file in the column mapping overlay's
-**Load bin definitions…** button (next to [Pass bin(s)](#pass-bins)), before you continue past
-mapping.
+**For CSV/JSON/Parquet**, name the bins in the column mapping overlay with **Name bins…**, or load a
+bin-definitions file with **Load bin definitions…** (both next to [Pass bin(s)](#pass-bins)), before you
+continue past mapping.
 
 **For any format, once loaded**, open the toolbar's **Setup ▾** menu and choose
-**Bin definitions…** — the same Save/Load shape as the
-[test definitions file](#test-definitions-file): no selection UI, an override on top of whatever's
-already there, and Load re-renders immediately once applied. For STDF/ATDF this overrides the
-names/pass-flags HBR/SBR supplied; for CSV/JSON/Parquet with nothing loaded yet, it supplies them
-outright.
+**Bin definitions…**. It lists every hard and soft bin the lot has — those named by the file or a
+definitions file, and those the dies carry — with the number of dies the map counts (a retested die once, by your [Retests](#retests) choice, and partial or edge-excluded dies not at all), a name, a **Pass** toggle for
+hard bins and a colour. Type in a name or a hex colour; tick rows (Shift-click for a range) and use
+**Mark pass** or **Mark fail** to set several hard bins at once. Edited rows are marked, each with a
+**Revert** button, and **Revert all** goes back to how the dialog opened. For STDF/ATDF the table
+starts from the names and pass flags HBR/SBR supplied; for CSV/JSON/Parquet with nothing loaded it
+lists the bare bin numbers so each can be named.
+
+**Load…** reads a [bin definitions file](#bin-definitions-file) into the table as edits — new bins
+become new rows — so you can check it before **Apply** writes it to the lot. **Save…** writes the
+table as it stands, edited or not.
+
+**Names and colours apply as soon as you press Apply. Pass flags are different**: they decide which
+dies count as good, so every yield figure, finding and report follows them. When a pass flag is
+edited the dialog shows the lot's yield now and with the new pass bins, and Apply asks you to
+confirm; the log records the change. If the loaded files disagreed about a bin (one counted it pass,
+another fail), the toggle reads **Mixed**; choose Pass or Fail for it before a pass change can be applied, and your choice is used for every file. At least one hard
+bin must count as pass.
 
 **Colour choices are remembered.** Whatever you pick in a map's **Colour scheme** menu — the
 bin colours, the value colours, and whether bin definition colours are used — carries over to
@@ -958,7 +1006,7 @@ With a reticle set:
   every field, which points at the stepper (alignment drift, a mask defect) rather than at the wafer.
 
 Like the [diameter](#wafer-diameter-and-edge-exclusion), the reticle is one value for every wafer loaded, is remembered
-between sessions, and stays in effect for the next file you open. **Help → Reset saved settings…** lists it. `--reticle`
+between sessions, and stays in effect for the next file you open. **Preferences → Reset saved settings…** lists it. `--reticle`
 sets it for one launch from the [command line](#command-line).
 
 ### Excluding values outside limits
@@ -978,7 +1026,7 @@ Open **Setup ▾ → Exclude values outside limits…** and choose which limit s
 - **Off**: every value is used as recorded.
 
 **Apply** takes effect at once, without reloading the file, and **Clear** returns to the default. The choice is one setting for every
-wafer loaded and is remembered between sessions; **Help → Reset saved settings…** lists it.
+wafer loaded and is remembered between sessions; **Preferences → Reset saved settings…** lists it.
 
 An excluded value is **missing** for that test on that die: grey on the map, and left out of the statistics and every chart, and a
 derived test is computed from what remains. Nothing is hidden: the tooltip on a grey die names the excluded value and the limit set,
@@ -1005,9 +1053,29 @@ file the log says how many positions were tested more than once. A die with no r
 IDs tell dies apart (see [Dies with no reported position](#dies-with-no-reported-position)).
 
 **Apply** takes effect at once, without reloading the file, and **Clear** returns to the default. The choice is one setting for every
-wafer loaded and is remembered between sessions; **Help → Reset saved settings…** lists it. `--retests` sets it for one launch from
+wafer loaded and is remembered between sessions; **Preferences → Reset saved settings…** lists it. `--retests` sets it for one launch from
 the [command line](#command-line). `sample_data/RETEST-LOT-07.csv` gives each choice its own yield: across the lot, 86.1% with the
 last result, 79.2% with the first, 91.2% with the best and 75.8% with the worst.
+
+### Saving the setup
+
+The settings above that belong to a product or a site rather than to one lot — the
+[wafer diameter and edge exclusion](#wafer-diameter-and-edge-exclusion), the [reticle](#reticle), the
+[retest policy](#retests) and the value filter (**Exclude values outside limits…**) — can be kept in one file.
+**Setup ▾ → Setup file…** shows what is set now and offers **Save…** and **Load…** (with the recently used files
+behind the ▾, as for the other definitions files). A load applies at once and is remembered, as if you had
+set each value in its own dialog, and the log lists what it set. **Help → Definitions file formats…** saves a
+filled-in example; the format is under [Setup file](#setup-file) in the reference. The row is in Setup ▾ because
+the file holds the values of the rows above it; it needs a file open, so to start from one with nothing loaded use
+`--setup`.
+
+Loading changes only the settings the file states, and a blank value leaves a setting alone; Save writes only
+what is set (the retest policy and value filter are always written, since one is always in force). To clear a
+setting, use its own dialog.
+
+`--setup <file>` applies a setup file for one launch, without remembering it. It is applied before
+`--wafer-diameter`, `--edge-exclusion`, `--reticle` and `--retests`, so `tsmap lot.stdf --setup site.csv --retests best`
+is the site's setup with one change. Like `--plots`, it needs no data file: sent to a tsmap that is already open, it applies to the lot on screen.
 
 ## Reference
 
@@ -1021,6 +1089,7 @@ tsmap --list files.txt                     # a text file of paths, one per line
 cat files.txt | tsmap                      # or piped via stdin
 tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (the selector is still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
+tsmap lot1.stdf --bins my-bins.csv         # names, pass flags and colours over what the file supplies
 tsmap lot1.stdf --plots my-plots.json      # adds plots (sweeps included) to Insights → Plot (see [Sweeps](#sweeps))
 tsmap --plots my-plots.json                # sent to a running tsmap: adds them and redraws what is open
 tsmap lot1.stdf --wafer-diameter 300       # sets the wafer diameter (mm) for this launch
@@ -1040,6 +1109,10 @@ renames, and optionally test limits/test type (see
 pre-fills the selector's checkboxes, renames, and limit/type overrides — the overlay still
 appears and still needs a confirm click, even for a small lot; it just saves
 re-picking (and re-entering limits for) tests you already set up before.
+
+`--bins` takes the [bin definitions file](#bin-definitions-file) that **Setup ▾ → Bin definitions… → Save…**
+writes, and lays it over the bin names and pass flags the data file supplies, as Load then Apply
+would. A file that states pass flags changes the lot's yield, and the log says it was loaded. It belongs to the files in the same command, or to a lot that is already open; with neither it is ignored with a warning, and it is not kept for a later load.
 
 `--plots` takes the file **Export plots…** writes, and adds its plots to the ones tsmap has saved. A plot
 whose id is already saved is replaced, so launching with the same file again leaves one copy of each; the
@@ -1209,7 +1282,7 @@ first thing to check with whoever owns the data API.
 
 ### File associations (desktop)
 
-**Help → File associations…** lets you open `.stdf`, `.atdf`, and `.parquet` files in tsmap
+**Preferences → File associations…** lets you open `.stdf`, `.atdf`, and `.parquet` files in tsmap
 automatically by double-clicking them in a file manager (Windows Explorer, GNOME Files,
 Dolphin, etc.). CSV and JSON aren't offered here on purpose — those extensions are already
 claimed by dozens of unrelated apps, and quietly becoming their default handler would be an
@@ -1355,9 +1428,8 @@ The saved format is one test per line, with a header naming the columns:
   are judged against the data as recorded.
 - A blank field means "don't override this" — it leaves the parsed value (or an override
   already loaded earlier in the session) alone. It never clears an existing value back to
-  blank/zero. There's no way to *revert* an override from inside the app short of editing the
-  file (blank the cell) or reloading the data fresh — Save/Load is the entire limit/type
-  editing workflow, there is no in-app limit editor.
+  blank/zero. To drop an override, use **Edit limits…** (**Use the data's values**, or type the
+  data's value back); a fresh load of the data also starts without one.
 - A field tsmap can't parse (garbage numeric value, invalid test type, an unrecognized header
   column) is dropped with a log warning — the rest of that row, and the rest of the file, still
   load normally.
@@ -1400,6 +1472,27 @@ The format is a small CSV:
   column fixes it.
 - A wafer listed with an empty split value is treated as explicitly unassigned.
 
+#### Setup file
+
+A `setting,value` CSV, header row optional, `#` comments:
+
+    # tsmap setup
+    setting,value
+    waferDiameter,300
+    edgeExclusion,3
+    reticle,"4x3@1,0"
+    retests,best
+    valueFilter,validity
+
+- **`waferDiameter`** and **`edgeExclusion`** are millimetres (`300` or `300 mm`); the diameter must be above 0, and an edge
+  exclusion with no diameter to apply it to is ignored with a warning.
+- **`reticle`** is the field in dies, `WxH`, or `WxH@X,Y` to name the die at its corner when that is not die (0, 0) — the form
+  `--reticle` takes. The comma needs quotes in a spreadsheet; tsmap reads it either way.
+- **`retests`** is `last`, `first`, `best` or `worst`. **`valueFilter`** is `validity`, `spec`, `test` or `none` (`off` also reads as `none`).
+- Names are case-insensitive and accept the obvious synonyms (`diameter`, `exclusion`, `stepper`, `retestPolicy`, `excludeValues`).
+  A setting that is missing or blank is left as it is; a value that does not fit, or a name tsmap does not know, is dropped with a
+  warning and the rest of the file still applies.
+
 #### Bin definitions file
 
 The file is a CSV with a required header row:
@@ -1427,7 +1520,7 @@ The file is a CSV with a required header row:
   scheme. To see the scheme's own colours instead, open the map's **Colour scheme** menu and
   untick **Use colours from bin definitions**.
 - A blank `name`, `pass` or `color` cell leaves whatever's already set for that bin alone; it
-  never clears an existing value. Only a row whose bin number is unreadable is dropped
+  never clears an existing value (clear one in the **Bin definitions…** table instead). Only a row whose bin number is unreadable is dropped
   entirely — a bad `type`, `pass` or `color` cell drops just that field, with a warning, and
   the rest of the row still applies.
 
@@ -1631,16 +1724,42 @@ This one is kept in the app's configuration folder rather than in the list below
 settings…** does not include it — delete `.window-state.json` there to go back to the default placement.
 
 All of it lives **on this machine only** — in your browser's storage, or the desktop app's own
-copy of it. Nothing is uploaded, and none of it travels with a file you share. Wafer data
-itself is never stored: it is re-read from your files each time.
+copy of it. Nothing is uploaded, and none of it travels with a file you share unless you export it
+yourself (below). Wafer data itself is never stored: it is re-read from your files each time.
 
-**Help → Reset saved settings…** shows what is currently stored — only what actually exists,
+**Preferences → Reset saved settings…** shows what is currently stored — only what actually exists,
 not everything tsmap could remember — with a line explaining each one. Tick what you want gone
 and choose **Forget selected**. Loaded wafer data is unaffected, and anything already on screen
 stays until the next load.
 
 Useful when a saved column mapping is wrong and keeps being reapplied, when handing a shared
 machine to someone else, or when you simply want to see what the app is holding.
+
+The gear beside **Help** is the **Preferences** menu, and it works with nothing loaded: **Export or import
+settings…**, **Reset saved settings…** and, on the desktop, **File associations…** are all in it. Its last row,
+under *Troubleshooting*, is **Record load timings**. It is for bug reports only: it adds a timing line to the Log
+panel at each stage of a load, so you can copy the lines into a report about a slow load. Leave it off otherwise.
+
+#### Taking settings to another machine
+
+**Preferences → Export or import settings…** saves what tsmap remembers as files and reads them back, in two parts.
+
+- **Column mappings.** **Export…** writes every saved layout, with its column headers, to a JSON file; **Import…**
+  reads one. An import adds the file's layouts and replaces any you already have for the same headers; nothing else
+  changes and nothing needs reloading. A layout whose roles point at a column its own headers do not have is left out
+  with a message. Handy for a site where everyone loads the same exports.
+- **Other saved settings.** **Export…** writes the theme, wafer-map preferences, pinned tests, saved plots,
+  Insights filter and saved filters, and remembered test selections. The setup values (diameter, edge exclusion,
+  reticle, retest policy, value filter) are not in it: they travel in the [setup file](#saving-the-setup).
+  **Import…** reads a file and lists what it holds, each with a line saying
+  what it replaces; tick what you want and choose **Import**. tsmap then **reloads, which closes the lot that is
+  open** — saved plots, pins and preferences are held in memory while you work, and would otherwise write their old copy
+  over the import.
+
+Neither file carries **recent files** or **recently used definitions** (they hold paths on your machine and the contents
+of files), **wafer split assignments** (they belong to a lot; **Setup ▾ → Splits… → Save** keeps them), the last folder
+scan, or the timing-log switch. A file from a newer tsmap, a file that is not a settings file, and any value tsmap
+cannot read are refused or left out with a message; nothing is written until you confirm. The file is plain JSON: read it before you send it, as a mapping lists your column headers.
 
 ### Desktop vs browser differences
 

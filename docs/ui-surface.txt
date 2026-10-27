@@ -17,6 +17,8 @@ Controls:
       hint: Append more files to the current view: choose files or scan a folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · Load sample data
@@ -32,6 +34,14 @@ Menu — Open files ▾:
 Menu — Add files ▾:
     (no rows captured)
 
+Menu — Preferences:
+    · Export or import settings…
+        hint: Save the column mappings or your other saved settings (theme, map preferences, pins, plots) as a file, or load one from another machine
+    · Reset saved settings…
+        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
+    · ☐Record load timings  [unchecked]
+        hint: For bug reports only: adds a timing line to the Log panel at each stage of a load, to copy into a report about a slow load. Leave it off otherwise
+
 Menu — Help:
     · User guide
         hint: File loading, mapping, splits, test selector, wafer map controls, Insights, and more
@@ -39,10 +49,6 @@ Menu — Help:
         hint: The keys for maps, windows and menus. Press ? anywhere to open this list
     · Definitions file formats…
         hint: Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first
-    · ☐Log phase timings  [unchecked]
-        hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
-    · Reset saved settings…
-        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
     · Support tsmap…
         hint: tsmap is free and open source. Tips and company sponsorships fund its development
     · About tsmap…
@@ -61,6 +67,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 14 more fields
@@ -207,6 +215,16 @@ Menu — Setup ▾:
         hint: Values outside validity limits are treated as missing and counted
     · Retests…
         hint: Last result counts when a die was probed more than once
+    · Setup file…
+        hint: Save or load the diameter, edge exclusion, reticle, retest policy and value filter above as one file — for a product or a site
+
+Menu — Preferences:
+    · Export or import settings…
+        hint: Save the column mappings or your other saved settings (theme, map preferences, pins, plots) as a file, or load one from another machine
+    · Reset saved settings…
+        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
+    · ☐Record load timings  [unchecked]
+        hint: For bug reports only: adds a timing line to the Log panel at each stage of a load, to copy into a report about a slow load. Leave it off otherwise
 
 Menu — Help:
     · User guide
@@ -215,10 +233,6 @@ Menu — Help:
         hint: The keys for maps, windows and menus. Press ? anywhere to open this list
     · Definitions file formats…
         hint: Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first
-    · ☐Log phase timings  [unchecked]
-        hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
-    · Reset saved settings…
-        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
     · Support tsmap…
         hint: tsmap is free and open source. Tips and company sponsorships fund its development
     · About tsmap…
@@ -273,12 +287,12 @@ Menu — Orientation:
         hint: Already in the original orientation
 
 Menu — Columns:
-    · Auto  [checked]
-    · 1 column  [unchecked]
-    · 2 columns  [unchecked]
-    · 3 columns  [unchecked]
-    · 4 columns  [unchecked]
-    · 5 columns  [unchecked]
+    · Auto (0)  [checked]
+    · 1 column (1)  [unchecked]
+    · 2 columns (2)  [unchecked]
+    · 3 columns (3)  [unchecked]
+    · 4 columns (4)  [unchecked]
+    · 5 columns (5)  [unchecked]
 
 Menu — Charts and tables for this wafer (or right-click):
     · Value histogram
@@ -331,9 +345,27 @@ Dialog — Bin definitions…
         hint: Maximize (F)
     · Close (Esc)
         hint: Close (Esc)
+    · Mark pass  [disabled]
+    · Mark fail  [disabled]
+    · Tick every row that matches the filter  [checkbox, unchecked]
+    · Tick h1  [checkbox, unchecked]
+    · Pass  [aria="Pass of h1: Pass"]
+    · Tick h2  [checkbox, unchecked]
+    · Fail  [aria="Pass of h2: Fail"]
+    · Tick h3  [checkbox, unchecked]
+    · Fail  [aria="Pass of h3: Fail"]
+    · Tick s1  [checkbox, unchecked]
+    · —  [aria="Pass of s1: —", disabled]
+    · Tick s2  [checkbox, unchecked]
+    · —  [aria="Pass of s2: —", disabled]
+    · Tick s3  [checkbox, unchecked]
+    · —  [aria="Pass of s3: —", disabled]
+    · Revert all  [disabled]
     · Save…
     · Load…
     · ▾  [aria="Load a recently used definitions file", opens menu]
+    · Cancel
+    · Apply  [disabled]
 
 Dialog — Diameter & edge exclusion…
     · Maximize (F)
@@ -380,7 +412,18 @@ Dialog — Definitions file formats…
     · Save template…  [aria="Save a test definitions template"]
     · Save template…  [aria="Save a plots template"]
     · Save template…  [aria="Save a splits template"]
+    · Save template…  [aria="Save a setup template"]
     · Save template…  [aria="Save a bin definitions template"]
+
+Dialog — Setup file…
+    · Maximize (F)
+        hint: Maximize (F)
+    · Close (Esc)
+        hint: Close (Esc)
+    · Save…
+    · Load…
+    · ▾  [aria="Load a recently used definitions file", opens menu]
+    · Close
 
 Dialog — Reset saved settings…
     · Maximize (F)
@@ -392,6 +435,17 @@ Dialog — Reset saved settings…
     · Select all
     · Forget selected  [disabled]
     · Cancel
+
+Dialog — Export or import settings…
+    · Maximize (F)
+        hint: Maximize (F)
+    · Close (Esc)
+        hint: Close (Esc)
+    · Export…  [disabled]
+    · Import…
+    · Export…
+    · Import…
+    · Close
 
 Dialog — About tsmap…
     · Maximize (F)
@@ -412,6 +466,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -427,6 +483,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · Expand   (×10)
   · Chart actions  [opens menu]   (×10)
   · Sort: yield  [radio, unchecked]
@@ -477,6 +534,16 @@ Menu — Setup ▾:
         hint: Values outside validity limits are treated as missing and counted
     · Retests…
         hint: Last result counts when a die was probed more than once
+    · Setup file…
+        hint: Save or load the diameter, edge exclusion, reticle, retest policy and value filter above as one file — for a product or a site
+
+Menu — Preferences:
+    · Export or import settings…
+        hint: Save the column mappings or your other saved settings (theme, map preferences, pins, plots) as a file, or load one from another machine
+    · Reset saved settings…
+        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
+    · ☐Record load timings  [unchecked]
+        hint: For bug reports only: adds a timing line to the Log panel at each stage of a load, to copy into a report about a slow load. Leave it off otherwise
 
 Menu — Help:
     · User guide
@@ -485,10 +552,6 @@ Menu — Help:
         hint: The keys for maps, windows and menus. Press ? anywhere to open this list
     · Definitions file formats…
         hint: Save example test-definitions/splits/bin-definitions files — no file needs to be loaded first
-    · ☐Log phase timings  [unchecked]
-        hint: Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load
-    · Reset saved settings…
-        hint: See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it
     · Support tsmap…
         hint: tsmap is free and open source. Tips and company sponsorships fund its development
     · About tsmap…
@@ -497,6 +560,14 @@ Menu — Help:
 Menu — Group by:
     · None
     · Split (5)
+
+Menu — Columns:
+    · Auto (0)
+    · 1 (1)
+    · 2 (2)
+    · 3 (3)
+    · 4 (4)
+    · 5 (5)
 
 Menu — Chart actions:
     · Save as PNG
@@ -516,6 +587,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -531,6 +604,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · Expand   (×10)
   · Chart actions  [opens menu]   (×10)
   · Sort: yield  [radio, unchecked]
@@ -567,6 +641,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -582,6 +658,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · Expand   (×4)
   · Chart actions  [opens menu]   (×4)
   · Capability, Ppk and the goal plot
@@ -600,11 +677,23 @@ Menu — Chart actions:
 
 Menu — Test:
     · vth_n_mV
+    · Pin vth_n_mV (or press P on the row)
+        hint: Pin this test to the top of every test list
     · vth_p_mV
+    · Pin vth_p_mV (or press P on the row)
+        hint: Pin this test to the top of every test list
     · idsat_n_uA
+    · Pin idsat_n_uA (or press P on the row)
+        hint: Pin this test to the top of every test list
     · idsat_p_uA
+    · Pin idsat_p_uA (or press P on the row)
+        hint: Pin this test to the top of every test list
     · ioff_nA
+    · Pin ioff_nA (or press P on the row)
+        hint: Pin this test to the top of every test list
     · fmax_MHz
+    · Pin fmax_MHz (or press P on the row)
+        hint: Pin this test to the top of every test list
 
 Menu — Wafer:
     · All wafers
@@ -635,6 +724,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -650,6 +741,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · Expand   (×2)
   · Chart actions  [opens menu]   (×2)
   · Max tests:  [number]
@@ -677,6 +769,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -692,6 +786,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · Statistics  [checked]
       hint: One row per test: count, spread, limits and limit yield
   · Wafers  [unchecked]
@@ -718,6 +813,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -733,6 +830,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
   · + New sweep
@@ -761,6 +859,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -776,6 +876,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
   · + New sweep
@@ -945,6 +1046,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -960,6 +1063,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
   · + New sweep
@@ -1024,6 +1128,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 11 more fields
@@ -1039,6 +1145,7 @@ Controls:
   · Data
   · My plots
   · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]
   · + New plot
       hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
   · + New sweep
@@ -1085,6 +1192,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 14 more fields
@@ -1218,9 +1327,11 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 300 mm · Die height: 8 mm · Die width: 10 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
   · Summary
   · Map
       hint: The wafer map
@@ -1246,34 +1357,32 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 6.4 of those points, hard bin 2 (Continuity) for 3.3 — about 48 dies lost. Iddq is above its high limit on 34 dies, 32 of them in Ring 4 (edge)
+  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 5.8 of those points, hard bin 2 (Continuity) for 3.8 — about 30 dies lost. Iddq is above its high limit on 19 dies, 18 of them in Ring 4 (edge)
       hint: Ring 4 (edge) yield is 9.9 percentage points lower than the rest of the map Click to show it on the map
   · Edge-ring pattern
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
   · Hard bin 3 (Iddq)
-      hint: Ring 4 (edge) has HBin 3 (Iddq) and SBin 30 (Iddq - High) (same dies) occurrence 6.4 percentage points higher than the rest of the map Click to show it on the map
+      hint: Ring 4 (edge) has HBin 3 (Iddq) and SBin 30 (Iddq - High) (same dies) occurrence 5.8 percentage points higher than the rest of the map Click to show it on the map
   · Hard bin 2 (Continuity)
-      hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.3 percentage points higher than the rest of the map Click to show it on the map
+      hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.8 percentage points higher than the rest of the map Click to show it on the map
   · Iddq
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: Ring 4 (edge): pass rate, 48 dies"]
+  · Chart  [aria="Chart: Ring 4 (edge): pass rate, 30 dies"]
       hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
-  · ▶Findings (13)2 notable
-  · ●●○Notable 2
+  · ▶Findings (12)1 notable
+  · ●●○Notable 1
   · ●○○Minor 11
   · Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
   · ▸Show 8 supporting findings
-  · Mean Vref is 0.4% higher than the rest of the map
-      hint: Ring 1 (core) mean Vref is 0.4% higher than the rest of the map Click to show it on the map
-  · ▶Hard Bin Breakdown — % of dies (N=1,177)
+  · ▶Hard Bin Breakdown — % of dies (N=799)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
   · ▶Ring Yield
   · Ring  [radio, checked]
   · Quadrant  [radio, unchecked]
-  · ▶Test Values (3) · N=1,177
+  · ▶Test Values (3) · N=799
   · Log
       hint: Show the log panel
 
@@ -1290,9 +1399,11 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 200 mm · Die height: 5 mm · Die width: 5 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 300 mm · Die height: 8 mm · Die width: 10 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
   · Map
       hint: The wafer map
   · Insights
@@ -1304,39 +1415,38 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 6.4 of those points, hard bin 2 (Continuity) for 3.3 — about 48 dies lost. Iddq is above its high limit on 34 dies, 32 of them in Ring 4 (edge)
+  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 5.8 of those points, hard bin 2 (Continuity) for 3.8 — about 30 dies lost. Iddq is above its high limit on 19 dies, 18 of them in Ring 4 (edge)
       hint: Ring 4 (edge) yield is 9.9 percentage points lower than the rest of the map Click to show it on the map
   · Edge-ring pattern
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
   · Hard bin 3 (Iddq)
-      hint: Ring 4 (edge) has HBin 3 (Iddq) and SBin 30 (Iddq - High) (same dies) occurrence 6.4 percentage points higher than the rest of the map Click to show it on the map
+      hint: Ring 4 (edge) has HBin 3 (Iddq) and SBin 30 (Iddq - High) (same dies) occurrence 5.8 percentage points higher than the rest of the map Click to show it on the map
   · Hard bin 2 (Continuity)
-      hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.3 percentage points higher than the rest of the map Click to show it on the map
+      hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.8 percentage points higher than the rest of the map Click to show it on the map
   · Iddq
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: Ring 4 (edge): pass rate, 48 dies"]
+  · Chart  [aria="Chart: Ring 4 (edge): pass rate, 30 dies"]
       hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
-  · ▶Findings (13)2 notable
-  · ●●○Notable 2
+  · ▶Findings (12)1 notable
+  · ●●○Notable 1
   · ●○○Minor 11
   · Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
   · ▸Show 8 supporting findings
-  · Mean Vref is 0.4% higher than the rest of the map
-      hint: Ring 1 (core) mean Vref is 0.4% higher than the rest of the map Click to show it on the map
-  · ▶Hard Bin Breakdown — % of dies (N=1,177)
+  · ▶Hard Bin Breakdown — % of dies (N=799)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
   · ▶Ring Yield
   · Ring  [radio, checked]
   · Quadrant  [radio, unchecked]
-  · ▶Test Values (3) · N=1,177
+  · ▶Test Values (3) · N=799
   · Overview
   · Distributions
   · Correlation
   · Data
   · My plots
+  · Auto (0)▾  [aria="Columns", opens menu]
   · Expand   (×6)
   · Chart actions  [opens menu]   (×6)
   · Hard bins  [radio, checked]
@@ -1365,6 +1475,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 13 more fields
@@ -1632,6 +1744,10 @@ Controls:
   · Save definitions
   · Load definitions
   · ▾  [aria="Load a recently used definitions file", opens menu]
+  · Edit limits…
+      hint: Edit names, limits, units and type for every listed test in a table
+  · Derived tests…
+      hint: Add, edit or delete tests computed per die from other tests
   · Cancel
   · Apply to 77 tests →
 
@@ -1644,6 +1760,8 @@ Controls:
       hint: Append more files to the current view: choose files or scan a folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · Load sample data
@@ -1662,6 +1780,8 @@ Controls:
   · Subdivide file by this column (differs on every  [checkbox, unchecked]
   · Subdivide file by this column (24 values in samp  [checkbox, unchecked]
   · Cancel
+  · Name bins…
+      hint: Name the bins in this file, give them colours and tick the ones that pass, in a table — the bins come from the sample of rows this window holds
   · Load bin definitions…
       hint: Load a bin-definitions CSV for real bin names (and pass/fail flags) instead of typing bare numbers
   · Continue →
@@ -1679,6 +1799,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · Plot mode  [opens menu]
@@ -1746,6 +1868,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · Plot mode  [opens menu]
@@ -1813,6 +1937,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · Plot mode  [opens menu]
@@ -1903,6 +2029,8 @@ Controls:
       hint: Unload all files and return to the start screen
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · 12 more fields
@@ -1945,12 +2073,12 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Ring 4 (edge): pass rate 41.8 points below the rest of the wafer on 2/3 wafers; mostly hard bin 2 accounts for 32.0 of those points, hard bin 3 for 9.8 — about 64 dies lost. vth_mV is above its high limit on 40 dies, 27 of them in Ring 4 (edge). leakage_nA is outside its limits (1 low, 37 high) on 38 dies, 21 of them in Ring 4 (edge). Ring 4 (edge) mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined. Ring 4 (edge) mean vth_mV is 9.1% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) has HBin and SBin 1 (same dies) occurrence 41.8 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined Click to show it on the map
+  · ●●●High impact Ring 4 (edge): pass rate 41.8 points below the rest of the wafer on 2/3 wafers; mostly hard bin 2 accounts for 32.0 of those points, hard bin 3 for 9.8 — about 64 dies lost. vth_mV is above its high limit on 40 dies, 27 of them in Ring 4 (edge). leakage_nA is outside its limits (1 low, 37 high) on 38 dies, 21 of them in Ring 4 (edge). Ring 4 (edge) mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined. Ring 4 (edge) mean vth_mV is 9.1% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) has HBin and SBin 1 (same dies) occurrence 41.8 percentage points lower than the rest of the map — lower on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
   · Hard bin 2
-      hint: Ring 4 (edge) has HBin and SBin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
+      hint: Ring 4 (edge) has HBin and SBin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
   · Hard bin 3
-      hint: Ring 4 (edge) has HBin and SBin 3 (same dies) occurrence 9.8 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
+      hint: Ring 4 (edge) has HBin and SBin 3 (same dies) occurrence 9.8 percentage points higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
   · vth_mV
       hint: Click to show this test on the map, with the dies it fails
   · leakage_nA
@@ -1966,26 +2094,26 @@ Controls:
   · ●●●Unusual 15
   · Spatial pattern: edge-ring — seen on 2/3 wafers (67%)
       hint: Spatial pattern: edge-ring — seen on 2/3 wafers (67%) Click to show it on the map
-  · Hard bin and soft bin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) has HBin and SBin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Hard bin and soft bin 3 (same dies) occurrence 9.8 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) has HBin and SBin 3 (same dies) occurrence 9.8 percentage points higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Scan_chain pass rate 5.2 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) has scan_chain pass rate 5.2 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Limit fail rate for freq_MHz is 16.3 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) limit fail rate for freq_MHz is 16.3 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Limit fail rate for leakage_nA is 13.7 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) limit fail rate for leakage_nA is 13.7 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Limit fail rate for vth_mV is 17.6 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) limit fail rate for vth_mV is 17.6 pp higher than the rest of the wafer — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Mean freq_MHz is 3.0% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean freq_MHz is 3.0% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Mean vth_mV is 9.1% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean vth_mV is 9.1% higher than the rest of the map — higher on 2/3 wafers, all wafers' data combined Click to show it on the map
-  · Yield is 41.8 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined
-      hint: Ring 4 (edge) yield is 41.8 percentage points lower than the rest of the map — lower on 2/3 wafers, all wafers' data combined Click to show it on the map
+  · Hard bin and soft bin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) has HBin and SBin 2 (same dies) occurrence 32.0 percentage points higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Hard bin and soft bin 3 (same dies) occurrence 9.8 percentage points higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) has HBin and SBin 3 (same dies) occurrence 9.8 percentage points higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Scan_chain pass rate 5.2 percentage points lower than the rest of the map — lower on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) has scan_chain pass rate 5.2 percentage points lower than the rest of the map — lower on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Limit fail rate for freq_MHz is 16.3 pp higher than the rest of the wafer — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) limit fail rate for freq_MHz is 16.3 pp higher than the rest of the wafer — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Limit fail rate for leakage_nA is 13.7 pp higher than the rest of the wafer — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) limit fail rate for leakage_nA is 13.7 pp higher than the rest of the wafer — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Limit fail rate for vth_mV is 17.6 pp higher than the rest of the wafer — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) limit fail rate for vth_mV is 17.6 pp higher than the rest of the wafer — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Mean freq_MHz is 3.0% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) mean freq_MHz is 3.0% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) mean leakage_nA is 21.9% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Mean vth_mV is 9.1% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) mean vth_mV is 9.1% higher than the rest of the map — higher on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
+  · Yield is 41.8 percentage points lower than the rest of the map — lower on 2/2 wafers with positions, 1 without, all wafers' data combined
+      hint: Ring 4 (edge) yield is 41.8 percentage points lower than the rest of the map — lower on 2/2 wafers with positions, 1 without, all wafers' data combined Click to show it on the map
   · ▶Wafer Yield (82.4–86.4%) · median 84.6%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
@@ -2012,6 +2140,8 @@ Controls:
       hint: Append more files to the current view: choose files or scan a folder
   · Auto (system)▾  [aria="Colour theme", opens listbox]
       hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
   · Help  [opens menu]
       hint: Help
   · Load sample data

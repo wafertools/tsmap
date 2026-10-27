@@ -13,6 +13,7 @@ import { formatTestListCsv } from './testSelectorUI';
 import { formatSplitsCsv, setSplitLabel } from './splits';
 import { formatBinDefsCsv } from './binDefs';
 import { plotsTemplateText } from './plotPrefs';
+import { formatSetupFile } from './setupFile';
 import type { WaferData } from './types';
 import { errMsg } from './lib';
 
@@ -58,8 +59,16 @@ const ROWS: TemplateRow[] = [
     content: () => formatSplitsCsv(exampleWafers()),
   },
   {
+    label: 'Setup',
+    description: 'Wafer diameter, edge exclusion, reticle, retest policy and value filter in one file — see Setup ▾ → Setup file…, or launch with --setup.',
+    fileName: 'setup-template.csv',
+    content: () => formatSetupFile({
+      waferDiameterMm: 300, edgeExclusionMm: 3, reticle: { width: 4, height: 3, anchorDie: { x: 1, y: 0 } }, retestPolicy: 'last', valueFilter: 'validity',
+    }),
+  },
+  {
     label: 'Bin definitions',
-    description: 'Hard/soft bin names, pass/fail flags and optional map colours — see Setup ▾ → Bin definitions…, or the mapping overlay\'s "Load bin definitions…" for CSV/JSON/Parquet.',
+    description: 'Hard/soft bin names, pass/fail flags and optional map colours — see Setup ▾ → Bin definitions…, --bins, or the mapping overlay\'s "Load bin definitions…" for CSV/JSON/Parquet.',
     fileName: 'bin-definitions-template.csv',
     content: () => formatBinDefsCsv([
       { bin: 1, type: 'hard', name: 'Pass', pass: true, color: '#2ca02c' },

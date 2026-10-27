@@ -188,6 +188,14 @@ A small lot imports every test. **Setup ▾ → Tests…** opens the selector at
 
 ---
 
+<!-- covers: Edit limits…; tsmap guide › Editing limits, units and type -->
+
+# Edit limits…
+
+**Edit limits…** in the selector opens a table of every test: its name, test limits, spec limits, validity limits, units and type. A blank cell means the data's own value, and **Use the data's values** discards the changes on ticked rows. The changes take effect when the tests are imported.
+
+---
+
 <!-- _class: split -->
 <!-- covers: All; Parametric; Functional; Select range; Test selector › test row; tsmap guide › Controls -->
 

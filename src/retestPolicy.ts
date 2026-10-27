@@ -8,7 +8,9 @@ export type RetestPolicy = 'last' | 'first' | 'best' | 'worst';
 
 export const DEFAULT_RETEST_POLICY: RetestPolicy = 'last';
 
-const POLICIES: readonly RetestPolicy[] = ['last', 'first', 'best', 'worst'];
+/** Every policy, in the order the dialog lists them; also what a setup file's value is checked against. */
+export const RETEST_POLICIES: readonly RetestPolicy[] = ['last', 'first', 'best', 'worst'];
+const POLICIES = RETEST_POLICIES;
 
 export const RETEST_POLICY_LABEL: Readonly<Record<RetestPolicy, string>> = {
   last: 'Last result',

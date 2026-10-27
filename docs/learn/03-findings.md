@@ -185,7 +185,7 @@ A spatial pattern can have a **Show N supporting findings** line. This is [`EDGE
 
 Opened, it lists the regional findings the pattern explains.
 
-![The same pattern with 14 supporting findings open](images/03/supporting-findings.png)
+![The same pattern with its supporting findings open](images/03/supporting-findings.png)
 
 ---
 

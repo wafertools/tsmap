@@ -111,3 +111,14 @@ export function recordOf(c: DieColumns, i: number): { testValues: Record<number,
   }
   return { testValues, testPass };
 }
+
+/** How many records carry each bin of one kind. Records with no bin are not counted. */
+export function binCounts(c: DieColumns, which: 'hbin' | 'sbin'): Map<number, number> {
+  const counts = new Map<number, number>();
+  const col = c[which];
+  if (!col) return counts;
+  for (let i = 0; i < c.count; i++) {
+    if (present(col[i], U16_MISSING)) counts.set(col[i], (counts.get(col[i]) ?? 0) + 1);
+  }
+  return counts;
+}

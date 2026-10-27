@@ -17,10 +17,10 @@ import { storageKey } from './storageKeys';
 // renamed, unmounted share). See `loadRecentDefinition` in main.ts, which owns
 // that resolution because it needs the platform; this module stays pure.
 //
-// Keyed by kind so tests/bins/splits each keep their own short list rather than
+// Keyed by kind so tests/bins/splits/setup each keep their own short list rather than
 // one mixed list where the entry you want is buried under another type's.
 
-export type DefinitionKind = 'tests' | 'bins' | 'splits';
+export type DefinitionKind = 'tests' | 'bins' | 'splits' | 'setup';
 
 const STORAGE_KEY = storageKey('tsmap:recent-definitions');
 const MAX_PER_KIND = 6;
@@ -32,7 +32,7 @@ const MAX_PER_KIND = 6;
  * under 1 KB — so 32 KB is already ~50x any genuine case.
  *
  * The first version allowed 256 KB per file, which looked harmless and was not:
- * 256 K chars x 6 entries x 3 kinds is 4.5 M chars, and localStorage stores
+ * 256 K chars x 6 entries x 3 kinds (the setup file was added after) is 4.5 M chars, and localStorage stores
  * UTF-16, so the *permitted* worst case was ~9 MB against a budget of about 5.
  * localStorage does not evict, it throws — so the victim would not have been
  * this list, it would have been whatever tried to save next. A user's wafer

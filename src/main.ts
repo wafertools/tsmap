@@ -2,7 +2,7 @@ declare const __APP_VERSION__: string;
 declare const __BUILD_DATE__: string;
 
 import { keepTests } from './columns';
-import { buildWaferMap } from '@wafertools/wafermap';
+import { buildWaferMap, isYieldEligibleDie } from '@wafertools/wafermap';
 import type { WaferMapResult, BinDef } from '@wafertools/wafermap';
 import type { WaferViewOptions } from '@wafertools/wafermap/render';
 import { renderWaferMap, renderWaferGallery, collectWarnings, severityOf, openWaferMapGuide, WMAP_VERSION, WMAP_BUILD_TIME } from '@wafertools/wafermap/render';
@@ -25,8 +25,11 @@ import { initTheme, onThemeChange, getTheme, setTheme, THEME_GROUPS, type Theme 
 import { makeMenuSelect } from './menuSelect';
 import { openModal } from './modal';
 import { showSplitsModal } from './splitsUI';
-import { getEdgeExclusionMm, getWaferDiameterMm, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
-import { parseBinDefsFile, formatBinDefsCsv, applyBinDefOverrides } from './binDefs';
+import { getEdgeExclusionMm, getWaferDiameterMm, normalizeWaferGeometry, resolveCliGeometry, setWaferGeometry } from './waferGeometry';
+import { parseBinDefsFile, applyBinDefOverrides } from './binDefs';
+import { buildBinRows, mixedPassBins, effectivePass, countYield, applyPassEntries } from './binEditor';
+import { showBinEditor } from './binEditorUI';
+import { binCounts } from './columns';
 import { loadMapPrefs, saveMapPrefs } from './mapPrefs';
 import { loadSavedPlots, savePlots, importPlotsText, loadInsightsFilter, saveInsightsFilter, loadSavedFilters, saveSavedFilters } from './plotPrefs';
 import type { BinDefEntry } from './binDefs';
@@ -38,13 +41,15 @@ import { getValueFilter, setValueFilter, VALUE_FILTER_LABEL } from './valueFilte
 import { showValueFilterDialog } from './valueFilterUI';
 import { getRetestPolicy, normalizeRetestPolicy, setRetestPolicy, RETEST_POLICY_LABEL } from './retestPolicy';
 import { showRetestPolicyDialog } from './retestPolicyUI';
+import { showSetupFileDialog } from './setupFileUI';
+import { showSettingsFilesDialog } from './settingsFilesUI';
+import { parseSetupFile, describeSetup, type SetupSettings } from './setupFile';
 import type { InferredDiameterHint } from './waferGeometryUI';
 import { openFileFilterDialog, pickedFromHandle, pickedFromWebFile, materializePicked, type PickedFile } from './fileFilterUI';
 import { showFileAssociationsModal } from './fileAssociationsUI';
 import { showDefinitionsTemplatesDialog } from './definitionsTemplatesUI';
 import { waferLabels, splitsFingerprint, legacySplitsFingerprint, parseSplitsCsv, splitAssignments, restoreSplitAssignments, splitRowsToAssignments, type SplitRow } from './splits';
 import { getRecentFiles, addRecentFiles, removeRecentFile, formatRecentTime } from './recentFiles';
-import { makeLoadDefinitionsButton } from './recentDefinitionsUI';
 import { getRecentDefinitions, addRecentDefinition, recentDefinitionKey, describeAge, type DefinitionKind } from './recentDefinitions';
 import { storageKey } from './storageKeys';
 import { showResetSettingsDialog } from './resetSettingsUI';
@@ -82,6 +87,7 @@ const addBtn          = document.getElementById('add-btn') as HTMLButtonElement;
 const lotBtn          = document.getElementById('lot-btn') as HTMLButtonElement;
 const resetBtn        = document.getElementById('reset-btn') as HTMLButtonElement;
 const helpBtn         = document.getElementById('help-btn') as HTMLButtonElement;
+const preferencesBtn  = document.getElementById('preferences-btn') as HTMLButtonElement;
 const fileLabel       = document.getElementById('file-label')!;
 const logList         = document.getElementById('log-list')!;
 const logToggle       = document.getElementById('log-toggle')!;
@@ -294,8 +300,10 @@ let showSplitSuffix = true;
 // set — see waferGeometry.ts's normalizeWaferGeometry, the single place that
 // enforces this (an absolute mm exclusion value is only meaningful relative
 // to a confirmed diameter).
-let waferDiameterMm: number | undefined = getWaferDiameterMm();
-let edgeExclusionMm: number | undefined = getEdgeExclusionMm();
+// Through the gate like every other writer: an exclusion with no diameter to apply it to is not used, whatever storage holds.
+const startGeometry = normalizeWaferGeometry(getWaferDiameterMm(), getEdgeExclusionMm());
+let waferDiameterMm: number | undefined = startGeometry.diameterMm;
+let edgeExclusionMm: number | undefined = startGeometry.edgeExclusionMm;
 // The stepper field (width/height in dies, optional corner die): `reticleConfig` on every buildWaferMap
 // call, which draws the field grid and adds reticle-position findings. Unset means neither — nothing
 // in a wafer file says how many dies make a field. See reticle.ts.
@@ -386,7 +394,9 @@ let logTimings = localStorage.getItem(storageKey('tsmap:log-timings')) === 'true
 function toggleLogTimings(): void {
   logTimings = !logTimings;
   try { localStorage.setItem(storageKey('tsmap:log-timings'), String(logTimings)); } catch { /* unavailable — session-only */ }
-  log('info', `Phase-timing log ${logTimings ? 'on' : 'off'}`);
+  log('info', logTimings
+    ? 'Load timings on (troubleshooting): a timing line is logged at each stage of a load. Include them in a bug report; switch off under Preferences when done.'
+    : 'Load timings off');
 }
 
 /**
@@ -1001,6 +1011,8 @@ let pendingSampleSplitSeed: SplitRow[] | null = null;
  * in-progress adjustments.
  */
 let pendingTestListPreload: string | null = null;
+/** A `--bins` file waiting for the lot it was launched with: merged over that lot's bin definitions once it is loaded, and dropped when that load ends. */
+let pendingCliBins: BinDefEntry[] | null = null;
 
 
 /**
@@ -1024,7 +1036,7 @@ function loadSavedSplits(wafers: WaferData[]): SplitsRestore {
 
     // No lot identity — see splitsFingerprint. Nothing to restore, and any
     // entry an older build wrote for these wafers is now unreachable, so drop
-    // it rather than leave Help ▸ Reset saved settings… reporting stored splits
+    // it rather than leave Preferences ▸ Reset saved settings… reporting stored splits
     // that can never be applied.
     if (fingerprint === null) {
       const legacy = legacySplitsFingerprint(wafers);
@@ -1070,7 +1082,7 @@ function saveSplits(wafers: WaferData[]): void {
     const assignments = splitAssignments(wafers);
     // Drop the record rather than storing an empty one. "Clear all" in the
     // splits dialog routes here, so an empty map would leave the key present
-    // with nothing in it — and Help ▸ Reset saved settings…, which lists only
+    // with nothing in it — and Preferences ▸ Reset saved settings…, which lists only
     // what is actually stored, would then report "Wafer split assignments" to a
     // user who has just cleared them. A dialog whose whole job is telling the
     // truth about what is kept must not be fed a record that means nothing.
@@ -1101,6 +1113,12 @@ function renderWafers(
   session.hbinDefs = binInfo.hbinDefs;
   session.sbinDefs = binInfo.sbinDefs;
   session.passHbins = binInfo.passHbins;
+  if (pendingCliBins) {
+    const entries = pendingCliBins;
+    pendingCliBins = null;
+    applyBinEntriesToSession(entries);
+    log('info', `Bin definitions loaded from --bins: ${entries.length} entr${entries.length !== 1 ? 'ies' : 'y'} applied`);
+  }
   loggedWmapWarnings.clear();
   const restoredSplits = loadSavedSplits(wafers);
   clearLotStatsCache();
@@ -1842,6 +1860,16 @@ const loadDeps: LoadDeps = {
         (mapping, binDefs) => resolve({ mapping, binDefs }),
         () => resolve(null),
         () => platform.pickTextFile('definitions', 'Select a bin definitions file to load').then(f => f?.content ?? null),
+        {
+          pick: () => pickDefinitionsFile('bins', 'Select a bin definitions file to load'),
+          recents: () => recentDefinitionRows('bins'),
+          recentNote: recentDefinitionsNote(),
+          save: async csv => {
+            const saved = await platform.saveTextFile(csv, 'bin-definitions.csv', 'definitions', 'Save bin definitions to a file');
+            if (saved) addRecentDefinition({ kind: 'bins', name: saved.name, path: saved.path, content: csv });
+          },
+          onLog: log,
+        },
       );
     }),
     selectTests: (req) => new Promise<SelectorResult>(resolve => {
@@ -1909,6 +1937,7 @@ function handleFiles(files: FileHandle[], isAppend: boolean, continuesCurrentLoa
  * `--tests` file already is.
  */
 async function applyCliArgs(args: CliStartupArgs): Promise<void> {
+  let binsChanged = false;
   if (args.urlError) {
     log('error', `Failed to fetch --url: ${args.urlError}`);
   }
@@ -1917,6 +1946,33 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
       pendingSampleSplitSeed = parseSplitsCsv(await platform.readTextFile(args.splits));
     } catch (e) {
       log('error', `Failed to read splits file "${args.splits}": ${errMsg(e)}`);
+    }
+  }
+  // The setup file comes before the individual flags below it, so `--setup site.csv --retests best` is the site's
+  // setup with one change. Session only, like each of the flags it stands for.
+  let setupChanged = false;
+  if (args.setup) {
+    try {
+      const s = parseSetupFile(await platform.readTextFile(args.setup), (line, msg) => log('warn', `Setup line ${line}: ${msg}`));
+      const stated = describeSetup(s);
+      if (stated.length === 0) log('warn', `Setup file "${args.setup}" states no settings tsmap could read`);
+      else {
+        setupChanged = applySetup(s, false);
+        log('info', `Setup loaded from --setup: ${stated.join(', ')}`);
+      }
+    } catch (e) {
+      log('error', `Failed to read setup file "${args.setup}": ${errMsg(e)}`);
+    }
+  }
+  if (args.bins) {
+    try {
+      const entries = parseBinDefsFile(await platform.readTextFile(args.bins), (line, msg) => log('warn', `Bin definitions line ${line}: ${msg}`));
+      if (entries.length === 0) log('warn', `Bin definitions file "${args.bins}" contained no valid rows`);
+      else if (args.files.length > 0) pendingCliBins = entries;   // for the load this launch starts, and no other
+      else if (session.wafers.length > 0) { applyBinEntriesToSession(entries); binsChanged = true; }
+      else log('warn', '--bins ignored: it needs a data file in the same command, or a lot that is already open');
+    } catch (e) {
+      log('error', `Failed to read bin definitions file "${args.bins}": ${errMsg(e)}`);
     }
   }
   if (args.tests) {
@@ -1971,7 +2027,7 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     retestPolicy = given;
   }
   if (args.files.length === 0) {
-    if ((plotsChanged || reticleChanged || retestsChanged) && session.wafers.length > 0) rerenderCurrentLot('Rendering');
+    if ((plotsChanged || reticleChanged || retestsChanged || binsChanged || setupChanged) && session.wafers.length > 0) rerenderCurrentLot('Rendering');
     return;
   }
   const files: FileHandle[] = args.files.map(p => ({
@@ -1979,7 +2035,9 @@ async function applyCliArgs(args: CliStartupArgs): Promise<void> {
     bytes: new Uint8Array(0),
     path: p,
   }));
-  handleFiles(files, false);
+  // The bins were read for this launch's files. Whether that load finished, was cancelled or failed, they are not kept for
+  // a later, unrelated one.
+  void handleFiles(files, false).finally(() => { pendingCliBins = null; });
 }
 
 // ── Open / Add buttons ────────────────────────────────────────────────────────
@@ -2614,6 +2672,70 @@ function openValueFilterDialog() {
   });
 }
 
+/** The lot-independent settings as they stand — what **Setup file…** saves. */
+function currentSetup(): SetupSettings {
+  return {
+    waferDiameterMm,
+    edgeExclusionMm: waferDiameterMm === undefined ? undefined : edgeExclusionMm,
+    reticle,
+    retestPolicy,
+    valueFilter: valueFilterMode,
+  };
+}
+
+/**
+ * Applies the settings a setup file states, each through the module that owns it, so a value a dialog would refuse is
+ * refused here. `persist` writes them as the dialogs do (a load in the app); without it they hold for this session only
+ * (`--setup`, like the flags it stands for). A setting the file does not state is left as it is. Returns whether
+ * anything changed; the caller re-renders.
+ */
+function applySetup(s: SetupSettings, persist: boolean): boolean {
+  let changed = false;
+  if (s.waferDiameterMm !== undefined || s.edgeExclusionMm !== undefined) {
+    const geometry = normalizeWaferGeometry(s.waferDiameterMm ?? waferDiameterMm, s.edgeExclusionMm ?? edgeExclusionMm);
+    if (s.edgeExclusionMm !== undefined && geometry.edgeExclusionMm === undefined) {
+      log('warn', 'Setup: the edge exclusion was ignored because no wafer diameter is set — the file needs a waferDiameter, or set one via Setup ▾ → Diameter & edge exclusion… first');
+    }
+    changed ||= geometry.diameterMm !== waferDiameterMm || geometry.edgeExclusionMm !== edgeExclusionMm;
+    const kept = persist ? setWaferGeometry(geometry) : geometry;
+    waferDiameterMm = kept.diameterMm;
+    edgeExclusionMm = kept.edgeExclusionMm;
+  }
+  if (s.reticle) {
+    changed ||= JSON.stringify(s.reticle) !== JSON.stringify(reticle);
+    if (reticle === undefined) reticleGridShown = undefined;
+    reticle = persist ? setReticle(s.reticle) : s.reticle;
+  }
+  if (s.retestPolicy) {
+    changed ||= s.retestPolicy !== retestPolicy;
+    retestPolicy = persist ? setRetestPolicy(s.retestPolicy) : s.retestPolicy;
+  }
+  if (s.valueFilter) {
+    changed ||= s.valueFilter !== valueFilterMode;
+    valueFilterMode = persist ? setValueFilter(s.valueFilter) : s.valueFilter;
+  }
+  return changed;
+}
+
+function openSetupFileDialog() {
+  showSetupFileDialog({
+    current: currentSetup,
+    apply: (s) => {
+      const changed = applySetup(s, true);
+      if (changed) rerenderCurrentLot('Rendering');
+      return changed;
+    },
+    pick: () => pickDefinitionsFile('setup', 'Select a setup file to load'),
+    recents: () => recentDefinitionRows('setup'),
+    recentNote: recentDefinitionsNote(),
+    save: async text => {
+      const saved = await platform.saveTextFile(text, 'tsmap-setup.csv', 'definitions', 'Save the setup to a file');
+      if (saved) addRecentDefinition({ kind: 'setup', name: saved.name, path: saved.path, content: text });
+    },
+    onLog: log,
+  });
+}
+
 function openRetestPolicyDialog() {
   showRetestPolicyDialog(retestPolicy, (next) => {
     retestPolicy = setRetestPolicy(next);
@@ -2644,98 +2766,6 @@ function openReticleDialog() {
     if (reticle === undefined || next === undefined) reticleGridShown = undefined;
     reticle = setReticle(next);
     rerenderCurrentLot('Rendering');
-  });
-}
-
-/**
- * Shared shell for the Setup ▾ "definitions" dialogs (Test/Bin definitions) —
- * same modal chrome, button layout, save/load try-catch-log wrapping, and
- * post-load re-render sequence. `onSave` returns the CSV text to write;
- * `onLoad` parses+applies the loaded text and returns whether anything was
- * applied (`false` leaves the dialog open — `onLoad` has already logged why,
- * e.g. "file contained no valid rows"; `true` triggers the re-render and
- * closes the dialog).
- */
-function openSaveLoadDefinitionsDialog(opts: {
-  title: string;
-  errorLabel: string;
-  savedMessage: string;
-  description: string;
-  saveDisabled?: boolean;
-  saveFileName: string;
-  /** Which recents list this dialog's files belong to. */
-  kind: DefinitionKind;
-  onSave: () => string;
-  onLoad: (text: string) => boolean;
-  /** Offers a Clear button: forget the definitions without loading a
-   *  replacement. `clearDisabled` greys it when there is nothing to clear. */
-  onClear?: () => void;
-  clearDisabled?: boolean;
-}): void {
-  const { title, errorLabel, savedMessage, description, saveDisabled, saveFileName, kind, onSave, onLoad, onClear, clearDisabled } = opts;
-
-  const modalHandle = openModal({
-    title,
-    sizing: 'content',
-    contentSize: { width: 'min(90vw, 440px)', height: 'auto' },
-    mount(body) {
-      body.style.cssText += 'padding:16px;gap:12px;font-size:12px;color:var(--text-light)';
-
-      const descriptionEl = document.createElement('p');
-      descriptionEl.style.cssText = 'margin:0;color:var(--text-secondary)';
-      descriptionEl.textContent = description;
-
-      const buttonRow = document.createElement('div');
-      buttonRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
-
-      const saveBtn = document.createElement('button');
-      saveBtn.textContent = 'Save…';
-      saveBtn.className = 'btn-secondary';
-      saveBtn.disabled = !!saveDisabled;
-      saveBtn.style.opacity = saveBtn.disabled ? '0.5' : '';
-      saveBtn.addEventListener('click', async () => {
-        try {
-          const csv = onSave();
-          const saved = await platform.saveTextFile(csv, saveFileName, 'definitions', `Save ${errorLabel} to a file`);
-          if (saved) addRecentDefinition({ kind, name: saved.name, path: saved.path, content: csv });
-          log('info', savedMessage);
-        } catch (e) {
-          log('error', `Failed to save ${errorLabel}: ${errMsg(e)}`);
-        }
-      });
-
-      const applyLoaded = (text: string) => {
-        if (!onLoad(text)) return;
-        rerenderCurrentLot('Rendering');
-        modalHandle.close();
-      };
-      const loadBtn = makeLoadDefinitionsButton({
-        label: 'Load…',
-        pick: () => pickDefinitionsFile(kind, `Select a ${errorLabel} file to load`),
-        recents: () => recentDefinitionRows(kind),
-        note: recentDefinitionsNote(),
-        onText: applyLoaded,
-        onError: (msg) => log('error', `Failed to load ${errorLabel}: ${msg}`),
-      });
-
-      if (onClear) {
-        const clearBtn = document.createElement('button');
-        clearBtn.textContent = 'Clear';
-        clearBtn.className = 'btn-secondary';
-        clearBtn.disabled = !!clearDisabled;
-        clearBtn.style.opacity = clearBtn.disabled ? '0.5' : '';
-        clearBtn.addEventListener('click', () => {
-          onClear();
-          rerenderCurrentLot('Rendering');
-          modalHandle.close();
-        });
-        // Apart from Save/Load: it discards rather than transfers.
-        clearBtn.style.marginRight = 'auto';
-        buttonRow.append(clearBtn);
-      }
-      buttonRow.append(saveBtn, loadBtn);
-      body.append(descriptionEl, buttonRow);
-    },
   });
 }
 
@@ -2862,50 +2892,187 @@ function adoptPlotsFile(text: string): boolean {
   return r.added + r.replaced > 0;
 }
 
-function openBinDefinitionsDialog(): void {
+/**
+ * Lot-wide die counts per bin, and each wafer's counts with the pass set its file counts — **the dies wmap counts**: built
+ * with the lot's own retest policy, geometry and edge exclusion, so a retested die is one die and a partial or edge-excluded
+ * die is not counted, and the yield worked out from them is the yield the map shows. A die is judged by its hard bin, else
+ * its soft bin, as wmap's own pass rule does. A wafer with no positioned dies has no map to count, so its records are counted
+ * as recorded. `known` lists every bin the data carries, including bins only a superseded probe or an excluded die has.
+ */
+async function binDieCounts(): Promise<{
+  hard: Map<number, number>; soft: Map<number, number>; knownHard: Set<number>; knownSoft: Set<number>;
+  perWafer: Array<{ hardCounts: Map<number, number>; w: WaferData }>;
+}> {
+  const hard = new Map<number, number>(), soft = new Map<number, number>();
+  const knownHard = new Set<number>(), knownSoft = new Set<number>();
+  const perWafer: Array<{ hardCounts: Map<number, number>; w: WaferData }> = [];
+  const bump = (m: Map<number, number>, k: number | undefined) => { if (k !== undefined) m.set(k, (m.get(k) ?? 0) + 1); };
+  const add = (into: Map<number, number>, from: Map<number, number>) => { for (const [b, n] of from) into.set(b, (into.get(b) ?? 0) + n); };
+  let lastYield = performance.now();
+  for (const w of session.wafers) {
+    for (const b of binCounts(w.results, 'hbin').keys()) knownHard.add(b);
+    for (const b of binCounts(w.results, 'sbin').keys()) knownSoft.add(b);
+    // No test values or derived tests: they cannot move which bin a die has, and building them is most of a map's cost.
+    const map = buildWaferMap({ ...buildWmapConfig(w, [], wcrGeometryFrom(w.source)), derivedTests: undefined });
+    const h = new Map<number, number>(), s = new Map<number, number>();
+    if (map.dies.length > 0) {
+      for (const d of map.dies) {
+        if (!isYieldEligibleDie(d)) continue;
+        bump(h, d.hbin ?? d.sbin);
+        bump(s, d.sbin);
+      }
+    } else {
+      add(h, binCounts(w.results, 'hbin'));
+      add(s, binCounts(w.results, 'sbin'));
+    }
+    add(hard, h);
+    add(soft, s);
+    perWafer.push({ hardCounts: h, w });
+    if (performance.now() - lastYield > 100) { await yieldToPaint(); lastYield = performance.now(); }
+  }
+  return { hard, soft, knownHard, knownSoft, perWafer };
+}
+
+/** Hand `passHbins` to the lot and to every file that stated a pass set of its own: that set wins in
+ *  `passBinsForWafer`, so changing only the lot-wide one would leave such a file's yield untouched. */
+function setPassBinsEverywhere(passHbins: number[] | undefined): void {
+  session.passHbins = passHbins;
+  const next = new Map<WaferSource, FileDefs>();
+  for (const [src, defs] of session.defsBySource) {
+    next.set(src, defs.passHbins?.length ? { ...defs, passHbins: passHbins ? [...passHbins] : undefined } : defs);
+  }
+  session.defsBySource = next;
+}
+
+/** Bin definitions entries (a `--bins` file) laid over the loaded lot, pass flags included. */
+function applyBinEntriesToSession(entries: BinDefEntry[]): void {
+  const lotPass = applyPassEntries(session.passHbins, entries);
+  const merged = applyBinDefOverrides(
+    { hbinDefs: session.hbinDefs, sbinDefs: session.sbinDefs, passHbins: session.passHbins },
+    entries,
+  );
+  session.hbinDefs = merged.hbinDefs;
+  session.sbinDefs = merged.sbinDefs;
+  session.passHbins = lotPass;
+  const next = new Map<WaferSource, FileDefs>();
+  for (const [src, defs] of session.defsBySource) {
+    next.set(src, defs.passHbins?.length ? { ...defs, passHbins: applyPassEntries(defs.passHbins, entries) } : defs);
+  }
+  session.defsBySource = next;
+}
+
+async function openBinDefinitionsDialog(): Promise<void> {
   if (session.wafers.length === 0) return;
+  const counts = await binDieCounts();
+  const passSetFor = (w: WaferData) => effectivePass(passBinsForWafer(w));
+  const bySource = new Map<WaferSource | undefined, Set<number>>();
+  for (const { w } of counts.perWafer) bySource.set(w.source, passSetFor(w));
+  const mixed = mixedPassBins([...bySource.values()]);
 
-  const hbinCount = session.hbinDefs?.length ?? 0;
-  const sbinCount = session.sbinDefs?.length ?? 0;
-
-  openSaveLoadDefinitionsDialog({
-    title: 'Bin definitions',
-    kind: 'bins',
-    errorLabel: 'bin definitions',
-    savedMessage: 'Bin definitions saved',
-    description: hbinCount === 0 && sbinCount === 0
-      ? 'This file has no hard/soft bin names recorded (no HBR/SBR record, or a CSV/JSON/Parquet load with none loaded via the mapping overlay). Load a bin definitions CSV to supply them.'
-      : `Save the ${hbinCount} hard bin${hbinCount !== 1 ? 's' : ''} and ${sbinCount} soft bin${sbinCount !== 1 ? 's' : ''} `
-        + 'currently named (and which hard bins count as pass) to a CSV, or load a CSV to update them in place.',
-    saveDisabled: hbinCount === 0 && sbinCount === 0,
-    saveFileName: 'bin-definitions.csv',
-    onSave: () => {
-      const passSet = new Set(session.passHbins ?? []);
-      const entries: BinDefEntry[] = [
-        ...(session.hbinDefs ?? []).map(d => ({ bin: d.bin, type: 'hard' as const, name: d.name, pass: passSet.has(d.bin), color: d.color })),
-        ...(session.sbinDefs ?? []).map(d => ({ bin: d.bin, type: 'soft' as const, name: d.name, color: d.color })),
-      ];
-      return formatBinDefsCsv(entries);
+  showBinEditor({
+    rows: buildBinRows({
+      hbinDefs: session.hbinDefs, sbinDefs: session.sbinDefs, passHbins: session.passHbins,
+      hardCounts: counts.hard, softCounts: counts.soft, knownHard: counts.knownHard, knownSoft: counts.knownSoft, mixed,
+    }),
+    mixed,
+    yieldNow: countYield(counts.perWafer.map(({ hardCounts, w }) => ({ hardCounts, pass: passSetFor(w) }))),
+    yieldWith: pass => countYield(counts.perWafer.map(({ hardCounts }) => ({ hardCounts, pass }))),
+    pick: () => pickDefinitionsFile('bins', 'Select a bin definitions file to load'),
+    recents: () => recentDefinitionRows('bins'),
+    recentNote: recentDefinitionsNote(),
+    save: async csv => {
+      const saved = await platform.saveTextFile(csv, 'bin-definitions.csv', 'definitions', 'Save bin definitions to a file');
+      if (saved) addRecentDefinition({ kind: 'bins', name: saved.name, path: saved.path, content: csv });
     },
-    onLoad: (text) => {
-      const parsed = parseBinDefsFile(text, (lineNo, msg) => log('warn', `Bin definitions line ${lineNo}: ${msg}`));
-      if (parsed.length === 0) { log('warn', 'Bin definitions file contained no valid rows'); return false; }
-      const merged = applyBinDefOverrides(
-        { hbinDefs: session.hbinDefs, sbinDefs: session.sbinDefs, passHbins: session.passHbins },
-        parsed,
-      );
-      session.hbinDefs = merged.hbinDefs;
-      session.sbinDefs = merged.sbinDefs;
-      session.passHbins = merged.passHbins;
-      log('info', `Bin definitions loaded: ${parsed.length} entr${parsed.length !== 1 ? 'ies' : 'y'} applied`);
-      return true;
+    onApply: result => {
+      session.hbinDefs = result.hbinDefs;
+      session.sbinDefs = result.sbinDefs;
+      if (result.passChanged) setPassBinsEverywhere(result.passHbins);
+      rerenderCurrentLot('Rendering');
     },
+    onLog: log,
   });
 }
 
 
 
 let closeHelpMenu: (() => void) | null = null;
+
+/** A small caps heading inside an anchored menu, as the recents menus and Setup ▾ carry. */
+function appendMenuHeading(popup: HTMLElement, text: string, first = false): void {
+  const el = document.createElement('div');
+  el.style.cssText = 'font-size:12px;color:var(--text-veryfaint);text-transform:uppercase;'
+    + `letter-spacing:var(--tracking);margin:${first ? '0' : '8px'} 0 4px;`;
+  el.textContent = text;
+  popup.appendChild(el);
+}
+
+let closePreferencesMenu: (() => void) | null = null;
+
+/**
+ * The **Preferences** menu (the gear): the app and what it remembers on this machine, reachable with nothing loaded.
+ * Help is for reading about tsmap, and Setup ▾ is for how the loaded data is read (tests, bins, splits, geometry,
+ * retests, value filter, and the setup file of those values); this is what is left — the app itself.
+ *
+ *  - **Export or import settings…** and **Reset saved settings…** — what tsmap remembers on this machine.
+ *  - **File associations…** — OS integration, desktop only (a browser page cannot register a default app).
+ *  - **Troubleshooting** — the load-timing switch, for bug reports only.
+ */
+function openPreferencesMenu(anchor: HTMLElement) {
+  if (closePreferencesMenu) { closePreferencesMenu(); return; }
+
+  anchor.setAttribute('aria-expanded', 'true');
+  closePreferencesMenu = openAnchoredMenu(
+    anchor,
+    { stack: true, onClose: () => { closePreferencesMenu = null; anchor.setAttribute('aria-expanded', 'false'); } },
+    (popup, close) => {
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Export or import settings…',
+        hint: 'Save the column mappings or your other saved settings (theme, map preferences, pins, plots) as a file, or load one from another machine',
+        onClick: () => {
+          showSettingsFilesDialog({
+            pick: (title) => platform.pickTextFile('definitions', title, ['json']).then(f => f?.content ?? null),
+            save: async (text, fileName, title) => { await platform.saveTextFile(text, fileName, 'definitions', title); },
+            lotOpen: session.wafers.length > 0,
+            reload: () => window.location.reload(),
+            onLog: log,
+          });
+        },
+      }));
+
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Reset saved settings…',
+        hint: 'See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it',
+        onClick: () => {
+          showResetSettingsDialog({ isDesktop: isTauri, onLog: log, onCleared: adoptSavedPinnedTests });
+        },
+      }));
+
+      // No such concept in a browser (there is no OS-level "default app for a file type" a web page can register),
+      // so this row only exists on desktop.
+      if (isTauri) {
+        popup.appendChild(makeMenuRow(close, {
+          label: 'File associations…',
+          hint: 'Open .stdf/.atdf/.parquet files in tsmap automatically from your file manager',
+          onClick: () => {
+            showFileAssociationsModal({
+              getStatus: () => platform.getFileAssociationStatus(),
+              setAssociation: (extension, associate) => platform.setFileAssociation(extension, associate),
+            });
+          },
+        }));
+      }
+
+      appendMenuHeading(popup, 'Troubleshooting');
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Record load timings',
+        hint: 'For bug reports only: adds a timing line to the Log panel at each stage of a load, to copy into a report about a slow load. Leave it off otherwise',
+        checked: logTimings,
+        onClick: toggleLogTimings,
+      }));
+    },
+  );
+}
 
 /**
  * A single Help entry point, one destination: wmap's guide window, carrying
@@ -2963,46 +3130,8 @@ function openHelpMenu(anchor: HTMLElement) {
         },
       }));
 
-      // OS integration, not data: this is about how the machine treats tsmap,
-      // which is why it sits here rather than in Setup ▾. Setup is hidden until
-      // a file is open, and associating file types is precisely the thing you
-      // do right after installing, with nothing loaded — the same reachability
-      // argument that keeps Definitions file formats… and Reset saved settings…
-      // in this menu.
-      //
-      // No such concept in a browser (there is no OS-level "default app for a
-      // file type" a web page can register), so this row only exists on desktop.
-      if (isTauri) {
-        popup.appendChild(makeMenuRow(close, {
-          label: 'File associations…',
-          hint: 'Open .stdf/.atdf/.parquet files in tsmap automatically from your file manager',
-          onClick: () => {
-            showFileAssociationsModal({
-              getStatus: () => platform.getFileAssociationStatus(),
-              setAssociation: (extension, associate) => platform.setFileAssociation(extension, associate),
-            });
-          },
-        }));
-      }
-
-      popup.appendChild(makeMenuRow(close, {
-        label: 'Log phase timings',
-        hint: 'Write a line to the log panel at each load phase (scan/parse/analyse/render) with elapsed time — useful for reporting a slow load',
-        checked: logTimings,
-        onClick: toggleLogTimings,
-      }));
-
-      popup.appendChild(makeMenuRow(close, {
-        label: 'Reset saved settings…',
-        hint: 'See what tsmap remembers on this machine — themes, column mappings, splits — and forget any of it',
-        onClick: () => {
-          showResetSettingsDialog({ isDesktop: isTauri, onLog: log, onCleared: adoptSavedPinnedTests });
-        },
-      }));
-
-      // About goes last, as it does in every other application's help menu. It
-      // had drifted into the middle — inserted, at some point, into the middle
-      // of the comment above, which is how it ended up split in two.
+      // Saved-settings files and the troubleshooting switch are in the Preferences menu (the gear), not here:
+      // Help is for reading about tsmap. About goes last, as it does in every other application's help menu.
       const sep = document.createElement('div');
       sep.style.cssText = 'height:1px;background:var(--border-dim);margin:6px 0;';
       popup.appendChild(sep);
@@ -3141,13 +3270,7 @@ function openLotMenu(anchor: HTMLElement) {
       // Grouped, because six unrelated dialogs behind one caret cannot be
       // described by any button label. The headers do the describing the label
       // cannot — the same reason the recents menus carry one.
-      const heading = (text: string, first = false) => {
-        const el = document.createElement('div');
-        el.style.cssText = 'font-size:12px;color:var(--text-veryfaint);text-transform:uppercase;'
-          + `letter-spacing:var(--tracking);margin:${first ? '0' : '8px'} 0 4px;`;
-        el.textContent = text;
-        popup.appendChild(el);
-      };
+      const heading = (text: string, first = false) => appendMenuHeading(popup, text, first);
 
       heading('Tests & bins', true);
       // One entry, not two. "Tests…" and "Test definitions…" were the
@@ -3204,11 +3327,23 @@ function openLotMenu(anchor: HTMLElement) {
         hint: `${RETEST_POLICY_LABEL[retestPolicy]} counts when a die was probed more than once`,
         onClick: openRetestPolicyDialog,
       }));
+
+      // The values of the rows above (diameter, edge exclusion, reticle, retest policy, value filter) as one file, for a
+      // product or a site: it belongs with them, not with the app's own preferences.
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:1px;background:var(--border-dim);margin:6px 0;';
+      popup.appendChild(sep);
+      popup.appendChild(makeMenuRow(close, {
+        label: 'Setup file…',
+        hint: 'Save or load the diameter, edge exclusion, reticle, retest policy and value filter above as one file — for a product or a site',
+        onClick: openSetupFileDialog,
+      }));
     },
   );
 }
 
 helpBtn.addEventListener('click', () => openHelpMenu(helpBtn));
+preferencesBtn.addEventListener('click', () => openPreferencesMenu(preferencesBtn));
 restoreAndWatchPinnedTests();
 document.addEventListener('keydown', (e) => {
   if (isShortcutsKey(e)) { e.preventDefault(); showShortcutsDialog(); }
@@ -3293,11 +3428,11 @@ const themeSelect = makeMenuSelect(
 );
 themeSelect.id = 'theme-select';
 attachTooltip(themeSelect, 'Colour theme (Auto follows your system)');
-// Pin the theme picker + help button to the right end of the toolbar: the theme
+// Pin the theme picker, preferences and help buttons to the right end of the toolbar: the theme
 // picker carries `margin-left:auto` so it starts the right-aligned group.
 themeSelect.style.marginLeft = 'auto';
 helpBtn.style.marginLeft = '';
-helpBtn.before(themeSelect);
+preferencesBtn.before(themeSelect);
 
 onThemeChange(refreshCurrentView);
 

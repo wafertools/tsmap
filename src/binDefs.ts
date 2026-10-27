@@ -66,7 +66,7 @@ function parsePassFlag(raw: string): boolean | undefined {
  *  Hex only, deliberately: CSS colour names and `rgb()` would be accepted by
  *  a browser but not by every tool a colour sheet is edited in, and a typo'd
  *  name (`"gren"`) would reach the canvas as an invalid colour and draw black. */
-function parseHexColor(raw: string): string | undefined {
+export function parseHexColor(raw: string): string | undefined {
   const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(raw.trim());
   if (!m) return undefined;
   const hex = m[1].toLowerCase();

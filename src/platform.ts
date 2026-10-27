@@ -107,6 +107,10 @@ export interface CliStartupArgs {
   files: string[];
   tests?: string;
   splits?: string;
+  /** `--bins <FILE>` (cli_files.rs) — a bin-definitions CSV path, resolved but not read on the Rust side. */
+  bins?: string;
+  /** `--setup <FILE>` (cli_files.rs) — a setup-file path (diameter, edge exclusion, reticle, retests, value filter), resolved but not read on the Rust side. */
+  setup?: string;
   /** `--plots <FILE>` (or `--sweeps`; cli_files.rs) — a plots JSON path, resolved
    *  but not read on the Rust side. Added to the saved plots (`adoptPlotsFile`
    *  in main.ts) rather than seeding the next load, so it also works alone. */

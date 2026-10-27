@@ -1,7 +1,7 @@
 /**
  * Lesson 12 — Automation and integration. Screenshots for docs/learn/12-automation.md.
  *
- * The Help menu (User guide, Definitions file formats…, Reset saved settings…, About tsmap…), the bin definitions
+ * The Help menu (User guide, Definitions file formats…, About tsmap…), the Preferences menu (Export or import settings…, Reset saved settings…), the bin definitions
  * dialog and the column mapping's Load bin definitions…, and a sample opened straight from a link
  * (?dataUrl=…&dataFormat=…). The command line and file associations are desktop-only, so the deck teaches them from
  * the user guide without pictures. Run by scripts/lesson-shots.mjs.
@@ -13,6 +13,7 @@ import { SAMPLEDATA } from '../lib/paths.mjs';
 const DIALOG = '[role="dialog"]';
 const PARK = ['hover', '#toolbar-title'];
 const HELP = '#help-btn';
+const PREFERENCES = '#preferences-btn';
 const helpItem = (t) => `button:has-text("${t}")`;
 const hdr = { rect: { x: 0, y: 0, width: 1280, height: 820 } };
 
@@ -25,22 +26,29 @@ export const scenario = {
   beats: [
     {
       id: '01-help-menu',
-      title: 'Help works with nothing loaded: User guide, definitions formats, reset, About',
+      title: 'Help works with nothing loaded: User guide, shortcuts, definitions formats, support, About',
       steps: [['click', HELP], ['wait', 400]],
       checks: [isVisible(helpItem('Definitions file formats'), 'the Help menu is open')],
       shots: [{ name: 'help-menu', clip: { rect: { x: 900, y: 0, width: 380, height: 210 } }, callouts: [[HELP, { pad: 2 }]] }],
     },
     {
+      id: '01b-preferences-menu',
+      title: 'Preferences works with nothing loaded: export and import, reset, and the troubleshooting switch',
+      steps: [['press', 'Escape'], ['wait', 300], ['click', PREFERENCES], ['wait', 400]],
+      checks: [isVisible(helpItem('Reset saved settings'), 'the Preferences menu is open')],
+      shots: [{ name: 'preferences-menu', clip: { rect: { x: 880, y: 0, width: 400, height: 230 } }, callouts: [[PREFERENCES, { pad: 2 }]] }],
+    },
+    {
       id: '02-definitions-formats',
       title: 'Definitions file formats…: a Save template… button for each kind of file',
-      steps: [['click', helpItem('Definitions file formats')], ['wait', 800]],
+      steps: [['press', 'Escape'], ['wait', 300], ['click', HELP], ['wait', 300], ['click', helpItem('Definitions file formats')], ['wait', 800]],
       checks: [isVisible(DIALOG, 'the window is open')],
       shots: [{ name: 'definitions-formats', clip: { target: DIALOG, pad: 12 } }],
     },
     {
       id: '03-reset-settings',
       title: 'Reset saved settings… lists what tsmap remembers, so you can forget some of it',
-      steps: [['press', 'Escape'], ['wait', 400], ['click', HELP], ['wait', 300], ['click', helpItem('Reset saved settings')], ['wait', 800]],
+      steps: [['press', 'Escape'], ['wait', 400], ['click', PREFERENCES], ['wait', 300], ['click', helpItem('Reset saved settings')], ['wait', 800]],
       checks: [isVisible(DIALOG, 'the window is open')],
       shots: [{ name: 'reset-settings', clip: { target: DIALOG, pad: 12 } }],
     },

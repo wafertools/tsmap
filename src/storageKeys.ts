@@ -146,8 +146,8 @@ export const STORED_ITEMS: readonly StoredItem[] = [
   },
   {
     key: 'tsmap:log-timings',
-    label: 'Phase-timing log',
-    description: 'Whether load/parse/analyse/render phase timestamps are written to the log panel.',
+    label: 'Load timings (troubleshooting)',
+    description: 'The troubleshooting switch (Preferences → Record load timings): whether a timing line for each stage of a load is written to the log panel.',
     scope: 'both',
   },
 ];

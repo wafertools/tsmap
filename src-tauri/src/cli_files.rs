@@ -1,6 +1,6 @@
 // Parses tsmap's command-line file arguments — positional data-file paths,
 // `--list <file>` (one path per line), `--tests <file>` (test-selection CSV),
-// `--splits <file>` (wafer-splits CSV), `--plots <file>` (plots JSON; `--sweeps` is an alias) — into
+// `--splits <file>` (wafer-splits CSV), `--bins <file>` (bin-definitions CSV), `--setup <file>` (setup CSV), `--plots <file>` (plots JSON; `--sweeps` is an alias) — into
 // absolute paths. Used identically
 // for the initial launch's own `std::env::args()` and for argv forwarded by
 // `tauri_plugin_single_instance` on a relaunch, so there is exactly one place
@@ -47,6 +47,14 @@ pub struct CliArgs {
     pub files: Vec<String>,
     pub tests: Option<String>,
     pub splits: Option<String>,
+    /// Path to a bin-definitions CSV (`--bins <FILE>`), resolved against `cwd` and read by the frontend. A modifier of
+    /// a load like `tests`/`splits`: it is merged over the bin names and pass flags the file supplies.
+    pub bins: Option<String>,
+    /// Path to a setup file (`--setup <FILE>`), resolved against `cwd` and read by the frontend: the lot-independent settings
+    /// (wafer diameter, edge exclusion, reticle, retest policy, value filter) as the **Setup file…** dialog saves them. For this
+    /// session only, like the flags it stands for, and applied before them so a flag still wins. Not a modifier of a load: it
+    /// applies to whatever is open, so a `--setup`-only launch is a real payload (see `is_empty`).
+    pub setup: Option<String>,
     /// Path to a plots file (`--plots <FILE>`, or `--sweeps <FILE>` for a file of
     /// sweeps) — the JSON Insights → Plot's Export plots… writes. Resolved against
     /// `cwd`, read by the frontend. Unlike `tests`/`splits` it is not a modifier
@@ -119,7 +127,7 @@ impl CliArgs {
     pub fn is_empty(&self) -> bool {
         self.files.is_empty() && self.url.is_none() && self.url_error.is_none()
             && self.wafer_diameter.is_none() && self.edge_exclusion.is_none()
-            && self.reticle.is_none() && self.retests.is_none() && self.plots.is_none()
+            && self.reticle.is_none() && self.retests.is_none() && self.plots.is_none() && self.setup.is_none()
     }
 }
 
@@ -141,6 +149,13 @@ Options:
                          selector; it is still always shown for confirmation.
   --splits <FILE>       A wafer-splits CSV (same format the Splits… dialog
                          saves/loads) — applied automatically once loaded.
+  --bins <FILE>         A bin-definitions CSV (same format the Bin definitions…
+                         dialog saves/loads) — its names, pass flags and
+                         colours are applied over what the data file states.
+  --setup <FILE>        A setup file (what Setup ▾ → Setup file… saves) — the
+                         wafer diameter, edge exclusion, reticle, retest policy
+                         and value filter, for this launch. Any of the flags
+                         below it still wins. Works on its own, too.
   --plots <FILE>        A plots file (the JSON Insights > Plot > Export plots…
                          writes; a sweeps file also works, as --sweeps) — its
                          plots are added to your saved plots, shown in
@@ -279,6 +294,8 @@ struct RawArgs {
     list: Option<String>,
     tests: Option<String>,
     splits: Option<String>,
+    bins: Option<String>,
+    setup: Option<String>,
     plots: Option<String>,
     edge_exclusion: Option<String>,
     wafer_diameter: Option<String>,
@@ -295,7 +312,7 @@ struct RawArgs {
 /// position, so a new flag is appended.
 const VALUE_FLAGS: &[&str] = &[
     "--list", "--tests", "--splits", "--edge-exclusion", "--wafer-diameter",
-    "--url", "--url-format", "--url-headers", "--sweeps", "--plots", "--reticle", "--retests",
+    "--url", "--url-format", "--url-headers", "--sweeps", "--plots", "--reticle", "--retests", "--bins", "--setup",
 ];
 /// Recognized flags that take no value — handled elsewhere (`--new-instance`
 /// before this point, `--help`/`-h` and `--version`/`-V` via `wants_help`/
@@ -424,6 +441,8 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
     let mut list = None;
     let mut tests = None;
     let mut splits = None;
+    let mut bins = None;
+    let mut setup = None;
     let mut plots = None;
     let mut edge_exclusion = None;
     let mut wafer_diameter = None;
@@ -454,6 +473,8 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
                     7 => url_headers = Some(value.clone()),
                     10 => reticle = Some(value.clone()),
                     11 => retests = Some(value.clone()),
+                    12 => bins = Some(value.clone()),
+                    13 => setup = Some(value.clone()),
                     _ => plots = Some(value.clone()),
                 }
             }
@@ -485,7 +506,7 @@ fn parse_args(args: &[String]) -> Result<RawArgs, String> {
             files.push(arg.clone());
         }
     }
-    Ok(RawArgs { files, list, tests, splits, plots, edge_exclusion, wafer_diameter, reticle, retests, url, url_format, url_headers })
+    Ok(RawArgs { files, list, tests, splits, bins, setup, plots, edge_exclusion, wafer_diameter, reticle, retests, url, url_format, url_headers })
 }
 
 /// Parses and resolves `args` against `cwd`: `--list`'s lines are folded into
@@ -526,6 +547,8 @@ pub fn resolve(args: &[String], cwd: &Path) -> Result<CliArgs, String> {
         files,
         tests: raw.tests.map(|t| resolve_path(&t, cwd)),
         splits: raw.splits.map(|s| resolve_path(&s, cwd)),
+        bins: raw.bins.map(|s| resolve_path(&s, cwd)),
+        setup: raw.setup.map(|s| resolve_path(&s, cwd)),
         plots: raw.plots.map(|s| resolve_path(&s, cwd)),
         edge_exclusion,
         wafer_diameter,
@@ -605,6 +628,27 @@ mod tests {
         assert!(err.contains("--splits") && err.contains("--sweeps"), "{err}");
         let r = resolve(&args(&["--sw", "s.json"]), Path::new("/w")).unwrap();
         assert_eq!(r.plots.as_deref(), Some("/w/s.json"));
+    }
+
+    #[test]
+    fn bins_flag_is_resolved_against_cwd() {
+        let cwd = Path::new("/cwd");
+        let resolved = resolve(&args(&["--bins", "b.csv", "a.stdf"]), cwd).unwrap();
+        assert_eq!(resolved.bins.as_deref(), Some("/cwd/b.csv"));
+        let abs = resolve(&args(&["--bins", "/abs/b.csv"]), cwd).unwrap();
+        assert_eq!(abs.bins.as_deref(), Some("/abs/b.csv"));
+        assert!(resolve(&args(&["--bins"]), cwd).unwrap_err().contains("--bins"));
+    }
+
+    #[test]
+    fn setup_flag_is_resolved_and_is_a_payload_on_its_own() {
+        let cwd = Path::new("/cwd");
+        let only = resolve(&args(&["--setup", "s.csv"]), cwd).unwrap();
+        assert_eq!(only.setup.as_deref(), Some("/cwd/s.csv"));
+        assert!(!only.is_empty(), "a setup-only launch applies to the open window");
+        assert!(resolve(&args(&["--setup"]), cwd).unwrap_err().contains("--setup"));
+        // `--set` is an unambiguous abbreviation: no other flag starts with it.
+        assert_eq!(resolve(&args(&["--set", "/abs/s.csv"]), cwd).unwrap().setup.as_deref(), Some("/abs/s.csv"));
     }
 
     #[test]

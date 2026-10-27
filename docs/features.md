@@ -191,7 +191,7 @@ link that launches the installed app straight from a web page click. In the brow
 `--url-headers <file>` for data APIs that authenticate via a header rather than a
 self-authenticating link.
 
-Once a file is associated with tsmap (**Help → File associations…**, desktop only), double-clicking
+Once a file is associated with tsmap (**Preferences → File associations…**, desktop only), double-clicking
 a `.stdf`/`.atdf`/`.parquet` file in a file manager opens it in tsmap directly — an in-app setting,
 changeable anytime, rather than something locked in at install.
 

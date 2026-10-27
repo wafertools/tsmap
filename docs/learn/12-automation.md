@@ -94,29 +94,37 @@ More in the [user guide](../user-guide.md#command-line)
 <!-- covers: tsmap guide › File associations (desktop) -->
 
 # File associations
-On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and `.parquet` files in tsmap by double-click. Nothing is associated until you tick it. It is not available in the browser.
+On the desktop app, **Preferences → File associations…** opens `.stdf`, `.atdf` and `.parquet` files in tsmap by double-click. Nothing is associated until you tick it. It is not available in the browser.
 
 ---
 
 <!-- _class: split -->
-<!-- covers: Help › User guide; Help › Keyboard shortcuts…; Help › Definitions file formats…; Help › ☐Log phase timings; Help › Reset saved settings…; Help › Support tsmap…; Help › About tsmap… -->
+<!-- covers: Help › User guide; Help › Keyboard shortcuts…; Help › Definitions file formats…; Help › Support tsmap…; Help › About tsmap… -->
 
 # The Help menu
 
 - **User guide** opens the full guide
 - **Keyboard shortcuts…** lists the keys; **?** opens it from anywhere
-- **Log phase timings** adds timing lines to the log during a load
+- **Definitions file formats…** is covered in the next section
+- **Support tsmap…** opens the page on how to support the project
 - **About tsmap…** shows the version
 
 ![The Help menu](images/12/help-menu.png)
 
 ---
 
-# The rest of the Help menu
+<!-- _class: split -->
+<!-- covers: Preferences; Preferences › Export or import settings…; Preferences › Reset saved settings…; Preferences › ☐Record load timings; tsmap guide › Taking settings to another machine; Export or import settings… › Export…; Export or import settings… › Import…; Export or import settings… › Close -->
 
-- **Definitions file formats…** is covered in the next section
-- **Reset saved settings…** is covered after it
-- **Support tsmap…** opens the page on how to support the project
+# The Preferences menu
+
+The gear works with nothing loaded.
+
+- **Export or import settings…** carries your column mappings and preferences to another machine. **Export…** writes a file and **Import…** reads one. Column mappings merge at once; the other settings are chosen from a list, and tsmap then reloads. Recent files, split assignments and the setup values are never included
+- **Reset saved settings…** is covered after the definitions files
+- **Record load timings** is for bug reports only: it adds timing lines to the log. Leave it off otherwise
+
+![The Preferences menu](images/12/preferences-menu.png)
 
 ---
 
@@ -127,11 +135,11 @@ On the desktop app, **Help → File associations…** opens `.stdf`, `.atdf` and
 ---
 
 <!-- _class: split -->
-<!-- covers: tsmap guide › Definitions files; Definitions file formats… › Save a test definitions template; Definitions file formats… › Save a plots template; Definitions file formats… › Save a splits template; Definitions file formats… › Save a bin definitions template -->
+<!-- covers: tsmap guide › Definitions files; Definitions file formats… › Save a test definitions template; Definitions file formats… › Save a plots template; Definitions file formats… › Save a splits template; Definitions file formats… › Save a bin definitions template; Definitions file formats… › Save a setup template -->
 
 # Definitions file formats…
 
-Four kinds of file, each with a **Save template…** button that writes a filled-in example in the exact layout tsmap reads. You can save a template and edit it before you have any data.
+Five kinds of file, each with a **Save template…** button that writes a filled-in example in the exact layout tsmap reads. You can save a template and edit it before you have any data.
 
 ![The Definitions file formats window](images/12/definitions-formats.png)
 
@@ -139,19 +147,27 @@ Four kinds of file, each with a **Save template…** button that writes a filled
 
 <!-- covers: tsmap guide › Test definitions file; tsmap guide › Splits file; tsmap guide › Bin definitions file; tsmap guide › Sweeps in a plots file -->
 
-# Three CSV files and one JSON
-- CSV: test definitions (lesson 01), splits (04), bin definitions (here)
+# Four CSV files and one JSON
+- CSV: test definitions (lesson 01), splits (04), bin definitions and the setup file (here)
 - JSON: plots and sweeps (09 and 10)
 - Every format is in the [user guide](../user-guide.md#definitions-files)
 
 ---
 
+<!-- covers: tsmap guide › Saving the setup; tsmap guide › Setup file; Setup ▾ › Setup file…; Setup file… › Save…; Setup file… › Load…; Setup file… › Load a recently used definitions file; Setup file… › Close -->
+
+# Setup file…
+
+The last rows of **Setup ▾** (diameter, edge exclusion, reticle, retests, value filter) can be saved as one file for a product or a site, and loaded again from **Setup ▾ → Setup file…**: **Save…** writes it, **Load…** reads one, and the **▾** lists recent files. On the command line, `--setup` applies one for a single launch.
+
+---
+
 <!-- _class: split -->
-<!-- covers: tsmap guide › Bin definitions; Setup ▾ › Bin definitions…; Bin definitions… › Save…; Bin definitions… › Load…; Bin definitions… › Load a recently used definitions file -->
+<!-- covers: tsmap guide › Bin definitions; Setup ▾ › Bin definitions…; Bin definitions… › Save…; Bin definitions… › Load…; Bin definitions… › Load a recently used definitions file; Bin definitions… › Mark pass; Bin definitions… › Mark fail; Bin definitions… › Tick every row that matches the filter; Bin definitions… › Revert all; Bin definitions… › Cancel; Bin definitions… › Apply -->
 
 # Bin definitions…
 
-A name for each hard or soft bin, whether a hard bin passes, and optionally its map colour. <span class="badge" role="img" aria-label="callout 1">1</span> **Save…** writes them to a CSV file. <span class="badge" role="img" aria-label="callout 2">2</span> **Load…** reads one. <span class="badge" role="img" aria-label="callout 3">3</span> The **▾** lists recently used files.
+A table of every hard and soft bin with its die count, a name, whether a hard bin passes, and optionally its map colour. Tick rows for **Mark pass** or **Mark fail**; **Revert all** undoes the edits. Changing a pass flag shows the lot's yield before and after, and **Apply** asks you to confirm. <span class="badge" role="img" aria-label="callout 1">1</span> **Save…** writes them to a CSV file. <span class="badge" role="img" aria-label="callout 2">2</span> **Load…** reads one. <span class="badge" role="img" aria-label="callout 3">3</span> The **▾** lists recently used files.
 
 ![The Bin definitions window, with its three buttons outlined](images/12/bin-definitions.png)
 
@@ -165,11 +181,11 @@ STDF and ATDF name their bins; in a table every bin is a bare number until you l
 
 ---
 
-<!-- covers: Load bin definitions… -->
+<!-- covers: Load bin definitions…; Name bins… -->
 
 # In the column mapping
 
-For those formats, load the file in the column mapping before you continue, next to **Pass bin(s)**.
+For those formats, name the bins in the column mapping before you continue: **Name bins…** opens the bin table over the bins in the sample of rows it holds (add a rare one by number), and **Load bin definitions…** reads a file. Both are next to **Pass bin(s)**.
 
 ![The column mapping's footer, with Load bin definitions… outlined](images/12/mapping-bin-definitions.png)
 
@@ -221,7 +237,7 @@ Loaded wafer data is not affected by a reset. Saved settings stay on this machin
 1. Open **Help → Definitions file formats…** and save the splits template
 2. On the sample lot, open **Setup ▾ → Bin definitions…** and **Save…**
 3. *Optional, desktop app only:* in a terminal run `tsmap --help`, then `tsmap sample.stdf` with any STDF file to open it from the command line
-4. Open **Help → Reset saved settings…** and read the list of what is stored, then **Cancel**
+4. Open **Preferences → Reset saved settings…** and read the list of what is stored, then **Cancel**
 
 ---
 
