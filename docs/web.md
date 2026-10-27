@@ -78,6 +78,11 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
   with an edge-ring defect that shows up when the wafers are stacked.
 - [tsmap-hy-lot.stdf](samples/tsmap-hy-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers with a
   yield spread and several findings on the Summary panel.
+- [tsmap-dense-lot.stdf](samples/tsmap-dense-lot.stdf) — STDF: lot `PARAM-LOT-02`, 6 wafers of 300 mm with 5 mm dies
+  (2,709 dies a wafer), a parametric shift. A dense wafer, to try the gallery's **Columns** (keys **1** to **5**,
+  **0** for Auto) and to aim at small dies.
+- [tsmap-large-die-lot.stdf](samples/tsmap-large-die-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers of 150 mm with
+  10 mm dies (145 dies a wafer), a high-yield lot. A sparse wafer, the opposite of the dense lot.
 - [tsmap-rram-lot.stdf](samples/tsmap-rram-lot.stdf) — STDF: lot `RRAM-LOT-06`, a resistive-memory
   lot with sweep tests. Load [tsmap-rram-testdefs.csv](samples/tsmap-rram-testdefs.csv) with
   **Setup ▾ → Tests… → Load definitions** for readable names and derived tests, and

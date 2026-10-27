@@ -27,6 +27,13 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
     ],
   },
   {
+    title: 'On a gallery and the Insights tab',
+    rows: [
+      ['1 – 5', 'Set that many columns of cards'],
+      ['0', 'Set the columns back to Auto'],
+    ],
+  },
+  {
     title: 'In windows and menus',
     rows: [
       ['F', 'Maximise or restore an enlarged window'],

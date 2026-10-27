@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate sample STDF and ATDF files from the wmap demo CSV data.
 
-Reads the four scenario CSVs and their `.meta.json` (wafer geometry, bin names, test definitions) from
-../wafermap/docs/examples/data/ and produces:
+Cuts the four scenario lots with wafermap's demo generator (../wafermap/docs/examples/data/generate-demos.js, run for each lot's
+own wafer size, see GEOMETRY) and reads their CSVs and `.meta.json` (wafer geometry, bin names, test definitions). Produces:
   - One multi-wafer STDF and ATDF per scenario (all wafers in one file)
   - One single-wafer STDF and ATDF per wafer (named <LOT>_<WAFER>.stdf/.atdf)
 
@@ -18,14 +18,35 @@ Usage:
 
 import csv
 import json
+import subprocess
 import sys
+import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 
 import atdf_spec as A
 import stdf_spec as S
 
-DATA_DIR = Path(__file__).parent.parent.parent / 'wafermap' / 'docs' / 'examples' / 'data'
+GENERATOR = Path(__file__).parent.parent.parent / 'wafermap' / 'docs' / 'examples' / 'data' / 'generate-demos.js'
+
+# Each lot's wafer: diameter and die pitch in mm (PITCH, or PITCHXxPITCHY for a rectangular die). A spread of common sizes and
+# die counts, so the sample lots exercise a sparse wafer and a dense one: 150 mm at 10 mm (145 dies), 200 mm at 8x6 (581),
+# 300 mm at 10x8 (799), 300 mm at 5 mm (2,709).
+GEOMETRY = {
+    'edge-ring':  '300:10x8',
+    'high-yield': '150:10',
+    'cluster':    '200:8x6',
+    'parametric': '300:5',
+}
+
+
+def cut_scenarios(out_dir: Path) -> None:
+    """Write the four scenario CSVs and their .meta.json files to out_dir, each lot at its own wafer size."""
+    args = ['node', str(GENERATOR), '--out', str(out_dir)]
+    for name, geometry in GEOMETRY.items():
+        args += ['--geometry', f'{name}={geometry}']
+    subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
+
 
 # ── Scenario data ─────────────────────────────────────────────────────────────
 
@@ -38,8 +59,8 @@ def ascii_text(s: str) -> str:
 class Scenario:
     """One lot's wafers (rows by wafer, in file order) and what its `.meta.json` says about them."""
 
-    def __init__(self, csv_name: str):
-        path = DATA_DIR / csv_name
+    def __init__(self, data_dir: Path, csv_name: str):
+        path = data_dir / csv_name
         meta = json.loads(path.with_suffix('.meta.json').read_text())
         self.wafers = defaultdict(list)
         with open(path) as f:
@@ -199,21 +220,20 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     total_files = 0
-    for csv_name, lot_id, part_typ in SCENARIOS:
-        if not (DATA_DIR / csv_name).exists():
-            print(f'WARNING: {DATA_DIR / csv_name} not found — skipping')
-            continue
-        sc = Scenario(csv_name)
-        wafer_ids = list(sc.wafers)
-        print(f'\n{lot_id} ({len(wafer_ids)} wafers from {csv_name})')
+    with tempfile.TemporaryDirectory() as tmp:
+        cut_scenarios(Path(tmp))
+        for csv_name, lot_id, part_typ in SCENARIOS:
+            sc = Scenario(Path(tmp), csv_name)
+            wafer_ids = list(sc.wafers)
+            print(f'\n{lot_id} ({len(wafer_ids)} wafers from {csv_name}, {GEOMETRY[csv_name[:-4]]})')
 
-        # Multi-wafer file, then one file per wafer.
-        sets = [(lot_id, sc.wafers)] + [(f'{lot_id}_{w}', {w: sc.wafers[w]}) for w in wafer_ids]
-        for stem, wafers in sets:
-            (out_dir / f'{stem}.stdf').write_bytes(build_stdf(sc, lot_id, part_typ, wafers))
-            (out_dir / f'{stem}.atdf').write_text(build_atdf(sc, lot_id, part_typ, wafers))
-            total_files += 2
-            print(f'  {stem}.stdf/.atdf  ({sum(len(r) for r in wafers.values())} dies, {len(wafers)} wafer(s))')
+            # Multi-wafer file, then one file per wafer.
+            sets = [(lot_id, sc.wafers)] + [(f'{lot_id}_{w}', {w: sc.wafers[w]}) for w in wafer_ids]
+            for stem, wafers in sets:
+                (out_dir / f'{stem}.stdf').write_bytes(build_stdf(sc, lot_id, part_typ, wafers))
+                (out_dir / f'{stem}.atdf').write_text(build_atdf(sc, lot_id, part_typ, wafers))
+                total_files += 2
+                print(f'  {stem}.stdf/.atdf  ({sum(len(r) for r in wafers.values())} dies, {len(wafers)} wafer(s))')
 
     print(f'\nDone — {total_files} files written to {out_dir}/')
 

@@ -268,6 +268,12 @@ One bar per split, and the pareto shows each split's share of each bin. SS is lo
 
 ---
 
+# Columns of cards
+
+Beside **Group by** and **Show**, **Columns** sets how many columns of cards every section of Insights uses. **Auto** fits as many as the width holds; a number divides the width that many ways. The keys **1** to **5** do the same, and **0** returns to Auto, as in the gallery (lesson 02). The choice stays while you move between the tabs.
+
+---
+
 <!-- _class: lab -->
 
 # Try it yourself

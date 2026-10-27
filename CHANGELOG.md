@@ -16,7 +16,10 @@ technical record, including internal changes.
 
 ### Changed
 
+- **The four sample lots come in different wafer and die sizes.** EDGE-LOT-01 is a 300 mm wafer with 10×8 mm dies (799 dies a wafer), HY-LOT-04 150 mm with 10 mm dies (145), CLUST-LOT-03 200 mm with 8×6 mm dies (581) and PARAM-LOT-02 300 mm with 5 mm dies (2,709), so the samples cover a sparse wafer and a dense one. Each file records its wafer diameter and die size in the WCR.
 - **Open files and Add files are menu buttons.** Each opens its choices straight away: *Choose files…*, *Scan a folder…* and, on the desktop, recent files. The ▾ no longer sits beside a button that skips the menu. The start screen says that a folder can be dropped onto the window on the desktop.
+- **Learn tsmap is thirteen lessons and a glossary.** Insights and Your own plots are each split in two, so the lessons run 00 to 12. Each lab opens its lot by link and ends with a *Check your results* slide, sample files for every lot a lesson names are published, a glossary page explains the terms, and the index groups a core path from the rest. The index and lesson 00 open on the sample lot, screenshots are retaken at a larger, readable size, and full screen carries over from one lesson to the next.
+- **Build and test tooling is current.** Vite 8, Vitest 5, TypeScript 6 and Tauri 2.12 (the Tauri crates and JavaScript packages on the same minor version), with vulnerable transitive packages in the slide tooling overridden. The deep-link plugin stays on 2.6.1 until a fixed 2.6 release is out.
 - **Easier-to-read lesson slides.** In the Learn tsmap slides, each row of a two-column table has a rule under it, a bold left cell and an arrow into the right cell. A bullet that starts with a numbered badge uses the badge as its marker and wraps under its text, the badge no longer leaves a gap before a comma, and slides with no screenshot set their text larger.
 
 ## [0.1.49] — 2026-10-22

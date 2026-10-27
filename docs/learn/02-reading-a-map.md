@@ -247,7 +247,9 @@ The first turn also shows the XY indicator. **Reset orientation** goes back to t
 
 # Columns
 
-**Auto** fits as many readable cards as it can. A number shares the width between that many.
+**Auto** fits as many cards as keep each die at least 6 pixels across, so a dense wafer gets a wider card. A number shares the width between that many. With focus in the gallery, the keys **1** to **5** set the columns and **0** returns to Auto.
+
+Try it on [`PARAM-LOT-02`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-dense-lot.stdf&dataFormat=stdf), six wafers of 2,709 dies each: with few columns the dies are big enough to aim at; with five they are not.
 
 ![The Columns menu](images/02/columns-menu.png)
 
