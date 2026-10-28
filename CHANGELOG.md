@@ -4,7 +4,7 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
-## [Unreleased]
+## [0.2.0] — 2026-10-28
 
 ### Added
 
@@ -20,7 +20,7 @@ technical record, including internal changes.
 - **Pinned tests are remembered.** The ☆ on a row of a chart's test picker pins the test to the top of every picker; the pins are kept between sessions and listed under **Help → Reset saved settings…** as "Pinned tests".
 - **The test selection is remembered per test program.** Confirming the test selector keeps the choice for that set of tests; the next lot with the same tests opens the selector on it, and the log says so. A lot with a different set of tests (another program, or a revision that adds or drops one) starts empty, and a `--tests` list takes precedence. Listed under **Help → Reset saved settings…** as "Test selections".
 - **Keyboard shortcuts.** **Help → Keyboard shortcuts…**, or the **?** key anywhere outside a text field or an open window, lists the keys for maps, windows and menus.
-- **Support tsmap.** **Help → Support tsmap…** opens the project's [support page](https://wafertools.github.io/support/) (Ko-fi and GitHub Sponsors), which About tsmap also links to. The published `@wafertools/testdata-parser` package lists the same page as its `funding` link.
+- **Support tsmap.** **Help → Support tsmap…** opens the project's [support page](https://wafertools.github.io/support/) (Ko-fi), which About tsmap also links to. The published `@wafertools/testdata-parser` package lists the same page as its `funding` link.
 
 ### Changed
 

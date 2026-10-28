@@ -357,7 +357,7 @@ export const CAPTURES = [
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
       ['openInsights'],
-      ['selectInsightsTab', 'Plot'],
+      ['selectInsightsTab', 'My plots'],
     ],
     screenshotFn: async (page, outFile) => {
       await page.locator('[data-wmap-plot-examples]').click();
@@ -380,7 +380,7 @@ export const CAPTURES = [
       ['waitForOverlay', '#tsmap-test-selector-overlay'],
       ['dismissSelector'],
       ['openInsights'],
-      ['selectInsightsTab', 'Plot'],
+      ['selectInsightsTab', 'My plots'],
     ],
     screenshotFn: async (page, outFile) => {
       await page.locator('[data-wmap-plot-examples]').click();

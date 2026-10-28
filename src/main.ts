@@ -3140,7 +3140,7 @@ function openHelpMenu(anchor: HTMLElement) {
 
       popup.appendChild(makeMenuRow(close, {
         label: 'Support tsmap…',
-        hint: 'tsmap is free and open source. Tips and company sponsorships fund its development',
+        hint: 'tsmap is free and open source. Your support funds its development',
         onClick: () => { platform.openExternal(SUPPORT_URL); },
       }));
 
@@ -3163,7 +3163,7 @@ function openHelpMenu(anchor: HTMLElement) {
  * map. It doubles as the answer to "which version am I running?", which
  * previously existed only as a line in the log panel.
  */
-/** How to support the project (Ko-fi, GitHub Sponsors) — Help → Support tsmap…, and a link in About. */
+/** How to support the project (Ko-fi) — Help → Support tsmap…, and a link in About. */
 const SUPPORT_URL = 'https://wafertools.github.io/support/';
 
 function showAboutModal(): void {
