@@ -187,7 +187,7 @@ STDF and ATDF name their bins; in a table every bin is a bare number until you l
 
 For those formats, name the bins in the column mapping before you continue: **Name bins…** opens the bin table over the bins in the sample of rows it holds (add a rare one by number), and **Load bin definitions…** reads a file. Both are next to **Pass bin(s)**.
 
-![The column mapping's footer, with Load bin definitions… outlined](images/12/mapping-bin-definitions.png)
+![The column mapping's footer, with Name bins… and Load bin definitions… outlined](images/12/mapping-bin-definitions.png)
 
 ---
 

@@ -1,3 +1,13 @@
 [workspace]
 members = ["src-tauri", "packages/parsers"]
 resolver = "2"
+
+# `tauri dev` builds with the dev profile, at opt-level 0, where the STDF parser, the columnar encoder and the archive
+# decompression run an order of magnitude slower than in a release build, so a dev run gave timings nothing like the app's.
+# Optimise the parser crate and every dependency (zip, flate2, bzip2, serde and the rest); src-tauri's own glue stays at 0
+# so an edit there still compiles quickly. The wasm build is a release build and is unaffected.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.testdata-parser]
+opt-level = 3

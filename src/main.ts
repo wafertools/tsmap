@@ -59,6 +59,7 @@ import { rememberSelection } from './testSelectionMemory';
 import { initPwa } from './pwa';
 import { TSMAP_GUIDE_HTML } from './guideExtension';
 import { UnseenProblems } from './logBadge';
+import { wireLogContextMenu } from './logContextMenu';
 import { session } from './session';
 import { runLoad, type LoadDeps, type LoadPhase, type SelectorResult } from './loadPipeline';
 
@@ -366,6 +367,7 @@ function log(level: LogLevel, msg: string) {
   else renderLogToggle();
 }
 
+wireLogContextMenu(logPanel, logList);
 const unseenProblems = new UnseenProblems();
 
 function renderLogToggle(): void {

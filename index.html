@@ -1179,6 +1179,10 @@
       /* The right-hand group must never be the thing that scrolls out of view,
          so it can't shrink; everything to its left yields first. */
       #theme-select, #preferences-btn, #help-btn { flex-shrink: 0; }
+      /* Preferences starts the right-hand group until the theme picker (added by main.ts, which then carries the auto
+         margin itself) is in front of it, so the group is right-aligned before the script has run. */
+      #preferences-btn { margin-left: auto; }
+      #theme-select + #preferences-btn { margin-left: 0; }
       #toolbar-title { font-weight: 600; color: var(--text-secondary); margin-right: 4px; }
       @media (max-width: 1100px) { #drop-hint { display: none; } }
       @media (max-width: 700px)  { #toolbar-title { display: none; } }

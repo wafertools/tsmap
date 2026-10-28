@@ -74,11 +74,11 @@ export const scenario = {
       id: '06-mapping-bin-definitions',
       title: 'For CSV, JSON and Parquet, the column mapping has its own Load bin definitions…',
       steps: [['press', 'Escape'], ['wait', 300], ['press', 'Escape'], ['wait', 300], ['click', '#reset-btn'], ['wait', 800], ['loadFile', `${SAMPLEDATA}/MPW-LOT-08.csv`], ['waitForOverlay', '.mapping-panel'], ['wait', 500]],
-      checks: [isVisible('button:has-text("Load bin definitions")', 'the mapping offers Load bin definitions…')],
+      checks: [isVisible('button:has-text("Load bin definitions")', 'the mapping offers Load bin definitions…'), isVisible('button:has-text("Name bins")', 'the mapping offers Name bins…')],
       shots: [{
         name: 'mapping-bin-definitions',
         clip: { rect: { x: 0, y: 740, width: 700, height: 80 } },
-        callouts: [['button:has-text("Load bin definitions")', { pad: 2 }]],
+        callouts: [['button:has-text("Name bins")', { pad: 2 }], ['button:has-text("Load bin definitions")', { pad: 2 }]],
       }],
     },
   ],

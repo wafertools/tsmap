@@ -625,6 +625,8 @@ from the parser and renderer: file load events, parse warnings, and any errors.
   panel clears the count; the next problem shows it again.
 - Parser warnings (e.g. values outside the STDF ranges, unrecognised records) appear here
   rather than blocking the load.
+- Right-click in the panel for **Select all** and **Copy all**. **Copy all** puts every entry on the
+  clipboard, one per line, for pasting into a bug report.
 
 **Soft bin 65535** is the STDF value for "no soft bin assigned to this die". Those dies have
 no soft bin: they render as no-data in soft-bin views, and their hard bin is unaffected.

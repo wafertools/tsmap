@@ -192,6 +192,7 @@ src/
   session.ts          — the loaded lot (wafers, test/bin definitions, derived tests, scan state) as one object
   loadPipeline.ts     — the load flow (`runLoad`): archives, mapping, test scan + selector, parse, naming, append, render — dialogs and platform injected
   logBadge.ts         — the Log button's new-warning/new-error counts
+  logContextMenu.ts   — the log panel's right-click menu: Select all, Copy all
   resetSettingsUI.ts  — Preferences ▸ Reset saved settings… — shows what is stored and forgets it
   shortcutsUI.ts      — Help ▸ Keyboard shortcuts… (and the ? key) — the keys for maps, windows and menus
   recentDefinitions.ts   — recently used definitions files (tests/bins/splits), both platforms
