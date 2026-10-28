@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds the Learn tsmap lessons: every deck docs/learn/NN-slug.md becomes a
+ * Builds the Learn tsmap lessons: every deck docs/learn/NN-slug.md (and each case study, docs/learn/CN-slug.md) becomes a
  * standalone HTML page, site/learn/NN-slug/index.html, with its screenshots
  * copied beside it, plus site/learn/index.html listing the sessions.
  *
@@ -57,10 +57,15 @@ function frontMatter(src) {
   return fm;
 }
 
-const decks = readdirSync(LEARN).filter((f) => /^\d\d-[\w-]+\.md$/.test(f)).sort().map((file) => {
+// A lesson is NN-slug.md. A case study is CN-slug.md: it teaches no controls, so it has no coverage, no teaser and no
+// "Next lesson" chain, and it is listed apart from the lessons.
+const DECK_FILE = /^(\d\d|C\d+)-[\w-]+\.md$/;
+const allDecks = readdirSync(LEARN).filter((f) => DECK_FILE.test(f)).sort((a, b) => (a[0] === 'C') - (b[0] === 'C') || a.localeCompare(b)).map((file) => {
   const src = readFileSync(join(LEARN, file), 'utf8');
   const fm = frontMatter(src);
   const slug = file.replace(/\.md$/, '');
+  const session = file.split('-')[0];
+  const isCase = session.startsWith('C');
   problems.push(...yamlProblems(src, file));
   // A "---" straight under a line of text is a heading underline, not a slide break: the two slides merge into one.
   const lines = src.split('\n');
@@ -71,16 +76,18 @@ const decks = readdirSync(LEARN).filter((f) => /^\d\d-[\w-]+\.md$/.test(f)).sort
   if (fm.theme !== 'tsmap') problems.push(`${file}: front matter must say "theme: tsmap"`);
   for (const m of src.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)) {
     if (/^https?:/.test(m[1])) continue;
-    if (!existsSync(join(LEARN, m[1]))) problems.push(`${file}: screenshot ${m[1]} does not exist — run npm run lessons:shots -- --only ${file.slice(0, 2)}`);
+    if (!existsSync(join(LEARN, m[1]))) problems.push(`${file}: screenshot ${m[1]} does not exist — run npm run lessons:shots -- --only ${session}`);
   }
   // A screenshot the scenario still captures but no slide shows is dead weight in the repository.
-  const imagesDir = join(LEARN, 'images', file.slice(0, 2));
+  const imagesDir = join(LEARN, 'images', session);
   if (existsSync(imagesDir)) for (const img of readdirSync(imagesDir)) {
-    if (!src.includes(`images/${file.slice(0, 2)}/${img}`)) console.warn(`  warning: ${file} does not use images/${file.slice(0, 2)}/${img} — drop the shot from its scenario`);
+    if (!src.includes(`images/${session}/${img}`)) console.warn(`  warning: ${file} does not use images/${session}/${img} — drop the shot from its scenario`);
   }
-  if (file !== '00-welcome.md' && !fm.teaser) problems.push(`${file}: no "teaser:" in the front matter (the previous lesson's Next lesson slide shows it)`);
-  return { file, slug, session: file.slice(0, 2), title: fm.title, description: fm.description, teaser: fm.teaser, src };
+  if (!isCase && file !== '00-welcome.md' && !fm.teaser) problems.push(`${file}: no "teaser:" in the front matter (the previous lesson's Next lesson slide shows it)`);
+  return { file, slug, session, isCase, title: fm.title, description: fm.description, teaser: fm.teaser, src };
 });
+const decks = allDecks.filter((d) => !d.isCase);
+const cases = allDecks.filter((d) => d.isCase);
 
 // Each lesson's closing "Next lesson" slide must say what the next lesson's own front matter says: its number,
 // title, file and teaser. They are written by hand in the deck, so this is where they are kept from drifting.
@@ -106,7 +113,7 @@ mkdirSync(OUT, { recursive: true });
 cpSync(join(root, 'docs', 'images', 'tsmap-readme-header-256.png'), join(OUT, 'tsmap-icon.png'));
 // The picture above the lesson list: the screen lesson 00 introduces.
 cpSync(join(LEARN, 'images', '00', 'layout.png'), join(OUT, 'tsmap-screen.png'));
-for (const deck of decks) {
+for (const deck of allDecks) {
   const dir = join(OUT, deck.slug);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -122,7 +129,8 @@ for (const deck of decks) {
 
 // The whole course as one PDF, with bookmarks for each lesson and section and jumps between lessons. It needs a browser
 // (Chrome, Chromium or Edge; CHROME_PATH picks one). Without one the rest of the build still goes ahead, and the index
-// simply has no PDF link.
+// simply has no PDF link. The browser is given three minutes for each step: the whole course is hundreds of slides with
+// screenshots, more than the 30 seconds Marp allows by default.
 const PDF_NAME = 'learn-tsmap.pdf';
 const PDF_CONFIG = join(root, 'scripts', 'lessons', 'marp.pdf.config.mjs');
 let pdfBuilt = false;
@@ -133,7 +141,7 @@ let pdfBuilt = false;
   const book = join(dir, 'course.md');
   writeFileSync(book, composeCourseBook(LEARN, decks).markdown);
   try {
-    const code = await marpCli(['--config-file', PDF_CONFIG, '--no-stdin', '--allow-local-files', '--pdf', '--pdf-outlines', '--pdf-outlines.pages=false', book, '-o', join(OUT, PDF_NAME)]);
+    const code = await marpCli(['--config-file', PDF_CONFIG, '--no-stdin', '--allow-local-files', '--browser-timeout', '180', '--pdf', '--pdf-outlines', '--pdf-outlines.pages=false', book, '-o', join(OUT, PDF_NAME)]);
     pdfBuilt = code === 0 && existsSync(join(OUT, PDF_NAME));
     if (!pdfBuilt) console.warn(`  ! the course PDF was not built (Marp exited with ${code})`);
   } catch (e) {
@@ -203,7 +211,7 @@ ${main}
 const lessonItem = (d) => `      <li>
         <a href="${d.slug}/index.html">
           <span class="num">${d.session}</span>
-          <span class="text"><strong>${esc(d.title.replace(/^\d\d\s*·\s*/, ''))}</strong><span>${esc(d.description)}</span></span>
+          <span class="text"><strong>${esc(d.title.replace(/^(\d\d|C\d+)\s*·\s*/, ''))}</strong><span>${esc(d.description)}</span></span>
         </a>
       </li>`;
 const core = decks.filter((d) => Number(d.session) <= CORE_LAST);
@@ -227,11 +235,16 @@ ${core.map(lessonItem).join('\n')}
     <p class="group-note">Pick the lesson that matches the job in hand.</p>
     <ul class="lessons">
 ${rest.map(lessonItem).join('\n')}
-    </ul>
+    </ul>${cases.length ? `
+    <h2>Case studies</h2>
+    <p class="group-note">Each one starts from a question an engineer is asked and works to the answer on a lot you have not seen. They use only what the lessons teach, so finish 00 to 06 first.</p>
+    <ul class="lessons">
+${cases.map(lessonItem).join('\n')}
+    </ul>` : ''}
     <footer>${pdfBuilt ? `Prefer to read offline or print? <a href="${PDF_NAME}">Download the whole course as a PDF</a>. ` : ''}Stuck on a word? See the <a href="glossary/index.html">glossary</a>. No data to hand? The <a href="${SAMPLES_URL}">sample files</a> are the ones the labs use.
       For the detail behind any slide, see the <a href="${rewriteHref('../user-guide.md')}">user guide</a>.</footer>`,
 }));
-console.log(`  ✓ index → ${join(OUT, 'index.html').slice(root.length + 1)}  (${decks.length} lessons)`);
+console.log(`  ✓ index → ${join(OUT, 'index.html').slice(root.length + 1)}  (${decks.length} lessons, ${cases.length} case studies)`);
 
 // The glossary: docs/learn/glossary.md, one "## Term" heading and one paragraph each, with lesson links. Not a deck.
 const inline = (t) => esc(t)

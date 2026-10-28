@@ -39,7 +39,11 @@ Learn tsmap
 - Defined by an **expression** in a row of the test definitions file
 - Then an ordinary test: map it, chart it, set limits
 
+---
+
 <!-- covers: Derived tests… -->
+
+# The Derived tests… table
 
 **Derived tests…** in the test selector adds, edits and deletes them in a table. Each expression is checked as you type: ✓ with what it produces, or ✗ with the reason and where, and a **Reads** column lists the tests it depends on. Apply is refused while a test would be dropped.
 

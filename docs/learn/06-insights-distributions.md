@@ -132,6 +132,36 @@ Each wafer's mean in slot order, with a band of ±1 standard deviation. There is
 
 ![The wafer-to-wafer trend of ioff_nA](images/06/trend.png)
 
+---
+
+<!-- _class: split -->
+
+# Trend or control chart
+
+**Control chart** shows the same wafers against control limits, with the points that break a rule marked. The trend shows how the dies within each wafer spread; the control chart shows whether a wafer's mean stands out from the others. It needs at least three wafers.
+
+![The control chart view of the wafer-to-wafer card](images/06/trend-control.png)
+
+---
+
+<!-- _class: split -->
+
+# The histogram when grouped
+
+With Group by on, each group's bars are a share of its own dies, so groups of different sizes compare by shape. **Counts** shows the number of dies instead.
+
+![The value histogram with one series per split, as shares](images/06/histogram-share.png)
+
+---
+
+<!-- _class: split -->
+
+# The box plot when grouped
+
+With Group by on, the box plot also offers **Split, then wafer**: each split's wafers sit inside it, coloured by split, so you see the spread between splits and within each.
+
+![The box plot with each split's wafers inside it](images/06/box-nested.png)
+
 
 
 ---

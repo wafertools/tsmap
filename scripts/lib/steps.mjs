@@ -1033,15 +1033,16 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       // ['scrollIntoView', selector] — scroll the element's nearest scrolling ancestor, such as the Summary panel
       // (which scrolls inside itself), until the element is at its top, below any sticky header inside it. The page itself never moves. Throws if the
       // selector matches nothing or nothing scrolls.
-      await page.locator(args[0]).first().evaluate((el) => {
+      // An optional second argument leaves that many more pixels above it, for a bar that sticks outside the scroller (Insights' tab bar).
+      await page.locator(args[0]).first().evaluate((el, extra) => {
         let box = el.parentElement;
         while (box && !(/(auto|scroll)/.test(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) box = box.parentElement;
         if (!box) throw new Error('scrollIntoView: nothing scrolls round the element');
         // A sticky header inside the scroller (the Summary panel's title) would cover the element, so leave room for it.
-        const sticky = [...box.querySelectorAll('*')].find((e) => getComputedStyle(e).position === 'sticky');
-        const room = sticky ? sticky.getBoundingClientRect().height : 0;
-        box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - room;
-      }, null, { timeout: 5000 });
+        // Several can stick (the Summary panel's title; Insights' tab bar), so leave room for the tallest.
+        const room = Math.max(0, ...[...box.querySelectorAll('*')].filter((e) => getComputedStyle(e).position === 'sticky').map((e) => e.getBoundingClientRect().height));
+        box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - room - extra;
+      }, args[1] ?? 0, { timeout: 5000 });
       await page.waitForTimeout(300);
       break;
 

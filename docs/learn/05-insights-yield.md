@@ -147,6 +147,28 @@ A wafer diagram with each quadrant labelled with its yield; a quadrant well belo
 ---
 
 <!-- _class: split -->
+<!-- covers: chart › Ring yield by wafer -->
+
+# Ring yield by wafer
+
+The diagram above pools every wafer. This grid lays the rings out wafer by wafer: a row for each ring, a column for each wafer, each cell coloured by its yield. A dark row across every column is a process pattern; a dark cell in one column is one wafer.
+
+![Ring yield by wafer: rings down the side, wafers across, each cell coloured by yield](images/05/ring-yield-by-wafer.png)
+
+---
+
+<!-- _class: split -->
+<!-- covers: chart › Quadrant yield by wafer -->
+
+# Quadrant yield by wafer
+
+The same grid for the four quadrants. A quadrant that is low on every wafer points at something one-sided in the process; one that is low on a single wafer points at that wafer.
+
+![Quadrant yield by wafer: quadrants down the side, wafers across, each cell coloured by yield](images/05/quadrant-yield-by-wafer.png)
+
+---
+
+<!-- _class: split -->
 <!-- covers: Show on map -->
 
 # Worth a look
@@ -265,6 +287,36 @@ When a wafer field varies across the lot, **Group by** offers it. **None** shows
 One bar per split, and the pareto shows each split's share of each bin. SS is lowest at 54.1%, TT highest at 96.3%. Click a split's bar to see its wafers; **Back** returns.
 
 ![The Overview grouped by Split](images/05/grouped-overview.png)
+
+---
+
+<!-- _class: split -->
+
+# Wafers inside each split
+
+With Group by on, **Yield by Split** also offers **Split, then wafer**. Every split's wafers sit inside it, so you see the spread between splits and the spread within each at once.
+
+![Yield by Split, each split with its wafers inside it](images/05/yield-nested.png)
+
+---
+
+<!-- _class: split -->
+
+# Bin mix
+
+The bin pareto offers **Bin mix** when grouped: one bar per split, divided into its bins as a share of that split's dies. It shows what each split's loss is made of.
+
+![Bin mix: a bar per split divided into its bins](images/05/bin-mix.png)
+
+---
+
+<!-- _class: split -->
+
+# Pass rate as a grid
+
+When grouped, **Pass rate by test** offers **Grid**: the worst 25 tests down the side and the splits across, each cell coloured by pass rate. A test that fails in one split stands out as one dark cell. With more than 25 tests the bar view also shows the worst 25; **All tests** shows the rest.
+
+![Pass rate by test as a grid of test by split](images/05/pass-rate-grid.png)
 
 ---
 

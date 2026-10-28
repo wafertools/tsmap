@@ -106,10 +106,15 @@ On the desktop app, **Preferences → File associations…** opens `.stdf`, `.at
 - **User guide** opens the full guide
 - **Keyboard shortcuts…** lists the keys; **?** opens it from anywhere
 - **Definitions file formats…** is covered in the next section
-- **Support tsmap…** opens the page on how to support the project
-- **About tsmap…** shows the version
 
 ![The Help menu](images/12/help-menu.png)
+
+---
+
+# The rest of the Help menu
+
+- **Support tsmap…** opens the page on how to support the project
+- **About tsmap…** shows the version
 
 ---
 
@@ -120,11 +125,22 @@ On the desktop app, **Preferences → File associations…** opens `.stdf`, `.at
 
 The gear works with nothing loaded.
 
-- **Export or import settings…** carries your column mappings and preferences to another machine. **Export…** writes a file and **Import…** reads one. Column mappings merge at once; the other settings are chosen from a list, and tsmap then reloads. Recent files, split assignments and the setup values are never included
-- **Reset saved settings…** is covered after the definitions files
-- **Record load timings** is for bug reports only: it adds timing lines to the log. Leave it off otherwise
+- **Export or import settings…** carries your column mappings and preferences to another machine
 
 ![The Preferences menu](images/12/preferences-menu.png)
+
+---
+
+# Export or import settings
+
+**Export…** writes a file and **Import…** reads one. Column mappings merge at once; the other settings are chosen from a list, and tsmap then reloads. Recent files, split assignments and the setup values are never included.
+
+---
+
+# The rest of the Preferences menu
+
+- **Reset saved settings…** is covered after the definitions files
+- **Record load timings** is for bug reports only: it adds timing lines to the log. Leave it off otherwise
 
 ---
 
@@ -162,12 +178,19 @@ The last rows of **Setup ▾** (diameter, edge exclusion, reticle, retests, valu
 
 ---
 
-<!-- _class: split -->
 <!-- covers: tsmap guide › Bin definitions; Setup ▾ › Bin definitions…; Bin definitions… › Save…; Bin definitions… › Load…; Bin definitions… › Load a recently used definitions file; Bin definitions… › Mark pass; Bin definitions… › Mark fail; Bin definitions… › Tick every row that matches the filter; Bin definitions… › Revert all; Bin definitions… › Cancel; Bin definitions… › Apply -->
 
 # Bin definitions…
 
-A table of every hard and soft bin with its die count, a name, whether a hard bin passes, and optionally its map colour. Tick rows for **Mark pass** or **Mark fail**; **Revert all** undoes the edits. Changing a pass flag shows the lot's yield before and after, and **Apply** asks you to confirm. <span class="badge" role="img" aria-label="callout 1">1</span> **Save…** writes them to a CSV file. <span class="badge" role="img" aria-label="callout 2">2</span> **Load…** reads one. <span class="badge" role="img" aria-label="callout 3">3</span> The **▾** lists recently used files.
+A table of every hard and soft bin with its die count, a name, whether a hard bin passes, and optionally its map colour. Tick rows for **Mark pass** or **Mark fail**; **Revert all** undoes the edits. Changing a pass flag shows the lot's yield before and after, and **Apply** asks you to confirm.
+
+---
+
+<!-- _class: split -->
+
+# Saving and loading bin definitions
+
+<span class="badge" role="img" aria-label="callout 1">1</span> **Save…** writes them to a CSV file. <span class="badge" role="img" aria-label="callout 2">2</span> **Load…** reads one. <span class="badge" role="img" aria-label="callout 3">3</span> The **▾** lists recently used files.
 
 ![The Bin definitions window, with its three buttons outlined](images/12/bin-definitions.png)
 

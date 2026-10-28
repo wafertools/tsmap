@@ -114,6 +114,27 @@ export const scenario = {
       shots: [{ name: 'comparing-groups', clip: cardClip('Comparison by') }, { name: 'difference-map', clip: cardClip('Difference map') }],
     },
     {
+      id: '24b-grouped-histogram',
+      title: 'Grouped, the histogram draws each split as a share of its own dies',
+      steps: [['scrollIntoView', card('Value histogram'), 70], PARK],
+      checks: [radioOn('Value histogram', 'Share of')],
+      shots: [{ name: 'histogram-share', clip: cardClip('Value histogram'), callouts: [[radio('Value histogram', 'Counts'), { pad: 2 }]] }],
+    },
+    {
+      id: '24c-box-nested',
+      title: 'Grouped, the box plot offers each split with its wafers inside it',
+      steps: [['scrollIntoView', card('Test value distribution'), 70], ['click', radio('Test value distribution', ', then wafer')], ['wait', 600], PARK],
+      checks: [radioOn('Test value distribution', ', then wafer')],
+      shots: [{ name: 'box-nested', clip: cardClip('Test value distribution') }],
+    },
+    {
+      id: '24d-trend-control',
+      title: 'The trend offers a control chart of the same wafers',
+      steps: [['scrollIntoView', card('Wafer-to-wafer'), 70], ['click', radio('Wafer-to-wafer', 'Control chart')], ['wait', 600], PARK],
+      checks: [radioOn('Wafer-to-wafer', 'Control chart')],
+      shots: [{ name: 'trend-control', clip: cardClip('Wafer-to-wafer') }],
+    },
+    {
       id: '25-data-statistics',
       title: 'Data: Statistics, the numbers behind the charts, with CSV buttons',
       steps: [['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("None")'], ['wait', 500], ['click', tab('Data')], ['wait', 800], PARK],

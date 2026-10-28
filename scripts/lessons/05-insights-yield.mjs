@@ -9,10 +9,15 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 
 const PARK = ['hover', '#toolbar-title'];
-const card = (title) => `[data-wmap-chart-card][data-wmap-chart-title*="${title}"]`;
+// The pass rate card keeps one title per judging ("Parametric pass rate · …", "Functional test pass rate"), and a Worth a look
+// card of a failing test can carry "pass rate" too, so it is matched by its start.
+const PASS_RATE = ':is([data-wmap-chart-title^="Parametric pass rate"], [data-wmap-chart-title^="Functional test pass rate"])';
+const card = (title) => (title === 'pass rate' ? `[data-wmap-chart-card]${PASS_RATE}` : `[data-wmap-chart-card][data-wmap-chart-title*="${title}"]`);
 const tab = (name) => `button:text-is("${name}")`;
 const within = (title, sel) => `${card(title)} ${sel}`;
 const radio = (title, label) => `${card(title)} label:has-text("${label}")`;
+// A card whose title is exactly `title`: 'Ring yield' is also the start of 'Ring yield by wafer'.
+const exact = (title) => `[data-wmap-chart-card][data-wmap-chart-title="${title}"]`;
 const cardClip = (title, extra = {}) => ({ target: card(title), pad: 8, ...extra });
 const groupBy = 'label:has-text("Group by:") button';
 const onCard = (title) => ({
@@ -105,27 +110,41 @@ export const scenario = {
     {
       id: '08b-worth-a-look',
       title: 'Worth a look: the same items as What stands out, each drawn as a chart, with Show on map',
-      steps: [top('[data-wmap-chart-title="fmax_MHz by Split"]'), PARK],
-      checks: [isVisible('[data-wmap-chart-title="fmax_MHz by Split"]', 'the Worth a look card for fmax_MHz is showing')],
+      steps: [top('[data-wmap-chart-title="fmax_MHz pass rate by Wafer"]'), PARK],
+      checks: [isVisible('[data-wmap-chart-title="fmax_MHz pass rate by Wafer"]', 'the Worth a look card for fmax_MHz is showing')],
       shots: [{
         name: 'worth-a-look',
-        clip: { target: '[data-wmap-chart-title="fmax_MHz by Split"]', pad: 8 },
-        callouts: [['[data-wmap-chart-title="fmax_MHz by Split"] button:has-text("Show on map")', { pad: 2 }]],
+        clip: { target: '[data-wmap-chart-title="fmax_MHz pass rate by Wafer"]', pad: 8 },
+        callouts: [['[data-wmap-chart-title="fmax_MHz pass rate by Wafer"] button:has-text("Show on map")', { pad: 2 }]],
       }],
     },
     {
       id: '08c-ring-quadrant',
       title: 'Ring yield and Quadrant yield: two wafer diagrams, each region labelled with its yield',
-      steps: [['scrollIntoView', card('Ring yield')], PARK],
+      steps: [['scrollIntoView', exact('Ring yield'), 70], PARK],
       checks: [onCard('Ring yield'), onCard('Quadrant yield')],
-      shots: [{ name: 'ring-yield', clip: cardClip('Ring yield') }],
+      shots: [{ name: 'ring-yield', clip: { target: exact('Ring yield'), pad: 8 } }],
     },
     {
-      id: '08d-quadrant',
+      id: '08d-ring-by-wafer',
+      title: 'Ring yield by wafer: each ring on each wafer as a colour',
+      steps: [['scrollIntoView', exact('Ring yield by wafer'), 70], PARK],
+      checks: [onCard('Ring yield by wafer')],
+      shots: [{ name: 'ring-yield-by-wafer', clip: { target: exact('Ring yield by wafer'), pad: 8 } }],
+    },
+    {
+      id: '08e-quadrant',
       title: 'Quadrant yield: each quadrant labelled with its yield',
-      steps: [['scrollIntoView', card('Quadrant yield')], PARK],
+      steps: [['scrollIntoView', exact('Quadrant yield'), 70], PARK],
       checks: [onCard('Quadrant yield')],
-      shots: [{ name: 'quadrant-yield', clip: cardClip('Quadrant yield') }],
+      shots: [{ name: 'quadrant-yield', clip: { target: exact('Quadrant yield'), pad: 8 } }],
+    },
+    {
+      id: '08f-quadrant-by-wafer',
+      title: 'Quadrant yield by wafer: each quadrant on each wafer as a colour',
+      steps: [['scrollIntoView', exact('Quadrant yield by wafer'), 70], PARK],
+      checks: [onCard('Quadrant yield by wafer')],
+      shots: [{ name: 'quadrant-yield-by-wafer', clip: { target: exact('Quadrant yield by wafer'), pad: 8 } }],
     },
     {
       id: '14-chart-actions',
@@ -182,6 +201,27 @@ export const scenario = {
       steps: [['click', '[role="option"]:has-text("Split")'], ['wait', 1000], ['scrollTop', '#map-container', 0], PARK],
       checks: [onCard('Yield by')],
       shots: [{ name: 'grouped-overview', clip: { rect: { x: 0, y: 50, width: 1280, height: 770 } } }],
+    },
+    {
+      id: '13b-grouped-nested',
+      title: 'Yield by Split offers each split with its wafers inside it',
+      steps: [['click', radio('Yield by', ', then wafer')], ['wait', 600], PARK],
+      checks: [radioOn('Yield by', ', then wafer')],
+      shots: [{ name: 'yield-nested', clip: cardClip('Yield by') }],
+    },
+    {
+      id: '13c-bin-mix',
+      title: 'The bin pareto offers Bin mix: a bar per split, split into its bins',
+      steps: [['click', radio('Hard bin', 'Bin mix')], ['wait', 600], PARK],
+      checks: [radioOn('Hard bin', 'Bin mix')],
+      shots: [{ name: 'bin-mix', clip: cardClip('Hard bin') }],
+    },
+    {
+      id: '13d-pass-rate-grid',
+      title: 'Pass rate by test offers a grid of test by split',
+      steps: [['scrollIntoView', card('pass rate'), 70], ['click', radio('pass rate', 'Grid')], ['wait', 600], PARK],
+      checks: [radioOn('pass rate', 'Grid')],
+      shots: [{ name: 'pass-rate-grid', clip: cardClip('pass rate') }],
     },
     ],
 };

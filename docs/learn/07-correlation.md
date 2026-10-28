@@ -118,6 +118,16 @@ On W07 alone, r is −0.564, not −0.865. Part of the pooled figure may come fr
 
 ---
 
+<!-- _class: split -->
+
+# A line for each group
+
+With Group by on, the scatter colours the dies by group and draws a fitted line through each. If the lines sit apart but run parallel, the groups differ in level; if they run in different directions, the pair does not move together in the same way in every group.
+
+![The test scatter coloured by Split, with a fitted line for each split](images/07/scatter-fit.png)
+
+---
+
 <!-- covers: Group by › Split -->
 
 # Group by

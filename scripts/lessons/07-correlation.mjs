@@ -83,11 +83,18 @@ export const scenario = {
       shots: [{ name: 'one-wafer', clip: cardClip(SCATTER) }],
     },
     {
+      id: '08a-grouped-fit',
+      title: 'With Group by on, the scatter draws a fitted line for each group',
+      steps: [
+        ['click', `${SCATTER} button[aria-label="Wafer"]`], ['wait', 300], ['click', `${MENU} >> text=All wafers`], ['wait', 500],
+        ['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("Split")'], ['wait', 1200], PARK,
+      ],
+      shots: [{ name: 'scatter-fit', clip: cardClip(SCATTER) }],
+    },
+    {
       id: '08-grouped',
       title: 'With Group by on, Show picks one group: the matrix and scatter use only its dies',
       steps: [
-        ['click', `${SCATTER} button[aria-label="Wafer"]`], ['wait', 300], ['click', `${MENU} >> text=All wafers`], ['wait', 500],
-        ['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("Split")'], ['wait', 1200],
         ['click', showScope], ['wait', 300], ['click', `${MENU} >> text=TT`], ['wait', 1200],
         // The scatter returns to the strongest pair; ask for the lesson's pair again so r can be compared with the pooled figure.
         ['click', `${SCATTER} label:has-text("X:") button`], ['wait', 300], ['click', `${MENU} >> text=vth_p_mV`], ['wait', 800],
