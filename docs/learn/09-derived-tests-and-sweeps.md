@@ -142,11 +142,11 @@ Choosing **† Set plateau** colours every die by its computed value.
 
 ---
 
-<!-- covers: My plots; + New sweep; tsmap guide › Sweeps; chart › Sweep -->
+<!-- covers: My plots; + New plot; tsmap guide › Sweeps; chart › Sweep -->
 
 # My plots
 
-In Insights, the **My plots** tab holds charts you build. **+ New sweep** starts a sweep: a run of tests measuring one quantity at a series of levels, such as voltages, drawn as one curve.
+In Insights, the **My plots** tab holds charts you build. **+ New plot**, with the **Sweep** chart type, starts a sweep: a run of tests measuring one quantity at a series of levels, such as voltages, drawn as one curve.
 
 ![My plots with no plots yet](images/09/my-plots-empty.png)
 

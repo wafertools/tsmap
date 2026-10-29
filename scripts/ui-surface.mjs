@@ -144,7 +144,7 @@ const SCENES = [
   {
     // Everything inside the Insights tab: each sub-tab's chart controls, the test
     // and wafer pickers, the Data tab's table switch, the My plots tab's buttons and
-    // the two editors that + New plot / + New sweep open.
+    // the editor that + New plot opens (and its Sweep chart type, in its own scene below).
     name: 'Insights (sample lot)',
     setup: sampleInsights,
     views: [
@@ -158,9 +158,9 @@ const SCENES = [
     ],
   },
   {
-    name: 'Insights (sample lot) › + New sweep editor',
+    name: 'Insights (sample lot) › + New plot editor › Sweep',
     menus: false,
-    setup: async (page) => { await sampleInsights(page); await press(page, 'My plots'); await press(page, '+ New sweep'); },
+    setup: async (page) => { await sampleInsights(page); await press(page, 'My plots'); await press(page, '+ New plot'); await press(page, 'Sweep'); },
   },
   {
     // One wafer opened from the gallery: its own toolbar, with the Map | Insights switch.

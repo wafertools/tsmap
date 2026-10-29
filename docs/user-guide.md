@@ -835,7 +835,7 @@ temperatures, load currents or cycle counts — as a curve rather than as separa
 series side by side (a rising one and a falling one, typically) are measured against each
 other: where they **cross**, and how far apart they are, horizontally, at given levels (the
 **width** of the V they form). A sweep is a kind of plot: it is a card on Insights' **My plots** tab
-beside your other plots, started with **+ New sweep** and changed in the sweep editor, which
+beside your other plots, started with **+ New plot** and the **Sweep** chart type and changed in the plot editor, which
 shows the curve as you type; the card and the editor are described in the
 [wafer map guide](https://wafertools.github.io/wafermap/user-guide/).
 
