@@ -33,6 +33,8 @@ const radioOn = (title, label) => ({
   expect: (v) => v === 'true',
 });
 const top = (sel) => ['scrollIntoView', sel];
+/** The histogram's card once it is drawn as a cumulative curve (its title changes with the view). */
+const CUM_CARD = '[data-wmap-chart-card]:has(label:text-is("Cumulative"))';
 const MENU = '[role="menu"], [role="listbox"]';
 
 export const scenario = {
@@ -61,17 +63,24 @@ export const scenario = {
       shots: [{ name: 'distributions', clip: { rect: { x: 0, y: 50, width: 1280, height: 770 } } }],
     },
     {
+      id: '03-tests-by-wafer',
+      title: 'Tests by wafer: the tests whose wafers differ most, as a grid of z-scores',
+      steps: [['scrollIntoView', card('Tests by wafer'), 70], PARK],
+      checks: [onCard('Tests by wafer')],
+      shots: [{ name: 'tests-by-wafer', clip: cardClip('Tests by wafer') }],
+    },
+    {
       id: '18-capability',
       title: 'Process capability: every test against its own limits, worst Ppk first',
-      steps: [PARK],
+      steps: [['scrollIntoView', card('Process capability'), 70], PARK],
       shots: [{ name: 'capability', clip: cardClip('Process capability') }],
     },
     {
       id: '19-test-menu',
-      title: 'The Test menu picks the test for the box plot, histogram and trend together',
-      steps: [['click', `${card('Test value distribution')} button[aria-label="Test"]`], ['wait', 300]],
+      title: 'The Test menu in the Test by test row picks the test for every card below it',
+      steps: [['scrollIntoView', card('Test value distribution'), 120], ['click', 'button[aria-label="Test"]:visible'], ['wait', 300]],
       checks: [isVisible(MENU, 'the Test menu is open')],
-      shots: [{ name: 'test-menu', clip: { rect: { x: 640, y: 130, width: 640, height: 360 } } }],
+      shots: [{ name: 'test-menu', clip: { target: MENU, pad: 120, maxHeight: 420 } }],
     },
     {
       id: '20-box-controls',
@@ -109,9 +118,16 @@ export const scenario = {
     {
       id: '24-comparing',
       title: 'With Group by on, Distributions opens with Comparing groups of wafers',
-      steps: [['scrollTop', '#map-container', 0], ['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("Split")'], ['wait', 1200], PARK],
+      steps: [['scrollTop', '#map-container', 0], ['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("Split")'], ['wait', 1200], ['scrollIntoView', card('Comparison by'), 70], PARK],
       checks: [hasText('#map-container', 'Comparing')],
-      shots: [{ name: 'comparing-groups', clip: cardClip('Comparison by') }, { name: 'difference-map', clip: cardClip('Difference map') }],
+      shots: [{ name: 'comparing-groups', clip: cardClip('Comparison by') }],
+    },
+    {
+      id: '24-difference-map',
+      title: 'Under the comparison, the difference map shows where on the wafer two groups differ',
+      steps: [['scrollIntoView', card('Difference map'), 70], PARK],
+      checks: [onCard('Difference map')],
+      shots: [{ name: 'difference-map', clip: cardClip('Difference map') }],
     },
     {
       id: '24b-grouped-histogram',
@@ -133,6 +149,31 @@ export const scenario = {
       steps: [['scrollIntoView', card('Wafer-to-wafer'), 70], ['click', radio('Wafer-to-wafer', 'Control chart')], ['wait', 600], PARK],
       checks: [radioOn('Wafer-to-wafer', 'Control chart')],
       shots: [{ name: 'trend-control', clip: cardClip('Wafer-to-wafer') }],
+    },
+    {
+      id: '24e-box-radius',
+      title: 'The box plot can be drawn by distance from the centre instead of by wafer',
+      steps: [['scrollIntoView', card('Test value distribution'), 70], ['click', radio('Test value distribution', 'By radius')], ['wait', 600], PARK],
+      checks: [radioOn('Test value by radius', 'By radius')],
+      shots: [{ name: 'box-by-radius', clip: cardClip('Test value by radius'), callouts: [[radio('Test value by radius', 'By radius'), { pad: 2 }]] }],
+    },
+    {
+      id: '24f-histogram-cumulative',
+      title: 'The value histogram can be drawn as a cumulative curve',
+      steps: [['scrollIntoView', card('Value histogram'), 70], ['click', radio('Value histogram', 'Cumulative')], ['wait', 600], PARK],
+      checks: [{
+        name: 'cumulative-on', describe: 'Cumulative is selected on the histogram card',
+        get: (page) => page.locator(`${CUM_CARD} label:text-is("Cumulative")`).first().getAttribute('data-on'),
+        expect: (v) => v === 'true',
+      }],
+      shots: [{ name: 'histogram-cumulative', clip: { target: CUM_CARD, pad: 8 }, callouts: [[`${CUM_CARD} label:text-is("Cumulative")`, { pad: 2 }]] }],
+    },
+    {
+      id: '24g-tests-by-split',
+      title: 'Grouped, Tests by wafer becomes Tests by split: one column per group',
+      steps: [['scrollIntoView', card('Tests by Split'), 70], PARK],
+      checks: [onCard('Tests by Split')],
+      shots: [{ name: 'tests-by-split', clip: cardClip('Tests by Split') }],
     },
     {
       id: '25-data-statistics',
@@ -164,7 +205,7 @@ export const scenario = {
         ['click', '#reset-btn'], ['wait', 800], ['click', 'button:has-text("Load sample data")'], ['waitForWafers'],
         ['openTestsDialog'], ['chooseFile', SEL_BTN('Load definitions'), SPEC_DEFS], ['wait', 600],
         ['click', SEL_BTN('All')], ['wait', 300], ['click', `${SELECTOR} button:has-text("Apply to")`], ['wait', 2500],
-        ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('Distributions')], ['wait', 1200], PARK,
+        ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('Distributions')], ['wait', 1200], ['scrollIntoView', card('Test value distribution'), 70], PARK,
       ],
       checks: [isVisible(`${card('Test value distribution')} label:has-text("Limits:") button`, 'the Limits choice is showing')],
       shots: [{ name: 'limits-choice', clip: cardClip('Test value distribution'), callouts: [[`${card('Test value distribution')} label:has-text("Limits:") button`, { pad: 2 }]] }],
@@ -174,7 +215,7 @@ export const scenario = {
       title: 'RRAM-LOT-06: tests without limits are drawn muted and dashed on their own range',
       steps: [
         ['click', '#reset-btn'], ['wait', 800], ['loadFile', RRAM], ['waitForWafers'],
-        ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('Distributions')], ['wait', 1500], PARK,
+        ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('Distributions')], ['wait', 1500], ['scrollIntoView', card('Process capability'), 70], PARK,
       ],
       checks: [onCard('Process capability')],
       shots: [{ name: 'no-limits', clip: cardClip('Process capability') }],

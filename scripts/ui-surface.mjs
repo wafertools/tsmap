@@ -82,10 +82,10 @@ async function waitLoaded(page) {
   await page.waitForTimeout(1500); // findings and legends settle after the busy state clears
 }
 
-/** Click the first visible button/tab whose text starts with `text`; throw if there is none. */
+/** Click the first visible button, tab or switch segment (a radio's label) whose text starts with `text`; throw if there is none. */
 async function press(page, text) {
   const ok = await page.evaluate((text) => {
-    const el = [...document.querySelectorAll('button,[role="button"],[role="tab"]')]
+    const el = [...document.querySelectorAll('button,[role="button"],[role="tab"],[role="radiogroup"] label')]
       .filter(e => e.offsetParent !== null)
       .find(e => {
         const t = (e.textContent || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ');
@@ -153,6 +153,7 @@ const SCENES = [
       { name: 'Correlation', setup: (p) => press(p, 'Correlation') },
       { name: 'Data', setup: (p) => press(p, 'Data') },
       { name: 'My plots', setup: (p) => press(p, 'My plots') },
+      { name: 'My plots › Examples', setup: (p) => press(p, 'Examples') },
       { name: 'My plots › + New plot editor', setup: (p) => press(p, '+ New plot'), menus: ['X axis', 'Y axis', 'Colour'] },
       { name: 'My plots › + New plot editor › Customise', setup: (p) => press(p, 'Customise'), menus: false },
     ],

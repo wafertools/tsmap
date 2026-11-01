@@ -63,6 +63,25 @@ You can set **Max tests** between 5 and 100 (default 20). The card counts pairs 
 ---
 
 <!-- _class: split -->
+<!-- covers: Fails together; Values -->
+
+# Values or fails together
+
+**Values** colours each cell by r, how two tests' values move together. **Fails together** asks a different question: of the dies that fail either of two tests, what share fail both?
+
+![The matrix drawn as Fails together: each cell is the share of failing dies that fail both tests](images/07/fails-together.png)
+
+---
+
+# Reading fails together
+
+- A high cell means the two tests tend to fail on the same dies, which often means one cause
+- A low cell means they fail on different dies
+- The card names the pair that shares the most failures, and clicking a cell shows that pair in the scatter
+
+---
+
+<!-- _class: split -->
 
 <!-- covers: chart › Test scatter -->
 
@@ -71,6 +90,17 @@ You can set **Max tests** between 5 and 100 (default 20). The card counts pairs 
 Click a cell and the scatter shows that pair, with **r** and **n**, the number of dies, above it. Here `idsat_p_uA` falls as `vth_p_mV` rises, r = −0.865. Click a point to open its wafer's map.
 
 ![The scatter after clicking the idsat_p_uA, vth_p_mV cell](images/07/scatter-pair.png)
+
+---
+
+<!-- _class: split -->
+<!-- covers: Log X; Log Y -->
+
+# Log axes
+
+**Log X** and **Log Y** draw an axis on a log scale, which helps when values run over several orders of magnitude, such as leakage. Each is offered only while every value on that axis is above zero, because a log scale cannot show zero or a negative number.
+
+![The scatter with Log X and Log Y both on](images/07/scatter-log.png)
 
 ---
 
@@ -125,6 +155,23 @@ On W07 alone, r is −0.564, not −0.865. Part of the pooled figure may come fr
 With Group by on, the scatter colours the dies by group and draws a fitted line through each. If the lines sit apart but run parallel, the groups differ in level; if they run in different directions, the pair does not move together in the same way in every group.
 
 ![The test scatter coloured by Split, with a fitted line for each split](images/07/scatter-fit.png)
+
+---
+
+<!-- _class: split -->
+# Within groups
+
+With Group by on, the matrix offers **Pooled | Within Split**. Pooled is the matrix you have seen. **Within** takes each group's own mean off every test first.
+
+![The matrix drawn Within Split, with Within outlined](images/07/within-groups.png)
+
+---
+
+# Pooled or within
+
+- Taking the group means off means a difference in level between groups is not read as a link between tests
+- A pair that is strong pooled but weak within is the groups sitting at different levels, not the tests moving together
+- A pair that stays strong within is a link inside every group
 
 ---
 

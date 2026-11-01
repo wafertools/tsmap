@@ -32,13 +32,23 @@ Learn tsmap
 
 ---
 
-<!-- covers: Add examples; + New plot; wmap guide › Example plots; tsmap guide › Your own plots; wmap guide › Plots -->
+<!-- covers: Examples; + New plot; wmap guide › Example plots; tsmap guide › Your own plots; wmap guide › Plots -->
 
-# Add examples
+# Examples
 
-On the sample lot, **Add examples** adds a set of example plots chosen from the lot's data, covering every chart type it can show. **+ New plot** opens a scatter already set to the lot's first two tests.
+On the sample lot, the **My plots | Examples** switch shows one or the other, never both. **Examples** draws one plot of each chart type the lot can show, chosen from the lot's own data. Each is marked **Example**, because it is not yet yours. **+ New plot** opens a scatter already set to the lot's first two tests.
 
-![My plots after Add examples: a scatter with fit lines and a histogram by split](images/10/examples.png)
+![The Examples view: each plot marked Example, with Add to my plots](images/10/examples-view.png)
+
+---
+
+<!-- covers: Add all; Add to my plots; Fit lines, R² and y = x; The cumulative probability plot; Ranges, panels and what-if limits; Control charts -->
+
+# Keeping examples
+
+**Add to my plots** on one example keeps just that one, and its button then says **In your plots**. **Add all** keeps every example you do not have yet and takes you to **My plots**, with an **Undo** that removes only what it added. Under each plot, the **how to read this** link opens the guide section for that kind of chart.
+
+![My plots after Add all: a scatter with fit lines and a histogram by split](images/10/examples.png)
 
 ---
 
@@ -61,11 +71,11 @@ Each card has three buttons. **Delete** can be undone straight afterwards. Chang
 
 ---
 
-<!-- covers: Scatter; Histogram; Box; Bar; Line; Probability; Control; Heatmap; Goal -->
+<!-- covers: Scatter; Histogram; Box; Bar; Line; Probability; Control; Heatmap; Goal; Sweep -->
 
 # Chart types
 
-Nine types, each taking different fields: a histogram takes one set of values, a box or bar takes categories.
+Ten types, each taking different fields: a histogram takes one set of values, a box or bar takes categories. **Sweep** reads a run of tests as a response curve: choosing it swaps the fields for a series form (lesson 09), and choosing another type brings the plot's own fields back.
 
 ![The Chart type buttons, with the histogram chosen](images/10/chart-types.png)
 
@@ -183,6 +193,25 @@ On the **Customise** page you can set titles, each axis's minimum and maximum, i
 
 ---
 
+<!-- _class: split -->
+<!-- covers: JSON -->
+
+# The JSON tab
+
+Beside Setup and Customise, **JSON** shows the same plot as text. You can edit it, paste a plot someone sent you, or copy it.
+
+![The editor's JSON tab, with the plot written out as text](images/10/plot-json.png)
+
+---
+
+# Suggestions in the JSON
+
+- Suggestions open as you type, after a comma or a brace, or with **Ctrl+Space**
+- They offer the keys, the lot's tests and fields, and the values a field takes
+- A change is drawn at once, and **Ctrl+Z** undoes the last one
+
+---
+
 # Reference lines
 
 Your own target, guard band or customer limit on a value axis, to see how the data sits against a number that matters to you. In **Customise**, write a value or a `lo..hi` band, each with an optional name:
@@ -240,7 +269,7 @@ A draft is kept only if you press **Add to my plots**. **Cancel** discards it.
 
 # Try it yourself
 
-1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**, then **Insights → My plots → Add examples**
+1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**, then **Insights → My plots → Examples → Add all**
 2. **Edit** the first plot and set **Chart type** to **Box**
 3. Set **X axis** to **Split**: which split differs most?
 4. Open **Customise** and put a reference line on the value axis
@@ -259,7 +288,7 @@ A draft is kept only if you press **Add to my plots**. **Cancel** discards it.
 # Recap
 
 - **My plots** are recipes kept on this machine and redrawn on the next lot
-- The editor offers nine chart types; X, Y and Colour take tests, die fields or wafer fields
+- The editor offers ten chart types, Sweep among them; X, Y and Colour take tests, die fields or wafer fields
 - **Export plots…** keeps a copy; **Undo** brings back a delete for ten seconds
 
 More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#plots)

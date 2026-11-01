@@ -116,5 +116,31 @@ export const scenario = {
       checks: [isVisible(MENU, 'a menu of charts and tables has opened on the dies')],
       shots: [{ name: 'drag-box', clip: { rect: { x: 640, y: 130, width: 640, height: 690 } } }],
     },
+    {
+      id: '11-fails-together',
+      title: 'Fails together: the matrix of which tests fail on the same dies',
+      steps: [['press', 'Escape'], ['wait', 400], ['click', `${MATRIX} label:has-text("Fails together")`], ['wait', 900], PARK],
+      checks: [{ name: 'fails-on', describe: 'Fails together is selected on the matrix', get: (page) => page.locator(`${MATRIX} label:has-text("Fails together")`).first().getAttribute('data-on'), expect: (v) => v === 'true' }],
+      shots: [{ name: 'fails-together', clip: cardClip(MATRIX), callouts: [[`${MATRIX} label:has-text("Fails together")`, { pad: 2 }]] }],
+    },
+    {
+      id: '12-log-axes',
+      title: 'The scatter has Log X and Log Y, once every value on that axis is positive',
+      steps: [['click', `${SCATTER} label:has-text("Log X")`], ['wait', 500], ['click', `${SCATTER} label:has-text("Log Y")`], ['wait', 700], PARK],
+      checks: [isVisible(`${SCATTER} label:has-text("Log X")`, 'Log X is showing')],
+      shots: [{ name: 'scatter-log', clip: cardClip(SCATTER), callouts: [[`${SCATTER} label:has-text("Log X")`, { badge: 1, pad: 2 }], [`${SCATTER} label:has-text("Log Y")`, { badge: 2, pad: 2 }]] }],
+    },
+    {
+      id: '13-within-groups',
+      title: 'With Group by on, the matrix can take each group\'s own mean off first: Within Split',
+      steps: [
+        ['click', `${SCATTER} label:has-text("Log X")`], ['click', `${SCATTER} label:has-text("Log Y")`],
+        ['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("Split")'], ['wait', 1200],
+        ['click', `${MATRIX} label:has-text("Values")`], ['wait', 600],
+        ['click', `${MATRIX} label:has-text("Within")`], ['wait', 900], PARK,
+      ],
+      checks: [{ name: 'within-on', describe: 'Within is selected on the matrix', get: (page) => page.locator(`${MATRIX} label:has-text("Within")`).first().getAttribute('data-on'), expect: (v) => v === 'true' }],
+      shots: [{ name: 'within-groups', clip: cardClip(MATRIX), callouts: [[`${MATRIX} label:has-text("Within")`, { pad: 2 }]] }],
+    },
   ],
 };

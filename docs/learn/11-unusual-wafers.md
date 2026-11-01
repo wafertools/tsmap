@@ -153,6 +153,25 @@ More in the [user guide](../user-guide.md#dies-with-no-reported-position)
 ---
 
 <!-- _class: split -->
+<!-- covers: chart › Re-probed dies -->
+
+# Where the retests are
+
+When a lot has dies probed more than once, the Overview gains a **Re-probed dies** card: the share of dies re-probed in each ring of each wafer.
+
+![The Re-probed dies card: rings down the side, wafers across, each cell the share re-probed](images/11/reprobed-card.png)
+
+---
+
+# Reading the retests
+
+- A bright cell is a ring where retests cluster
+- That can mean a contact problem at that radius, rather than bad dies
+- Re-probed is also a field you can plot (lesson 10)
+
+---
+
+<!-- _class: split -->
 <!-- covers: Setup ▾ › Retests…; tsmap guide › Retests; Retests… › Last result*; Retests… › First result*; Retests… › Best result*; Retests… › Worst result*; Retests… › Clear; Retests… › Cancel; Retests… › Apply; last; first; best; worst; supersedes -->
 
 # Setup ▾ → Retests…

@@ -777,7 +777,7 @@ and how a plot divides the data (its X, its colour, and the **Show** control abo
 
 ![The My plots tab with the example plots](images/plots-tab.png)
 
-*Add examples draws one plot of each chart type from the open lot.*
+*Examples, then Add all, gives one plot of each chart type from the open lot.*
 
 ![A plot open in its editor](images/plots-editor.png)
 

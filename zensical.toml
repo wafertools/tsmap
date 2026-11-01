@@ -30,6 +30,11 @@ nav = [
 
 # Footer links. The icon set ships with Zensical (templates/.icons/simple/).
 [[project.extra.social]]
+icon = "simple/githubsponsors"
+link = "https://github.com/sponsors/wafertools"
+name = "Sponsor wafertools on GitHub Sponsors"
+
+[[project.extra.social]]
 icon = "simple/kofi"
 link = "https://ko-fi.com/wafertools"
 name = "Support wafertools on Ko-fi"

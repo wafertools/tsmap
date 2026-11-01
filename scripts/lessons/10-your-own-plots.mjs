@@ -1,7 +1,7 @@
 /**
  * Lesson 10 — Your own plots. Screenshots for docs/learn/10-your-own-plots.md.
  *
- * The sample lot's My plots: Add examples, + New plot, the chart types, the X, Y and Colour fields, Customise, a draft
+ * The sample lot's My plots: Examples and Add all, + New plot, the chart types, the X, Y and Colour fields, Customise, a draft
  * from the right-click menu, and the plot buttons (Edit, Duplicate, Delete, Export, Import, Delete all).
  * Run by scripts/lesson-shots.mjs.
  */
@@ -32,9 +32,16 @@ export const scenario = {
   deviceScaleFactor: 2,
   beats: [
     {
+      id: '13a-examples-view',
+      title: 'Examples: one of each chart type this lot can show, marked as examples and not yet saved',
+      steps: [['click', 'button:has-text("Load sample data")'], ['waitForWafers'], ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('My plots')], ['wait', 800], ['click', '[data-wmap-plot-examples]'], ['wait', 2500], PARK],
+      checks: [isVisible('[data-wmap-plot-examples-add-all]', 'Add all is showing')],
+      shots: [{ name: 'examples-view', clip: hdr, callouts: [['[data-wmap-plot-views]', { pad: 4 }]] }],
+    },
+    {
       id: '13-sample-lot-examples',
-      title: 'The sample lot: Add examples draws one plot of each kind it can',
-      steps: [['click', 'button:has-text("Load sample data")'], ['waitForWafers'], ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('My plots')], ['wait', 800], ['click', plotBtn('Add examples')], ['wait', 4000], PARK],
+      title: 'Add all keeps the examples you do not have and shows My plots, with an Undo',
+      steps: [['click', '[data-wmap-plot-examples-add-all]'], ['wait', 4000], PARK],
       checks: [isVisible(plotBtn('Delete all plots…'), 'plots now exist')],
       shots: [{ name: 'examples', clip: hdr }],
     },
@@ -55,6 +62,26 @@ export const scenario = {
         clip: { target: DIALOG, pad: 8 },
         callouts: [[`${DIALOG} label:text-is("Scatter")`, { through: `${DIALOG} label:text-is("Goal")`, pad: 4 }]],
       }],
+    },
+    {
+      id: '15b-sweep-type',
+      title: 'Sweep is a chart type too: choosing it shows the series form and the curve beside it',
+      steps: [['click', `${DIALOG} label:text-is("Sweep")`], ['wait', 1200]],
+      checks: [isVisible(`${DIALOG} label:text-is("Sweep")`, 'the Sweep type is offered')],
+      shots: [{ name: 'sweep-type', clip: { target: DIALOG, pad: 8 }, callouts: [[`${DIALOG} label:text-is("Sweep")`, { pad: 2 }]] }],
+    },
+    {
+      id: '15c-json-tab',
+      title: 'The editor\'s JSON tab shows the plot as text, with suggestions for its keys',
+      steps: [['click', `${DIALOG} label:text-is("Scatter")`], ['wait', 800], ['click', `${DIALOG} button:text-is("JSON")`], ['wait', 800]],
+      checks: [isVisible(`${DIALOG} textarea, ${DIALOG} [contenteditable="true"]`, 'the JSON text is showing')],
+      shots: [{ name: 'plot-json', clip: { target: DIALOG, pad: 8 }, callouts: [[`${DIALOG} button:text-is("JSON")`, { pad: 2 }]] }],
+    },
+    {
+      id: '15d-back-to-setup',
+      title: 'Back to Setup, as the later beats expect',
+      steps: [['click', `${DIALOG} button:text-is("Setup")`], ['wait', 600], ['click', `${DIALOG} label:text-is("Histogram")`], ['wait', 800]],
+      shots: [],
     },
     {
       id: '16-x-axis-menu',

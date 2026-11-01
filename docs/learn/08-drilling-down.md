@@ -83,6 +83,25 @@ Untick every split except SS. As you edit, the window shows how many wafers and 
 
 ---
 
+<!-- _class: split -->
+<!-- covers: wmap guide › Filter as JSON; JSON -->
+
+# The filter as text
+
+**Conditions | JSON** at the top of the window switches between the list of conditions and the same filter written as text. Edit it, paste one a colleague sent, or **Copy** it.
+
+![The same filter as JSON: split is SS](images/08/filter-json.png)
+
+---
+
+# Suggestions in the JSON
+
+- **Suggest**, or typing a comma or a brace, offers the keys, the lot's fields and tests, and the values a field takes
+- The line under the text still says how many wafers and dies the filter keeps
+- The line under the text follows what you type; while the text cannot be read, **Apply** is held and the window says why
+
+---
+
 # Wafer or die
 
 - A **wafer** condition keeps whole wafers; the rest leave the gallery

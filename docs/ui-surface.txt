@@ -478,14 +478,26 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
-  · Expand   (×10)
-  · Chart actions  [opens menu]   (×10)
+  · Expand   (×11)
+  · Chart actions  [opens menu]   (×11)
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
+  · Heatmaps and the difference map   (×3)
+  · Rescaling values
+  · What divides yield
+  · Group by
+      hint: Group Insights by Split, so every chart compares its groups   (×3)
   · Sort: yield  [radio, unchecked]
   · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
@@ -493,12 +505,8 @@ Controls:
   · Test limits  [radio, checked]
   · Tester flag  [radio, unchecked]
   · Functional  [radio, unchecked]
-  · Show on map
-      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
-  · Comparing groups of wafers
-  · What divides yield
-  · Group by
-      hint: Group Insights by Split, so every chart compares its groups   (×3)
+  · Heatmap  [radio, checked]   (×2)
+  · Diagram  [radio, unchecked]   (×2)
   · Part average testing (PAT)
   · Show all 13 wafers
   · Map the verdicts
@@ -571,6 +579,8 @@ Menu — Columns:
 
 Menu — Chart actions:
     · Save as PNG
+    · Save data as CSV
+    · Copy data
     · Edit as plot
     · ✓About this chart  [unchecked]
 
@@ -599,14 +609,26 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
-  · Expand   (×10)
-  · Chart actions  [opens menu]   (×10)
+  · Expand   (×11)
+  · Chart actions  [opens menu]   (×11)
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
+  · Heatmaps and the difference map   (×3)
+  · Rescaling values
+  · What divides yield
+  · Group by
+      hint: Group Insights by Split, so every chart compares its groups   (×3)
   · Sort: yield  [radio, unchecked]
   · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
@@ -614,12 +636,8 @@ Controls:
   · Test limits  [radio, checked]
   · Tester flag  [radio, unchecked]
   · Functional  [radio, unchecked]
-  · Show on map
-      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
-  · Comparing groups of wafers
-  · What divides yield
-  · Group by
-      hint: Group Insights by Split, so every chart compares its groups   (×3)
+  · Heatmap  [radio, checked]   (×2)
+  · Diagram  [radio, unchecked]   (×2)
   · Part average testing (PAT)
   · Show all 13 wafers
   · Map the verdicts
@@ -653,27 +671,36 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
-  · Expand   (×4)
-  · Chart actions  [opens menu]   (×4)
+  · Expand   (×5)
+  · Chart actions  [opens menu]   (×5)
+  · Heatmaps and the difference map
+  · Rescaling values
+  · vth_n_mV▾  [aria="Test", opens menu]
   · Capability, Ppk and the goal plot
-  · vth_n_mV▾  [aria="Test", opens menu]   (×3)
   · Axis includes limits  [checkbox, checked]   (×3)
   · Clip outliers  [checkbox, unchecked]   (×3)
-  · Log scale  [checkbox, unchecked]
+  · Log scale  [checkbox, unchecked]   (×3)
+  · By wafer  [radio, checked]
+  · By radius  [radio, unchecked]
   · All wafers▾  [aria="Wafer", opens menu]
+  · Histogram  [radio, checked]
+  · Cumulative  [radio, unchecked]
+  · Trend  [radio, checked]
+  · Control chart  [radio, unchecked]
   · Bands on a line
   · Log
       hint: Show the log panel
-
-Menu — Chart actions:
-    · Save as PNG
-    · ✓About this chart  [unchecked]
 
 Menu — Test:
     · vth_n_mV
@@ -736,25 +763,40 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
   · Expand   (×2)
   · Chart actions  [opens menu]   (×2)
   · Max tests:  [number]
   · All wafers▾  [aria="Wafer", opens menu]   (×2)
+  · Values  [radio, checked]
+  · Fails together  [radio, unchecked]
   · Correlation CSV
       hint: Save the correlation coefficients as a CSV file, one row per pair of tests
   · vth_n_mV▾  [aria="Test", opens menu]
   · vth_p_mV▾  [aria="Test", opens menu]
+  · Axis includes limits  [checkbox, checked]
+  · Clip outliers  [checkbox, unchecked]
+  · Log X  [checkbox, unchecked]
+  · Log Y  [checkbox, unchecked]
   · Bin 1
   · Bin 2
   · Bin 3
   · Log
       hint: Show the log panel
+
+Menu — Chart actions:
+    · Save as PNG
+    · ✓About this chart  [unchecked]
 
 ## Insights (sample lot) › Data
 
@@ -781,10 +823,15 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
   · Statistics  [checked]
@@ -825,18 +872,21 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
+  · My plots  [radio, checked]
+  · Examples  [radio, unchecked]
   · + New plot
-      hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
-  · + New sweep
-      hint: Read an ordered run of tests as a response curve, and measure where two curves cross
-  · Add examples
-      hint: Draw one example of each chart type this lot can show, to edit or delete
+      hint: Start a chart of your own: choose its type (a sweep reads runs of tests as response curves), what goes on each axis and how it is coloured
   · Import plots…
       hint: Add the plots from a file written by Export plots…
   · Export plots…
@@ -845,6 +895,84 @@ Controls:
       hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
   · Log
       hint: Show the log panel
+
+## Insights (sample lot) › My plots › Examples
+
+Controls:
+  · Open files ▾  [opens menu]
+      hint: Choose files, scan a folder, or reopen a recent file — or drop files anywhere
+  · Add files ▾  [opens menu]
+      hint: Append more files to the current view: choose files or scan a folder
+  · Setup ▾  [opens menu]
+      hint: Test and bin definitions, wafer splits, geometry, and analysis options
+  · Clear files
+      hint: Unload all files and return to the start screen
+  · Auto (system)▾  [aria="Colour theme", opens listbox]
+      hint: Colour theme (Auto follows your system)
+  · Preferences  [opens menu]
+      hint: Preferences
+  · Help  [opens menu]
+      hint: Help
+  · 11 more fields
+  · Maps
+      hint: The wafer maps
+  · Insights
+      hint: Charts and statistics for this lot
+  · Filter…
+      hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
+  · Overview
+      hint: Yield, bins and what stands out
+  · Distributions
+      hint: How each test’s values spread
+  · Correlation
+      hint: How tests move together
+  · Data
+      hint: The same scope as tables, with CSV exports
+  · My plots
+      hint: Plots you have built and saved
+  · None▾  [aria="Group by", opens menu]
+  · Auto (0)▾  [aria="Columns", opens menu]   (×2)
+  · My plots  [radio, unchecked]
+  · Examples  [radio, checked]
+  · + New plot
+      hint: Start a chart of your own: choose its type (a sweep reads runs of tests as response curves), what goes on each axis and how it is coloured
+  · Import plots…
+      hint: Add the plots from a file written by Export plots…
+  · Export plots…
+      hint: Save all your plots to a file, to share or to keep a copy
+  · Delete all plots…  [disabled]
+      hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
+  · Add all
+      hint: Add every example you do not have yet to My plots
+  · Expand   (×27)
+  · Chart actions  [opens menu]   (×27)
+  · Add to my plots
+      hint: Add this example to My plots, where you can edit it   (×23)
+  · Fit lines, R² and y = x
+  · FF   (×8)
+  · FS   (×8)
+  · SF   (×8)
+  · SS   (×8)
+  · TT   (×8)
+  · Comparing groups of wafers   (×3)
+  · The cumulative probability plot
+  · Heatmaps and the difference map   (×3)
+  · Rescaling values   (×2)
+  · Ranges, panels and what-if limits   (×4)
+  · Bands on a line   (×2)
+  · Bin 1
+  · Bin 2
+  · Bin 3
+  · Control charts
+  · Capability, Ppk and the goal plot
+  · Log
+      hint: Show the log panel
+
+Menu — Chart actions:
+    · Save as PNG
+    · Save data as CSV
+    · Copy data
+    · ✓About this chart  [unchecked]
 
 ## Insights (sample lot) › My plots › + New plot editor
 
@@ -871,18 +999,21 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
+  · My plots  [radio, checked]
+  · Examples  [radio, unchecked]
   · + New plot
-      hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
-  · + New sweep
-      hint: Read an ordered run of tests as a response curve, and measure where two curves cross
-  · Add examples
-      hint: Draw one example of each chart type this lot can show, to edit or delete
+      hint: Start a chart of your own: choose its type (a sweep reads runs of tests as response curves), what goes on each axis and how it is coloured
   · Import plots…
       hint: Add the plots from a file written by Export plots…
   · Export plots…
@@ -918,6 +1049,8 @@ Controls:
       hint: Which fields to plot and how they are combined
   · Customise
       hint: Titles, axis limits, scale and direction
+  · JSON
+      hint: The plot as text: copy it, paste one in, or edit it directly
   · Scatter  [radio, checked]
   · Histogram  [radio, unchecked]
   · Box  [radio, unchecked]
@@ -927,6 +1060,7 @@ Controls:
   · Control  [radio, unchecked]
   · Heatmap  [radio, unchecked]
   · Goal  [radio, unchecked]
+  · Sweep  [radio, unchecked]
   · vth_n_mV · 1001▾  [aria="X axis", opens menu]
   · vth_p_mV · 1002▾  [aria="Y axis", opens menu]
   · Follow Group by (a colour per wafer)▾  [aria="Colour", opens menu]
@@ -1058,18 +1192,21 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
+  · My plots  [radio, checked]
+  · Examples  [radio, unchecked]
   · + New plot
-      hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
-  · + New sweep
-      hint: Read an ordered run of tests as a response curve, and measure where two curves cross
-  · Add examples
-      hint: Draw one example of each chart type this lot can show, to edit or delete
+      hint: Start a chart of your own: choose its type (a sweep reads runs of tests as response curves), what goes on each axis and how it is coloured
   · Import plots…
       hint: Add the plots from a file written by Export plots…
   · Export plots…
@@ -1105,6 +1242,8 @@ Controls:
       hint: Which fields to plot and how they are combined
   · Customise
       hint: Titles, axis limits, scale and direction
+  · JSON
+      hint: The plot as text: copy it, paste one in, or edit it directly
   · Linear  [radio, checked]   (×2)
   · Log  [radio, unchecked]   (×2)
   · Reverse direction  [checkbox, unchecked]   (×2)
@@ -1115,7 +1254,7 @@ Controls:
   · Reset  [disabled]
   · Cancel
 
-## Insights (sample lot) › + New sweep editor
+## Insights (sample lot) › + New plot editor › Sweep
 
 Controls:
   · Open files ▾  [opens menu]
@@ -1140,18 +1279,21 @@ Controls:
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
+  · My plots  [radio, checked]
+  · Examples  [radio, unchecked]
   · + New plot
-      hint: Start a chart of your own: choose its type, what goes on each axis and how it is coloured
-  · + New sweep
-      hint: Read an ordered run of tests as a response curve, and measure where two curves cross
-  · Add examples
-      hint: Draw one example of each chart type this lot can show, to edit or delete
+      hint: Start a chart of your own: choose its type (a sweep reads runs of tests as response curves), what goes on each axis and how it is coloured
   · Import plots…
       hint: Add the plots from a file written by Export plots…
   · Export plots…
@@ -1170,13 +1312,27 @@ Controls:
       hint: Show the log panel
   · Maximize (F)
   · Close (Esc)
+  · Setup
+      hint: Which fields to plot and how they are combined
+  · JSON
+      hint: The plot as text: copy it, paste one in, or edit it directly
+  · Scatter  [radio, unchecked]
+  · Histogram  [radio, unchecked]
+  · Box  [radio, unchecked]
+  · Bar  [radio, unchecked]
+  · Line  [radio, unchecked]
+  · Probability  [radio, unchecked]
+  · Control  [radio, unchecked]
+  · Heatmap  [radio, unchecked]
+  · Goal  [radio, unchecked]
+  · Sweep  [radio, checked]
   · Test order  [radio, checked]
   · Values  [radio, unchecked]
   · From test name  [radio, unchecked]
   · + Add series
   · Linear  [radio, checked]
   · Log  [radio, unchecked]
-  · Reset  [disabled]
+  · Reset
   · Cancel
 
 ## Single wafer (full view)
@@ -1442,19 +1598,24 @@ Controls:
   · Quadrant  [radio, unchecked]
   · ▶Test Values (3) · N=799
   · Overview
+      hint: Yield, bins and what stands out
   · Distributions
+      hint: How each test’s values spread
   · Correlation
+      hint: How tests move together
   · Data
+      hint: The same scope as tables, with CSV exports
   · My plots
+      hint: Plots you have built and saved
   · Auto (0)▾  [aria="Columns", opens menu]
   · Expand   (×6)
   · Chart actions  [opens menu]   (×6)
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does
   · Hard bins  [radio, checked]
   · Soft bins  [radio, unchecked]
   · Test limits  [radio, checked]
   · Tester flag  [radio, unchecked]
-  · Show on map
-      hint: Leave Insights and show this on the map, as its row in What stands out does
   · Part average testing (PAT)
   · Map the verdicts
       hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway

@@ -346,7 +346,7 @@ export const CAPTURES = [
     ],
   },
 
-  // ── Your own plots: the Plot sub-tab after "Add examples", and a plot open in its editor. Driven by the real UI. ──
+  // ── Your own plots: the My plots tab after Examples ▸ Add all, and a plot open in its editor. Driven by the real UI. ──
   {
     file: 'plots-tab',
     group: 'plots',
@@ -361,6 +361,7 @@ export const CAPTURES = [
     ],
     screenshotFn: async (page, outFile) => {
       await page.locator('[data-wmap-plot-examples]').click();
+      await page.locator('[data-wmap-plot-examples-add-all]').click();
       await page.waitForSelector('[data-wmap-plot-id] canvas');
       await page.waitForTimeout(1200);
       await page.mouse.move(2, 2);
@@ -384,6 +385,7 @@ export const CAPTURES = [
     ],
     screenshotFn: async (page, outFile) => {
       await page.locator('[data-wmap-plot-examples]').click();
+      await page.locator('[data-wmap-plot-examples-add-all]').click();
       await page.waitForSelector('[data-wmap-plot-id] canvas');
       await page.locator('[data-wmap-plot-edit]').first().click();
       await page.waitForSelector('[data-wmap-plot-window] canvas');

@@ -45,9 +45,20 @@ The **Maps | Insights** switch <span class="badge" role="img" aria-label="callou
 
 # The Overview
 
-Yield first, then bins, pass rates and regions, then what is worth a look. Scroll down: every card is a chart you can click.
+**Worth a look** comes first when something stands out, then **What divides yield**, then the standing cards: yield, bins, pass rates and regions. Scroll down: every card is a chart you can click.
 
 ![Insights Overview on the sample lot](images/05/insights-overview.png)
+
+---
+
+<!-- _class: split -->
+<!-- covers: Show on map -->
+
+# Worth a look
+
+The same items as **What stands out** (lesson 03), each drawn as the chart that shows it. Each card starts with a line saying why it is shown. **Show on map** opens the map that shows that item. A lot with nothing to show has no Worth a look, and its Overview starts with the standing cards.
+
+![A Worth a look card, with Show on map outlined](images/05/worth-a-look.png)
 
 ---
 
@@ -125,35 +136,32 @@ The share of judged dies that pass each test, lowest first. The three buttons ch
 ---
 
 <!-- _class: split -->
-<!-- covers: chart › Ring yield -->
-
-# Ring yield
-
-A wafer diagram with each ring labelled with its yield. Ring 1 is the centre and the last ring the edge. Click a region for its dies.
-
-![The Ring yield card: four rings, each labelled with its yield](images/05/ring-yield.png)
-
----
-
-<!-- _class: split -->
-<!-- covers: chart › Quadrant yield -->
-
-# Quadrant yield
-
-A wafer diagram with each quadrant labelled with its yield; a quadrant well below the rest shows a one-sided loss. Click a region for its dies.
-
-![The Quadrant yield card](images/05/quadrant-yield.png)
-
----
-
-<!-- _class: split -->
-<!-- covers: chart › Ring yield by wafer -->
+<!-- covers: chart › Ring yield by wafer; wmap guide › Heatmaps and the difference map; Heatmap -->
 
 # Ring yield by wafer
 
-The diagram above pools every wafer. This grid lays the rings out wafer by wafer: a row for each ring, a column for each wafer, each cell coloured by its yield. A dark row across every column is a process pattern; a dark cell in one column is one wafer.
+A grid with a row for each ring and a column for each wafer, each cell coloured by its yield. Ring 1 is the centre and the last ring the edge. **Heatmap | Diagram** <span class="badge" role="img" aria-label="callout 1">1</span> in the card's header chooses how the rings are drawn.
 
-![Ring yield by wafer: rings down the side, wafers across, each cell coloured by yield](images/05/ring-yield-by-wafer.png)
+![Ring yield by wafer: rings down the side, wafers across, each cell coloured by yield, with Diagram outlined](images/05/ring-yield-by-wafer.png)
+
+---
+
+# Reading the ring grid
+
+- A dark row across every column is a process pattern: that ring loses yield on every wafer
+- A dark cell in one column is one wafer
+- Click a cell for the dies in that ring on that wafer
+
+---
+
+<!-- _class: split -->
+<!-- covers: Diagram; chart › Ring yield -->
+
+# Ring yield as a diagram
+
+**Diagram** draws the same rings as a wafer, pooled over every wafer, with each ring labelled with its yield. Use it to see the pattern across the wafer at a glance; use the heatmap to see which wafers it comes from. Click a region for its dies.
+
+![The Ring yield diagram: four rings, each labelled with its yield](images/05/ring-yield.png)
 
 ---
 
@@ -169,13 +177,31 @@ The same grid for the four quadrants. A quadrant that is low on every wafer poin
 ---
 
 <!-- _class: split -->
-<!-- covers: Show on map -->
+<!-- covers: chart › Quadrant yield -->
 
-# Worth a look
+# Quadrant yield as a diagram
 
-The same items as **What stands out** (lesson 03), each drawn as the chart that shows it. Each card starts with a line saying why it is shown. **Show on map** opens the map that shows that item.
+With **Diagram** chosen, each quadrant is labelled with its yield, pooled over every wafer. A quadrant well below the rest shows a one-sided loss. Click a region for its dies.
 
-![A Worth a look card, with Show on map outlined](images/05/worth-a-look.png)
+![The Quadrant yield diagram](images/05/quadrant-yield.png)
+
+---
+
+<!-- _class: split -->
+<!-- covers: chart › Yield by site -->
+
+# Yield by site
+
+Many testers probe several dies at once, each through its own numbered **site**. When a lot's dies come from two or more sites, this card shows the yield of each site over every wafer.
+
+![Yield by site: four sites, each with its pooled yield](images/05/yield-by-site.png)
+
+---
+
+# Reading yield by site
+
+- With three or more sites, the median is drawn as a line to compare each site against
+- A site that is low on every wafer points at that site's probe card, not at the wafers
 
 ---
 
@@ -185,13 +211,13 @@ The same items as **What stands out** (lesson 03), each drawn as the chart that 
 
 ---
 
-<!-- covers: Chart actions; Chart actions › Save as PNG; Chart actions › Edit as plot; Chart actions › ✓About this chart; wmap guide › A chart's buttons -->
+<!-- covers: Chart actions; Chart actions › Save as PNG; Chart actions › Save data as CSV; Chart actions › Copy data; Chart actions › Edit as plot; Chart actions › ✓About this chart; wmap guide › A chart's buttons -->
 
 # The ⋯ menu
 
-Every chart has a ⋯ menu. **Save as PNG** saves the chart, **Edit as plot** opens it as a plot of your own (lesson 10), and **About this chart** adds a line saying what it shows.
+Every chart has a ⋯ menu. **Save as PNG** saves the picture. **Save data as CSV** saves the numbers behind it, and **Copy data** puts them on the clipboard as tab-separated text to paste into a spreadsheet. **Edit as plot** opens the chart as a plot of your own (lesson 10), and **About this chart** adds a line saying what it shows.
 
-![A chart's ⋯ menu: Save as PNG, Edit as plot and About this chart](images/05/chart-actions.png)
+![A chart's ⋯ menu: Save as PNG, Save data as CSV, Copy data, Edit as plot and About this chart](images/05/chart-actions.png)
 
 ---
 

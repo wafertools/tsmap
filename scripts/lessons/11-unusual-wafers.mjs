@@ -98,6 +98,19 @@ export const scenario = {
       shots: [],
     },
     {
+      id: '10b-reprobed-card',
+      title: 'Insights: the Re-probed dies card shows where on the wafers the retests are',
+      steps: [['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['scrollIntoView', '[data-wmap-chart-card][data-wmap-chart-title*="Re-probed"]', 70], ['hover', '#toolbar-title']],
+      checks: [isVisible('[data-wmap-chart-card][data-wmap-chart-title*="Re-probed"]', 'the Re-probed card is showing')],
+      shots: [{ name: 'reprobed-card', clip: { target: '[data-wmap-chart-card][data-wmap-chart-title*="Re-probed"]', pad: 8 } }],
+    },
+    {
+      id: '10c-back-to-maps',
+      title: 'Back to the maps, as the later beats expect',
+      steps: [['click', '[data-wmap-view="maps"]'], ['wait', 1000]],
+      shots: [],
+    },
+    {
       id: '10b-retests-dialog',
       title: 'Setup ▾ → Retests…: which result counts for a die probed more than once',
       steps: [PARK, ['click', '#lot-btn'], ['wait', 300], ['click', 'button:has-text("Retests…")'], ['wait', 800]],

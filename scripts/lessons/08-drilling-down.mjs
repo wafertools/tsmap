@@ -67,6 +67,19 @@ export const scenario = {
       shots: [{ name: 'filter-keeps', clip: { target: DIALOG, pad: 12, maxHeight: 470 }, callouts: [[`${DIALOG} >> text=/^Keeps /`, { pad: 2 }]] }],
     },
     {
+      id: '05b-filter-json',
+      title: 'The Filter window\'s Conditions | JSON switch shows the filter as text',
+      steps: [['click', dlg('label:text-is("JSON")')], ['wait', 700], ['hover', dlg('textarea')], ['wait', 300]],
+      checks: [isVisible(dlg('label:text-is("Conditions")'), 'the Conditions | JSON switch is showing')],
+      shots: [{ name: 'filter-json', clip: { target: DIALOG, pad: 12, maxHeight: 520 }, callouts: [[dlg('label:text-is("JSON")'), { pad: 2 }]] }],
+    },
+    {
+      id: '05c-filter-conditions',
+      title: 'Back to Conditions, as the later beats expect',
+      steps: [['click', dlg('label:text-is("Conditions")')], ['wait', 500]],
+      shots: [],
+    },
+    {
       id: '06-save-filter',
       title: 'A filter can be saved under a name, to use again',
       steps: [['fillInput', dlg('input[type="text"]'), 'SS wafers'], ['click', dlg('button:text-is("Save")')], ['wait', 500], ['hover', `${DIALOG} >> text=Saved filters`], ['wait', 600]],

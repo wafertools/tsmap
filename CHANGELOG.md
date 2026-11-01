@@ -4,6 +4,24 @@ For a curated, plain-language summary of what's actually changed for users, see
 [What's New](https://wafertools.github.io/whats-new/) instead — this file is the complete
 technical record, including internal changes.
 
+## [0.2.1] — 2026-11-01
+
+### Added
+
+- **More Insights charts.** **Tests by wafer** (or by group) at the top of Distributions, a grid of the tests whose wafers differ most in z-scores; **Yield by site**, when a lot was tested on more than one site; **Re-probed dies**, by ring and wafer, when a lot has re-probed dies. The box plot can be drawn **By radius**, the value histogram as a **Cumulative** curve, and the test scatter has **Log X** and **Log Y**.
+- **Fails together and Within groups on the correlation matrix.** **Fails together** shows which tests fail on the same dies; with Group by on, **Within** takes each group's mean off first, so a difference between groups is not read as a link between tests.
+- **Save data as CSV and Copy data in every chart's ⋯ menu.** The numbers behind a chart, as a file or as text to paste into a spreadsheet.
+- **A My plots | Examples switch.** Examples shows one plot of each chart type the lot can show, marked as examples and not saved; **Add to my plots** keeps one, and **Add all** keeps the rest and shows My plots, with an Undo. It replaces **Add examples**.
+- **An `llms.txt` for AI assistants.** A plain-text map of tsmap's documentation, lessons and glossary, with the points that decide how results are read (pass bins, pooled and mean yield, retest policy, edge exclusion), published with the docs.
+- **A JSON view in the Filter window and the plot editor.** The filter, or a plot, written as text to edit, paste or copy, with suggestions for its keys, the lot's fields and tests, and the values a field takes. **Sweep** is a chart type of the plot editor.
+
+### Changed
+
+- **The support page offers GitHub Sponsors as well as Ko-fi.** **Help → Support tsmap…** opens the same page; companies can now sponsor monthly from their organisation's GitHub account, and individuals can use either.
+- **Charts that read better.** Heatmaps have a line between cells, a frame and a tick for each row and column; a control chart's legend picks out the chosen wafers; the difference map fills its card and its expanded window; a name written in capitals, such as `TEMP`, is labelled as written.
+- **Overview and Distributions are laid out in sections.** Worth a look comes first, then What divides yield, then the standing cards; Distributions has one **Test** menu, under Test by test, for every card below it. Ring yield and Quadrant yield are views of the "by wafer" cards, chosen with **Heatmap | Diagram**.
+- **Learn tsmap covers all of these.** Lessons 05, 06, 07, 08, 10 and 11 gain slides for the new charts and views, and the screenshots follow the new layout.
+
 ## [0.2.0] — 2026-10-28
 
 ### Added

@@ -13,7 +13,7 @@ import { join } from 'path';
 
 const ONLINE = 'https://wafertools.github.io/tsmap/learn/';
 const GLOSSARY_ONLINE = `${ONLINE}glossary/`;
-const TERMS_PER_SLIDE = 3;
+const TERMS_PER_SLIDE = 2;
 
 const slidesOf = (src) => src.replace(/^---\n[\s\S]*?\n---\n/, '').split('\n---\n');
 const unquote = (v) => v.replace(/^["']|["']$/g, '');

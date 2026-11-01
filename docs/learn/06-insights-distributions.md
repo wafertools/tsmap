@@ -44,6 +44,25 @@ How values spread: process capability, a box plot per wafer, a histogram and the
 ---
 
 <!-- _class: split -->
+<!-- covers: chart › Tests by wafer; Heatmaps and the difference map; Rescaling values; wmap guide › Heatmaps and the difference map; wmap guide › Rescaling values -->
+
+# Tests by wafer
+
+At the top of Distributions, **Tests by wafer** picks the tests whose wafers differ most and draws them as a grid. Each row is a test and each column is a wafer. The colour is how far that wafer's mean is from the mean of all the wafers: blue is below, orange is above, and a pale cell is close to average.
+
+![The Tests by wafer grid, six tests by thirteen wafers](images/06/tests-by-wafer.png)
+
+---
+
+# Reading the grid in z-scores
+
+- Each test is rescaled on its own, so tests in different units share one colour scale
+- The number in a cell is a [**z-score**](https://wafertools.github.io/tsmap/learn/glossary/#z-score): how many standard deviations the wafer's mean is from the mean of all wafers
+- A column that is dark in several rows is a wafer that moved several tests together
+
+---
+
+<!-- _class: split -->
 <!-- covers: chart › Process capability; glossary › Process capability (Cp / Cpk / Pp / Ppk) -->
 
 # Process capability
@@ -77,11 +96,11 @@ A test without both limits still appears, drawn muted and dashed on its own rang
 <!-- _class: split -->
 <!-- covers: Test; Test menu › (one per test) -->
 
-# One test at a time
+# One test for every card
 
-Each card has a **Test** menu, and changing it on one changes the box plot, the histogram and the trend together. Clicking a test in the capability chart does the same.
+Under the heading **Test by test** there is one **Test** menu. Changing it changes the box plot, the histogram, the trend and the scatter together, so every card is about the same test. Clicking a test in the capability chart does the same. A card shows a Test menu of its own only while you have expanded it.
 
-![The Test menu listing every test](images/06/test-menu.png)
+![The Test menu in the Test by test row, listing every test](images/06/test-menu.png)
 
 ---
 
@@ -135,6 +154,7 @@ Each wafer's mean in slot order, with a band of ±1 standard deviation. There is
 ---
 
 <!-- _class: split -->
+<!-- covers: Trend; Control chart; wmap guide › Control charts -->
 
 # Trend or control chart
 
@@ -155,12 +175,34 @@ With Group by on, each group's bars are a share of its own dies, so groups of di
 ---
 
 <!-- _class: split -->
+<!-- covers: Cumulative; wmap guide › The cumulative probability plot -->
+
+# Histogram or cumulative
+
+**Cumulative** draws the same values as a curve instead of bars. Each die sits at the share of dies at or below its value, on a scale where a normal distribution falls on a straight line. A group whose curve is further right has higher values, and a steeper curve is a tighter spread.
+
+![The same values drawn as a cumulative curve, one line per split](images/06/histogram-cumulative.png)
+
+---
+
+<!-- _class: split -->
 
 # The box plot when grouped
 
 With Group by on, the box plot also offers **Split, then wafer**: each split's wafers sit inside it, coloured by split, so you see the spread between splits and within each.
 
 ![The box plot with each split's wafers inside it](images/06/box-nested.png)
+
+---
+
+<!-- _class: split -->
+<!-- covers: By wafer; By radius -->
+
+# By wafer or by radius
+
+The box plot can show one box for each wafer (**By wafer**) or one for each ring, from the centre of the wafer out to the edge (**By radius**). By radius is the one to use when you suspect a value changes with distance from the centre: the boxes then step up or down from Ring 1 to Ring 4.
+
+![The box plot drawn by radius, with By radius outlined](images/06/box-by-radius.png)
 
 
 
@@ -185,6 +227,16 @@ With Group by on, the box plot also offers **Split, then wafer**: each split's w
 - **Largest shift** is the size; **Control** compares each group with one
 
 ![The Comparison by split table](images/06/comparing-groups.png)
+
+---
+
+<!-- _class: split -->
+
+# Tests by group
+
+With Group by on, **Tests by wafer** becomes **Tests by split**: one column for each group instead of each wafer, in z-scores again. A group that is dark across several rows differs on several tests at once, which usually means one cause.
+
+![Tests by split, six tests by five splits](images/06/tests-by-split.png)
 
 ---
 

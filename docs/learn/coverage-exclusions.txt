@@ -19,6 +19,7 @@ fold Finding chart link = Chart: * | one per finding the analysis produced
 fold Finding chip (bin) = re:^Hard bin \d+( \(.*\))?$ | one per bin a finding names
 fold Finding chip (test) = re:^(vth_mV|leakage_nA|freq_MHz|Idsat|vth_n_mV|vth_p_mV|idsat_n_uA|idsat_p_uA|fmax_MHz|ioff_nA|scan_chain|Iddq|Vref|Fmax)$ | one per test a finding names
 fold Finding chip (pattern) = re:^[A-Z][a-z-]+ pattern$ | one per spatial pattern a finding names
+re:^(FF|FS|SF|SS|TT)$ | one button per split value in the loaded lot; the lot's data decides which
 fold Show supporting findings = Show * supporting finding* | the count depends on the finding
 fold Wafer yield row = *% yield*open wafer | one per wafer in the Summary panel's yield list
 fold Summary › Wafer Yield = Wafer Yield (* | the heading carries the lot's yield range

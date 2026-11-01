@@ -76,7 +76,7 @@ export const scenario = {
       id: '07-my-plots-empty',
       title: 'Insights → My plots: no plots yet',
       steps: [['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('My plots')], ['wait', 1000], PARK],
-      checks: [isVisible(plotBtn('Add examples'), 'the My plots buttons are showing')],
+      checks: [isVisible('[data-wmap-plot-views]', 'the My plots buttons are showing')],
       shots: [{ name: 'my-plots-empty', clip: hdr }],
     },
     {

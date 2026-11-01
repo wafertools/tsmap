@@ -4,7 +4,8 @@
 [![Build](https://github.com/wafertools/tsmap/actions/workflows/build.yml/badge.svg)](https://github.com/wafertools/tsmap/actions/workflows/build.yml)
 [![release](https://img.shields.io/github/v/release/wafertools/tsmap)](https://github.com/wafertools/tsmap/releases)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![support](https://img.shields.io/badge/support-wafertools-ff5e5b)](https://wafertools.github.io/support/)
+[![sponsor on GitHub](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/wafertools)
+[![support on Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/wafertools)
 
 A desktop and web application for loading and visualising semiconductor wafer map data. Built with [Tauri v2](https://tauri.app/) (Rust backend), a WASM parser for the browser, and [wafermap](https://github.com/wafertools/wafermap) (canvas rendering).
 
