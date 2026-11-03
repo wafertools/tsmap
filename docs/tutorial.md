@@ -37,14 +37,14 @@ the process window, and tsmap labels each one automatically.
 
 ## 3. Import the tests
 
-The sample lot has 7 tests (six parametric, one functional). A small lot like this imports
-every test straight away, and the log reports "7 tests imported". A large lot instead opens a
+The sample lot has 9 tests (six parametric, three functional). A small lot like this imports
+every test straight away, and the log reports "9 tests imported". A large lot instead opens a
 **test selector** before parsing, starting empty, so that "import everything" can never be the
 accidental default. See [Memory advisory](user-guide.md#memory-advisory) for where that line falls.
 
 To choose tests after the load, open **Setup ▾ → Tests…**:
 
-![Test selector for the sample lot — 7 tests, all ticked](images/tutorial-test-selector.png)
+![Test selector for the sample lot — 9 tests, all ticked](images/tutorial-test-selector.png)
 
 **You should now see** a grid of 13 wafer maps, each card titled like `W01 · TT`, with a
 **Summary** panel down the right-hand side, headed *Lot PVT-LOT-05 · 13 wafers* — every wafer
@@ -76,13 +76,13 @@ The order is now:
 
 | Wafer | Yield |
 |-------|-------|
-| W11 · SS | 49.8 % |
-| W04 · SS | 58.4 % |
-| W08 · SF | 71.0 % |
-| W02 · FF | 71.9 % |
+| W11 · SS | 49.3 % |
+| W04 · SS | 56.6 % |
+| W08 · SF | 67.0 % |
+| W12 · FS | 67.9 % |
 | … | … |
-| W05 · TT | 94.6 % |
-| W01 · TT | 95.5 % |
+| W09 · TT | 94.1 % |
+| W07 · TT | 94.6 % |
 
 **This is the moment the lot explains itself.** The two worst wafers are both **SS**. The two
 best are both **TT**. Yield is tracking the process corner, not the slot number — and slot

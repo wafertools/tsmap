@@ -212,11 +212,15 @@ Beside Setup and Customise, **JSON** shows the same plot as text. You can edit i
 
 ---
 
+<!-- _class: split -->
+
 # Reference lines
 
 Your own target, guard band or customer limit on a value axis, to see how the data sits against a number that matters to you. In **Customise**, write a value or a `lo..hi` band, each with an optional name:
 
-`0.45 Target, 0.3..0.5 Window, median`
+`320 Target, 300..340 Window, median`
+
+![Customise with three reference lines written in the X axis field: a target, a shaded band and the median](images/10/reference-lines.png)
 
 ---
 

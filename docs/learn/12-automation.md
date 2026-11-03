@@ -178,6 +178,12 @@ The last rows of **Setup ▾** (diameter, edge exclusion, reticle, retests, valu
 
 ---
 
+# The Setup file window
+
+![The Setup file window with Save…, Load… and the list of recent files](images/12/setup-file.png)
+
+---
+
 <!-- covers: tsmap guide › Bin definitions; Setup ▾ › Bin definitions…; Bin definitions… › Save…; Bin definitions… › Load…; Bin definitions… › Load a recently used definitions file; Bin definitions… › Mark pass; Bin definitions… › Mark fail; Bin definitions… › Tick every row that matches the filter; Bin definitions… › Revert all; Bin definitions… › Cancel; Bin definitions… › Apply -->
 
 # Bin definitions…

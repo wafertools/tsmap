@@ -3,7 +3,7 @@
 matching wafer-splits CSV (tsmap's "Splits…" import format: `waferId,split`).
 
 Produces: 13 wafers, ~220 dies each, 4-site parallel test, 6 PTR tests
-(NMOS/PMOS Vth, NMOS/PMOS Idsat, Ioff leakage, Fmax) + 1 FTR scan test.
+(NMOS/PMOS Vth, NMOS/PMOS Idsat, Ioff leakage, Fmax) + 3 FTR tests (scan chain, memory BIST, I/O loopback).
 
 Wafer IDs deliberately do NOT encode the corner (W01, W02, ...) — that's the
 whole point of the splits feature: corner membership comes from a lot
@@ -95,8 +95,14 @@ TESTS = [
     (1005, 'ioff_nA',    'nA',   0.0,   12.0, 'g', +1.0,  1.3,  0.7),
     (1006, 'fmax_MHz',   'MHz', 1600.0, 2200.0, 'g', +1.0, 48.0, 30.0),
 ]
-NUM_TESTS = len(TESTS) + 1  # + the FTR scan test
+NUM_TESTS = len(TESTS) + 3  # + the three FTR tests
 FT_NUM, FT_NAME = 2001, 'scan_chain'
+# Two more functional tests, so the functional pass-rate chart has something to rank, and a probe site (3) whose
+# contact is marginal: it fails them more often. They draw from their own stream, so the six PTR tests and the
+# scan chain keep the values the lot has always had.
+EXTRA_FTR = [(2002, 'bist_mem', 0.006), (2003, 'io_loopback', 0.002)]
+WEAK_SITE, WEAK_SITE_EXTRA_FAIL_P = 3, 0.04
+extra_rng = random.Random(11)
 
 # Per-corner test centre (overrides the TT centre below) and a sigma
 # multiplier — corner wafers run a bit noisier than the nominal baseline.
@@ -201,6 +207,12 @@ def generate(output_path: Path) -> None:
                 if not ft_passed:
                     failed_tests.append(FT_NUM)
                 buf += ftr_rec(FT_NUM, site, ft_passed, FT_NAME)
+                for ft_num, ft_name, base_p in EXTRA_FTR:
+                    p_fail = base_p + CORNER_FT_FAIL_P[corner] / 4 + (WEAK_SITE_EXTRA_FAIL_P if site == WEAK_SITE else 0.0)
+                    ok = extra_rng.random() >= p_fail
+                    if not ok:
+                        failed_tests.append(ft_num)
+                    buf += ftr_rec(ft_num, site, ok, ft_name)
 
                 die_passed = len(failed_tests) == 0
                 hbin = 1 if die_passed else (2 if len(failed_tests) <= 1 else 3)
@@ -240,7 +252,7 @@ def generate(output_path: Path) -> None:
     corner_counts = {c: sum(1 for _, cc in WAFER_CORNERS if cc == c) for c in CORNER_CENTRES}
     print(f"Written {len(buf):,} bytes → {output_path}")
     print(f"  {len(WAFER_CORNERS)} wafers × ~{len(dies)} dies = ~{total_dies} die results")
-    print(f"  {len(TESTS)} PTR tests + 1 FTR scan test")
+    print(f"  {len(TESTS)} PTR tests + {1 + len(EXTRA_FTR)} FTR tests")
     print(f"  Corners: " + ', '.join(f'{c}×{n}' for c, n in corner_counts.items()))
     print(f"Written splits definition → {splits_path}")
     print()

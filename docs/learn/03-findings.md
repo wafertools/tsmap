@@ -249,7 +249,7 @@ One bar per wafer, in slot order, so a slot-related pattern shows. A badge count
 
 # Which yield?
 
-The panel's **79.0% mean per-wafer yield** averages the 13 wafers' own yields, each wafer counting once. A pooled yield counts every die once, so big wafers weigh more. The label always says which.
+The panel's **76.3% mean per-wafer yield** averages the 13 wafers' own yields, each wafer counting once. A pooled yield counts every die once, so big wafers weigh more. The label always says which.
 
 ---
 

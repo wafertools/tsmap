@@ -71,6 +71,13 @@ export const scenario = {
       shots: [{ name: 'recent-definitions', clip: { rect: { x: 400, y: 320, width: 740, height: 270 } } }],
     },
     {
+      id: '05c-setup-file',
+      title: 'Setup ▾ → Setup file…: Save…, Load… and a list of recently used files',
+      steps: [['press', 'Escape'], ['wait', 300], ['press', 'Escape'], ['wait', 300], ['click', '#lot-btn'], ['wait', 300], ['click', 'button:has-text("Setup file")'], ['wait', 800]],
+      checks: [isVisible(DIALOG, 'the Setup file window is open'), hasText(DIALOG, 'Save')],
+      shots: [{ name: 'setup-file', clip: { target: DIALOG, pad: 12 } }],
+    },
+    {
       id: '06-mapping-bin-definitions',
       title: 'For CSV, JSON and Parquet, the column mapping has its own Load bin definitions…',
       steps: [['press', 'Escape'], ['wait', 300], ['press', 'Escape'], ['wait', 300], ['click', '#reset-btn'], ['wait', 800], ['loadFile', `${SAMPLEDATA}/MPW-LOT-08.csv`], ['waitForOverlay', '.mapping-panel'], ['wait', 500]],

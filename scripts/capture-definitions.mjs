@@ -590,14 +590,14 @@ export const CAPTURES = [
   //
   // Deliberately NOT reusing `test-selector` for the tutorial's import step:
   // that one shoots many_tests.stdf (250 tests, nothing pre-ticked) while the
-  // tutorial's lot has 7 tests and imports with no selector — the whole point of
+  // tutorial's lot has 9 tests and imports with no selector — the whole point of
   // that paragraph. Showing the 250-test overlay there would contradict the
   // text it illustrates.
 
   {
     file: 'tutorial-test-selector',
     group: 'tutorial',
-    description: 'Setup ▾ → Tests… for the sample corner lot — 7 tests, all ticked',
+    description: 'Setup ▾ → Tests… for the sample corner lot — 9 tests, all ticked',
     viewport: { width: 1280, height: 800 },
     selector: '#tsmap-test-selector-overlay div[role="dialog"]',
     // The lot is small, so it imports every test with no selector; the tutorial

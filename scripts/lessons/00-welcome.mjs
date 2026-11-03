@@ -53,7 +53,7 @@ export const scenario = {
       ],
       checks: [
         hasText('[data-wmap-gallery-meta]', 'PVT-LOT-05'),
-        hasText('[data-wmap-gallery-legend]', 'Yield 79.0%'),
+        hasText('[data-wmap-gallery-legend]', 'Yield 76.3%'),
         {
           name: 'thirteen-wafers',
           describe: 'the gallery shows 13 wafer cards',

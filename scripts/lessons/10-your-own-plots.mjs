@@ -104,6 +104,13 @@ export const scenario = {
       shots: [{ name: 'customise', clip: { target: DIALOG, pad: 8 } }],
     },
     {
+      id: '18b-reference-lines',
+      title: 'Customise → Reference lines: a target and a band written as text, drawn on the chart',
+      steps: [['fillInput', `${DIALOG} input[placeholder*="Target"], ${DIALOG} input[placeholder*="median"]`, '320 Target, 300..340 Window, median'], ['wait', 1200]],
+      checks: [isVisible(`${DIALOG} >> text="Reference lines" >> nth=0`, 'the Reference lines field is showing')],
+      shots: [{ name: 'reference-lines', clip: { target: DIALOG, pad: 8 } }],
+    },
+    {
       id: '19-close-editor',
       title: 'Cancel puts the plot back as it was when you opened the editor',
       steps: [['click', `${DIALOG} button:text-is("Cancel")`], ['wait', 800], PARK],

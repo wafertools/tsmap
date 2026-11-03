@@ -160,7 +160,7 @@ export const scenario = {
         ['waitForWafers'],
         ['openTestsDialog'],
       ],
-      checks: [hasText(SELECTOR, '7 found'), hasText(SELECTOR, '7 of 7 tests selected')],
+      checks: [hasText(SELECTOR, '9 found'), hasText(SELECTOR, '9 of 9 tests selected')],
       shots: [
         {
           name: 'test-selector',

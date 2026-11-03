@@ -58,7 +58,7 @@ screen the beat expects.
   id: '08-test-selector',
   title: 'Setup ▾ → Tests… opens the test selector on the sample lot',
   steps: [['openTestsDialog']],
-  checks: [hasText(SELECTOR, '7 found')],
+  checks: [hasText(SELECTOR, '9 found')],
   shots: [{
     name: 'test-selector',                          // → images/01/test-selector.png
     clip: { target: SELECTOR, pad: 8 },             // crop to an element (optional)
