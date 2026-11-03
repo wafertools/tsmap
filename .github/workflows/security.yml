@@ -1,0 +1,49 @@
+name: Security
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so a new advisory against an unchanged tree still surfaces.
+    - cron: '17 6 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Production dependencies only: build-time tooling advisories do not
+      # reach the shipped app.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+  cargo-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Fails on vulnerabilities; unmaintained/unsound warnings from the
+      # Tauri platform crates are reported but do not fail the job.
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Audit Rust dependencies
+        run: cargo audit

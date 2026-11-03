@@ -44,7 +44,7 @@ tauri-plugin-fs = "2.5.1"
 tauri-plugin-single-instance = "2"
 tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "fs", "io-util"] }
 libc = "0.2.186"
-zip = "8.6.0"
+zip = "9"
 testdata-parser = { path = "../packages/parsers", features = ["native"] }
 # Hand-rolled fetch command rather than tauri-plugin-http: the plugin's scope
 # system requires pre-configured glob-pattern allow-lists, which doesn't fit

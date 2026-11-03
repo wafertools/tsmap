@@ -51,7 +51,7 @@ fn extract_zip(src: &Path, out_dir: &Path) -> Result<Vec<String>, String> {
         if entry.is_dir() { continue; }
 
         // Use only the filename, ignoring any directory structure in the zip
-        let name = entry.name().to_string();
+        let name = entry.name().map_err(|e| e.to_string())?.to_string();
         let file_name = Path::new(&name)
             .file_name()
             .and_then(|n| n.to_str())

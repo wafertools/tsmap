@@ -8,6 +8,7 @@ technical record, including internal changes.
 
 ### Changed
 
+- **The desktop app runs under a Content-Security-Policy.** Scripts load only from the app's own files (plus WebAssembly for the parsers), and the app makes no requests to remote hosts from its window; files are still parsed on your machine. The archive and Parquet libraries, and the Tauri crates, are updated to their latest compatible releases.
 - **A richer sample lot.** **Load sample data** now carries three functional tests (scan chain, memory BIST, I/O loopback) and one probe site that yields lower than the others, so the functional pass-rate and Yield by site charts have something to compare. The six parametric tests are unchanged, and the lot's yield is 76.3%. The lessons, tutorial and their screenshots follow the new lot, and Learn tsmap gains a Reference lines slide and a Setup file window slide.
 
 ## [0.2.1] — 2026-11-01
