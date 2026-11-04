@@ -47,7 +47,7 @@ Learn tsmap
 
 **Derived tests…** in the test selector adds, edits and deletes them in a table. Each expression is checked as you type: ✓ with what it produces, or ✗ with the reason and where, and a **Reads** column lists the tests it depends on. Apply is refused while a test would be dropped.
 
-These slides use [`RRAM-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-rram-lot.stdf&dataFormat=stdf), a resistive-memory lot. Its [test definitions](https://wafertools.github.io/tsmap/samples/tsmap-rram-testdefs.csv) and [plots file](https://wafertools.github.io/tsmap/samples/tsmap-rram-plots.json) are on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
+These slides use [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.stdf&dataFormat=stdf), a two-state switching lot. Its [test definitions](https://wafertools.github.io/tsmap/samples/tsmap-sweep-testdefs.csv) and [plots file](https://wafertools.github.io/tsmap/samples/tsmap-sweep-plots.json) are on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
 
 ---
 
@@ -57,7 +57,7 @@ These slides use [`RRAM-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl
 
 **Setup ▾ → Tests…**, then **Load definitions**. The file renames the tests and adds derived ones: the footer counts them, here 7.
 
-![The test selector after loading RRAM-LOT-06's definitions](images/09/selector-loaded.png)
+![The test selector after loading SWEEP-LOT-06's definitions](images/09/selector-loaded.png)
 
 ---
 
@@ -66,7 +66,7 @@ These slides use [`RRAM-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl
 
 # The † Derived filter
 
-**† Derived** shows only the derived tests, each marked †. Give each a number no measured test uses: a derived row with a measured test's number is ignored, and the log says so. 900001 and up is safe.
+**† Derived** shows only the derived tests, each marked †. Give each a number no measured test uses: a derived row with a measured test's number is ignored, and the log says so. 910001 and up is safe.
 
 ![The test selector filtered to derived tests](images/09/selector-derived.png)
 
@@ -78,9 +78,9 @@ These slides use [`RRAM-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl
 
 | Write | It gives |
 | --- | --- |
-| `t[3126]` | the measured value of test 3126 |
+| `t[5116]` | the measured value of test 5116 |
 | `testPass[2001]` | the pass or fail result stored in the data file |
-| `specPass[3126]` | whether the value is inside its limits |
+| `specPass[5116]` | whether the value is inside its limits |
 | `diePass()` | whether the die's bin counts as a pass |
 | `dieX()`, `dieY()` | the die's position |
 | `hbin()`, `sbin()`, `site()` | the die's hard bin, soft bin and probe site |
@@ -101,7 +101,7 @@ For example `abs(t[1020] - t[1010])`, or `if(dieX() < 5, t[1010], -1)`. A true-o
 
 # Expressions: ranges and missing data
 
-- `3126..3130` is every test in that range that exists, combined into one value:
+- `5116..5120` is every test in that range that exists, combined into one value:
   `mean sum min max` for numbers, `all any none countTrue countFalse` for verdicts, `countKnown` for either; blanks are skipped
 - A missing input leaves the die blank, never zero
 - A test that cannot be computed is left out, with the reason in the log
@@ -122,9 +122,9 @@ In the map toolbar's test list, derived tests are marked †, with the note Deri
 
 # Mapped like any test
 
-Choosing **† Set plateau** colours every die by its computed value.
+Choosing **† Up plateau** colours every die by its computed value.
 
-![The gallery coloured by the derived Set plateau test](images/09/derived-map.png)
+![The gallery coloured by the derived Up plateau test](images/09/derived-map.png)
 
 ---
 
@@ -156,9 +156,9 @@ In Insights, the **My plots** tab holds charts you build. **+ New plot**, with t
 
 # Import plots…
 
-Reads a plots file and adds its plots. `RRAM-LOT-06`'s plots file brings two sweeps. Each line is the median across the dies, with a shaded band from the 10th to the 90th percentile.
+Reads a plots file and adds its plots. `SWEEP-LOT-06`'s plots file brings two sweeps. Each line is the median across the dies, with a shaded band from the 10th to the 90th percentile.
 
-![Two sweep cards: set and reset switching, and endurance](images/09/sweep-cards.png)
+![Two sweep cards: up/down switching, and endurance](images/09/sweep-cards.png)
 
 ---
 
@@ -170,7 +170,7 @@ Reads a plots file and adds its plots. `RRAM-LOT-06`'s plots file brings two swe
 - A sweep card reports two results for its first two curves
 - **Crossing** is where they meet
 - **Width** is how far apart they are at the sweep's set levels (dashed lines)
-- On a log axis the width is a ratio, such as ×17.8
+- On a log axis the width is a ratio, such as ×2.93
 
 ![The Endurance sweep card, with its Crossing and Width readouts under the chart](images/09/sweep-measures.png)
 
@@ -183,7 +183,7 @@ Reads a plots file and adds its plots. `RRAM-LOT-06`'s plots file brings two swe
 
 **Edit** opens the sweep beside a live copy of its curve. For each series, type its tests in sweep order, then say where each test's X comes from.
 
-![The sweep editor for the set and reset switching sweep](images/09/sweep-editor.png)
+![The sweep editor for the up/down switching sweep](images/09/sweep-editor.png)
 
 ---
 
@@ -191,7 +191,7 @@ Reads a plots file and adds its plots. `RRAM-LOT-06`'s plots file brings two swe
 
 # From test name
 
-Each test's X comes from its **Test order**, typed **Values**, or **From test name**: here the cycle count in "LRS read I @ 1e2 cycles". **+ Add series** adds a curve.
+Each test's X comes from its **Test order**, typed **Values**, or **From test name**: here the cycle count in "High-state I after 1e2 cycles". **+ Add series** adds a curve.
 
 ![The endurance sweep reading cycles from the test names](images/09/sweep-editor-name.png)
 
@@ -207,10 +207,10 @@ If a later lot uses the same test numbers for other measurements, the sweep does
 
 # Try it yourself
 
-1. Open [`RRAM-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-rram-lot.stdf&dataFormat=stdf) in the web app, then **Setup ▾ → Tests…**
-2. **Load definitions** and choose `tsmap-rram-testdefs.csv` from the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data), then **† Derived**: how many derived tests are there?
-3. **Apply**, then **Plot mode → † Set plateau**
-4. **Insights → My plots → Import plots…** and choose `tsmap-rram-plots.json`
+1. Open [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.stdf&dataFormat=stdf) in the web app, then **Setup ▾ → Tests…**
+2. **Load definitions** and choose `tsmap-sweep-testdefs.csv` from the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data), then **† Derived**: how many derived tests are there?
+3. **Apply**, then **Plot mode → † Up plateau**
+4. **Insights → My plots → Import plots…** and choose `tsmap-sweep-plots.json`
 5. **Edit** the **Endurance** plot and read where its X values come from
 
 ---
@@ -220,6 +220,8 @@ If a later lot uses the same test numbers for other measurements, the sweep does
 # Check your results
 
 2. **7** derived tests, each marked †. The selector counts them next to **† Derived**.
+3. The map colours each die by its computed Up plateau current.
+5. The X values come from **From test name**: each test's name carries its cycle count, as in "High-state I after 1e2 cycles".
 
 ---
 

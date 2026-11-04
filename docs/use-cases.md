@@ -34,9 +34,9 @@ configuring for them to appear.
 - A finding is a *statistical* statement, not a diagnosis. "Edge-local, medium confidence"
   means the edge dies fail more than the rest — not that the cause is the process. Probe-card
   contact, handling and chuck effects all produce edge signatures too.
-- One bad wafer in thirteen may simply be one bad wafer. Look for whether the pattern repeats
-  across wafers — a regional finding reports it as "higher on N/13 wafers, all wafers' data
-  combined", and a spatial pattern as "seen on N/13 wafers".
+- One bad wafer in 25 may simply be one bad wafer. Look for whether the pattern repeats
+  across wafers — a regional finding reports it as "higher on N/25 wafers, all wafers' data
+  combined", and a spatial pattern as "seen on N/25 wafers".
 
 **Next:** if the losses look structured, either group by split to see whether they track an
 experimental variable (below), or move to a parametric view to find which test is failing.
@@ -126,7 +126,7 @@ recorded pass/fail are the tester's own.
 - **Spec limits** and **Test limits** are also choices in the same dialog, to keep only values inside those. Use them to look at the
   population that meets a limit, not to judge pass/fail: the map's own pass/fail colouring is separate.
 
-**Next:** if the clamps cluster in one place, switch **Off**, colour a plot by ring or quadrant (**Insights → Plot**) and see where.
+**Next:** if the clamps cluster in one place, switch **Off**, colour a plot by ring or quadrant (**Insights → My plots**) and see where.
 
 See [Excluding values outside limits](user-guide.md#excluding-values-outside-limits).
 
@@ -185,7 +185,7 @@ cannot leave the machine.
    needs a confirm click, even for a small lot. It saves re-picking the
    tests, not the click.
 3. Seed wafer splits with `--splits`, so an experiment's grouping is applied on open, and
-   the program's plots and sweeps with `--plots`, so Insights → Plot is ready too.
+   the program's plots and sweeps with `--plots`, so Insights → My plots is ready too.
 4. To launch from another application, use a `tsmap://open?url=…&format=…` link (desktop) or
    `?dataUrl=…&dataFormat=…` (browser). Both parameters are required together.
 

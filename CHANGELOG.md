@@ -9,7 +9,9 @@ technical record, including internal changes.
 ### Changed
 
 - **The desktop app runs under a Content-Security-Policy.** Scripts load only from the app's own files (plus WebAssembly for the parsers), and the app makes no requests to remote hosts from its window; files are still parsed on your machine. The archive and Parquet libraries, and the Tauri crates, are updated to their latest compatible releases.
-- **A richer sample lot.** **Load sample data** now carries three functional tests (scan chain, memory BIST, I/O loopback) and one probe site that yields lower than the others, so the functional pass-rate and Yield by site charts have something to compare. The six parametric tests are unchanged, and the lot's yield is 76.3%. The lessons, tutorial and their screenshots follow the new lot, and Learn tsmap gains a Reference lines slide and a Setup file window slide.
+- **A fuller sample lot.** **Load sample data** is now a full lot of 25 wafers, tested in five sessions that differ in temperature, tester, program revision and burn-in time, so Group by offers eight fields and each one moves the data: the 85 wafers read lower Vth and Idsat and higher leakage, tester B reads Vth about 20 mV high, program 1.1 has tighter limits, and the burn-in wafers fail the memory BIST more. It carries eight functional tests (scan chain, memory BIST, I/O loopback, PLL lock, DDR PHY, SerDes PRBS, JTAG ID, power sequencing) and one probe site that yields lower than the others, so the functional pass-rate, Yield by site and What divides yield charts have something to compare. The lot's yield is 65.6%. The four story lots (EDGE-LOT-01, HY-LOT-04, CLUST-LOT-03, PARAM-LOT-02) are probed on four sites and carry five functional tests, with a weak spot each. The lessons, tutorial, sample-file listings and their screenshots follow the new lots, Learn tsmap gains a Group by any field slide, and the fixture validator checks each data stream of a lot tested in several sessions on its own.
+- **The sweeps sample lot is `SWEEP-LOT-06`.** A two-state switching lot with an up and a down sweep over ±2 V, an endurance sweep, seven derived tests and four functional tests; its files are `tsmap-sweep-lot.stdf`, `tsmap-sweep-testdefs.csv` and `tsmap-sweep-plots.json`.
+- **CI runs the Rust steps once per commit, with the dependencies unoptimised.** A release's tag build skips them, since the commit's push to `main` has run them; the standalone `cargo check` is gone, since `cargo test --workspace` builds the same crates; and CI's own cargo settings (`.github/cargo-ci.toml`) keep the dependencies at opt-level 0, where a local `tauri dev` builds them at 3. A step prints why cargo rebuilt a crate.
 
 ## [0.2.1] — 2026-11-01
 
@@ -39,7 +41,7 @@ technical record, including internal changes.
 - **One setup file for the lot-independent settings.** **Setup ▾ → Setup file…** saves and loads the wafer diameter, edge exclusion, reticle, retest policy and value filter as a single `setting,value` CSV, with recently used files behind the ▾, and **Help → Definitions file formats…** saves an example. A load changes only the settings the file states and applies at once; `--setup <file>` applies one for a launch without remembering it, before the individual flags so a flag still wins, and works on its own against an open window.
 - **Name the bins in the column mapping.** For CSV, JSON and Parquet, **Name bins…** next to the Pass bin(s) field opens the bin table over the bins found in the sample of rows the mapping window holds: names, colours and pass flags can be set before the file loads, a rare bin missing from the sample can be added by number, and the Pass bin(s) field follows the pass flags. Bins in the table keep their order when one is added or a file is loaded into it.
 - **Edit limits, units and type in a table.** **Edit limits…** in the test selector opens every listed test with its name, test, spec and validity limits, units and type. The Data column marks a row that differs from the data file; a blank cell means the data's own value, and typing the data's value back removes the change. **Use the data's values** discards the changes on ticked rows. A low limit above its high limit is refused, and the changes take effect when the tests are imported.
-- **Derived tests are written in the app.** **Derived tests…** in the test selector opens a table of them: add a test (it takes the next unused number from 900001), edit its name, expression, units, limits and type, or delete it. Each expression is checked as it is typed by the rules the map is built with (the new `checkDerivedExpression` in wmap), the **Check** column says what is wrong and where, **Reads** lists the tests it depends on, and Apply is refused while a test would be dropped, including one that reads a listed test that is not selected for import.
+- **Derived tests are written in the app.** **Derived tests…** in the test selector opens a table of them: add a test (it takes the next unused number from 910001), edit its name, expression, units, limits and type, or delete it. Each expression is checked as it is typed by the rules the map is built with (the new `checkDerivedExpression` in wmap), the **Check** column says what is wrong and where, **Reads** lists the tests it depends on, and Apply is refused while a test would be dropped, including one that reads a listed test that is not selected for import.
 - **`--bins <file>`.** Lays a bin definitions file over the names, pass flags and colours the data file supplies, in the same way as Load then Apply.
 - **Wafer geometry from a file's columns.** In a CSV, JSON or Parquet file, columns headed **Wafer diameter**, **Die width**, **Die height**, **Wafer flat**, **Centre die X/Y** and **X/Y increases** (the labels a die-list export writes, or the STDF names) now draw the map the way an STDF file's wafer configuration does. A size needs its unit (`300 mm`); wafers that disagree use the first wafer's value, and the log says what was read, skipped or in conflict.
 - **Pinned tests are remembered.** The ☆ on a row of a chart's test picker pins the test to the top of every picker; the pins are kept between sessions and listed under **Help → Reset saved settings…** as "Pinned tests".
@@ -283,7 +285,7 @@ technical record, including internal changes.
   (a wafer count skips empty rows; checking that a column is constant counts them, because a column that is "25" in some rows and empty in
   the rest is not constant). A Parquet preview takes the first row of up to twenty later row groups and never repeats a row the first five
   already read. Published before this release and pinned at `^0.15.0`.
-- **The RRAM sample's sweeps are a plots file.** `sample_data/RRAM-LOT-06_plots.json` replaces `RRAM-LOT-06_sweeps.json`
+- **The sweep sample's sweeps are a plots file.** `sample_data/SWEEP-LOT-06_plots.json` replaces `SWEEP-LOT-06_sweeps.json`
   (the generator writes it); import it from the Plot tab or open the sample with `--plots`.
 - **`--plots <FILE>` adds a plots file's plots to the saved ones.** It takes what **Export plots…** writes, or a sweeps
   file, and replaces a saved plot with the same id so launching with the same file twice leaves one copy of each.
@@ -600,12 +602,12 @@ drilldown charts, charts that grow into their modal, hover-tooltip fixes) — pi
   then dropped it as derived, so its data was never imported. The selector now drops the
   derived test instead — a measured test always wins its number — and logs the same warning
   a definitions file gets.
-- **The RRAM sample's endurance sweep reads its cycle counts from the test names** (`1e3`)
+- **The sweep sample's endurance sweep reads its cycle counts from the test names** (`1e3`)
   and plots them on a log axis, replacing the hand-made `log10` x values; `docs/features.md`
   now covers derived tests, sweeps, charting a selection and remembered dialog folders.
 
 - **Sweeps read their swept values from test names, and can use a log axis.** A sweeps file
-  can now give `"xFromName": "LRS_STATS_{x}"` on a series instead of an `xValues` list, for
+  can now give `"xFromName": "LEVEL_{x}"` on a series instead of an `xValues` list, for
   programs that write the swept value only into the test text; `"xUnit": "Ω"` for SI-prefixed
   axis values; and `"xScale": "log"` for steps that grow by multiples. The loader accepts the
   three fields and warns on a pattern without `{x}` or an unknown scale. The behaviour is
@@ -623,8 +625,8 @@ drilldown charts, charts that grow into their modal, hover-tooltip fixes) — pi
   for data before this change is kept.
 - **Derived tests in the test definitions file.** A row with a value in the new
   `expression` column (last, header required) defines a test computed per die from other
-  tests — `mean(t[3126..3130])`, `log10(t[900001] / t[3115])`,
-  `testPass[2001] and t[900001] > 50`. wmap computes it and marks it † in front of its
+  tests — `mean(t[5116..5120])`, `log10(t[910001] / t[5110])`,
+  `testPass[2001] and t[910001] > 50`. wmap computes it and marks it † in front of its
   name everywhere it is shown. In the test selector derived tests are listed after the
   measured ones with the same † in front (hover for the expression), and are selected,
   renamed and searched like any other test; a new **† Derived** type filter shows only
@@ -635,14 +637,14 @@ drilldown charts, charts that grow into their modal, hover-tooltip fixes) — pi
 - **Sweeps — Setup ▾ → Sweeps….** Load or save a sweeps file: runs of tests read as
   response curves in Insights' Sweeps tab, with where two curves cross and how far apart
   they are at given levels. JSON, in wmap's own sweep shape inside a
-  `"format": "tsmap-sweeps"` wrapper; tests may be given as ranges (`"3000..3030"`), the
+  `"format": "tsmap-sweeps"` wrapper; tests may be given as ranges (`"5000..5020"`), the
   same syntax a derived test uses. A syntax error is reported by line and column —
   computed by tsmap, since the desktop webview's JSON parser gives no position — and a
   bad sweep is named while the good ones load.
-- **A sweeps + derived tests demo lot**, `sample_data/RRAM-LOT-06.stdf` with
-  `RRAM-LOT-06_testdefs.csv` and `RRAM-LOT-06_sweeps.json`
-  (`scripts/generate_stdf_rram_lot.py`): a synthetic ReRAM characterisation lot whose set
-  and reset read currents form a V, plus an endurance sweep and seven derived tests.
+- **A sweeps + derived tests demo lot**, `sample_data/SWEEP-LOT-06.stdf` with
+  `SWEEP-LOT-06_testdefs.csv` and `SWEEP-LOT-06_sweeps.json`
+  (`scripts/generate_stdf_sweep_lot.py`): a synthetic two-state switching lot whose up
+  and down read currents form a V, plus an endurance sweep and seven derived tests.
 - Help → Definitions file formats… gains a sweeps template, and the test definitions
   template shows two derived rows.
 

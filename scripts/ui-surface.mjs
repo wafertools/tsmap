@@ -186,7 +186,7 @@ const SCENES = [
     name: 'Test selector (Setup ▾ → Tests…)',
     menus: false,
     setup: async (page) => {
-      await openFile(page, 'RRAM-LOT-06.stdf');
+      await openFile(page, 'SWEEP-LOT-06.stdf');
       await openTestsDialog(page);
     },
   },

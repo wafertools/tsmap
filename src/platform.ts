@@ -248,7 +248,7 @@ export interface Platform {
    *  remembered definitions file be re-read fresh instead of served from the
    *  copy cached at pick time (see recentDefinitions.ts). */
   pickTextFile(purpose: DialogPurpose, title?: string, extensions?: string[]): Promise<{ content: string; name: string; path?: string } | null>;
-  /** Returns a FileHandle for the bundled synthetic demo lot (13 wafers, 5
+  /** Returns a FileHandle for the bundled synthetic demo lot (25 wafers, 5
    *  process corners), for the empty state's "Load sample data" action. */
   getSampleFile(): Promise<FileHandle>;
   /** Returns the CSV text for the demo lot's matching split assignments

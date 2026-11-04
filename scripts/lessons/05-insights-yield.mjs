@@ -110,12 +110,12 @@ export const scenario = {
     {
       id: '08b-worth-a-look',
       title: 'Worth a look: the same items as What stands out, each drawn as a chart, with Show on map',
-      steps: [top('[data-wmap-chart-title="fmax_MHz pass rate by Wafer"]'), PARK],
-      checks: [isVisible('[data-wmap-chart-title="fmax_MHz pass rate by Wafer"]', 'the Worth a look card for fmax_MHz is showing')],
+      steps: [top('[data-wmap-worth-a-look] [data-wmap-chart-card] >> nth=0'), PARK],
+      checks: [isVisible('[data-wmap-worth-a-look] [data-wmap-chart-card] >> nth=0', 'the first Worth a look card is showing')],
       shots: [{
         name: 'worth-a-look',
-        clip: { target: '[data-wmap-chart-title="fmax_MHz pass rate by Wafer"]', pad: 8 },
-        callouts: [['[data-wmap-chart-title="fmax_MHz pass rate by Wafer"] button:has-text("Show on map")', { pad: 2 }]],
+        clip: { target: '[data-wmap-worth-a-look] [data-wmap-chart-card] >> nth=0', pad: 8 },
+        callouts: [['[data-wmap-worth-a-look] button:has-text("Show on map") >> nth=0', { pad: 2 }]],
       }],
     },
     {
@@ -205,7 +205,7 @@ export const scenario = {
     {
       id: '13-grouped',
       title: 'Grouped by Split: yield and the bin pareto draw a bar per group',
-      steps: [['click', '[role="option"]:has-text("Split")'], ['wait', 1000], ['scrollTop', '#map-container', 0], PARK],
+      steps: [['click', '[role="option"]:has-text("Split")'], ['wait', 1000], ['scrollIntoView', card('Yield by Split'), 70], PARK],
       checks: [onCard('Yield by Split')],
       shots: [{ name: 'grouped-overview', clip: { rect: { x: 0, y: 50, width: 1280, height: 770 } } }],
     },
@@ -229,6 +229,13 @@ export const scenario = {
       steps: [['scrollIntoView', card('pass rate'), 70], ['click', radio('pass rate', 'Grid')], ['wait', 600], PARK],
       checks: [radioOn('pass rate', 'Grid')],
       shots: [{ name: 'pass-rate-grid', clip: cardClip('pass rate') }],
+    },
+    {
+      id: '13e-group-by-more-fields',
+      title: 'Group by offers every wafer field that varies: temperature, tester, program, burn-in time',
+      steps: [['scrollTop', '#map-container', 0], ['click', groupBy], ['wait', 400], PARK],
+      checks: [isVisible('[role="option"]:has-text("Temperature")', 'Temperature is offered by Group by')],
+      shots: [{ name: 'group-by-fields', clip: { rect: { x: 480, y: 40, width: 420, height: 520 } } }],
     },
     ],
 };

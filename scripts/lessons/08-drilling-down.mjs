@@ -56,14 +56,14 @@ export const scenario = {
       id: '04-split-condition',
       title: 'Split is a wafer field: tick the values to keep',
       steps: [['click', '[role="option"]:has-text("Split")'], ['wait', 500]],
-      checks: [hasText(DIALOG, 'Keeps 13 of 13 wafers')],
+      checks: [hasText(DIALOG, 'Keeps 25 of 25 wafers')],
       shots: [{ name: 'filter-split', clip: { target: DIALOG, pad: 12, maxHeight: 470 } }],
     },
     {
       id: '05-keep-ss',
       title: 'Keep only SS: the window says what it would keep',
       steps: [...['FF', 'FS', 'SF', 'TT'].map((v) => ['click', tickbox(v)]), ['wait', 400]],
-      checks: [hasText(DIALOG, 'Keeps 2 of 13 wafers')],
+      checks: [hasText(DIALOG, 'Keeps 4 of 25 wafers')],
       shots: [{ name: 'filter-keeps', clip: { target: DIALOG, pad: 12, maxHeight: 470 }, callouts: [[`${DIALOG} >> text=/^Keeps /`, { pad: 2 }]] }],
     },
     {
@@ -88,13 +88,13 @@ export const scenario = {
     },
     {
       id: '07-apply',
-      title: 'Apply: two cards remain, and a line above them states the filter',
+      title: 'Apply: four cards remain, and a line above them states the filter',
       steps: [['click', dlg('button:text-is("Apply")')], ['wait', 1200], PARK],
       checks: [{
-        name: 'two-cards',
-        describe: 'the gallery shows 2 wafer cards',
+        name: 'four-cards',
+        describe: 'the gallery shows 4 wafer cards',
         get: (page) => page.locator(`${CARD}:visible`).count(),
-        expect: (n) => n === 2,
+        expect: (n) => n === 4,
       }],
       shots: [{ name: 'filtered-gallery', clip: hdr }],
     },
@@ -121,10 +121,10 @@ export const scenario = {
       title: 'Remove forgets the filter',
       steps: [['click', '[data-wmap-view="maps"]'], ['wait', 1000], ['click', 'button:text-is("Remove")'], ['wait', 1200], PARK],
       checks: [{
-        name: 'thirteen-cards',
-        describe: 'all 13 wafer cards are back',
+        name: 'full-lot-cards',
+        describe: 'all 25 wafer cards are back',
         get: (page) => page.locator(`${CARD}:visible`).count(),
-        expect: (n) => n === 13,
+        expect: (n) => n === 25,
       }],
     },
     {

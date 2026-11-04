@@ -224,9 +224,13 @@ Your own target, guard band or customer limit on a value axis, to see how the da
 
 ---
 
+<!-- _class: split -->
+
 # Your plots are kept
 
 A plot is a recipe, not a picture, so tsmap keeps your plots and draws them on the next lot. One that needs a missing test stays, dimmed, with the reason.
+
+![The same plots on SWEEP-LOT-06: each stays, dimmed, with the tests or fields it needs and this lot lacks](images/10/plots-next-lot.png)
 
 ---
 

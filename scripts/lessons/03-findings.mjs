@@ -99,13 +99,13 @@ export const scenario = {
     {
       id: '04-row-on-map',
       title: 'A ranked row shows its dies on the map',
-      steps: [['click', `${CHIPS} >> text=fmax_MHz`], ['wait', 500], ['click', `${RIGHT} >> text=vth_n_mV: 176 dies`], ['wait', 800], PARK],
-      shots: [{ name: 'row-on-map', callouts: [[`${RIGHT} >> text=vth_n_mV: 176 dies`, { closest: '[data-wmap-test]', pad: 2 }]] }],
+      steps: [['click', `${CHIPS} >> text=fmax_MHz`], ['wait', 500], ['click', `${RIGHT} >> text=vth_n_mV: 391 dies`], ['wait', 800], PARK],
+      shots: [{ name: 'row-on-map', callouts: [[`${RIGHT} >> text=vth_n_mV: 391 dies`, { closest: '[data-wmap-test]', pad: 2 }]] }],
     },
     {
       id: '05-chart-link',
       title: 'The Chart link on a row opens its card in Insights',
-      steps: [['click', `${RIGHT} >> text=vth_n_mV: 176 dies`], ['wait', 500], PARK],
+      steps: [['click', `${RIGHT} >> text=vth_n_mV: 391 dies`], ['wait', 500], PARK],
       shots: [{ name: 'chart-link', clip: fromHeader('What stands out', CHIPS), callouts: [[`${RIGHT} [aria-label^="Chart:"]`, { nth: 0, pad: 2 }]] }],
     },
       {
@@ -120,7 +120,7 @@ export const scenario = {
       title: 'The Findings list: severity groups and detail rows',
       steps: [['press', 'Escape'], ['wait', 500], TOP, ['scrollIntoView', section('Findings')], PARK],
       checks: [hasText(RIGHT, 'Spatial pattern: edge')],
-      shots: [{ name: 'findings-list', clip: fromHeader('Findings (', `${RIGHT} >> text=idsat_p_uA is 2.9 pp`) }],
+      shots: [{ name: 'findings-list', clip: fromHeader('Findings (', `${RIGHT} >> text=idsat_p_uA is 3.8 pp`) }],
     },
     {
       id: '08-finding-on-map',
@@ -223,7 +223,7 @@ export const scenario = {
       title: 'Opened, it lists the regional findings the pattern explains',
       steps: [['click', `${RIGHT} >> text=/Show \\d+ supporting findings/`], ['wait', 500], TOP, PARK],
       checks: [matchesText(RIGHT, /Hide \d+ supporting findings/, 'the supporting findings are open')],
-      shots: [{ name: 'supporting-findings', clip: fromHeader('Findings (', `${RIGHT} >> text=/Hide \\d+ supporting findings/`, { maxHeight: 420 }) }],
+      shots: [{ name: 'supporting-findings', clip: fromHeader('Findings (', `${RIGHT} >> text=/higher than|lower than/ >> nth=2`, { maxHeight: 520 }) }],
     },
     {
       id: '20c-same-dies',
@@ -244,6 +244,20 @@ export const scenario = {
       steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('HY-LOT-04.stdf')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Nothing stands out')],
       shots: [{ name: 'nothing-stands-out', clip: fromHeader('What stands out', `${RIGHT} >> text=Full report`) }],
+    },
+    {
+      id: '23-cluster-lot',
+      title: 'CLUST-LOT-03: a cluster of failing dies near the centre of every wafer',
+      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('CLUST-LOT-03.stdf')], ['waitForWafers'], TOP, PARK],
+      checks: [hasText(RIGHT, 'Lot CLUST-LOT-03')],
+      shots: [{ name: 'cluster-top-item', clip: fromHeader('What stands out', CHIPS) }],
+    },
+    {
+      id: '24-param-lot',
+      title: 'PARAM-LOT-02: a parametric shift, with no defect to find',
+      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('PARAM-LOT-02.stdf')], ['waitForWafers'], TOP, PARK],
+      checks: [hasText(RIGHT, 'Lot PARAM-LOT-02')],
+      shots: [{ name: 'param-top-item', clip: fromHeader('What stands out', `${RIGHT} >> text=Also, each affecting`) }],
     },
     ],
 };

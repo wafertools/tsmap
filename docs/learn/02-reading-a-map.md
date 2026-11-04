@@ -115,7 +115,7 @@ The test program's failure category for each die, with its own legend.
 
 Each die coloured by its reading. ▽ and △ mark dies below and above the test limits.
 
-![W01 coloured by fmax_MHz](images/02/test-value-card.png)
+![W04 · SS coloured by fmax_MHz](images/02/test-value-card.png)
 
 ---
 
@@ -156,7 +156,7 @@ In Test Value mode **Overlays** adds <span class="badge" role="img" aria-label="
 
 Dies inside the limits in green, below the low limit in blue, above the high limit in red, each with its count.
 
-![W01 in Limit pass/fail](images/02/limit-passfail.png)
+![W04 · SS in Limit pass/fail](images/02/limit-passfail.png)
 
 ---
 
@@ -166,7 +166,7 @@ Dies inside the limits in green, below the low limit in blue, above the high lim
 
 The tester's own verdict. It can differ from the limits: guard bands are one reason. A functional test always shows this way.
 
-![W01 in Test pass/fail](images/02/test-passfail.png)
+![W04 · SS in Test pass/fail](images/02/test-passfail.png)
 
 ---
 
@@ -209,7 +209,7 @@ Layers drawn over every map. **Clear overlays** turns them all off, and is greye
 
 # Rings and quadrants
 
-Ring boundaries match the zones the findings use. Quadrant lines split the wafer N, S, E and W.
+Ring boundaries match the zones the findings use. Quadrant lines split the wafer into NE, NW, SE and SW.
 
 ![W01 with ring boundaries and quadrant lines](images/02/overlays-on.png)
 
@@ -336,7 +336,7 @@ A **⚠** or **⛔** button appears in the toolbar only when there is something 
 
 # Check your results
 
-3. **SS** reads lowest: its mean `fmax_MHz` is about 1640 MHz, against about 1800 for TT and 1980 for FF. SS is the slow corner.
+3. **SS** reads lowest: its mean `fmax_MHz` is about 1630 MHz, against about 1800 for TT and 1970 for FF. SS is the slow corner.
 
 ---
 

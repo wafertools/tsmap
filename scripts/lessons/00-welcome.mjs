@@ -44,7 +44,7 @@ export const scenario = {
     },
     {
       id: '02-sample-lot',
-      title: 'Load sample data: 13 wafers from five process corners',
+      title: 'Load sample data: 25 wafers from five process corners',
       steps: [
         ['click', 'button:has-text("Load sample data")'],
         ['waitForWafers'],
@@ -53,12 +53,12 @@ export const scenario = {
       ],
       checks: [
         hasText('[data-wmap-gallery-meta]', 'PVT-LOT-05'),
-        hasText('[data-wmap-gallery-legend]', 'Yield 76.3%'),
+        hasText('[data-wmap-gallery-legend]', 'Yield 65.6%'),
         {
-          name: 'thirteen-wafers',
-          describe: 'the gallery shows 13 wafer cards',
+          name: 'full-lot-of-wafers',
+          describe: 'the gallery shows 25 wafer cards',
           get: (page) => page.locator('.wmap-gallery-card').count(),
-          expect: (n) => n === 13,
+          expect: (n) => n === 25,
         },
       ],
       shots: [

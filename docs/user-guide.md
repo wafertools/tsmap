@@ -104,7 +104,7 @@ its Insights charts, which follow tsmap's colours rather than keeping their own.
 
 ### Loading sample data
 
-The empty state has a **Load sample data** button that loads a bundled synthetic lot — 13
+The empty state has a **Load sample data** button that loads a bundled synthetic lot — 25
 wafers across 5 process corners — through the normal load flow, so
 you can see tsmap working before opening your own files. Available on both desktop and
 browser. Its process-corner [splits](#wafer-splits) apply automatically, so the loaded
@@ -117,13 +117,13 @@ The repository's `sample_data/` folder holds synthetic lots for trying each feat
 
 | File | What it shows | Where to look |
 | --- | --- | --- |
-| `PVT-LOT-05.stdf` with `PVT-LOT-05_splits.csv` | 13 wafers across 5 process corners, 4-site test, correlated tests. This is the lot behind **Load sample data**. | **Group by → Split**; the Insights correlation tab |
+| `PVT-LOT-05.stdf` with `PVT-LOT-05_splits.csv` | A full lot of 25 wafers across 5 process corners, tested in five sessions that differ in temperature, tester, program revision and burn-in time (each with its own effect on the data), on a 4-site probe card, with six parametric and eight functional tests. This is the lot behind **Load sample data**. | **Group by → Split**; the Insights correlation tab |
 | `PVT-LOT-05_testdefs.csv`, `_testdefs_spec.csv`, `_testdefs_edgecases.csv` | Test-definitions files for that lot: names and test limits; test limits **and** spec limits on the same tests; and a robustness check with an unrecognised column and malformed lines, each reported in the log without dropping the rest of the file. | **Setup ▾ → Tests…** → load. The spec file adds LSL/USL lines and a capability judged against the spec limits |
 | `RETEST-LOT-07.csv` | Dies probed more than once: most failing dies are retested and about two thirds recover, a few passing dies are re-probed and some of those fail, and a few recovered dies fail a third probe. | **Setup ▾ → Retests…**: each choice gives its own yield. The die tooltip's retest count; the log's note about repeated dies |
 | `MPW-LOT-08.csv` | A multi-project wafer: a small cluster of dies repeats in every reticle. | **Overlays ▾ → Compact layout** and **Layout diagnostics** |
 | `VALID-LOT-09.csv` | Long-format file with test limits and validity limits (`lo_limit`, `hi_limit`, `lvl`, `uvl`). A few readings per test are tester clamps: Idsat at its 5000 µA compliance clamp, Vth at 0 mV with no probe contact, Ioff at its ammeter rail. | **Setup ▾ → Exclude values outside limits…**: switch between validity limits and off, and compare the map, the Test Values table's **Excl.** column and the Distributions charts. Yield does not change |
-| `RRAM-LOT-06.stdf`, `_testdefs.csv`, `_plots.json` | A resistive-memory characterisation lot with 76 tests: readable names, 7 derived tests, and two sweeps. | Load the lot, load the definitions in the test selector, then **Insights → Plot → Import plots…** (or launch with `--plots`) |
-| `EDGE-LOT-01`, `HY-LOT-04`, `CLUST-LOT-03`, `PARAM-LOT-02` (`.stdf`, `.atdf`, and one file per wafer) | Four lots, each with one story (an edge-ring defect, a high-yield lot, a failure cluster, a parametric shift) and its own wafer and die size: 300 mm with 10×8 mm dies (799 dies a wafer), 150 mm with 10 mm dies (145), 200 mm with 8×6 mm dies (581) and 300 mm with 5 mm dies (2,709). Open several together for a mixed gallery and the file filter. | The Summary panel's findings; **Open files ▾ → Scan a folder…**; the gallery's **Columns** (keys **1** to **5**, **0** for Auto) on the 2,709-die lot |
+| `SWEEP-LOT-06.stdf`, `_testdefs.csv`, `_plots.json` | A two-state switching lot of 6 wafers and more than 70 tests: readable names, 7 derived tests, and two sweeps. | Load the lot, load the definitions in the test selector, then **Insights → My plots → Import plots…** (or launch with `--plots`) |
+| `EDGE-LOT-01`, `HY-LOT-04`, `CLUST-LOT-03`, `PARAM-LOT-02` (`.stdf`, `.atdf`, and one file per wafer) | Four lots, each with one story (an edge-ring defect, a high-yield lot, a failure cluster, a parametric shift) probed on four sites with five functional tests each, and its own wafer and die size: 300 mm with 10×8 mm dies (799 dies a wafer), 150 mm with 10 mm dies (145), 200 mm with 8×6 mm dies (581) and 300 mm with 5 mm dies (2,709). Open several together for a mixed gallery and the file filter. | The Summary panel's findings; **Open files ▾ → Scan a folder…**; the gallery's **Columns** (keys **1** to **5**, **0** for Auto) on the 2,709-die lot |
 | `COORDLESS-LOT-01.stdf`, `TESTNUM-COORDLESS-01.{csv,json,parquet}`, `ALL-COORDLESS-01.csv` | Wafers whose dies have no reported position: one positioned, one mixed, one with none. | [Dies with no position](#dies-with-no-reported-position) |
 | `TESTNUM-LONG-01`, `TESTNUM-WIDE-01` (`.csv`, `.json`, `.parquet`) | Real test numbers in long format (no name column, with validity limits and boundary values) and in wide format (numeric column headers). | The column mapping dialog's test number choice |
 | `CORR-LOT-01.parquet`, `PARQUET-LOT-01.parquet`, `sample-lot.stdf.gz`, `large.zip` | Parquet with designed correlations, a general Parquet lot, a gzipped STDF, and a 66 MB zip holding a 358 MB STDF to try a large load. | Open directly: `.gz` and `.zip` are read without unpacking |
@@ -181,7 +181,7 @@ Click **Cancel** to keep the current data unchanged.
 
 ### Clearing data
 
-Click **Clear** to unload all data and return to the empty state.
+Click **Clear files** to unload all data and return to the empty state.
 
 ### What happens next
 
@@ -229,7 +229,7 @@ files**: over a handful, tsmap offers to filter them first.
 > chosen files replace what's loaded or are added to it was already decided by the button you
 > pressed — the table doesn't ask again.
 
-![The file filter table — four scanned STDF files with their lot metadata as columns](images/file-filter.png)
+![The file filter table — six scanned STDF files from four lots, with their lot metadata as columns](images/file-filter.png)
 
 The results appear in a table, one row per file, with a column for every metadata field
 found across the batch (alongside Name, Size and Modified). From there you can:
@@ -650,7 +650,7 @@ Once a file is loaded, open the toolbar's **Setup ▾** menu and choose **Splits
 assignment dialog.
 The banner at the top shows where things stand: with no assignments yet it points you at
 the two ways to get started (assign below, or load a saved CSV), and once splits exist it
-becomes a summary — e.g. *"5 splits assigned to 13 of 13 wafers"* — so a lot whose splits
+becomes a summary — e.g. *"5 splits assigned to 25 of 25 wafers"* — so a lot whose splits
 were [restored automatically](#restoring-splits-automatically) reads as already done:
 
 ![Wafer splits dialog, just opened — no assignments yet](images/splits-modal.png)
@@ -860,31 +860,31 @@ A test definitions file can also define **derived tests**: tests computed from o
 the same die, rather than measured. A row with a value in the **expression** column is one:
 
     num,name,loLimit,hiLimit,units,testType,expression
-    3126,Set I @ +1.1 V,,,uA,P,
-    900001,Set plateau,60,,uA,P,mean(t[3126..3130])
-    900002,Memory window,1.5,,dec,P,"log10(t[900001] / max(t[3115], 0.01))"
-    900003,Switching OK,,,,F,testPass[2001] and t[900001] > 50
+    5116,Up-sweep I @ +1.2 V,,,uA,P,
+    910001,Up plateau,60,,uA,P,mean(t[5116..5120])
+    910002,State separation,1.5,,dec,P,"log10(t[910001] / max(t[5110], 0.01))"
+    910003,Sweep OK,,,,F,testPass[2001] and t[910001] > 50
 
 From then on a derived test is an ordinary test — plot it on the map, colour it against its
 limits, see it in Insights and the reports. Wherever it is named it carries a **†** mark, and
 its tooltip shows the expression, so it is never mistaken for a measurement.
 
-- **What an expression can read:** `t[3126]` is a test's value, `testPass[2001]` the tester's
-  recorded pass/fail, `specPass[3126]` whether the value is inside its limits, and `diePass()`
+- **What an expression can read:** `t[5116]` is a test's value, `testPass[2001]` the tester's
+  recorded pass/fail, `specPass[5116]` whether the value is inside its limits, and `diePass()`
   the die's bin verdict. The die's own fields are `dieX()`, `dieY()`, `hbin()`, `sbin()` and `site()`, so a test can be cut by
-  bin (`hbin() == 5`) or position (`if(dieX() < 5, t[1010], -1)`); a field the die lacks is no value, not zero. `3126..3130` names every test in that range that exists — so a
+  bin (`hbin() == 5`) or position (`if(dieX() < 5, t[1010], -1)`); a field the die lacks is no value, not zero. `5116..5120` names every test in that range that exists — so a
   program numbered in steps of two needs nothing special. A range must be reduced with
   `mean`, `sum`, `min`, `max`, `all`, `any`, `none`, `countTrue`, `countFalse` or
   `countKnown`. The full list of operators and functions is in the
   [wafer map guide](https://wafertools.github.io/wafermap/api/core/#419-derivedtestdef).
-- **A derived test can read another** — `900002` above reads `900001`. Order in the file
+- **A derived test can read another** — `910002` above reads `910001`. Order in the file
   does not matter.
 - **`testType` F** makes a pass/fail test: the expression must be a true/false comparison.
 - **The expression column must be last**, and needs a header row. Because it is last, an
   expression containing commas reads the same with or without quotes, so a hand-edited file
   that forgot them still loads. tsmap writes the quotes itself when saving, as Excel does.
 - **Use test numbers the tester does not.** A derived row whose number is already a measured
-  test is ignored, and the log says so. Numbers from 900001 upwards are a safe convention.
+  test is ignored, and the log says so. Numbers from 910001 upwards are a safe convention.
 - **The tests it reads must be imported.** A derived test reading an unselected test cannot be
   computed; it is left out, and the log names the test it needed.
 - A derived test that cannot be computed — a typo, an unknown test, volts minus amps — is
@@ -901,7 +901,7 @@ derived)").
 
 **Writing derived tests in the app.** **Derived tests…** in the selector footer opens a table of them,
 each with a number, name, expression, units, test limits and type. **Add derived test** starts a row on
-the next unused number from 900001 and puts the cursor in its expression; **Delete** removes a row.
+the next unused number from 910001 and puts the cursor in its expression; **Delete** removes a row.
 Every expression is checked as you type, by the same rules the map is built with: the **Check** column
 reads ✓ with *Number* or *Verdict (functional)*, or ✗ with the reason and the position, and **Reads** lists
 the tests it depends on by number and name. A derived test may read another. **Apply** is refused while any
@@ -1092,7 +1092,7 @@ cat files.txt | tsmap                      # or piped via stdin
 tsmap lot1.stdf --tests my-tests.csv       # pre-fills the test selector (the selector is still shown — see below)
 tsmap lot1.stdf --splits my-splits.csv     # applies splits automatically, same as sample data
 tsmap lot1.stdf --bins my-bins.csv         # names, pass flags and colours over what the file supplies
-tsmap lot1.stdf --plots my-plots.json      # adds plots (sweeps included) to Insights → Plot (see [Sweeps](#sweeps))
+tsmap lot1.stdf --plots my-plots.json      # adds plots (sweeps included) to Insights → My plots (see [Sweeps](#sweeps))
 tsmap --plots my-plots.json                # sent to a running tsmap: adds them and redraws what is open
 tsmap lot1.stdf --wafer-diameter 300       # sets the wafer diameter (mm) for this launch
 tsmap lot1.stdf --wafer-diameter 300 --edge-exclusion 3   # plus an edge-exclusion band (mm)
@@ -1537,16 +1537,16 @@ definition under `sweep`:
   "version": 1,
   "plots": [
     {
-      "id": "set-reset",
-      "title": "Set / reset switching",
+      "id": "up-down",
+      "title": "Up / down switching",
       "chart": "sweep",
       "sweep": {
         "xLabel": "Voltage (V)",
         "yLabel": "Read current",
         "separationAt": [10, 50],
         "series": [
-          {"label": "Reset", "tests": ["3000..3030"], "xValues": [-1.5, -1.4, …, 1.5]},
-          {"label": "Set",   "tests": ["3100..3130"], "xValues": [-1.5, -1.4, …, 1.5]}
+          {"label": "Down", "tests": ["5000..5020"], "xValues": [-2.0, -1.8, …, 2.0]},
+          {"label": "Up",   "tests": ["5100..5120"], "xValues": [-2.0, -1.8, …, 2.0]}
         ]
       }
     }
@@ -1561,10 +1561,10 @@ settings, as the sweep editor sets them; `id` and `title` belong to the plot.
 | Field | |
 |---|---|
 | `series` | Two or more curves. Crossing and widths are measured between the first two |
-| `series[].tests` | The tests in sweep order: numbers, or ranges like `"3000..3030"` — the same range syntax as a derived test, matching every test in that range that exists |
+| `series[].tests` | The tests in sweep order: numbers, or ranges like `"5000..5020"` — the same range syntax as a derived test, matching every test in that range that exists |
 | `series[].xValues` | The real swept value for each test (volts, °C, cycles). One per test **after** ranges are expanded. Without it the x axis is simply test order |
 | `series[].xFromName` | Read each test's swept value from its **name** instead, for programs that only write it into the test text — see below |
-| `series[].testNames` | The name each test had when the sweep was set up, by test number (`{"3000": "Iread 0.1V"}`). The sweep editor fills it in. A test whose name now differs is not drawn and the card says why — see above |
+| `series[].testNames` | The name each test had when the sweep was set up, by test number (`{"5000": "Iread 0.2V"}`). The sweep editor fills it in. A test whose name now differs is not drawn and the card says why — see above |
 | `separationAt` | Levels, in the tests' own units, at which to report the width between the first two curves |
 | `crossing` | `false` to stop reporting a crossing, for curves that are not meant to meet |
 | `xLabel` / `yLabel` | Axis titles |
@@ -1572,16 +1572,16 @@ settings, as the sweep editor sets them; `id` and `title` belong to the plot.
 | `xScale` | `"log"` for steps that grow by multiples (1K, 2K, 5K … 1M) — see below |
 
 **Swept values in the test names.** Some programs record the swept value only in the test
-text — `Normalized_LRS= LRS_STATS_12K / Total_LRS= …`. `xFromName` reads it from there:
+text — `Cum_share= LEVEL_12K / Total_n= …`. `xFromName` reads it from there:
 
 ```json
 {
-  "id": "lrs-cdf", "title": "LRS CDF — before vs after", "chart": "sweep",
+  "id": "level-cdf", "title": "Level CDF — before vs after", "chart": "sweep",
   "sweep": {
-    "xLabel": "LRS threshold", "xUnit": "Ω", "xScale": "log", "yLabel": "Normalized LRS", "separationAt": [0.5],
+    "xLabel": "Level threshold", "xUnit": "Ω", "xScale": "log", "yLabel": "Normalised share", "separationAt": [0.5],
     "series": [
-      {"label": "Before",    "tests": ["31200..31230"], "xFromName": "LRS_STATS_{x}"},
-      {"label": "After 0x5", "tests": ["31300..31330"], "xFromName": "LRS_STATS_{x}"}
+      {"label": "Before",    "tests": ["41200..41230"], "xFromName": "LEVEL_{x}"},
+      {"label": "After 0x5", "tests": ["41300..41330"], "xFromName": "LEVEL_{x}"}
     ]
   }
 }
@@ -1589,7 +1589,7 @@ text — `Normalized_LRS= LRS_STATS_12K / Total_LRS= …`. `xFromName` reads it 
 
 - `{x}` marks where the number is, `*` stands for any text and `?` for exactly one character; everything else must appear
   in the name as written, though capitals do not matter. The pattern is found anywhere in
-  the name, so it needs only enough text around `{x}` to be unambiguous — `LRS_STATS_{x}`,
+  the name, so it needs only enough text around `{x}` to be unambiguous — `LEVEL_{x}`,
   not the whole name.
 - `{x}` reads a unit prefix with the number: `12K` is 12,000 and `1M` is 1,000,000. Here
   capitals **do** matter — `m` is milli and `M` is mega. A letter only counts as a prefix
@@ -1598,8 +1598,8 @@ text — `Normalized_LRS= LRS_STATS_12K / Total_LRS= …`. `xFromName` reads it 
   before a unit is read either way (`5NS` is 5 ns) — except `M`, which could be milli or
   mega: a name like `V_2MV` is reported rather than guessed. Put the letter into the pattern
   instead (`V_{x}MV`) and the unit into the axis title. To keep the numbers as the names
-  write them (12 rather than 12,000), put the letter in the pattern — `LRS_STATS_{x}K` —
-  and the unit in the axis title, `"xLabel": "LRS threshold (kΩ)"`.
+  write them (12 rather than 12,000), put the letter in the pattern — `LEVEL_{x}K` —
+  and the unit in the axis title, `"xLabel": "Level threshold (kΩ)"`.
 - It is not a regular expression, deliberately: a plots file is shared, and a regular
   expression can be written so that it freezes the app. This pattern cannot.
 - A test whose name the pattern does not fit is named on the card, and the crossing and
@@ -1619,7 +1619,7 @@ crossing or widths, rather than pairing the remaining values with the wrong test
 A mistake in the file is reported in the log with where it is: a JSON syntax error by line
 and column, a bad plot or series by its id and label. The good plots in the same file still
 load. A sweep can read derived tests — sweeping `log10(t[n])` per step is how to draw a curve
-whose *values* span decades; `"xScale": "log"` is for swept values that do. The RRAM sample's
+whose *values* span decades; `"xScale": "log"` is for swept values that do. The sweep sample's
 endurance sweep does the latter, reading each cycle count (`1e3`) from its test name.
 
 ### Column mapping reference

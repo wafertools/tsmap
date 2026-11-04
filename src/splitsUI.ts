@@ -49,7 +49,7 @@ export function showSplitsModal(wafers: WaferData[], options: SplitsUIOptions): 
       // Load shortcut — the moment a first-time user (fresh off the test
       // selector's "select all to proceed" flow) is most likely to assume they
       // must select everything. Assigned state: a summary ("2 splits assigned
-      // to 6 of 13 wafers"), so e.g. the auto-restored sample-data splits read
+      // to 6 of 25 wafers"), so e.g. the auto-restored sample-data splits read
       // as "already done" rather than a task waiting to be repeated.
       const statusBanner = document.createElement('div');
       statusBanner.style.cssText = [

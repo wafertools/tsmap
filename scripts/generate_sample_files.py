@@ -24,6 +24,8 @@ import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import random
+
 import atdf_spec as A
 import stdf_spec as S
 
@@ -84,6 +86,30 @@ class Scenario:
         return all(self.hbin_passes(int(r['hbin'])) for r in rows if int(r['sbin']) == sbin)
 
 
+# The functional tests every die runs after its parametric ones: (number, name, chance it fails on a die that fails the bin).
+# A die in a pass bin passes them all; of the failing dies, each of these is what failed on some share, so the functional
+# pass-rate and "Fails together" charts have something to rank. The draw is seeded by the die, so the STDF, the ATDF and the
+# single-wafer files agree on every result.
+FUNCTIONAL = [(2001, 'scan_chain', 0.30), (2002, 'bist_mem', 0.18), (2003, 'io_loopback', 0.10), (2004, 'pll_lock', 0.10),
+              (2005, 'jtag_idcode', 0.03)]
+# A lot's own weak spot: the bin story each lot tells makes one of these more likely.
+FUNCTIONAL_BIAS = {'cluster': {2002: 2.5}, 'edge-ring': {2003: 2.5}, 'parametric': {2004: 2.5}}
+
+
+def functional_results(lot_id, wafer_id, x, y, passed):
+    rng = random.Random(f'{lot_id}/{wafer_id}/{x}/{y}')
+    bias = FUNCTIONAL_BIAS.get(LOT_META[lot_id]['scenario'], {})
+    return [(num, name, passed or rng.random() >= min(0.95, p * bias.get(num, 1.0))) for num, name, p in FUNCTIONAL]
+
+
+def touchdown_site(x, y):
+    """The site of a die on a 2 x 2 probe card: neighbouring dies are probed together, so the site follows the die's position."""
+    return 1 + (x & 1) + 2 * (y & 1)
+
+
+SITES = [1, 2, 3, 4]
+
+
 def within(value: float, lo, hi) -> bool:
     return (lo is None or value >= lo) and (hi is None or value <= hi)
 
@@ -94,13 +120,13 @@ def within(value: float, lo, hi) -> bool:
 DAY = 86_400
 BASE_EPOCH = 1_750_000_000  # ~2025-06-15
 LOT_META = {
-    'EDGE-LOT-01':  dict(program='EDGE_v2',  temp='25C',  start_t=BASE_EPOCH,           oper='alice', tstr='Tester-1', node='node-01',
+    'EDGE-LOT-01':  dict(scenario='edge-ring', program='EDGE_v2',  temp='25',  start_t=BASE_EPOCH,           oper='alice', tstr='Tester-1', node='node-01',
                          handler='PRB-200', handler_id='P-100', card='PC-A', card_id='C-1001'),
-    'HY-LOT-04':    dict(program='HY_v3',    temp='25C',  start_t=BASE_EPOCH + 1 * DAY, oper='bob',   tstr='Tester-1', node='node-02',
+    'HY-LOT-04':    dict(scenario='high-yield', program='HY_v3',    temp='25',  start_t=BASE_EPOCH + 1 * DAY, oper='bob',   tstr='Tester-1', node='node-02',
                          handler='PRB-200', handler_id='P-100', card='PC-A', card_id='C-1002'),
-    'CLUST-LOT-03': dict(program='CLUST_v1', temp='-40C', start_t=BASE_EPOCH + 5 * DAY, oper='alice', tstr='Tester-2', node='node-02',
+    'CLUST-LOT-03': dict(scenario='cluster', program='CLUST_v1', temp='-40', start_t=BASE_EPOCH + 5 * DAY, oper='alice', tstr='Tester-2', node='node-02',
                          handler='PRB-300', handler_id='P-200', card='PC-B', card_id='C-2001'),
-    'PARAM-LOT-02': dict(program='PARAM_v5', temp='85C',  start_t=BASE_EPOCH + 5 * DAY, oper='carol', tstr='Tester-2', node='node-03',
+    'PARAM-LOT-02': dict(scenario='parametric', program='PARAM_v5', temp='85',  start_t=BASE_EPOCH + 5 * DAY, oper='carol', tstr='Tester-2', node='node-03',
                          handler='PRB-300', handler_id='P-200', card='PC-B', card_id='C-2002'),
 }
 
@@ -144,7 +170,7 @@ def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> bytes:
     buf = bytearray()
     buf += S.far()
     buf += S.mir(lot_id, part_typ, m['program'], m['tstr'], m['node'], **mir_args(lot_id))
-    buf += S.sdr(1, 1, [1], hand_typ=h_typ, hand_id=h_id, card_typ=c_typ, card_id=c_id)
+    buf += S.sdr(1, 1, SITES, hand_typ=h_typ, hand_id=h_id, card_typ=c_typ, card_id=c_id)
     if sc.diameter_mm:
         buf += S.wcr(sc.diameter_mm, sc.die_h or 0, sc.die_w or 0, 3, sc.flat or ' ', S.MISSING_I2, S.MISSING_I2, ' ', ' ')
     part_id, first, last_finish = 1, True, S.TS_BASE
@@ -157,12 +183,15 @@ def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> bytes:
         for row in rows:
             x, y, hbin, sbin = int(row['x']), int(row['y']), int(row['hbin']), int(row['sbin'])
             passed = sc.hbin_passes(hbin)
-            buf += S.pir(1, 1)
+            site = touchdown_site(x, y)
+            buf += S.pir(1, site)
             for tnum, tname, units, lo, hi, col in sc.tests:
                 v = float(row[col])
-                buf += S.ptr(tnum, 1, 1, v, within(v, lo, hi), tname, lo, hi, units, first=first)
+                buf += S.ptr(tnum, 1, site, v, within(v, lo, hi), tname, lo, hi, units, first=first)
             first = False
-            buf += S.prr(1, 1, x, y, hbin, sbin, part_id, passed, num_test=len(sc.tests))
+            for fnum, fname, fok in functional_results(lot_id, wafer_id, x, y, passed):
+                buf += S.ftr(fnum, 1, site, fok, fname)
+            buf += S.prr(1, site, x, y, hbin, sbin, part_id, passed, num_test=len(sc.tests) + len(FUNCTIONAL))
             part_id += 1
             good += passed
             hbins[hbin] += 1
@@ -180,7 +209,7 @@ def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> bytes:
 def build_atdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> str:
     m = LOT_META[lot_id]
     lines = [A.far(), A.mir(lot_id, part_typ, m['program'], m['node'], m['tstr'], **mir_args(lot_id)),
-             A.sdr(1, 1, [1], *equipment(lot_id))]
+             A.sdr(1, 1, SITES, *equipment(lot_id))]
     if sc.diameter_mm:
         lines.append(A.wcr(sc.diameter_mm, sc.die_h or '', sc.die_w or '', 3, sc.flat, '', '', '', ''))
     part_id, first, last_finish = 1, True, S.TS_BASE
@@ -193,12 +222,15 @@ def build_atdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> str:
         for row in rows:
             x, y, hbin, sbin = int(row['x']), int(row['y']), int(row['hbin']), int(row['sbin'])
             passed = sc.hbin_passes(hbin)
-            lines.append(A.pir(1, 1))
+            site = touchdown_site(x, y)
+            lines.append(A.pir(1, site))
             for tnum, tname, units, lo, hi, col in sc.tests:
                 v = float(row[col])
-                lines.append(A.ptr(tnum, 1, 1, v, within(v, lo, hi), tname, lo, hi, units, first=first))
+                lines.append(A.ptr(tnum, 1, site, v, within(v, lo, hi), tname, lo, hi, units, first=first))
             first = False
-            lines.append(A.prr(1, 1, x, y, hbin, sbin, part_id, passed, num_tests=len(sc.tests)))
+            for fnum, fname, fok in functional_results(lot_id, wafer_id, x, y, passed):
+                lines.append(A.ftr(fnum, 1, site, fok, fname))
+            lines.append(A.prr(1, site, x, y, hbin, sbin, part_id, passed, num_tests=len(sc.tests) + len(FUNCTIONAL)))
             part_id += 1
             good += passed
             hbins[hbin] += 1

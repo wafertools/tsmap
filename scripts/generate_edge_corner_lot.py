@@ -38,6 +38,7 @@ from pathlib import Path
 # ── STDF records ──────────────────────────────────────────────────────────────
 # One head, as every file here: thin wrappers over the one spec-conformant set of record builders, stdf_spec.py.
 import stdf_spec as S
+from functional_tests import ExtraFtr
 
 def far() -> bytes: return S.far()
 def mir(lot_id: str, part_type: str, job_name: str, node_name: str, tester_type: str) -> bytes:
@@ -78,8 +79,9 @@ TESTS = [
     (1005, 'ioff_nA',    'nA',   0.0,   12.0, 'g', +1.0,  1.3,  0.7),
     (1006, 'fmax_MHz',   'MHz', 1600.0, 2200.0, 'g', +1.0, 48.0, 30.0),
 ]
-NUM_TESTS = len(TESTS) + 1  # + the FTR scan test
+NUM_TESTS = len(TESTS) + 5  # + the scan test and four more functional tests
 FT_NUM, FT_NAME = 2001, 'scan_chain'
+EXTRA = ExtraFtr(FT_NUM)
 
 # The culprit test — the one the "Distributions" beat is expected to flag.
 CULPRIT_TEST_NUM = 1006
@@ -206,6 +208,10 @@ def generate_lot_wafers(out_dir: Path, seed: int) -> list[tuple[str, str]]:
                 if not ft_passed:
                     failed_tests.append(FT_NUM)
                 buf += ftr_rec(FT_NUM, site, ft_passed, FT_NAME)
+                for n, name, ok in EXTRA.draw(edge):
+                    if not ok:
+                        failed_tests.append(n)
+                    buf += ftr_rec(n, site, ok, name)
 
                 die_passed = len(failed_tests) == 0
                 hbin = 1 if die_passed else (2 if len(failed_tests) <= 1 else 3)

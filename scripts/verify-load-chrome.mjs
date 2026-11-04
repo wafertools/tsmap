@@ -26,7 +26,7 @@
  * progressively; one below it mounts PRE-BUILT, so wmap's callbacks land a task
  * after the load has already ended. That difference is what turned a late
  * "Finishing lot summary" into a phantom load nothing could end, leaving every
- * toolbar button disabled. The sample lot (13 wafers) is the small path and is
+ * toolbar button disabled. The sample lot (25 wafers) is the small path and is
  * what a first-time user clicks.
  *
  * USAGE
@@ -220,7 +220,7 @@ if (scenario === 'append') {
   await page.click('#lot-btn');
   await page.getByText('Show test-value findings').click();
 } else if (scenario === 'sample') {
-  // The PRE-BUILT path: 13 wafers is below GALLERY_PROGRESSIVE_DIE_THRESHOLD, so
+  // The PRE-BUILT path: 25 wafers is below GALLERY_PROGRESSIVE_DIE_THRESHOLD, so
   // wmap's callbacks land a task after the load has ended. Both 2026-09-20 bugs
   // lived here and in no other scenario.
   // Small, so it imports every test with no selector.

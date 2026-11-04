@@ -2,8 +2,21 @@
 """Generate a synthetic STDF file for a typical PVT process-corner lot, plus a
 matching wafer-splits CSV (tsmap's "Splits…" import format: `waferId,split`).
 
-Produces: 13 wafers, ~220 dies each, 4-site parallel test, 6 PTR tests
-(NMOS/PMOS Vth, NMOS/PMOS Idsat, Ioff leakage, Fmax) + 3 FTR tests (scan chain, memory BIST, I/O loopback).
+Produces: 25 wafers (a full lot), ~220 dies each, 4-site parallel test, 6 PTR tests
+(NMOS/PMOS Vth, NMOS/PMOS Idsat, Ioff leakage, Fmax) + 8 FTR tests (scan chain, memory BIST, I/O loopback, PLL lock,
+DDR PHY, SerDes PRBS, JTAG ID, power sequencing).
+
+The lot was tested in five sessions, written one after another into the one file, each with its own MIR (and SDR), the
+way a lot that is probed over several days arrives. The sessions differ in the fields Group by offers, and each
+difference has an effect on the data, so every one of them is worth grouping on (SESSIONS below):
+
+  1  W01-W06  25 C, tester A, program 1.0                        the baseline
+  2  W07-W12  85 C, tester A: yield falls; Vth and Idsat drop, leakage rises by half, PLL/DDR fail more
+  3  W13-W17  tester B on node-02 and probe card PC-0207: Vth reads ~20 mV high, Idsat ~3 % low
+  4  W18-W22  program 1.1, tighter limits: the same silicon, a lower yield
+  5  W23-W25  48 h burn-in: leakage up, memory BIST fails more (early-life fails)
+
+Operator follows the session and has no effect of its own, so a Group by Operator shows nothing a reader should believe.
 
 Wafer IDs deliberately do NOT encode the corner (W01, W02, ...) — that's the
 whole point of the splits feature: corner membership comes from a lot
@@ -12,13 +25,13 @@ and applied in tsmap rather than parsed. The five classic digital-CMOS
 corners are represented, weighted like a real corner-monitor lot (mostly
 nominal wafers, a couple of wafers held out per skew corner):
 
-  TT (typical-typical): 5 wafers — nominal Vth/Idsat/Fmax, best yield.
-  FF (fast-fast):        2 wafers — low Vth, high Idsat, high Fmax, elevated
+  TT (typical-typical): 10 wafers — nominal Vth/Idsat/Fmax, best yield.
+  FF (fast-fast):        4 wafers — low Vth, high Idsat, high Fmax, elevated
                           leakage (some Ioff spec fails).
-  SS (slow-slow):        2 wafers — high Vth, low Idsat, low Fmax (some
+  SS (slow-slow):        4 wafers — high Vth, low Idsat, low Fmax (some
                           dies fail the min-frequency spec), low leakage.
-  FS (N fast / P slow):  2 wafers — skewed NMOS/PMOS, moderate degradation.
-  SF (N slow / P fast):  2 wafers — opposite skew, moderate degradation.
+  FS (N fast / P slow):  4 wafers — skewed NMOS/PMOS, moderate degradation.
+  SF (N slow / P fast):  3 wafers — opposite skew, moderate degradation.
 
 Every test is driven by a shared per-die latent "process speed" variable (see
 gen_die_values), not independent per-test noise — a locally fast die really
@@ -46,8 +59,12 @@ random.seed(7)
 import stdf_spec as S
 
 def far() -> bytes: return S.far()
-def mir(lot_id: str) -> bytes: return S.mir(lot_id, 'CHIP-PVT', 'corner_test', 'UltraTester-9000', 'node-01', job_rev='1.0')
-def sdr(sites: list[int]) -> bytes: return S.sdr(1, 1, sites)
+def mir(lot_id: str, ses: 'Session') -> bytes:
+    return S.mir(lot_id, 'CHIP-PVT', 'corner_test', ses.tester, ses.node, job_rev=ses.program_rev, tst_temp=ses.temp,
+                 oper_nam=ses.operator, burn_tim=ses.burn_hours)
+def sdr(sites: list[int], ses: 'Session | None' = None) -> bytes:
+    ses = ses or SESSIONS[0]
+    return S.sdr(1, 1, sites, hand_typ='Prober', hand_id=ses.handler, card_typ='Cantilever', card_id=ses.probe_card)
 def wir(wafer_id: str) -> bytes: return S.wir(1, wafer_id, site_grp=1)
 def wrr(wafer_id: str, part_cnt: int, good_cnt: int) -> bytes: return S.wrr(1, wafer_id, part_cnt, good_cnt, site_grp=1)
 def pir(site: int) -> bytes: return S.pir(1, site)
@@ -95,13 +112,18 @@ TESTS = [
     (1005, 'ioff_nA',    'nA',   0.0,   12.0, 'g', +1.0,  1.3,  0.7),
     (1006, 'fmax_MHz',   'MHz', 1600.0, 2200.0, 'g', +1.0, 48.0, 30.0),
 ]
-NUM_TESTS = len(TESTS) + 3  # + the three FTR tests
+
 FT_NUM, FT_NAME = 2001, 'scan_chain'
 # Two more functional tests, so the functional pass-rate chart has something to rank, and a probe site (3) whose
 # contact is marginal: it fails them more often. They draw from their own stream, so the six PTR tests and the
 # scan chain keep the values the lot has always had.
-EXTRA_FTR = [(2002, 'bist_mem', 0.006), (2003, 'io_loopback', 0.002)]
+EXTRA_FTR = [(2002, 'bist_mem', 0.006), (2003, 'io_loopback', 0.002), (2004, 'pll_lock', 0.002),
+             (2005, 'ddr_phy', 0.004), (2006, 'serdes_prbs', 0.003), (2007, 'jtag_idcode', 0.0005),
+             (2008, 'power_seq', 0.002)]
+NUM_TESTS = len(TESTS) + 1 + len(EXTRA_FTR)
 WEAK_SITE, WEAK_SITE_EXTRA_FAIL_P = 3, 0.04
+# Probe site 3 keeps failing the original two extra functional tests only; the added ones are not contact-sensitive.
+WEAK_SITE_TESTS = {2002, 2003}
 extra_rng = random.Random(11)
 
 # Per-corner test centre (overrides the TT centre below) and a sigma
@@ -119,17 +141,61 @@ CORNER_FT_FAIL_P = {'TT': 0.01, 'FF': 0.02, 'SS': 0.03, 'FS': 0.05, 'SF': 0.05}
 
 SITES = [1, 2, 3, 4]
 
+# ── Test sessions ────────────────────────────────────────────────────────────
+# One session = one MIR. Everything a session changes is an ordinary Group by field in the app (Temperature, Tester,
+# Node, Program rev, Burn-in time, Probe card, Handler, Operator) and everything but the operator moves the data.
+
+from dataclasses import dataclass, field
+
+@dataclass
+class Session:
+    wafers: list[str]
+    temp: str = '25'
+    tester: str = 'UT-9000-A'
+    node: str = 'node-01'
+    program_rev: str = '1.0'
+    operator: str = 'a.lee'
+    burn_hours: int = 0
+    handler: str = 'PRB-11'
+    probe_card: str = 'PC-0114'
+    # Per-test (lsl, usl) overrides: a tighter program draws the same silicon against narrower limits.
+    limits: dict[int, tuple[float, float]] = field(default_factory=dict)
+    # Additive shift and multiplier applied to a test's value: {test_num: (shift, scale)}.
+    response: dict[int, tuple[float, float]] = field(default_factory=dict)
+    # Extra fail probability per FTR test number.
+    ftr_extra: dict[int, float] = field(default_factory=dict)
+
+def ids(first: int, last: int) -> list[str]:
+    return [f'W{n:02d}' for n in range(first, last + 1)]
+
+SESSIONS = [
+    Session(ids(1, 6)),
+    # Hot: Vth falls, Idsat falls ~4 %, leakage rises by half, Fmax drops; the PLL and the DDR PHY lose margin.
+    Session(ids(7, 12), temp='85', operator='b.smith',
+            response={1001: (-12, 1), 1002: (-12, 1), 1003: (0, 0.96), 1004: (0, 0.96), 1005: (0, 1.5), 1006: (0, 0.975)},
+            ftr_extra={2004: 0.02, 2005: 0.015}),
+    # Tester B drifts: Vth reads ~20 mV high and Idsat ~3 % low on the same silicon.
+    Session(ids(13, 17), tester='UT-9000-B', node='node-02', probe_card='PC-0207', operator='b.smith',
+            response={1001: (20, 1), 1002: (20, 1), 1003: (0, 0.97), 1004: (0, 0.97)}),
+    # Program 1.1 tightens the limits; nothing about the silicon changes.
+    Session(ids(18, 22), program_rev='1.1',
+            limits={1001: (265.0, 375.0), 1002: (265.0, 375.0), 1003: (510.0, 890.0), 1004: (470.0, 830.0),
+                    1005: (0.0, 11.0), 1006: (1630.0, 2190.0)}),
+    # 48 h burn-in: stress raises leakage and the memory BIST finds the early-life fails.
+    Session(ids(23, 25), burn_hours=48, operator='b.smith',
+            response={1005: (0, 1.15)}, ftr_extra={2002: 0.025}),
+]
+SESSION_OF = {w: ses for ses in SESSIONS for w in ses.wafers}
+
 # Wafer → corner assignment. IDs are plain and sequential — corner membership
 # is deliberately NOT recoverable from the STDF, only from the splits CSV.
-WAFER_CORNERS: list[tuple[str, str]] = [
-    ('W01', 'TT'), ('W02', 'FF'), ('W03', 'TT'), ('W04', 'SS'), ('W05', 'TT'),
-    ('W06', 'FS'), ('W07', 'TT'), ('W08', 'SF'), ('W09', 'TT'),
-    ('W10', 'FF'), ('W11', 'SS'), ('W12', 'FS'), ('W13', 'SF'),
-]
+WAFER_CORNERS: list[tuple[str, str]] = list(zip(
+    (f'W{n:02d}' for n in range(1, 26)),
+    'TT FF TT SS TT FS  TT SF TT FF SS TT  FS TT SF FF TT  SS TT FS SF FF  TT SS FS'.split()))
 
 # ── Value generation ─────────────────────────────────────────────────────────
 
-def gen_die_values(corner: str, edge: bool, site: int) -> dict[int, tuple[float, bool]]:
+def gen_die_values(corner: str, edge: bool, site: int, ses: Session) -> dict[int, tuple[float, bool]]:
     centres = CORNER_CENTRES[corner]
     sigma_mult = CORNER_SIGMA_MULT[corner]
 
@@ -152,6 +218,9 @@ def gen_die_values(corner: str, edge: bool, site: int) -> dict[int, tuple[float,
         # Mild radial edge degradation, same shape for every corner.
         if edge and random.random() < 0.12:
             val += (usl - lsl) * random.choice([-1, 1]) * 0.35
+        shift, scale = ses.response.get(tnum, (0.0, 1.0))
+        val = val * scale + shift
+        lsl, usl = ses.limits.get(tnum, (lsl, usl))
         passed = lsl <= val <= usl
         result[tnum] = (val, passed)
     return result
@@ -160,9 +229,6 @@ def gen_die_values(corner: str, edge: bool, site: int) -> dict[int, tuple[float,
 
 def generate(output_path: Path) -> None:
     buf = bytearray()
-    buf += far()
-    buf += mir(output_path.stem)
-    buf += sdr(SITES)
     # Die pitch must actually contain every die's grid position (radius=8
     # steps, see wafer_dies below) within the 300mm wafer, or wmap correctly
     # rejects it as a geometry-conflict warning (a probed die is always a
@@ -173,69 +239,81 @@ def generate(output_path: Path) -> None:
     # exactly what wmap's own pitch inference already computed for this
     # fixture pre-WCR, confirming the two are solving the same containment
     # constraint).
-    buf += wcr(wafr_siz=300.0, die_ht=16.9, die_wid=16.9, wf_units=3, wf_flat='D',
-               center_x=0, center_y=0, pos_x='R', pos_y='U')
-
     dies = wafer_dies(8)
     part_counter = 1
-    lot_good = 0
-    bin_counts = {1: 0, 2: 0, 3: 0}
+    corner_of = dict(WAFER_CORNERS)
 
-    for wafer_id, corner in WAFER_CORNERS:
-        buf += wir(wafer_id)
-        part_cnt = good_cnt = 0
+    for ses in SESSIONS:
+        buf += far()
+        buf += mir(output_path.stem, ses)
+        buf += sdr(SITES, ses)
+        buf += wcr(wafr_siz=300.0, die_ht=16.9, die_wid=16.9, wf_units=3, wf_flat='D',
+                   center_x=0, center_y=0, pos_x='R', pos_y='U')
+        lot_good = 0
+        lot_parts = 0
+        bin_counts = {1: 0, 2: 0, 3: 0}
+        limits = {t[0]: ses.limits.get(t[0], (t[3], t[4])) for t in TESTS}
 
-        for batch_start in range(0, len(dies), len(SITES)):
-            batch = dies[batch_start: batch_start + len(SITES)]
+        for wafer_id in ses.wafers:
+            corner = corner_of[wafer_id]
+            buf += wir(wafer_id)
+            part_cnt = good_cnt = 0
 
-            for site_idx, _ in enumerate(batch):
-                buf += pir(SITES[site_idx])
+            for batch_start in range(0, len(dies), len(SITES)):
+                batch = dies[batch_start: batch_start + len(SITES)]
 
-            for site_idx, (x, y) in enumerate(batch):
-                site = SITES[site_idx]
-                edge = math.sqrt(x * x + y * y) > 6.5
-                is_first = (batch_start == 0 and site_idx == 0)
+                for site_idx, _ in enumerate(batch):
+                    buf += pir(SITES[site_idx])
 
-                values = gen_die_values(corner, edge, site)
-                failed_tests = [t for t, (_, p) in values.items() if not p]
+                for site_idx, (x, y) in enumerate(batch):
+                    site = SITES[site_idx]
+                    edge = math.sqrt(x * x + y * y) > 6.5
+                    is_first = (batch_start == 0 and site_idx == 0)
 
-                for tnum, tname, units, lsl, usl, _drive, _dir, _sig, _noise in TESTS:
-                    val, passed = values[tnum]
-                    buf += ptr_rec(tnum, site, val, passed, tname, lsl, usl, units, first=is_first)
+                    values = gen_die_values(corner, edge, site, ses)
+                    failed_tests = [t for t, (_, p) in values.items() if not p]
 
-                ft_passed = random.random() >= CORNER_FT_FAIL_P[corner]
-                if not ft_passed:
-                    failed_tests.append(FT_NUM)
-                buf += ftr_rec(FT_NUM, site, ft_passed, FT_NAME)
-                for ft_num, ft_name, base_p in EXTRA_FTR:
-                    p_fail = base_p + CORNER_FT_FAIL_P[corner] / 4 + (WEAK_SITE_EXTRA_FAIL_P if site == WEAK_SITE else 0.0)
-                    ok = extra_rng.random() >= p_fail
-                    if not ok:
-                        failed_tests.append(ft_num)
-                    buf += ftr_rec(ft_num, site, ok, ft_name)
+                    for tnum, tname, units, _lsl, _usl, _drive, _dir, _sig, _noise in TESTS:
+                        val, passed = values[tnum]
+                        lsl, usl = limits[tnum]
+                        buf += ptr_rec(tnum, site, val, passed, tname, lsl, usl, units, first=is_first)
 
-                die_passed = len(failed_tests) == 0
-                hbin = 1 if die_passed else (2 if len(failed_tests) <= 1 else 3)
-                buf += prr(site, x, y, hbin, hbin, part_counter, die_passed)
-                bin_counts[hbin] += 1
-                part_counter += 1
-                part_cnt += 1
-                if die_passed:
-                    good_cnt += 1
-                    lot_good += 1
+                    ft_passed = random.random() >= CORNER_FT_FAIL_P[corner]
+                    if not ft_passed:
+                        failed_tests.append(FT_NUM)
+                    buf += ftr_rec(FT_NUM, site, ft_passed, FT_NAME)
+                    for ft_num, ft_name, base_p in EXTRA_FTR:
+                        p_fail = (base_p + CORNER_FT_FAIL_P[corner] / 4 + ses.ftr_extra.get(ft_num, 0.0)
+                                  + (WEAK_SITE_EXTRA_FAIL_P if site == WEAK_SITE and ft_num in WEAK_SITE_TESTS else 0.0))
+                        ok = extra_rng.random() >= p_fail
+                        if not ok:
+                            failed_tests.append(ft_num)
+                        buf += ftr_rec(ft_num, site, ok, ft_name)
 
-        buf += wrr(wafer_id, part_cnt, good_cnt)
+                    die_passed = len(failed_tests) == 0
+                    hbin = 1 if die_passed else (2 if len(failed_tests) <= 1 else 3)
+                    buf += prr(site, x, y, hbin, hbin, part_counter, die_passed)
+                    bin_counts[hbin] += 1
+                    part_counter += 1
+                    part_cnt += 1
+                    lot_parts += 1
+                    if die_passed:
+                        good_cnt += 1
+                        lot_good += 1
 
-    # HBR/SBR — hard/soft bin names (hbin and sbin are assigned identically
-    # above, so the two catalogs share bin numbers here; a real file's soft
-    # bins would usually be more finely split than hard bins).
-    buf += hbr(1, bin_counts[1], 'P', 'Pass')
-    buf += hbr(2, bin_counts[2], 'F', 'Fail (1 test)')
-    buf += hbr(3, bin_counts[3], 'F', 'Fail (multi)')
-    buf += sbr(1, bin_counts[1], 'P', 'Pass')
-    buf += sbr(2, bin_counts[2], 'F', 'Fail (1 test)')
-    buf += sbr(3, bin_counts[3], 'F', 'Fail (multi)')
-    buf += S.file_end(part_counter - 1, lot_good)
+            buf += wrr(wafer_id, part_cnt, good_cnt)
+
+        # HBR/SBR — hard/soft bin names (hbin and sbin are assigned identically
+        # above, so the two catalogs share bin numbers here; a real file's soft
+        # bins would usually be more finely split than hard bins).
+        buf += hbr(1, bin_counts[1], 'P', 'Pass')
+        buf += hbr(2, bin_counts[2], 'F', 'Fail (1 test)')
+        buf += hbr(3, bin_counts[3], 'F', 'Fail (multi)')
+        buf += sbr(1, bin_counts[1], 'P', 'Pass')
+        buf += sbr(2, bin_counts[2], 'F', 'Fail (1 test)')
+        buf += sbr(3, bin_counts[3], 'F', 'Fail (multi)')
+        buf += S.file_end(lot_parts, lot_good)
+        print(f"  session {SESSIONS.index(ses) + 1}: {ses.wafers[0]}-{ses.wafers[-1]}  yield {lot_good / lot_parts:.1%}")
 
     output_path.write_bytes(buf)
 

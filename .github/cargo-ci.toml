@@ -1,0 +1,10 @@
+# Cargo settings for CI only, passed as `--config .github/cargo-ci.toml`.
+#
+# The workspace's Cargo.toml builds every dependency at opt-level 3 in the dev profile, so a local `tauri dev` parses at the
+# speed of the shipped app. A CI run builds 600-odd crates and tests the parser on a handful of small files: optimising them
+# there costs about twelve minutes and buys nothing.
+[profile.dev.package."*"]
+opt-level = 0
+
+[profile.dev.package.testdata-parser]
+opt-level = 0

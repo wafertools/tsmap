@@ -17,7 +17,7 @@ fold Finding row = re:^[●○]{3} | one per finding the analysis produced
 fold Finding detail row = re:(than the rest of|than other |^Spatial pattern: ) | one per finding the analysis produced
 fold Finding chart link = Chart: * | one per finding the analysis produced
 fold Finding chip (bin) = re:^Hard bin \d+( \(.*\))?$ | one per bin a finding names
-fold Finding chip (test) = re:^(vth_mV|leakage_nA|freq_MHz|Idsat|vth_n_mV|vth_p_mV|idsat_n_uA|idsat_p_uA|fmax_MHz|ioff_nA|scan_chain|Iddq|Vref|Fmax)$ | one per test a finding names
+fold Finding chip (test) = re:^(vth_mV|leakage_nA|freq_MHz|Idsat|vth_n_mV|vth_p_mV|idsat_n_uA|idsat_p_uA|fmax_MHz|ioff_nA|scan_chain|bist_mem|io_loopback|pll_lock|ddr_phy|serdes_prbs|jtag_idcode|power_seq|Iddq|Vref|Fmax)$ | one per test a finding names
 fold Finding chip (pattern) = re:^[A-Z][a-z-]+ pattern$ | one per spatial pattern a finding names
 re:^(FF|FS|SF|SS|TT)$ | one button per split value in the loaded lot; the lot's data decides which
 fold Show supporting findings = Show * supporting finding* | the count depends on the finding
@@ -29,7 +29,7 @@ fold Summary › Functional Tests = Functional Tests (* | the heading carries th
 fold Summary › Findings = Findings (* | the heading carries the lot's finding count
 fold More fields = * more field* | the count depends on the lot's metadata
 fold Dies without position = * dies without position data. Click to view. | the count depends on the lot
-fold Log (with new-warning count) = * new warnings*Log | the count depends on what the load logged
+fold Log (with new-warning count) = re:new warnings?.*Log$ | the count depends on what the load logged
 fold Dialog › Maximize (F) = * › Maximize (F) | the same frame control on every dialog
 fold Dialog › Close (Esc) = * › Close (Esc) | the same frame control on every dialog
 fold Splits… › wafer row = re:^Splits… › W\d\d.*\.stdf | one per wafer in the lot

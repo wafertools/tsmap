@@ -79,7 +79,7 @@ A category field, such as the split, lists its values to tick; **is not** keeps 
 
 Untick every split except SS. As you edit, the window shows how many wafers and dies the conditions would keep.
 
-![Only SS ticked: keeps 2 of 13 wafers](images/08/filter-keeps.png)
+![Only SS ticked: keeps 4 of 25 wafers](images/08/filter-keeps.png)
 
 ---
 
@@ -125,7 +125,7 @@ Untick every split except SS. As you edit, the window shows how many wafers and 
 
 # Applied
 
-Two cards remain, and the legend and yield describe only those wafers.
+Four cards remain, W04, W11, W18 and W24, and the legend and yield describe only those wafers.
 
 ![The gallery filtered to the SS wafers](images/08/filtered-gallery.png)
 
@@ -141,7 +141,7 @@ A line above the view always states the filter and what it keeps. Its checkbox s
 
 # Insights follows
 
-It is one filter for everything you are looking at, so Insights shows the same two wafers, and its charts and the **Group by** control work on what is kept.
+It is one filter for everything you are looking at, so Insights shows the same four wafers, and its charts and the **Group by** control work on what is kept.
 
 ![Insights Overview with the SS filter on](images/08/filter-insights.png)
 
@@ -261,7 +261,7 @@ Each card's **Charts and tables** button, the small chart icon in its toolbar, o
 
 1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**
 2. **Filter…**, add **Split**, keep only **SS**, **Apply**
-3. **Remove** the filter. Drag a box on W04 · SS and right-click it
+3. **Remove** the filter. Drag a box on W02 · FF and right-click it
 4. Open **Value histogram**, then **Process capability**: which test has the lowest Ppk?
 5. Right-click bin **3** in the legend and open **Dies**
 6. Open **Filter…** and check no filter is left set, as filters are kept between lots
@@ -272,7 +272,7 @@ Each card's **Charts and tables** button, the small chart icon in its toolbar, o
 
 # Check your results
 
-4. **`fmax_MHz`** has the lowest Ppk, about 0.2. SS is the slow corner, so its `fmax_MHz` sits close to the lower limit.
+4. It depends on the box you drag, because the card judges only those dies. For the 60 dies on the slide, `vth_p_mV` is lowest, at 0.46. Whatever the box, the worst Ppk comes first.
 
 ---
 

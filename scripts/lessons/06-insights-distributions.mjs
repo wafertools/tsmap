@@ -8,7 +8,7 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
-const RRAM = `${SAMPLEDATA}/RRAM-LOT-06.stdf`;
+const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.stdf`;
 const SPEC_DEFS = `${SAMPLEDATA}/PVT-LOT-05_testdefs_spec.csv`;
 const SELECTOR = '#tsmap-test-selector-overlay [role="dialog"]';
 const SEL_BTN = (t) => `#tsmap-test-selector-overlay button:has-text("${t}")`;
@@ -176,6 +176,13 @@ export const scenario = {
       shots: [{ name: 'tests-by-split', clip: cardClip('Tests by Split') }],
     },
     {
+      id: '24h-tests-by-temperature',
+      title: 'Any wafer field groups: by Temperature, the hot wafers sit apart on several tests at once',
+      steps: [['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("Temperature")'], ['wait', 1200], ['scrollIntoView', card('Tests by Temperature'), 70], PARK],
+      checks: [onCard('Tests by Temperature')],
+      shots: [{ name: 'tests-by-temperature', clip: cardClip('Tests by Temperature') }],
+    },
+    {
       id: '25-data-statistics',
       title: 'Data: Statistics, the numbers behind the charts, with CSV buttons',
       steps: [['click', groupBy], ['wait', 300], ['click', '[role="option"]:has-text("None")'], ['wait', 500], ['click', tab('Data')], ['wait', 800], PARK],
@@ -212,9 +219,9 @@ export const scenario = {
     },
     {
       id: '29-no-limits',
-      title: 'RRAM-LOT-06: tests without limits are drawn muted and dashed on their own range',
+      title: 'SWEEP-LOT-06: tests without limits are drawn muted and dashed on their own range',
       steps: [
-        ['click', '#reset-btn'], ['wait', 800], ['loadFile', RRAM], ['waitForWafers'],
+        ['click', '#reset-btn'], ['wait', 800], ['loadFile', SWEEP], ['waitForWafers'],
         ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('Distributions')], ['wait', 1500], ['scrollIntoView', card('Process capability'), 70], PARK,
       ],
       checks: [onCard('Process capability')],

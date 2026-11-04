@@ -9,9 +9,9 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
-const RRAM = `${SAMPLEDATA}/RRAM-LOT-06.stdf`;
-const RRAM_DEFS = `${SAMPLEDATA}/RRAM-LOT-06_testdefs.csv`;
-const RRAM_PLOTS = `${SAMPLEDATA}/RRAM-LOT-06_plots.json`;
+const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.stdf`;
+const SWEEP_DEFS = `${SAMPLEDATA}/SWEEP-LOT-06_testdefs.csv`;
+const SWEEP_PLOTS = `${SAMPLEDATA}/SWEEP-LOT-06_plots.json`;
 const GT = '[data-wmap-toolbar="gallery"]';
 const SELECTOR = '#tsmap-test-selector-overlay [role="dialog"]';
 const SEL_BTN = (t) => `#tsmap-test-selector-overlay button:has-text("${t}")`;
@@ -145,6 +145,17 @@ export const scenario = {
       steps: [['click', '[role="dialog"] button:has-text("Delete ")'], ['wait', 800], PARK],
       checks: [isVisible(plotBtn('Undo'), 'Undo is offered')],
       shots: [{ name: 'plots-deleted', clip: { rect: { x: 0, y: 50, width: 900, height: 300 } }, callouts: [[plotBtn('Undo'), { pad: 2 }]] }],
+    },
+    {
+      id: '13-next-lot',
+      title: 'Undo, then open SWEEP-LOT-06: the plots are kept, and those that need tests this lot lacks are dimmed with the reason',
+      steps: [
+        ['click', plotBtn('Undo')], ['wait', 600],
+        ['loadFile', `${SAMPLEDATA}/SWEEP-LOT-06.stdf`], ['waitForWafers'],
+        ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('My plots')], ['wait', 1200], PARK,
+      ],
+      checks: [isVisible(plotBtn('Export plots…'), 'My plots is showing on the new lot')],
+      shots: [{ name: 'plots-next-lot', clip: { rect: { x: 0, y: 50, width: 1280, height: 700 } } }],
     },
     ],
 };

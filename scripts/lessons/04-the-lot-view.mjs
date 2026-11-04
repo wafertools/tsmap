@@ -115,10 +115,10 @@ export const scenario = {
       title: 'The sample lot for the rest of the session: its corners are already assigned as splits',
       steps: [['click', '#reset-btn'], ['wait', 800], ['click', 'button:has-text("Load sample data")'], ['waitForWafers'], ['click', '[data-wmap-summary-close]'], ['wait', 800], PARK],
       checks: [{
-        name: 'thirteen-cards',
-        describe: 'the gallery shows 13 wafer cards',
+        name: 'full-lot-cards',
+        describe: 'the gallery shows 25 wafer cards',
         get: (page) => page.locator(CARD).count(),
-        expect: (n) => n === 13,
+        expect: (n) => n === 25,
       }],
     },
     {
@@ -228,7 +228,7 @@ export const scenario = {
       id: '12-splits-dialog',
       title: 'The dialog, with the sample lot\'s corners already assigned',
       steps: [['press', 'Escape'], ['wait', 300], ['openSplitsDialog']],
-      checks: [hasText(DIALOG, '5 splits assigned to 13 of 13 wafers')],
+      checks: [hasText(DIALOG, '5 splits assigned to 25 of 25 wafers')],
       shots: [{ name: 'splits-dialog', clip: { target: DIALOG, pad: 12 } }],
     },
     {
@@ -252,7 +252,7 @@ export const scenario = {
         ['openSplitsDialog'],
         ['click', dlg('label:has-text("Show split in wafer map labels")')],
         ['click', dlg('button:has-text("Clear all")')], ['wait', 500],
-        ...['W01', 'W03', 'W05', 'W07', 'W09'].map((w) => ['click', rowBox(w)]),
+        ...['W01', 'W03', 'W05', 'W07', 'W09', 'W12', 'W14', 'W17', 'W19', 'W23'].map((w) => ['click', rowBox(w)]),
         ['fillInput', dlg('input[placeholder^="Split name"]'), 'TT'],
         ['wait', 300],
       ],
@@ -276,7 +276,7 @@ export const scenario = {
       id: '16-assigned',
       title: 'Assign to selected applies at once; the name now shows under In use',
       steps: [['click', dlg('button:has-text("Assign to")')], ['wait', 500]],
-      checks: [hasText(DIALOG, '1 split assigned to 5 of 13 wafers')],
+      checks: [hasText(DIALOG, '1 split assigned to 10 of 25 wafers')],
       shots: [
         { name: 'splits-assigned', clip: { target: DIALOG, pad: 12 } },
         {

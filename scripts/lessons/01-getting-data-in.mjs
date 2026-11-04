@@ -160,7 +160,7 @@ export const scenario = {
         ['waitForWafers'],
         ['openTestsDialog'],
       ],
-      checks: [hasText(SELECTOR, '9 found'), hasText(SELECTOR, '9 of 9 tests selected')],
+      checks: [hasText(SELECTOR, '14 found'), hasText(SELECTOR, '14 of 14 tests selected')],
       shots: [
         {
           name: 'test-selector',
@@ -221,14 +221,14 @@ export const scenario = {
       shots: [
         {
           name: 'mapping-test-value',
-          clip: { target: '.mapping-table tbody tr:has-text("test_000")', pad: 60, maxWidth: 900 },
-          callouts: [['.mapping-table tbody tr:has-text("test_000")', { badge: 1, pad: 2 }]],
+          clip: { target: '.mapping-table tbody tr:has-text("vth_n_mV")', pad: 60, maxWidth: 900 },
+          callouts: [['.mapping-table tbody tr:has-text("vth_n_mV")', { badge: 1, pad: 2 }]],
         },
         {
           name: 'mapping-wide',
           clip: { target: '.mapping-panel', pad: 8 },
           callouts: [
-            ['.mapping-table tbody tr:has-text("test_000")', { badge: 1, pad: 2 }],
+            ['.mapping-table tbody tr:has-text("vth_n_mV")', { badge: 1, pad: 2 }],
             ['.pass-bin-group', { badge: 2, pad: 3, badgeAt: 'tr' }],
             ['#map-render', { badge: 3, pad: 3, badgeAt: 'tr' }],
           ],
@@ -254,7 +254,7 @@ export const scenario = {
       title: 'Change one role, then Continue: the mapping is remembered for these columns',
       steps: [
         ['setViewport', 1280, 820],
-        ['selectOption', '.mapping-table tbody tr:has-text("test_003") select', '— ignore —'],
+        ['selectOption', '.mapping-table tbody tr:has-text("idsat_p_uA") select', '— ignore —'],
         ['click', '#map-render'],
         ['waitForWafers'],
         ['hover', '#toolbar-title'],

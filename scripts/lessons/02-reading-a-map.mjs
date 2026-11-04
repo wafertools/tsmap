@@ -132,7 +132,7 @@ export const scenario = {
             [`${GT} button[aria-label^="Colour bar range"]`, { badge: 2, pad: 2 }],
           ],
         },
-        { name: 'test-value-card', clip: { target: CARD, nth: 0, pad: 8 } },
+        { name: 'test-value-card', clip: { target: CARD, nth: 3, pad: 8 } },
       ],
     },
     {
@@ -158,7 +158,7 @@ export const scenario = {
       title: 'Limit pass/fail: each die judged against the test limits, below and above apart',
       steps: [['click', `${menu('Overlays')} ${row('Limit pass/fail')}`], ['wait', 300], ['press', 'Escape'], ['wait', 600], PARK],
       checks: [overlayOn('Limit pass/fail')],
-      shots: [{ name: 'limit-passfail', clip: { target: CARD, nth: 0, pad: 8 } }],
+      shots: [{ name: 'limit-passfail', clip: { target: CARD, nth: 3, pad: 8 } }],
     },
     {
       id: '05c-test-passfail',
@@ -168,7 +168,7 @@ export const scenario = {
         ['click', `${menu('Overlays')} ${row('Test pass/fail')}`], ['wait', 300], ['press', 'Escape'], ['wait', 600], PARK,
       ],
       checks: [overlayOn('Test pass/fail')],
-      shots: [{ name: 'test-passfail', clip: { target: CARD, nth: 0, pad: 8 } }],
+      shots: [{ name: 'test-passfail', clip: { target: CARD, nth: 3, pad: 8 } }],
     },
     {
       id: '05d-passfail-off',

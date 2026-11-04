@@ -39,7 +39,7 @@ can be saved to a file and reloaded later, or supplied on the command line.
 See [Test selector](user-guide.md#test-selector-stdf-and-atdf) in the user guide.
 
 The same definitions file can also define **derived tests**: a row with an `expression`,
-such as `abs(t[1020] - t[1010])` or `log10(t[3115])`, is a test computed on every die from
+such as `abs(t[1020] - t[1010])` or `log10(t[5110])`, is a test computed on every die from
 the tests it reads. It is then plotted, charted and reported like a measured test, and
 marked **†** wherever it appears so it is never mistaken for a measurement. See
 [Derived tests](user-guide.md#derived-tests).
@@ -140,14 +140,14 @@ own per-wafer view.
 See [Grouping data in the Insights tab](user-guide.md#grouping-data-in-the-insights-tab) in
 the user guide.
 
-**Sweeps** read an ordered run of tests — set/reset voltages, bake times, cycle counts,
+**Sweeps** read an ordered run of tests — up/down switching voltages, bake times, cycle counts,
 resistance thresholds — as a response curve, and measure a pair of curves against each
 other: where they cross, and how far apart they are at a given level. They are defined in a
 card on the Insights My plots tab (**+ New plot**, chart type **Sweep**), kept with your other plots; the swept value can be given directly or read from the
 test names, and plotted on a log axis when it grows by multiples. See
 [Sweeps](user-guide.md#sweeps).
 
-**Your own plots.** The **My plots** tab is a chart builder: choose scatter, histogram, box, bar or line, and for each axis and for
+**Your own plots.** The **My plots** tab is a chart builder: choose scatter, histogram, box, bar, line, probability, control, heatmap, goal or sweep, and for each axis and for
 colour any test, a die's position, ring, quadrant, reticle cell or shot, bin, site, a pass/fail test, or a wafer attribute. A
 plot is a recipe with no lot in it, so tsmap keeps your plots between sessions and draws them again on the next lot. **Export
 plots…** and **Import plots…** move a set between machines. See [Plots](user-guide.md#your-own-plots).

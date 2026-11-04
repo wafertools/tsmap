@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildWaferMap } from '@wafertools/wafermap';
 import { analyzeWaferMap, analyzeWaferLot } from '@wafertools/wafermap/stats';
-import RRAM_TESTDEFS from '../sample_data/RRAM-LOT-06_testdefs.csv?raw';
+import SWEEP_TESTDEFS from '../sample_data/SWEEP-LOT-06_testdefs.csv?raw';
 import { parseTestListFile } from './testSelectorUI';
 import { toWmapDerivedTests } from './lib';
 
@@ -167,12 +167,12 @@ describe('collectWarnings unions build-side and analysis-side advisories', () =>
 });
 
 // ── Derived tests from a test-definitions file ───────────────────────────────
-// The bundled RRAM sample's definitions, parsed exactly as the selector does and
+// The bundled sweep sample's definitions, parsed exactly as the selector does and
 // handed to real wmap: every derived test must compile, and compute.
 
 
-describe('derived tests from the RRAM sample definitions', () => {
-  const rows = parseTestListFile(RRAM_TESTDEFS);
+describe('derived tests from the sweep sample definitions', () => {
+  const rows = parseTestListFile(SWEEP_TESTDEFS);
   const measured = rows.filter(r => r.expression === undefined);
   const testDefs = measured.map(r => ({
     testNumber: r.num, name: r.name ?? String(r.num), unit: r.units,
@@ -185,8 +185,8 @@ describe('derived tests from the RRAM sample definitions', () => {
   };
 
   it('reads the derived rows, one of them quoted', () => {
-    expect(rows.filter(r => r.expression).map(r => r.num)).toEqual([900001, 900002, 900003, 900004, 900005, 900006, 900007]);
-    expect(rows.find(r => r.num === 900004)?.expression).toBe('log10(t[900001] / max(t[3115], 0.01))');
+    expect(rows.filter(r => r.expression).map(r => r.num)).toEqual([910001, 910002, 910003, 910004, 910005, 910006, 910007]);
+    expect(rows.find(r => r.num === 910004)?.expression).toBe('log10(t[910001] / max(t[5110], 0.01))');
   });
 
   it('every derived test compiles and computes in wmap', () => {
@@ -197,11 +197,11 @@ describe('derived tests from the RRAM sample definitions', () => {
     });
     expect(map.warnings.filter(w => w.code === 'derived-test-invalid')).toEqual([]);
     const derived = map.testDefs?.filter(d => d.derived).map(d => d.testNumber);
-    expect(derived).toEqual([900001, 900002, 900003, 900004, 900005, 900006, 900007]);
-    // Set plateau = mean of 3126..3130 = 1 + mean(26..30) + x
+    expect(derived).toEqual([910001, 910002, 910003, 910004, 910005, 910006, 910007]);
+    // Up plateau = mean of 5116..5120 = 1 + mean(16..20) + x
     const d0 = map.dies.find(d => d.x === 0)!;
-    expect(d0.testValues?.[900001]).toBeCloseTo(29);
-    expect(d0.testPass?.[900007]).toBe(false);   // t[900001] = 29, not > 50
+    expect(d0.testValues?.[910001]).toBeCloseTo(19);
+    expect(d0.testPass?.[910007]).toBe(false);   // t[910001] = 19, not > 50
   });
 
   it('no derived rows means no derivedTests at all', () => {

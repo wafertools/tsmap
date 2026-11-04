@@ -50,7 +50,7 @@ How values spread: process capability, a box plot per wafer, a histogram and the
 
 At the top of Distributions, **Tests by wafer** picks the tests whose wafers differ most and draws them as a grid. Each row is a test and each column is a wafer. The colour is how far that wafer's mean is from the mean of all the wafers: blue is below, orange is above, and a pale cell is close to average.
 
-![The Tests by wafer grid, six tests by thirteen wafers](images/06/tests-by-wafer.png)
+![The Tests by wafer grid, six tests by twenty-five wafers](images/06/tests-by-wafer.png)
 
 ---
 
@@ -89,7 +89,7 @@ Each test is rescaled against its own limits: the low limit becomes 0 and the hi
 
 A test without both limits still appears, drawn muted and dashed on its own range, with no Ppk. Its place says how its values spread, not how near a limit they are.
 
-![RRAM-LOT-06 capability chart: tests without limits drawn muted and dashed](images/06/no-limits.png)
+![SWEEP-LOT-06 capability chart: tests without limits drawn muted and dashed](images/06/no-limits.png)
 
 ---
 
@@ -237,6 +237,16 @@ The box plot can show one box for each wafer (**By wafer**) or one for each ring
 With Group by on, **Tests by wafer** becomes **Tests by split**: one column for each group instead of each wafer, in z-scores again. A group that is dark across several rows differs on several tests at once, which usually means one cause.
 
 ![Tests by split, six tests by five splits](images/06/tests-by-split.png)
+
+---
+
+<!-- _class: split -->
+
+# Group by temperature
+
+Grouped by **Temperature**, the card compares the six wafers tested at 85 °C with the nineteen at 25 °C. At 85 °C leakage (`ioff_nA`) is high and the thresholds, `idsat_n_uA` and `fmax_MHz` are lower. Tester, program revision and burn-in time group the same way.
+
+![Tests by temperature: the 85 group against the 25 group](images/06/tests-by-temperature.png)
 
 ---
 

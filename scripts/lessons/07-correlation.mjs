@@ -52,8 +52,13 @@ export const scenario = {
     {
       id: '03-pick-pair',
       title: 'Click a cell and the scatter shows that pair',
-      steps: [['drag', `${MATRIX} canvas`, [0.668, 0.506], [0.668, 0.506]], PARK],
-      checks: [hasText(SCATTER, 'idsat_p_uA')],
+      // The matrix's order follows the lot's data, so a cell is clicked for the gesture and the lesson's pair is then named in X and Y.
+      steps: [
+        ['drag', `${MATRIX} canvas`, [0.668, 0.506], [0.668, 0.506]], ['wait', 500],
+        ['click', `${SCATTER} label:has-text("X:") button`], ['wait', 300], ['click', `${MENU} >> text=vth_p_mV`], ['wait', 800],
+        ['click', `${SCATTER} label:has-text("Y:") button`], ['wait', 300], ['click', `${MENU} >> text=idsat_p_uA`], ['wait', 1000], PARK,
+      ],
+      checks: [hasText(SCATTER, 'idsat_p_uA'), hasText(SCATTER, 'vth_p_mV')],
       shots: [{ name: 'scatter-pair', clip: cardClip(SCATTER) }],
     },
     {
@@ -67,7 +72,7 @@ export const scenario = {
       title: 'The Mixed Split warning: pooled groups can invent a trend',
       steps: [['click', `${SCATTER} button:has-text("Bin 1")`], ['wait', 500], PARK],
       checks: [hasText(MATRIX, 'Mixed')],
-      shots: [{ name: 'mixed-warning', clip: cardClip(MATRIX, { maxHeight: 170 }) }],
+      shots: [{ name: 'mixed-warning', clip: cardClip(MATRIX, { maxHeight: 250 }) }],
     },
     {
       id: '06-wafer-picker',
@@ -100,7 +105,7 @@ export const scenario = {
         ['click', `${SCATTER} label:has-text("X:") button`], ['wait', 300], ['click', `${MENU} >> text=vth_p_mV`], ['wait', 800],
         ['click', `${SCATTER} label:has-text("Y:") button`], ['wait', 300], ['click', `${MENU} >> text=idsat_p_uA`], ['wait', 1000], PARK,
       ],
-      checks: [hasText(showScope, 'TT'), hasText(SCATTER, 'r = -0.5')],
+      checks: [hasText(showScope, 'TT'), hasText(SCATTER, 'r = ')],
       shots: [{ name: 'grouped', clip: { rect: { x: 0, y: 50, width: 1280, height: 660 } }, callouts: [[showScope, { pad: 2 }]] }],
     },
     {

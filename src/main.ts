@@ -1755,7 +1755,7 @@ function trackIndicatorForm(): void {
  * phantom load that nothing would ever end: the indicator stuck on that message
  * forever and every toolbar button stayed disabled. Traced, not guessed:
  *
- *     endLoad(sample-lot.stdf — 13 wafers, 2873 dies)  loadActive=true
+ *     endLoad(sample-lot.stdf — 25 wafers, 5525 dies)  loadActive=true
  *     phase(finishing) "Finishing lot summary"         loadActive=false  ← here
  *
  * A stale callback from a superseded render is the same shape, and `isCurrent()`

@@ -1200,22 +1200,22 @@ describe('derivedNoneBuilt', () => {
 describe('definitionsAnchorMismatch', () => {
   const lot = (defs: Array<[number, string]>, program?: string) =>
     [{ testDefs: defs.map(([testNumber, name]) => ({ testNumber, name })), metadata: program ? { testProgram: program } : null }];
-  const anchor = definitionsAnchorOf(lot([[3000, 'I_reset_0'], [3001, 'I_reset_1'], [5, 'Vdd']], 'RRAM_T1'));
+  const anchor = definitionsAnchorOf(lot([[3000, 'I_down_0'], [3001, 'I_down_1'], [5, 'Vdd']], 'SWITCH_T1'));
 
   it('is quiet for the same program, whatever other tests the lot has', () => {
-    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'i_reset_0 '], [7, 'New']], 'RRAM_T1'))).toBeNull();
+    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'i_down_0 '], [7, 'New']], 'SWITCH_T1'))).toBeNull();
   });
 
   it('names test numbers that now mean different tests', () => {
-    const m = definitionsAnchorMismatch(anchor, lot([[3000, 'Vth_n'], [3001, 'I_reset_1']]));
-    expect(m?.renamed).toEqual([{ testNumber: 3000, was: 'I_reset_0', now: 'Vth_n' }]);
+    const m = definitionsAnchorMismatch(anchor, lot([[3000, 'Vth_n'], [3001, 'I_down_1']]));
+    expect(m?.renamed).toEqual([{ testNumber: 3000, was: 'I_down_0', now: 'Vth_n' }]);
     expect(m?.program).toBeUndefined();
   });
 
   it('reports a different program only when both lots state one', () => {
-    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'I_reset_0']], 'LOGIC_A'))?.program)
-      .toEqual({ was: 'RRAM_T1', now: 'LOGIC_A' });
-    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'I_reset_0']]))).toBeNull();
+    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'I_down_0']], 'LOGIC_A'))?.program)
+      .toEqual({ was: 'SWITCH_T1', now: 'LOGIC_A' });
+    expect(definitionsAnchorMismatch(anchor, lot([[3000, 'I_down_0']]))).toBeNull();
   });
 
   it('ignores derived tests and unnamed tests', () => {

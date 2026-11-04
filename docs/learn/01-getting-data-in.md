@@ -37,7 +37,7 @@ Learn tsmap
 
 # The quickest start
 
-**Load sample data** opens an example lot: 13 wafers from five process corners. More sample lots, one per feature, are listed in the [user guide](../user-guide.md#sample-files).
+**Load sample data** opens an example lot: 25 wafers from five process corners. More sample lots, one per feature, are listed in the [user guide](../user-guide.md#sample-files).
 
 ![The start screen, with Load sample data outlined](images/01/load-sample.png)
 
@@ -182,7 +182,7 @@ Both are in [lesson 12](12-automation.md).
 
 # The test selector
 
-A small lot imports every test. **Setup ▾ → Tests…** opens the selector at any time.
+A small lot imports every test by default. **Setup ▾ → Tests…** opens the test selector at any time.
 
 ![The test selector for the sample lot](images/01/test-selector.png)
 
@@ -211,7 +211,7 @@ A small lot imports every test. **Setup ▾ → Tests…** opens the selector at
 
 <!-- covers: tsmap guide › Memory advisory; tsmap guide › Changing the selection after load -->
 
-# Big lots start empty
+# Big lots start with no tests selected
 
 - A lot with many tests opens the selector first, nothing ticked
 - The footer estimates memory: amber is slow, red asks first

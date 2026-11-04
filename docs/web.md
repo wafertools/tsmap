@@ -49,7 +49,7 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
 - [tsmap-sample.atdf](samples/tsmap-sample.atdf) — ATDF: the same dataset in ASCII form.
 - [tsmap-sample.csv](samples/tsmap-sample.csv) — CSV: the same dataset; opening it shows the
   column-mapping overlay.
-- [tsmap-few-tests.csv](samples/tsmap-few-tests.csv) — CSV: the first four tests of the same dataset, so the
+- [tsmap-few-tests.csv](samples/tsmap-few-tests.csv) — CSV: three wafers of the sample lot with four of its tests (threshold voltage and drive current), so the
   column-mapping overlay is short enough to read at a glance.
 - [tsmap-sample.json](samples/tsmap-sample.json) — JSON: the same dataset as per-die
   `testValues`.
@@ -82,10 +82,10 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
 - [tsmap-hy-lot.stdf](samples/tsmap-hy-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers of 150 mm with 10 mm dies
   (145 dies a wafer), a high-yield lot with little for the Summary panel to find. A sparse wafer, the opposite of
   the dense lot above.
-- [tsmap-rram-lot.stdf](samples/tsmap-rram-lot.stdf) — STDF: lot `RRAM-LOT-06`, a resistive-memory
-  lot with sweep tests. Load [tsmap-rram-testdefs.csv](samples/tsmap-rram-testdefs.csv) with
+- [tsmap-sweep-lot.stdf](samples/tsmap-sweep-lot.stdf) — STDF: lot `SWEEP-LOT-06`, a two-state switching
+  lot with sweep tests. Load [tsmap-sweep-testdefs.csv](samples/tsmap-sweep-testdefs.csv) with
   **Setup ▾ → Tests… → Load definitions** for readable names and derived tests, and
-  [tsmap-rram-plots.json](samples/tsmap-rram-plots.json) in the plot editor for two sweep plots.
+  [tsmap-sweep-plots.json](samples/tsmap-sweep-plots.json) in the plot editor for two sweep plots.
 - [tsmap-scan-folder.zip](samples/tsmap-scan-folder.zip) — six single-wafer STDF files from four
   lots. Unzip it and use **Open files ▾ → Scan a folder…** to try the file scan.
 

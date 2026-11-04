@@ -196,7 +196,11 @@ def validate_stdf(path, rep, data):
         rep.counts[name] += 1
         seq.append((name, f, n))
         check_stdf_values(name, f, f'record {n} ({name})', rep)
-    check_stdf_sequence(seq, rep)
+    # A lot tested in several sessions arrives as several data streams in one file, each led by its own FAR; every stream
+    # is checked against the rules on its own.
+    starts = [k for k, s in enumerate(seq) if s[0] == 'FAR'] or [0]
+    for a, b in zip(starts, starts[1:] + [len(seq)]):
+        check_stdf_sequence(seq[a:b], rep)
 
 
 def check_stdf_values(name, f, where, rep):
@@ -280,7 +284,7 @@ def check_stdf_sequence(seq, rep):
     later_sdr = [seq[k][2] for k in range(j, len(names)) if names[k] == 'SDR']
     if later_sdr:
         rep.err('order', f'SDRs must follow the MIR directly; one is at record {later_sdr[0]}')
-    if rep.counts['PCR'] < 1:
+    if names.count('PCR') < 1:
         rep.err('order', 'at least one PCR is required')
     if names.count('MRR') != 1:
         rep.err('order', f'exactly one MRR is required, found {names.count("MRR")}')

@@ -71,7 +71,7 @@ The same for soft bins, so lot-level failure modes show as one map per soft bin.
 
 # Stacked Test Values
 
-One card per test (three here), with the values combined across the wafers. The header says how many wafers were stacked and how they were combined.
+One card per measured test (three here), with the values combined across the wafers. The header says how many wafers were stacked and how they were combined.
 
 ![Stacked Test Values: one card per test, with the Σ button outlined](images/04/stack-values.png)
 
@@ -186,7 +186,7 @@ Untick it and the cards show plain wafer IDs. The assignments are unchanged eith
 
 Tick wafers and type a name <span class="badge" role="img" aria-label="callout 1">1</span>, then **Assign to selected** <span class="badge" role="img" aria-label="callout 2">2</span>. **Clear split** <span class="badge" role="img" aria-label="callout 3">3</span> clears the ticked wafers; **Clear all** clears every wafer.
 
-![The dialog after Clear all, with five wafers ticked and TT typed](images/04/splits-assign-ready.png)
+![The dialog after Clear all, with ten wafers ticked and TT typed](images/04/splits-assign-ready.png)
 
 ---
 
@@ -197,7 +197,7 @@ Tick wafers and type a name <span class="badge" role="img" aria-label="callout 1
 
 Every action applies at once. Names in use appear beside **In use**: click one to reuse it, so TT and tt don't drift apart.
 
-![The dialog after assigning TT to five wafers](images/04/splits-assigned.png)
+![The dialog after assigning TT to ten wafers](images/04/splits-assigned.png)
 
 ---
 
@@ -252,7 +252,7 @@ The vacated card becomes a placeholder. Its **Reattach to gallery** button puts 
 # Try it yourself
 
 1. Open [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.stdf&dataFormat=stdf) in the web app
-2. **Plot mode → Stacked Hard Bins**: where do the failing bins gather?
+2. **Plot mode → Stacked Hard Bins**: on the **Pass** card, where is the count lower?
 3. **Stacked Test Values**, then **Σ → Std Dev**
 4. Back to **Hard Bin**, turn on **Select the same dies on every wafer** and drag a box
 5. **Setup ▾ → Splits…**: tick W01 and W03, assign a new name, then **Clear all** so the next lesson starts clean
@@ -263,7 +263,7 @@ The vacated card becomes a placeholder. Its **Reattach to gallery** button puts 
 
 # Check your results
 
-2. The failing bins gather in a **ring at the wafer's edge**. One wafer alone looks like scattered failures; stacked, the ring is plain.
+2. The Pass count drops in a **ring at the wafer's edge**, and the failing bins' cards show the same ring faintly. One wafer alone looks like scattered failures; stacked, the ring is plain.
 
 ---
 

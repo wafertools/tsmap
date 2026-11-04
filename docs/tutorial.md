@@ -7,7 +7,7 @@ worst.
 **You will need:** a browser. Nothing else.
 **Time:** about 10 minutes.
 
-At the end you will have found a genuine process-corner effect in a 13-wafer lot, and you will
+At the end you will have found a genuine process-corner effect in a 25-wafer lot, and you will
 know which parts of the interface to reach for when you do it with your own data.
 
 This is a guided walk-through with a known answer — follow it in order. For the full reference
@@ -31,23 +31,23 @@ window — **Load sample data**.
 
 Click **Load sample data**.
 
-This loads `PVT-LOT-05`, a synthetic 13-wafer lot generated for demonstration — no real device
+This loads `PVT-LOT-05`, a synthetic 25-wafer lot generated for demonstration — no real device
 data. It is a *process-corner* lot: each wafer was run at a deliberately different corner of
 the process window, and tsmap labels each one automatically.
 
 ## 3. Import the tests
 
-The sample lot has 9 tests (six parametric, three functional). A small lot like this imports
-every test straight away, and the log reports "9 tests imported". A large lot instead opens a
+The sample lot has 14 tests (six parametric, eight functional). A small lot like this imports
+every test straight away, and the log reports "14 tests imported". A large lot instead opens a
 **test selector** before parsing, starting empty, so that "import everything" can never be the
 accidental default. See [Memory advisory](user-guide.md#memory-advisory) for where that line falls.
 
 To choose tests after the load, open **Setup ▾ → Tests…**:
 
-![Test selector for the sample lot — 9 tests, all ticked](images/tutorial-test-selector.png)
+![Test selector for the sample lot — 14 tests, all ticked](images/tutorial-test-selector.png)
 
-**You should now see** a grid of 13 wafer maps, each card titled like `W01 · TT`, with a
-**Summary** panel down the right-hand side, headed *Lot PVT-LOT-05 · 13 wafers* — every wafer
+**You should now see** a grid of 25 wafer maps, each card titled like `W01 · TT`, with a
+**Summary** panel down the right-hand side, headed *Lot PVT-LOT-05 · 25 wafers* — every wafer
 comes from that one lot, so the panel names it. The `· TT` suffix is the process corner —
 those were applied automatically along with the sample.
 
@@ -55,13 +55,13 @@ those were applied automatically along with the sample.
 
 Before looking at any single wafer, read the panel on the right. It reports:
 
-- **13 wafers**, **79.0 %** mean per-wafer yield, **2,873** dies analysed.
-- A **Findings** section — 4 findings, 1 *Unusual* and 3 *Notable*.
+- **25 wafers**, **65.6 %** mean per-wafer yield, **5,525** dies analysed.
+- A **Findings** section — 6 findings, 4 *Unusual* and 2 *Notable*.
 
-The top finding reads **"Edge-local failure pattern detected. Ring 4 (edge) shows reduced
-yield."** tsmap found that on its own: nothing was configured to look for it.
+Among them: **"Spatial pattern: edge-local — seen on 8/25 wafers"**, and a weak test site
+(site 3). tsmap found those on its own: nothing was configured to look for them.
 
-> **Mean per-wafer yield is not lot yield.** It is the arithmetic mean of 13 per-wafer
+> **Mean per-wafer yield is not lot yield.** It is the arithmetic mean of 25 per-wafer
 > percentages, so every wafer counts equally regardless of how many dies it has. The label
 > says which one it is — worth reading carefully whenever you quote a number from here.
 
@@ -76,21 +76,21 @@ The order is now:
 
 | Wafer | Yield |
 |-------|-------|
-| W11 · SS | 49.3 % |
-| W04 · SS | 56.6 % |
-| W08 · SF | 67.0 % |
-| W12 · FS | 67.9 % |
+| W10 · FF | 23.5 % |
+| W11 · SS | 33.5 % |
+| W18 · SS | 35.3 % |
+| W08 · SF | 40.3 % |
 | … | … |
-| W09 · TT | 94.1 % |
-| W07 · TT | 94.6 % |
+| W03 · TT | 91.0 % |
+| W01 · TT | 91.4 % |
 
-**This is the moment the lot explains itself.** The two worst wafers are both **SS**. The two
-best are both **TT**. Yield is tracking the process corner, not the slot number — and slot
+**This is the moment the lot explains itself.** The worst wafers are all skew corners (**FF**, **SS**, **SF**). The best
+are all **TT**. Yield is tracking the process corner, not the slot number — and slot
 order, the default view, hides that completely.
 
 ## 6. Look at the worst wafer
 
-Click the **⤢** expand icon on the `W11 · SS` card to open it on its own.
+Click the **⤢** expand icon on the `W10 · FF` card to open it on its own.
 
 Use the **Plot mode** button in the toolbar to switch between **Hard Bin** and **Soft Bin**.
 Hard bin tells you *whether* a die failed; soft bin tells you *how* — the same failures,
@@ -100,8 +100,8 @@ Close the expanded view when you are done.
 
 ## 7. Compare the corners
 
-Click **Insights** (the switch at the far right of the toolbar row, beside **Maps**). You get three sub-tabs:
-**Overview**, **Distributions**, and **Correlation**.
+Click **Insights** (the switch at the far right of the toolbar row, beside **Maps**). You get five tabs:
+**Overview**, **Distributions**, **Correlation**, **Data** and **My plots**.
 
 On **Overview**, find the **Group by:** picker and choose **Split**.
 
@@ -126,9 +126,9 @@ Any of these work from the lot view:
 
 ## What you have done
 
-- Loaded a 13-wafer lot and imported its tests.
+- Loaded a 25-wafer lot and imported its tests.
 - Read a lot-level summary and let tsmap surface an edge-related pattern unprompted.
-- Re-sorted by yield and found that the worst wafers share a process corner.
+- Re-sorted by yield and found that the worst wafers sit in the skew process corners.
 - Switched between hard and soft bin to separate *whether* from *how*.
 - Grouped the whole analysis by split to compare corners rather than wafers.
 - Exported a result.

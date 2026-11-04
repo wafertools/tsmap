@@ -83,7 +83,7 @@ Click a row and the map shows the affected dies. Click it again to clear.
 ---
 
 <!-- _class: split -->
-<!-- covers: fmax_MHz 3.2σ; idsat_n_uA 2.8σ; idsat_p_uA 2.7σ; vth_p_mV 2.7σ; vth_n_mV 2.6σ; Finding chip (test) -->
+<!-- covers: fmax_MHz 3.2σ; idsat_n_uA 2.9σ; idsat_p_uA 2.9σ; vth_p_mV 2.7σ; ioff_nA 2.5σ; Finding chip (test) -->
 
 # Buttons under an item
 
@@ -118,7 +118,7 @@ Click a button to show only that test, bin or pattern. This is `fmax_MHz`, with 
 
 # Full report
 
-**Full report ▸** at the foot of the section opens the report, which begins with the same items. The **Summary report** button at the top of the panel opens the same report.
+**Full report ▸** at the foot of the section opens the report, which begins with the same items. The **Summary report** button at the top of the panel opens the same report. The sample lot mixes test programs, so its report has one section for each group: the first holds only that group's wafers.
 
 ![The Summary report, opened from Full report](images/03/full-report.png)
 
@@ -219,6 +219,26 @@ A bin's button carries its legend colour and shows only those dies. This is hard
 
 ---
 
+<!-- _class: split -->
+
+# A cluster at the centre
+
+Failing dies that sit together form a **cluster**. Here a small group fails near the centre of every wafer, in a different place on each. The item names the pattern and the bins behind it. This is `CLUST-LOT-03`, in the repository's `sample_data` folder.
+
+![What stands out for CLUST-LOT-03](images/03/cluster-top-item.png)
+
+---
+
+<!-- _class: split -->
+
+# A shift with no defect
+
+Not every item is a pattern of failing dies. In [`PARAM-LOT-02`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-dense-lot.stdf&dataFormat=stdf) the top item is a test: `Iddq` is higher toward the edge on all six wafers, and many dies cross its high limit.
+
+![What stands out for PARAM-LOT-02](images/03/param-top-item.png)
+
+---
+
 <!-- _class: divider -->
 
 # The tables
@@ -249,7 +269,7 @@ One bar per wafer, in slot order, so a slot-related pattern shows. A badge count
 
 # Which yield?
 
-The panel's **76.3% mean per-wafer yield** averages the 13 wafers' own yields, each wafer counting once. A pooled yield counts every die once, so big wafers weigh more. The label always says which.
+The panel's **65.6% mean per-wafer yield** averages the 25 wafers' own yields, each wafer counting once. A pooled yield counts every die once, so big wafers weigh more. The label always says which.
 
 ---
 
@@ -338,8 +358,8 @@ Pass and fail counts and the pass rate for each functional test.
 # Try it yourself
 
 1. In the [web app](https://wafertools.github.io/tsmap/app/), **Load sample data**
-2. Click the **fmax_MHz** button under the top item: which wafer has the most marked dies?
-3. Open **Findings** and click the spatial pattern: which wafers does it mark?
+2. Click the **fmax_MHz** button under the top item: which split's wafers carry the most marked dies?
+3. Open **Findings** and click the **edge-local** spatial pattern: on how many wafers is it seen?
 4. In **Wafer Yield**, choose **Yield**: which wafer is lowest?
 5. Open **Data tables** and look at the **Wafers** table
 
@@ -349,9 +369,9 @@ Pass and fail counts and the pass rate for each functional test.
 
 # Check your results
 
-2. **W11** has the most marked dies: 73 of its 221 dies are outside the `fmax_MHz` limits. W04 has 55.
-3. The edge pattern marks **W05, W06, W10 and W12**, the four wafers the finding counts.
-4. **W11** is lowest, at 49.8% yield. W04 is next, at 58.4%.
+2. The **SS** wafers, such as W04: SS is the slow corner, so many of its dies fall below the `fmax_MHz` low limit (▽). The TT wafers have only a few marked dies.
+3. **8 of 25** wafers: the finding says so, and the map marks its dies on each of them.
+4. **W10 · FF** is lowest, at 23.5% yield. W11 · SS is next, at 33.5%.
 
 ---
 

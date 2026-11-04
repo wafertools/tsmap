@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Generate a synthetic ATDF file for testing the tsmap parser.
-3 wafers, ~200 dies, 4-site parallel test, 3 PTR + 1 FTR tests.
+3 wafers, ~200 dies, 4-site parallel test, 3 PTR + 5 FTR tests.
 """
 import math, random, sys
 from pathlib import Path
 from fixture_paths import fixture_path
+from functional_tests import ExtraFtr
 import atdf_spec as a   # the one spec-conformant set of ATDF record builders
 
 random.seed(42)
@@ -15,6 +16,7 @@ TESTS = [
     (1003, 'freq_MHz',    'MHz', 1800.0, 2200.0),
 ]
 FT_NUM, FT_NAME = 2001, 'scan_chain'
+EXTRA = ExtraFtr(FT_NUM)
 SITES  = [1, 2, 3, 4]
 WAFERS = ['W01', 'W02', 'W03']
 
@@ -57,6 +59,9 @@ def generate(out: Path):
                 ft_pass = not (edge and random.random() < 0.05)
                 if not ft_pass: failed.append(FT_NUM)
                 lines.append(a.ftr(FT_NUM, 1, site, ft_pass, FT_NAME))
+                for n, name, ok in EXTRA.draw(edge):
+                    if not ok: failed.append(n)
+                    lines.append(a.ftr(n, 1, site, ok, name))
 
                 die_pass = len(failed) == 0
                 hbin = 1 if die_pass else (2 if len(failed)==1 else 3)

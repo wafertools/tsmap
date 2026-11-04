@@ -25,6 +25,7 @@ random.seed(42)
 
 # ── STDF and ATDF records ─────────────────────────────────────────────────────
 # The one spec-conformant set of record builders: stdf_spec.py and atdf_spec.py.
+from functional_tests import ExtraFtr
 from stdf_spec import far, mir, sdr, wir, wrr, pir, prr, ptr as ptr_rec, ftr as ftr_rec, file_end
 import atdf_spec as atdf
 
@@ -95,6 +96,7 @@ def generate_stdf_atdf(
 ) -> None:
     stdf_buf = bytearray()
     atdf_lines: list[str] = []
+    extra = ExtraFtr(9000, seed=sum(map(ord, lot_id)))
 
     stdf_buf += far()
     stdf_buf += mir(lot_id, 'CHIP-TEST', 'test_program', 'Tester', 'node-01')
@@ -149,8 +151,14 @@ def generate_stdf_atdf(
                 # One FTR per die
                 ft_passed = not (edge and random.random() < 0.05)
                 stdf_buf += ftr_rec(9000, 1, site, ft_passed, 'scan_chain')
+                atdf_lines.append(atdf.ftr(9000, 1, site, ft_passed, 'scan_chain'))
                 if not ft_passed:
                     failed.append(9000)
+                for n, name, ok in extra.draw(edge):
+                    if not ok:
+                        failed.append(n)
+                    stdf_buf += ftr_rec(n, 1, site, ok, name)
+                    atdf_lines.append(atdf.ftr(n, 1, site, ok, name))
 
                 die_passed = len(failed) == 0
                 hbin = 1 if die_passed else (2 if len(failed) <= 2 else 3)

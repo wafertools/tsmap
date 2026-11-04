@@ -1,7 +1,7 @@
 /**
  * Lesson 09 — Derived tests and sweeps. Screenshots for docs/learn/09-derived-tests-and-sweeps.md.
  *
- * RRAM-LOT-06, a resistive-memory characterisation lot: its definitions file loaded in the test selector (the † Derived
+ * SWEEP-LOT-06, a two-state switching lot: its definitions file loaded in the test selector (the † Derived
  * filter, the derived tests in Plot mode), its plots file imported on My plots (two sweep cards) and the sweep editor.
  * Run by scripts/lesson-shots.mjs.
  */
@@ -9,9 +9,9 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
-const RRAM = `${SAMPLEDATA}/RRAM-LOT-06.stdf`;
-const RRAM_DEFS = `${SAMPLEDATA}/RRAM-LOT-06_testdefs.csv`;
-const RRAM_PLOTS = `${SAMPLEDATA}/RRAM-LOT-06_plots.json`;
+const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.stdf`;
+const SWEEP_DEFS = `${SAMPLEDATA}/SWEEP-LOT-06_testdefs.csv`;
+const SWEEP_PLOTS = `${SAMPLEDATA}/SWEEP-LOT-06_plots.json`;
 const GT = '[data-wmap-toolbar="gallery"]';
 const SELECTOR = '#tsmap-test-selector-overlay [role="dialog"]';
 const SEL_BTN = (t) => `#tsmap-test-selector-overlay button:has-text("${t}")`;
@@ -32,16 +32,16 @@ export const scenario = {
   deviceScaleFactor: 2,
   beats: [
     {
-      id: '01-load-rram',
-      title: 'RRAM-LOT-06: six wafers of a resistive-memory characterisation lot',
-      steps: [['loadFile', RRAM], ['waitForWafers'], ['click', '[data-wmap-summary-close]'], ['wait', 800], PARK],
-      checks: [hasText('[data-wmap-gallery-meta]', 'RRAM-LOT-06')],
+      id: '01-load-sweep',
+      title: 'SWEEP-LOT-06: six wafers of a two-state switching lot',
+      steps: [['loadFile', SWEEP], ['waitForWafers'], ['click', '[data-wmap-summary-close]'], ['wait', 800], PARK],
+      checks: [hasText('[data-wmap-gallery-meta]', 'SWEEP-LOT-06')],
       shots: [],
     },
     {
       id: '02-load-definitions',
       title: 'Setup ▾ → Tests… and Load definitions: the file brings readable names and 7 derived tests',
-      steps: [['openTestsDialog'], ['chooseFile', SEL_BTN('Load definitions'), RRAM_DEFS], ['wait', 600]],
+      steps: [['openTestsDialog'], ['chooseFile', SEL_BTN('Load definitions'), SWEEP_DEFS], ['wait', 600]],
       checks: [hasText(SELECTOR, '7 derived')],
       shots: [{ name: 'selector-loaded', clip: { target: SELECTOR, pad: 12 } }],
     },
@@ -49,7 +49,7 @@ export const scenario = {
       id: '03-derived-filter',
       title: '† Derived shows only the derived tests; a † marks each one',
       steps: [['click', SEL_BTN('† Derived')], ['wait', 600]],
-      checks: [hasText(SELECTOR, '900004')],
+      checks: [hasText(SELECTOR, '910004')],
       shots: [{ name: 'selector-derived', clip: { target: SELECTOR, pad: 12 }, callouts: [[SEL_BTN('† Derived'), { pad: 2 }]] }],
     },
     {
@@ -63,12 +63,12 @@ export const scenario = {
       title: 'A derived test is an ordinary test: it is in Plot mode, marked †',
       steps: [['click', `${GT} button[aria-label="Plot mode"]`], ['wait', 400], ['hover', `[role="menu"][aria-label="Plot mode"] [role^="menuitem"]:has-text("Test Value")`], ['wait', 500], ['fillInput', 'input[placeholder^="Filter tests"]', 'plateau'], ['wait', 500]],
       checks: [isVisible('[role="menu"][aria-label="Plot mode"]', 'the Plot mode menu is open')],
-      shots: [{ name: 'plot-mode-derived', clip: { rect: { x: 640, y: 40, width: 640, height: 300 } } }],
+      shots: [{ name: 'plot-mode-derived', clip: { rect: { x: 380, y: 40, width: 700, height: 320 } } }],
     },
     {
       id: '06-derived-map',
       title: 'Choosing a derived test colours every die by its computed value',
-      steps: [['click', 'text=Set plateau (uA)'], ['wait', 1500], PARK],
+      steps: [['click', 'text=Up plateau (uA)'], ['wait', 1500], PARK],
       checks: [isVisible(`${GT} button[aria-label="Toggle log scale"]`, 'the map is in Test Value mode')],
       shots: [{ name: 'derived-map', clip: { rect: { x: 0, y: 50, width: 900, height: 330 } } }],
     },
@@ -82,8 +82,8 @@ export const scenario = {
     {
       id: '08-import-plots',
       title: 'Import plots… reads the sweeps file: two sweep cards',
-      steps: [['chooseFile', plotBtn('Import plots…'), RRAM_PLOTS], ['wait', 2500], PARK],
-      checks: [hasText('#map-container', 'Set / reset switching')],
+      steps: [['chooseFile', plotBtn('Import plots…'), SWEEP_PLOTS], ['wait', 2500], PARK],
+      checks: [hasText('#map-container', 'Up / down switching')],
       shots: [{ name: 'sweep-cards', clip: hdr }],
     },
     {
@@ -96,7 +96,7 @@ export const scenario = {
       {
       id: '09-sweep-editor',
       title: 'Edit opens the sweep beside a live copy of its curve',
-      steps: [['click', `${card('Set / reset switching')} button:text-is("Edit")`], ['wait', 1500], ['click', '[role="dialog"] >> text="Edit plot"'], ['wait', 300]],
+      steps: [['click', `${card('Up / down switching')} button:text-is("Edit")`], ['wait', 1500], ['click', '[role="dialog"] >> text="Edit plot"'], ['wait', 300]],
       checks: [isVisible('[role="dialog"]', 'the sweep editor is open')],
       shots: [{ name: 'sweep-editor', clip: { target: '[role="dialog"]', pad: 8 } }],
     },

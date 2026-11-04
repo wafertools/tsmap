@@ -71,7 +71,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 14 more fields
+  · 19 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -87,22 +87,22 @@ Controls:
       hint: Charts and statistics for this lot
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
-  · 1 · Pass2,27179.0%
+  · 1 · Pass3,62765.6%
       hint: Right-click: charts and tables for these dies
-  · 2 · Fail (1 test)42514.8%
+  · 2 · Fail (1 test)1,23822.4%
       hint: Right-click: charts and tables for these dies
-  · 3 · Fail (multi)1776.2%
+  · 3 · Fail (multi)66011.9%
       hint: Right-click: charts and tables for these dies
   · W01 · TT▾  [aria="Wafer info for W01 · TT. Click to expand."]
-  · Open full view   (×13)
-  · Download PNG   (×13)
-  · Zoom (drag to zoom region)   (×13)
-  · Zoom in   (×13)
-  · Zoom out   (×13)
-  · Reset zoom (double-click)   (×13)
-  · Pan (drag to move)   (×13)
-  · Select (drag to select dies)   (×13)
-  · Charts and tables for this wafer (or right-click)  [opens menu]   (×13)
+  · Open full view   (×25)
+  · Download PNG   (×25)
+  · Zoom (drag to zoom region)   (×25)
+  · Zoom in   (×25)
+  · Zoom out   (×25)
+  · Reset zoom (double-click)   (×25)
+  · Pan (drag to move)   (×25)
+  · Select (drag to select dies)   (×25)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×25)
   · W02 · FF▾  [aria="Wafer info for W02 · FF. Click to expand."]
   · W03 · TT▾  [aria="Wafer info for W03 · TT. Click to expand."]
   · W04 · SS▾  [aria="Wafer info for W04 · SS. Click to expand."]
@@ -113,79 +113,111 @@ Controls:
   · W09 · TT▾  [aria="Wafer info for W09 · TT. Click to expand."]
   · W10 · FF▾  [aria="Wafer info for W10 · FF. Click to expand."]
   · W11 · SS▾  [aria="Wafer info for W11 · SS. Click to expand."]
-  · W12 · FS▾  [aria="Wafer info for W12 · FS. Click to expand."]
-  · W13 · SF▾  [aria="Wafer info for W13 · SF. Click to expand."]
+  · W12 · TT▾  [aria="Wafer info for W12 · TT. Click to expand."]
+  · W13 · FS▾  [aria="Wafer info for W13 · FS. Click to expand."]
+  · W14 · TT▾  [aria="Wafer info for W14 · TT. Click to expand."]
+  · W15 · SF▾  [aria="Wafer info for W15 · SF. Click to expand."]
+  · W16 · FF▾  [aria="Wafer info for W16 · FF. Click to expand."]
+  · W17 · TT▾  [aria="Wafer info for W17 · TT. Click to expand."]
+  · W18 · SS▾  [aria="Wafer info for W18 · SS. Click to expand."]
+  · W19 · TT▾  [aria="Wafer info for W19 · TT. Click to expand."]
+  · W20 · FS▾  [aria="Wafer info for W20 · FS. Click to expand."]
+  · W21 · SF▾  [aria="Wafer info for W21 · SF. Click to expand."]
+  · W22 · FF▾  [aria="Wafer info for W22 · FF. Click to expand."]
+  · W23 · TT▾  [aria="Wafer info for W23 · TT. Click to expand."]
+  · W24 · SS▾  [aria="Wafer info for W24 · SS. Click to expand."]
+  · W25 · FS▾  [aria="Wafer info for W25 · FS. Click to expand."]
   · ▸  [aria="Close the Summary panel"]
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact 6 tests differ by Split. Largest: fmax_MHz is higher on Split FF (2 of 13 wafers) than on the other wafers: a shift of 3.2σ, each wafer one value (q < 0.001); next: idsat_n_uA higher on FF (2.8σ), idsat_p_uA lower on SS (2.7σ), and 3 more
+  · ●●●High impact 6 tests differ by Split. Largest: fmax_MHz is higher on Split FF (4 of 25 wafers) than on the other wafers: a shift of 3.2σ, each wafer one value (q < 0.001); next: idsat_n_uA lower on SS (2.9σ), idsat_p_uA higher on FF (2.9σ), and 3 more
       hint: Click to show this test on the map, with the dies it fails
   · fmax_MHz 3.2σ
       hint: Click to show this test on the map, with the dies it fails
-  · idsat_n_uA 2.8σ
+  · idsat_n_uA 2.9σ
       hint: Click to show this test on the map, with the dies it fails
-  · idsat_p_uA 2.7σ
+  · idsat_p_uA 2.9σ
       hint: Click to show this test on the map, with the dies it fails
   · vth_p_mV 2.7σ
       hint: Click to show this test on the map, with the dies it fails
-  · vth_n_mV 2.6σ
+  · ioff_nA 2.5σ
       hint: Click to show this test on the map, with the dies it fails
   · Chart  [aria="Chart: Split: 6 tests differ"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●Highfmax_MHz: 177 dies outside limits6.2%
+  · ●●●Highioff_nA: 452 dies outside limits8.2%
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: fmax_MHz: 177 dies outside limits"]
+  · Chart  [aria="Chart: ioff_nA: 452 dies outside limits"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●Highvth_n_mV: 176 dies outside limits6.1%
+  · ●●●Highvth_p_mV: 447 dies outside limits8.1%
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: vth_n_mV: 176 dies outside limits"]
+  · Chart  [aria="Chart: vth_p_mV: 447 dies outside limits"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●Highvth_p_mV: 176 dies outside limits6.1%
+  · ●●●Highfmax_MHz: 400 dies outside limits7.2%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●●Highioff_nA: 116 dies outside limits4.0%
+  · Chart  [aria="Chart: fmax_MHz: 400 dies outside limits"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●Highvth_n_mV: 391 dies outside limits7.1%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●○Moderatescan_chain: 85 dies fail3.0%
+  · ●●○Moderateidsat_n_uA: 164 dies outside limits3.0%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●○Moderateidsat_n_uA: 78 dies outside limits2.7%
+  · ●●○Moderateidsat_p_uA: 157 dies outside limits2.8%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●○Moderateidsat_p_uA: 74 dies outside limits2.6%
+  · ●●○Moderatescan_chain: 151 dies fail2.7%
       hint: Click to show this test on the map, with the dies it fails
   · Full report ▸
-  · ▶Findings (3)2 unusual, 1 notable
-  · ●●●Unusual 2
-  · ●●○Notable 1
-  · Spatial pattern: edge (edge-local on 3, edge-ring on 1) — seen on 4/13 wafers (31%)
-      hint: Spatial pattern: edge (edge-local on 3, edge-ring on 1) — seen on 4/13 wafers (31%) Click to show it on the map
-  · Limit fail rate for idsat_n_uA is 2.0 pp higher than the rest of the wafer — higher on 9/13 wafers, all wafers' data combined
-      hint: Ring 4 (edge) limit fail rate for idsat_n_uA is 2.0 pp higher than the rest of the wafer — higher on 9/13 wafers, all wafers' data combined Click to show it on the map
-  · Limit fail rate for idsat_p_uA is 2.9 pp higher than the rest of the wafer — higher on 10/13 wafers, all wafers' data combined
-      hint: Ring 4 (edge) limit fail rate for idsat_p_uA is 2.9 pp higher than the rest of the wafer — higher on 10/13 wafers, all wafers' data combined Click to show it on the map
-  · ▶Wafer Yield (49.8–98.2%) · median 73.8%
+  · ▶Findings (6)4 unusual, 2 notable
+  · ●●●Unusual 4
+  · ●●○Notable 2
+  · Spatial pattern: edge-local — seen on 8/25 wafers (32%)
+      hint: Spatial pattern: edge-local — seen on 8/25 wafers (32%) Click to show it on the map
+  · Spatial pattern: near-full — seen on 3/25 wafers (12%)
+      hint: Spatial pattern: near-full — seen on 3/25 wafers (12%) Click to show it on the map
+  · Limit fail rate for idsat_n_uA is 3.0 pp higher than the rest of the wafer — higher on 19/25 wafers, all wafers' data combined
+      hint: Ring 4 (edge) limit fail rate for idsat_n_uA is 3.0 pp higher than the rest of the wafer — higher on 19/25 wafers, all wafers' data combined Click to show it on the map
+  · Limit fail rate for idsat_p_uA is 3.8 pp higher than the rest of the wafer — higher on 21/25 wafers, all wafers' data combined
+      hint: Ring 4 (edge) limit fail rate for idsat_p_uA is 3.8 pp higher than the rest of the wafer — higher on 21/25 wafers, all wafers' data combined Click to show it on the map
+  · Bist_mem pass rate 3.8 percentage points lower than other test sites — lower on 22/25 wafers, all wafers' data combined
+      hint: Site 3 has bist_mem pass rate 3.8 percentage points lower than other test sites — lower on 22/25 wafers, all wafers' data combined Click to show it on the map
+  · Io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined
+      hint: Site 3 has io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined Click to show it on the map
+  · ▶Wafer Yield (23.5–91.4%) · median 62.9%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W01 · TT95.5%+21.7  [aria="W01 · TT, 95.5% yield — open wafer"]
-  · W02 · FF71.9%−1.8  [aria="W02 · FF, 71.9% yield — open wafer"]
-  · W03 · TT395.5%+21.7  [aria="W03 · TT, 95.5% yield, 3 findings, 3 unusual — open wafer"]
-  · W04 · SS58.4%−15.4  [aria="W04 · SS, 58.4% yield — open wafer"]
-  · W05 · TT694.6%+20.8  [aria="W05 · TT, 94.6% yield, 6 findings — open wafer"]
-  · W06 · FS473.3%−0.5  [aria="W06 · FS, 73.3% yield, 4 findings — open wafer"]
-  · W07 · TT97.7%+24.0  [aria="W07 · TT, 97.7% yield — open wafer"]
-  · W08 · SF571.0%−2.7  [aria="W08 · SF, 71.0% yield, 5 findings — open wafer"]
-  · W09 · TT98.2%+24.4  [aria="W09 · TT, 98.2% yield — open wafer"]
-  · W10 · FF175.1%+1.4  [aria="W10 · FF, 75.1% yield, 1 finding — open wafer"]
-  · W11 · SS49.8%−24.0  [aria="W11 · SS, 49.8% yield — open wafer"]
-  · W12 · FS272.9%−0.9  [aria="W12 · FS, 72.9% yield, 2 findings — open wafer"]
-  · W13 · SF473.8%0.0  [aria="W13 · SF, 73.8% yield, 4 findings — open wafer"]
-  · ▶Hard Bin Breakdown — % of dies (N=2,873)
+  · W01 · TT91.4%+28.5  [aria="W01 · TT, 91.4% yield — open wafer"]
+  · W02 · FF68.8%+5.9  [aria="W02 · FF, 68.8% yield — open wafer"]
+  · W03 · TT91.0%+28.1  [aria="W03 · TT, 91.0% yield — open wafer"]
+  · W04 · SS54.8%−8.1  [aria="W04 · SS, 54.8% yield — open wafer"]
+  · W05 · TT89.6%+26.7  [aria="W05 · TT, 89.6% yield — open wafer"]
+  · W06 · FS162.9%0.0  [aria="W06 · FS, 62.9% yield, 1 finding — open wafer"]
+  · W07 · TT82.8%+19.9  [aria="W07 · TT, 82.8% yield — open wafer"]
+  · W08 · SF40.3%−22.6  [aria="W08 · SF, 40.3% yield — open wafer"]
+  · W09 · TT684.2%+21.3  [aria="W09 · TT, 84.2% yield, 6 findings, 5 unusual — open wafer"]
+  · W10 · FF123.5%−39.4  [aria="W10 · FF, 23.5% yield, 1 finding — open wafer"]
+  · W11 · SS133.5%−29.4  [aria="W11 · SS, 33.5% yield, 1 finding — open wafer"]
+  · W12 · TT278.3%+15.4  [aria="W12 · TT, 78.3% yield, 2 findings — open wafer"]
+  · W13 · FS343.9%−19.0  [aria="W13 · FS, 43.9% yield, 3 findings — open wafer"]
+  · W14 · TT687.8%+24.9  [aria="W14 · TT, 87.8% yield, 6 findings — open wafer"]
+  · W15 · SF49.8%−13.1  [aria="W15 · SF, 49.8% yield — open wafer"]
+  · W16 · FF178.3%+15.4  [aria="W16 · FF, 78.3% yield, 1 finding — open wafer"]
+  · W17 · TT88.2%+25.3  [aria="W17 · TT, 88.2% yield — open wafer"]
+  · W18 · SS135.3%−27.6  [aria="W18 · SS, 35.3% yield, 1 finding — open wafer"]
+  · W19 · TT188.2%+25.3  [aria="W19 · TT, 88.2% yield, 1 finding — open wafer"]
+  · W20 · FS658.4%−4.5  [aria="W20 · FS, 58.4% yield, 6 findings — open wafer"]
+  · W21 · SF157.0%−5.9  [aria="W21 · SF, 57.0% yield, 1 finding — open wafer"]
+  · W22 · FF158.8%−4.1  [aria="W22 · FF, 58.8% yield, 1 finding — open wafer"]
+  · W23 · TT84.6%+21.7  [aria="W23 · TT, 84.6% yield — open wafer"]
+  · W24 · SS47.1%−15.8  [aria="W24 · SS, 47.1% yield — open wafer"]
+  · W25 · FS162.9%0.0  [aria="W25 · FS, 62.9% yield, 1 finding — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=5,525)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
   · ▶Ring Yield
   · Ring  [radio, checked]
   · Quadrant  [radio, unchecked]
-  · ▶Test Values (6) — 13 wafers pooled · N=2,873
-  · ▶Functional Tests (1) — 13 wafers pooled · N=2,873
-  · Log
+  · ▶Test Values (6) — 25 wafers pooled · N=5,525
+  · ▶Functional Tests (8) — 25 wafers pooled · N=5,525
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 Menu — Open files ▾:
@@ -321,8 +353,20 @@ Dialog — Splits…
     · W09sample-lot.stdfTT  [checkbox, unchecked]
     · W10sample-lot.stdfFF  [checkbox, unchecked]
     · W11sample-lot.stdfSS  [checkbox, unchecked]
-    · W12sample-lot.stdfFS  [checkbox, unchecked]
-    · W13sample-lot.stdfSF  [checkbox, unchecked]
+    · W12sample-lot.stdfTT  [checkbox, unchecked]
+    · W13sample-lot.stdfFS  [checkbox, unchecked]
+    · W14sample-lot.stdfTT  [checkbox, unchecked]
+    · W15sample-lot.stdfSF  [checkbox, unchecked]
+    · W16sample-lot.stdfFF  [checkbox, unchecked]
+    · W17sample-lot.stdfTT  [checkbox, unchecked]
+    · W18sample-lot.stdfSS  [checkbox, unchecked]
+    · W19sample-lot.stdfTT  [checkbox, unchecked]
+    · W20sample-lot.stdfFS  [checkbox, unchecked]
+    · W21sample-lot.stdfSF  [checkbox, unchecked]
+    · W22sample-lot.stdfFF  [checkbox, unchecked]
+    · W23sample-lot.stdfTT  [checkbox, unchecked]
+    · W24sample-lot.stdfSS  [checkbox, unchecked]
+    · W25sample-lot.stdfFS  [checkbox, unchecked]
     · Assign to selected  [disabled]
     · Clear split  [disabled]
     · Clear all
@@ -470,7 +514,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -498,6 +542,17 @@ Controls:
   · What divides yield
   · Group by
       hint: Group Insights by Split, so every chart compares its groups   (×3)
+  · Group by
+      hint: Group Insights by Tester, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Node, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Probe card, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Temperature, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Program rev, so every chart compares its groups
+  · Show all 24 rows
   · Sort: yield  [radio, unchecked]
   · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
@@ -508,11 +563,11 @@ Controls:
   · Heatmap  [radio, checked]   (×2)
   · Diagram  [radio, unchecked]   (×2)
   · Part average testing (PAT)
-  · Show all 13 wafers
+  · Show all 25 wafers
   · Map the verdicts
       hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
   · Data tab
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 Menu — Open files ▾:
@@ -568,6 +623,13 @@ Menu — Help:
 Menu — Group by:
     · None
     · Split (5)
+    · Temperature (2)
+    · Operator (2)
+    · Tester (2)
+    · Node (2)
+    · Probe card (2)
+    · Burn-in time (2)
+    · Program rev (2)
 
 Menu — Columns:
     · Auto (0)
@@ -601,7 +663,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -629,6 +691,17 @@ Controls:
   · What divides yield
   · Group by
       hint: Group Insights by Split, so every chart compares its groups   (×3)
+  · Group by
+      hint: Group Insights by Tester, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Node, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Probe card, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Temperature, so every chart compares its groups
+  · Group by
+      hint: Group Insights by Program rev, so every chart compares its groups
+  · Show all 24 rows
   · Sort: yield  [radio, unchecked]
   · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
@@ -639,11 +712,11 @@ Controls:
   · Heatmap  [radio, checked]   (×2)
   · Diagram  [radio, unchecked]   (×2)
   · Part average testing (PAT)
-  · Show all 13 wafers
+  · Show all 25 wafers
   · Map the verdicts
       hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
   · Data tab
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 ## Insights (sample lot) › Distributions
@@ -663,7 +736,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -699,7 +772,7 @@ Controls:
   · Trend  [radio, checked]
   · Control chart  [radio, unchecked]
   · Bands on a line
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 Menu — Test:
@@ -735,8 +808,20 @@ Menu — Wafer:
     · W09 · TT
     · W10 · FF
     · W11 · SS
-    · W12 · FS
-    · W13 · SF
+    · W12 · TT
+    · W13 · FS
+    · W14 · TT
+    · W15 · SF
+    · W16 · FF
+    · W17 · TT
+    · W18 · SS
+    · W19 · TT
+    · W20 · FS
+    · W21 · SF
+    · W22 · FF
+    · W23 · TT
+    · W24 · SS
+    · W25 · FS
 
 ## Insights (sample lot) › Correlation
 
@@ -755,7 +840,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -791,7 +876,7 @@ Controls:
   · Bin 1
   · Bin 2
   · Bin 3
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 Menu — Chart actions:
@@ -815,7 +900,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -844,7 +929,7 @@ Controls:
       hint: Save the test-values table as a CSV file
   · Functional CSV
       hint: Save the functional-tests table as a CSV file
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 ## Insights (sample lot) › My plots
@@ -864,7 +949,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -893,7 +978,7 @@ Controls:
       hint: Save all your plots to a file, to share or to keep a copy
   · Delete all plots…  [disabled]
       hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 ## Insights (sample lot) › My plots › Examples
@@ -913,7 +998,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -965,7 +1050,7 @@ Controls:
   · Bin 3
   · Control charts
   · Capability, Ppk and the goal plot
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 Menu — Chart actions:
@@ -991,7 +1076,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -1039,9 +1124,21 @@ Controls:
   · W09 · TT   (×2)
   · W10 · FF   (×2)
   · W11 · SS   (×2)
-  · W12 · FS   (×2)
-  · W13 · SF   (×2)
-  · Log
+  · W12 · TT   (×2)
+  · W13 · FS   (×2)
+  · W14 · TT   (×2)
+  · W15 · SF   (×2)
+  · W16 · FF   (×2)
+  · W17 · TT   (×2)
+  · W18 · SS   (×2)
+  · W19 · TT   (×2)
+  · W20 · FS   (×2)
+  · W21 · SF   (×2)
+  · W22 · FF   (×2)
+  · W23 · TT   (×2)
+  · W24 · SS   (×2)
+  · W25 · FS   (×2)
+  · ▲ 1 new warningLog
       hint: Show the log panel
   · Maximize (F)
   · Close (Esc)
@@ -1090,9 +1187,11 @@ Menu — X axis:
     · Wafer order
     · Yield
     · Dies
+    · Temperature
     · Test station
     · Probe head
     · Site group
+    · Burn-in time
     · Program rev
 
 Menu — Y axis:
@@ -1109,15 +1208,24 @@ Menu — Y axis:
     · ioff_nA · 1005 pass rate
     · fmax_MHz · 1006 pass rate
     · scan_chain · 2001 pass rate
+    · bist_mem · 2002 pass rate
+    · io_loopback · 2003 pass rate
+    · pll_lock · 2004 pass rate
+    · ddr_phy · 2005 pass rate
+    · serdes_prbs · 2006 pass rate
+    · jtag_idcode · 2007 pass rate
+    · power_seq · 2008 pass rate
     · Die X
     · Die Y
     · Radial position
     · Wafer order
     · Yield — Yield is per wafer: use a bar or line chart  [disabled]
     · Dies
+    · Temperature
     · Test station
     · Probe head
     · Site group
+    · Burn-in time
     · Program rev
 
 Menu — Colour:
@@ -1129,6 +1237,13 @@ Menu — Colour:
     · ioff_nA · 1005
     · fmax_MHz · 1006
     · scan_chain · 2001 (pass/fail)
+    · bist_mem · 2002 (pass/fail)
+    · io_loopback · 2003 (pass/fail)
+    · pll_lock · 2004 (pass/fail)
+    · ddr_phy · 2005 (pass/fail)
+    · serdes_prbs · 2006 (pass/fail)
+    · jtag_idcode · 2007 (pass/fail)
+    · power_seq · 2008 (pass/fail)
     · vth_n_mV · 1001 pass rate
     · vth_p_mV · 1002 pass rate
     · idsat_n_uA · 1003 pass rate
@@ -1136,6 +1251,13 @@ Menu — Colour:
     · ioff_nA · 1005 pass rate
     · fmax_MHz · 1006 pass rate
     · scan_chain · 2001 pass rate
+    · bist_mem · 2002 pass rate
+    · io_loopback · 2003 pass rate
+    · pll_lock · 2004 pass rate
+    · ddr_phy · 2005 pass rate
+    · serdes_prbs · 2006 pass rate
+    · jtag_idcode · 2007 pass rate
+    · power_seq · 2008 pass rate
     · Die X
     · Die Y
     · Radial position
@@ -1152,15 +1274,20 @@ Menu — Colour:
     · Lot
     · Part type
     · Program
+    · Temperature
     · Test date
     · Operator
-    · Temperature
     · Tester
     · Node
     · Test station
     · Probe head
     · Site group
+    · Handler type
+    · Handler
+    · Probe card type
+    · Probe card
     · Test mode
+    · Burn-in time
     · Test code
     · Setup date
     · Program rev
@@ -1184,7 +1311,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -1232,9 +1359,21 @@ Controls:
   · W09 · TT   (×2)
   · W10 · FF   (×2)
   · W11 · SS   (×2)
-  · W12 · FS   (×2)
-  · W13 · SF   (×2)
-  · Log
+  · W12 · TT   (×2)
+  · W13 · FS   (×2)
+  · W14 · TT   (×2)
+  · W15 · SF   (×2)
+  · W16 · FF   (×2)
+  · W17 · TT   (×2)
+  · W18 · SS   (×2)
+  · W19 · TT   (×2)
+  · W20 · FS   (×2)
+  · W21 · SF   (×2)
+  · W22 · FF   (×2)
+  · W23 · TT   (×2)
+  · W24 · SS   (×2)
+  · W25 · FS   (×2)
+  · ▲ 1 new warningLog
       hint: Show the log panel
   · Maximize (F)
   · Close (Esc)
@@ -1271,7 +1410,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 11 more fields
+  · 16 more fields
   · Maps
       hint: The wafer maps
   · Insights
@@ -1308,7 +1447,7 @@ Controls:
       hint: Make a copy of this plot to vary
   · Delete
       hint: Remove this plot. Undo brings it back for ten seconds
-  · Log
+  · ▲ 1 new warningLog
       hint: Show the log panel
   · Maximize (F)
   · Close (Esc)
@@ -1352,7 +1491,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 14 more fields
+  · 19 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -1368,24 +1507,24 @@ Controls:
       hint: Charts and statistics for this lot
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
-  · 1 · Pass2,27179.0%
+  · 1 · Pass3,62765.6%
       hint: Right-click: charts and tables for these dies
-  · 2 · Fail (1 test)42514.8%
+  · 2 · Fail (1 test)1,23822.4%
       hint: Right-click: charts and tables for these dies
-  · 3 · Fail (multi)1776.2%
+  · 3 · Fail (multi)66011.9%
       hint: Right-click: charts and tables for these dies
   · W01 · TT▾  [aria="Wafer info for W01 · TT. Click to expand."]
   · Reattach to gallery
   · W02 · FF▾  [aria="Wafer info for W02 · FF. Click to expand."]
-  · Open full view   (×12)
-  · Download PNG   (×12)
-  · Zoom (drag to zoom region)   (×12)
-  · Zoom in   (×12)
-  · Zoom out   (×12)
-  · Reset zoom (double-click)   (×12)
-  · Pan (drag to move)   (×12)
-  · Select (drag to select dies)   (×12)
-  · Charts and tables for this wafer (or right-click)  [opens menu]   (×12)
+  · Open full view   (×24)
+  · Download PNG   (×24)
+  · Zoom (drag to zoom region)   (×24)
+  · Zoom in   (×24)
+  · Zoom out   (×24)
+  · Reset zoom (double-click)   (×24)
+  · Pan (drag to move)   (×24)
+  · Select (drag to select dies)   (×24)
+  · Charts and tables for this wafer (or right-click)  [opens menu]   (×24)
   · W03 · TT▾  [aria="Wafer info for W03 · TT. Click to expand."]
   · W04 · SS▾  [aria="Wafer info for W04 · SS. Click to expand."]
   · W05 · TT▾  [aria="Wafer info for W05 · TT. Click to expand."]
@@ -1395,79 +1534,111 @@ Controls:
   · W09 · TT▾  [aria="Wafer info for W09 · TT. Click to expand."]
   · W10 · FF▾  [aria="Wafer info for W10 · FF. Click to expand."]
   · W11 · SS▾  [aria="Wafer info for W11 · SS. Click to expand."]
-  · W12 · FS▾  [aria="Wafer info for W12 · FS. Click to expand."]
-  · W13 · SF▾  [aria="Wafer info for W13 · SF. Click to expand."]
+  · W12 · TT▾  [aria="Wafer info for W12 · TT. Click to expand."]
+  · W13 · FS▾  [aria="Wafer info for W13 · FS. Click to expand."]
+  · W14 · TT▾  [aria="Wafer info for W14 · TT. Click to expand."]
+  · W15 · SF▾  [aria="Wafer info for W15 · SF. Click to expand."]
+  · W16 · FF▾  [aria="Wafer info for W16 · FF. Click to expand."]
+  · W17 · TT▾  [aria="Wafer info for W17 · TT. Click to expand."]
+  · W18 · SS▾  [aria="Wafer info for W18 · SS. Click to expand."]
+  · W19 · TT▾  [aria="Wafer info for W19 · TT. Click to expand."]
+  · W20 · FS▾  [aria="Wafer info for W20 · FS. Click to expand."]
+  · W21 · SF▾  [aria="Wafer info for W21 · SF. Click to expand."]
+  · W22 · FF▾  [aria="Wafer info for W22 · FF. Click to expand."]
+  · W23 · TT▾  [aria="Wafer info for W23 · TT. Click to expand."]
+  · W24 · SS▾  [aria="Wafer info for W24 · SS. Click to expand."]
+  · W25 · FS▾  [aria="Wafer info for W25 · FS. Click to expand."]
   · ▸  [aria="Close the Summary panel"]
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact 6 tests differ by Split. Largest: fmax_MHz is higher on Split FF (2 of 13 wafers) than on the other wafers: a shift of 3.2σ, each wafer one value (q < 0.001); next: idsat_n_uA higher on FF (2.8σ), idsat_p_uA lower on SS (2.7σ), and 3 more
+  · ●●●High impact 6 tests differ by Split. Largest: fmax_MHz is higher on Split FF (4 of 25 wafers) than on the other wafers: a shift of 3.2σ, each wafer one value (q < 0.001); next: idsat_n_uA lower on SS (2.9σ), idsat_p_uA higher on FF (2.9σ), and 3 more
       hint: Click to show this test on the map, with the dies it fails
   · fmax_MHz 3.2σ
       hint: Click to show this test on the map, with the dies it fails
-  · idsat_n_uA 2.8σ
+  · idsat_n_uA 2.9σ
       hint: Click to show this test on the map, with the dies it fails
-  · idsat_p_uA 2.7σ
+  · idsat_p_uA 2.9σ
       hint: Click to show this test on the map, with the dies it fails
   · vth_p_mV 2.7σ
       hint: Click to show this test on the map, with the dies it fails
-  · vth_n_mV 2.6σ
+  · ioff_nA 2.5σ
       hint: Click to show this test on the map, with the dies it fails
   · Chart  [aria="Chart: Split: 6 tests differ"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●Highfmax_MHz: 177 dies outside limits6.2%
+  · ●●●Highioff_nA: 452 dies outside limits8.2%
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: fmax_MHz: 177 dies outside limits"]
+  · Chart  [aria="Chart: ioff_nA: 452 dies outside limits"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●Highvth_n_mV: 176 dies outside limits6.1%
+  · ●●●Highvth_p_mV: 447 dies outside limits8.1%
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: vth_n_mV: 176 dies outside limits"]
+  · Chart  [aria="Chart: vth_p_mV: 447 dies outside limits"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●Highvth_p_mV: 176 dies outside limits6.1%
+  · ●●●Highfmax_MHz: 400 dies outside limits7.2%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●●Highioff_nA: 116 dies outside limits4.0%
+  · Chart  [aria="Chart: fmax_MHz: 400 dies outside limits"]
+      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●Highvth_n_mV: 391 dies outside limits7.1%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●○Moderatescan_chain: 85 dies fail3.0%
+  · ●●○Moderateidsat_n_uA: 164 dies outside limits3.0%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●○Moderateidsat_n_uA: 78 dies outside limits2.7%
+  · ●●○Moderateidsat_p_uA: 157 dies outside limits2.8%
       hint: Click to show this test on the map, with the dies it fails
-  · ●●○Moderateidsat_p_uA: 74 dies outside limits2.6%
+  · ●●○Moderatescan_chain: 151 dies fail2.7%
       hint: Click to show this test on the map, with the dies it fails
   · Full report ▸
-  · ▶Findings (3)2 unusual, 1 notable
-  · ●●●Unusual 2
-  · ●●○Notable 1
-  · Spatial pattern: edge (edge-local on 3, edge-ring on 1) — seen on 4/13 wafers (31%)
-      hint: Spatial pattern: edge (edge-local on 3, edge-ring on 1) — seen on 4/13 wafers (31%) Click to show it on the map
-  · Limit fail rate for idsat_n_uA is 2.0 pp higher than the rest of the wafer — higher on 9/13 wafers, all wafers' data combined
-      hint: Ring 4 (edge) limit fail rate for idsat_n_uA is 2.0 pp higher than the rest of the wafer — higher on 9/13 wafers, all wafers' data combined Click to show it on the map
-  · Limit fail rate for idsat_p_uA is 2.9 pp higher than the rest of the wafer — higher on 10/13 wafers, all wafers' data combined
-      hint: Ring 4 (edge) limit fail rate for idsat_p_uA is 2.9 pp higher than the rest of the wafer — higher on 10/13 wafers, all wafers' data combined Click to show it on the map
-  · ▶Wafer Yield (49.8–98.2%) · median 73.8%
+  · ▶Findings (6)4 unusual, 2 notable
+  · ●●●Unusual 4
+  · ●●○Notable 2
+  · Spatial pattern: edge-local — seen on 8/25 wafers (32%)
+      hint: Spatial pattern: edge-local — seen on 8/25 wafers (32%) Click to show it on the map
+  · Spatial pattern: near-full — seen on 3/25 wafers (12%)
+      hint: Spatial pattern: near-full — seen on 3/25 wafers (12%) Click to show it on the map
+  · Limit fail rate for idsat_n_uA is 3.0 pp higher than the rest of the wafer — higher on 19/25 wafers, all wafers' data combined
+      hint: Ring 4 (edge) limit fail rate for idsat_n_uA is 3.0 pp higher than the rest of the wafer — higher on 19/25 wafers, all wafers' data combined Click to show it on the map
+  · Limit fail rate for idsat_p_uA is 3.8 pp higher than the rest of the wafer — higher on 21/25 wafers, all wafers' data combined
+      hint: Ring 4 (edge) limit fail rate for idsat_p_uA is 3.8 pp higher than the rest of the wafer — higher on 21/25 wafers, all wafers' data combined Click to show it on the map
+  · Bist_mem pass rate 3.8 percentage points lower than other test sites — lower on 22/25 wafers, all wafers' data combined
+      hint: Site 3 has bist_mem pass rate 3.8 percentage points lower than other test sites — lower on 22/25 wafers, all wafers' data combined Click to show it on the map
+  · Io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined
+      hint: Site 3 has io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined Click to show it on the map
+  · ▶Wafer Yield (23.5–91.4%) · median 62.9%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W01 · TT95.5%+21.7  [aria="W01 · TT, 95.5% yield — open wafer"]
-  · W02 · FF71.9%−1.8  [aria="W02 · FF, 71.9% yield — open wafer"]
-  · W03 · TT395.5%+21.7  [aria="W03 · TT, 95.5% yield, 3 findings, 3 unusual — open wafer"]
-  · W04 · SS58.4%−15.4  [aria="W04 · SS, 58.4% yield — open wafer"]
-  · W05 · TT694.6%+20.8  [aria="W05 · TT, 94.6% yield, 6 findings — open wafer"]
-  · W06 · FS473.3%−0.5  [aria="W06 · FS, 73.3% yield, 4 findings — open wafer"]
-  · W07 · TT97.7%+24.0  [aria="W07 · TT, 97.7% yield — open wafer"]
-  · W08 · SF571.0%−2.7  [aria="W08 · SF, 71.0% yield, 5 findings — open wafer"]
-  · W09 · TT98.2%+24.4  [aria="W09 · TT, 98.2% yield — open wafer"]
-  · W10 · FF175.1%+1.4  [aria="W10 · FF, 75.1% yield, 1 finding — open wafer"]
-  · W11 · SS49.8%−24.0  [aria="W11 · SS, 49.8% yield — open wafer"]
-  · W12 · FS272.9%−0.9  [aria="W12 · FS, 72.9% yield, 2 findings — open wafer"]
-  · W13 · SF473.8%0.0  [aria="W13 · SF, 73.8% yield, 4 findings — open wafer"]
-  · ▶Hard Bin Breakdown — % of dies (N=2,873)
+  · W01 · TT91.4%+28.5  [aria="W01 · TT, 91.4% yield — open wafer"]
+  · W02 · FF68.8%+5.9  [aria="W02 · FF, 68.8% yield — open wafer"]
+  · W03 · TT91.0%+28.1  [aria="W03 · TT, 91.0% yield — open wafer"]
+  · W04 · SS54.8%−8.1  [aria="W04 · SS, 54.8% yield — open wafer"]
+  · W05 · TT89.6%+26.7  [aria="W05 · TT, 89.6% yield — open wafer"]
+  · W06 · FS162.9%0.0  [aria="W06 · FS, 62.9% yield, 1 finding — open wafer"]
+  · W07 · TT82.8%+19.9  [aria="W07 · TT, 82.8% yield — open wafer"]
+  · W08 · SF40.3%−22.6  [aria="W08 · SF, 40.3% yield — open wafer"]
+  · W09 · TT684.2%+21.3  [aria="W09 · TT, 84.2% yield, 6 findings, 5 unusual — open wafer"]
+  · W10 · FF123.5%−39.4  [aria="W10 · FF, 23.5% yield, 1 finding — open wafer"]
+  · W11 · SS133.5%−29.4  [aria="W11 · SS, 33.5% yield, 1 finding — open wafer"]
+  · W12 · TT278.3%+15.4  [aria="W12 · TT, 78.3% yield, 2 findings — open wafer"]
+  · W13 · FS343.9%−19.0  [aria="W13 · FS, 43.9% yield, 3 findings — open wafer"]
+  · W14 · TT687.8%+24.9  [aria="W14 · TT, 87.8% yield, 6 findings — open wafer"]
+  · W15 · SF49.8%−13.1  [aria="W15 · SF, 49.8% yield — open wafer"]
+  · W16 · FF178.3%+15.4  [aria="W16 · FF, 78.3% yield, 1 finding — open wafer"]
+  · W17 · TT88.2%+25.3  [aria="W17 · TT, 88.2% yield — open wafer"]
+  · W18 · SS135.3%−27.6  [aria="W18 · SS, 35.3% yield, 1 finding — open wafer"]
+  · W19 · TT188.2%+25.3  [aria="W19 · TT, 88.2% yield, 1 finding — open wafer"]
+  · W20 · FS658.4%−4.5  [aria="W20 · FS, 58.4% yield, 6 findings — open wafer"]
+  · W21 · SF157.0%−5.9  [aria="W21 · SF, 57.0% yield, 1 finding — open wafer"]
+  · W22 · FF158.8%−4.1  [aria="W22 · FF, 58.8% yield, 1 finding — open wafer"]
+  · W23 · TT84.6%+21.7  [aria="W23 · TT, 84.6% yield — open wafer"]
+  · W24 · SS47.1%−15.8  [aria="W24 · SS, 47.1% yield — open wafer"]
+  · W25 · FS162.9%0.0  [aria="W25 · FS, 62.9% yield, 1 finding — open wafer"]
+  · ▶Hard Bin Breakdown — % of dies (N=5,525)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
   · ▶Ring Yield
   · Ring  [radio, checked]
   · Quadrant  [radio, unchecked]
-  · ▶Test Values (6) — 13 wafers pooled · N=2,873
-  · ▶Functional Tests (1) — 13 wafers pooled · N=2,873
-  · Log
+  · ▶Test Values (6) — 25 wafers pooled · N=5,525
+  · ▶Functional Tests (8) — 25 wafers pooled · N=5,525
+  · ▲ 1 new warningLog
       hint: Show the log panel
 
 ## One wafer loaded
@@ -1487,7 +1658,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 300 mm · Die height: 8 mm · Die width: 10 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25 · Wafer diameter: 300 mm · Die height: 8 mm · Die width: 10 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
   · Summary
   · Map
       hint: The wafer map
@@ -1513,7 +1684,7 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 5.8 of those points, hard bin 2 (Continuity) for 3.8 — about 30 dies lost. Iddq is above its high limit on 19 dies, 18 of them in Ring 4 (edge)
+  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 5.8 of those points, hard bin 2 (Continuity) for 3.8 — about 30 dies lost. Iddq is above its high limit on 19 dies, 18 of them in Ring 4 (edge). bist_mem fails on 8 dies, all of them in Ring 4 (edge)
       hint: Ring 4 (edge) yield is 9.9 percentage points lower than the rest of the map Click to show it on the map
   · Edge-ring pattern
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
@@ -1523,15 +1694,17 @@ Controls:
       hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.8 percentage points higher than the rest of the map Click to show it on the map
   · Iddq
       hint: Click to show this test on the map, with the dies it fails
+  · bist_mem
+      hint: Click to show this test on the map, with the dies it fails
   · Chart  [aria="Chart: Ring 4 (edge): pass rate, 30 dies"]
       hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
-  · ▶Findings (12)1 notable
+  · ▶Findings (13)1 notable
   · ●●○Notable 1
-  · ●○○Minor 11
+  · ●○○Minor 12
   · Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
-  · ▸Show 8 supporting findings
+  · ▸Show 9 supporting findings
   · ▶Hard Bin Breakdown — % of dies (N=799)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -1539,6 +1712,7 @@ Controls:
   · Ring  [radio, checked]
   · Quadrant  [radio, unchecked]
   · ▶Test Values (3) · N=799
+  · ▶Functional Tests (5) · N=799
   · Log
       hint: Show the log panel
 
@@ -1559,7 +1733,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25C · Wafer diameter: 300 mm · Die height: 8 mm · Die width: 10 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
+  · EDGE-LOT-01 · W01▾Setup date: <timestamp> · Test date: <timestamp> · Test mode: P · Part type: CHIP-A · Node: node-01 · Tester: Tester-1 · Program: EDGE_v2 · Program rev: 1.0 · Operator: alice · Test code: WS · Temperature: 25 · Wafer diameter: 300 mm · Die height: 8 mm · Die width: 10 mm · Wafer flat: Bottom · Wafer start date: <timestamp> · Handler type: PRB-200 · Handler: P-100 · Probe card type: PC-A · Probe card: C-1001 · Wafer finish date: <timestamp>  [aria="Wafer info: EDGE-LOT-01 · W01. Click to expand."]
   · Map
       hint: The wafer map
   · Insights
@@ -1571,7 +1745,7 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 5.8 of those points, hard bin 2 (Continuity) for 3.8 — about 30 dies lost. Iddq is above its high limit on 19 dies, 18 of them in Ring 4 (edge)
+  · ●●●High impact Edge-ring pattern. Ring 4 (edge): pass rate 9.9 points below the rest of the wafer; mostly hard bin 3 (Iddq) accounts for 5.8 of those points, hard bin 2 (Continuity) for 3.8 — about 30 dies lost. Iddq is above its high limit on 19 dies, 18 of them in Ring 4 (edge). bist_mem fails on 8 dies, all of them in Ring 4 (edge)
       hint: Ring 4 (edge) yield is 9.9 percentage points lower than the rest of the map Click to show it on the map
   · Edge-ring pattern
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
@@ -1581,15 +1755,17 @@ Controls:
       hint: Ring 4 (edge) has HBin 2 (Continuity) occurrence 3.8 percentage points higher than the rest of the map Click to show it on the map
   · Iddq
       hint: Click to show this test on the map, with the dies it fails
+  · bist_mem
+      hint: Click to show this test on the map, with the dies it fails
   · Chart  [aria="Chart: Ring 4 (edge): pass rate, 30 dies"]
       hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
-  · ▶Findings (12)1 notable
+  · ▶Findings (13)1 notable
   · ●●○Notable 1
-  · ●○○Minor 11
+  · ●○○Minor 12
   · Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing
       hint: Spatial pattern: edge-ring (medium confidence) — 10% of edge dies failing Click to show it on the map
-  · ▸Show 8 supporting findings
+  · ▸Show 9 supporting findings
   · ▶Hard Bin Breakdown — % of dies (N=799)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -1597,6 +1773,7 @@ Controls:
   · Ring  [radio, checked]
   · Quadrant  [radio, unchecked]
   · ▶Test Values (3) · N=799
+  · ▶Functional Tests (5) · N=799
   · Overview
       hint: Yield, bins and what stands out
   · Distributions
@@ -1608,14 +1785,15 @@ Controls:
   · My plots
       hint: Plots you have built and saved
   · Auto (0)▾  [aria="Columns", opens menu]
-  · Expand   (×6)
-  · Chart actions  [opens menu]   (×6)
+  · Expand   (×7)
+  · Chart actions  [opens menu]   (×7)
   · Show on map
       hint: Leave Insights and show this on the map, as its row in What stands out does
   · Hard bins  [radio, checked]
   · Soft bins  [radio, unchecked]
   · Test limits  [radio, checked]
   · Tester flag  [radio, unchecked]
+  · Functional  [radio, unchecked]
   · Part average testing (PAT)
   · Map the verdicts
       hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
@@ -1640,7 +1818,7 @@ Controls:
       hint: Preferences
   · Help  [opens menu]
       hint: Help
-  · 13 more fields
+  · 17 more fields
   · Plot mode  [opens menu]
   · Colour scheme  [opens menu]
   · Overlays  [opens menu]
@@ -1656,13 +1834,13 @@ Controls:
       hint: Charts and statistics for this lot
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
-  · 1 · Pass1,25994.9%
+  · 1 · Pass1,24694.0%
       hint: Right-click: charts and tables for these dies
-  · 3 · No set443.3%
+  · 3 · No up-switch302.3%
       hint: Right-click: charts and tables for these dies
-  · 2 · Forming fail131.0%
+  · 2 · Init fail272.0%
       hint: Right-click: charts and tables for these dies
-  · 4 · No reset100.8%
+  · 4 · No down-switch231.7%
       hint: Right-click: charts and tables for these dies
   · W01▾  [aria="Wafer info for W01. Click to expand."]
   · Open full view   (×6)
@@ -1683,138 +1861,124 @@ Controls:
   · Summary report
   · Data tables
   · ▶What stands out
-  · ●●●High impact Ring 4 (edge) mean Ihrs_1e5cyc is 16.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined: a shift of 0.9σ over 504 dies (also seen as Rings 1–2)
-      hint: Ring 4 (edge) mean Ihrs_1e5cyc is 16.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Chart  [aria="Chart: Ring 4 (edge): Ihrs_1e5cyc higher"]
+  · ●●●High impact Ring 4 (edge) mean Ilow_1e5cyc is 16.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined: a shift of 0.9σ over 504 dies (also seen as Rings 1–2)
+      hint: Ring 4 (edge) mean Ilow_1e5cyc is 16.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Chart  [aria="Chart: Ring 4 (edge): Ilow_1e5cyc higher"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●HighRing 4 (edge): Ihrs_1e6cyc higher0.9σ
-      hint: Ring 4 (edge) mean Ihrs_1e6cyc is 16.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Chart  [aria="Chart: Ring 4 (edge): Ihrs_1e6cyc higher"]
+  · ●●●HighRing 4 (edge): Ilow_1e4cyc higher0.9σ
+      hint: Ring 4 (edge) mean Ilow_1e4cyc is 15.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Chart  [aria="Chart: Ring 4 (edge): Ilow_1e4cyc higher"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●HighRing 4 (edge): Ihrs_1e4cyc higher0.9σ
-      hint: Ring 4 (edge) mean Ihrs_1e4cyc is 16.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Chart  [aria="Chart: Ring 4 (edge): Ihrs_1e4cyc higher"]
+  · ●●●HighRing 4 (edge): Ilow_1e3cyc higher0.8σ
+      hint: Ring 4 (edge) mean Ilow_1e3cyc is 14.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Chart  [aria="Chart: Ring 4 (edge): Ilow_1e3cyc higher"]
       hint: Open Insights at the chart of this, under Worth a look
-  · ●●●HighRing 4 (edge): Ihrs_1e3cyc higher0.8σ
-      hint: Ring 4 (edge) mean Ihrs_1e3cyc is 14.9% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · ●●●HighRing 4 (edge): Ilrs_1e6cyc lower0.8σ
-      hint: Ring 4 (edge) mean Ilrs_1e6cyc is 31.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · ●●●HighRing 4 (edge): Ihrs_1e2cyc higher0.8σ
-      hint: Ring 4 (edge) mean Ihrs_1e2cyc is 12.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · ●●●HighRing 4 (edge): Iset_+0.5V lower0.8σ
-      hint: Ring 4 (edge) mean Iset_+0.5V is 40.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · ●●●HighRing 4 (edge): Iset_+0.6V lower0.7σ
-      hint: Ring 4 (edge) mean Iset_+0.6V is 22.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Ilow_1e2cyc higher0.8σ
+      hint: Ring 4 (edge) mean Ilow_1e2cyc is 12.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Ihigh_1e5cyc lower0.8σ
+      hint: Ring 4 (edge) mean Ihigh_1e5cyc is 30.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Iup_+1.0V lower0.7σ
+      hint: Ring 4 (edge) mean Iup_+1.0V is 26.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRing 4 (edge): Iup_+0.8V lower0.7σ
+      hint: Ring 4 (edge) mean Iup_+0.8V is 39.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · ●●●HighRings 1–2: Idown_-1.0V higher0.8σ
+      hint: Rings 1–2 mean Idown_-1.0V is 20.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
   · Full report ▸
-  · ▶Findings (45)45 unusual
-  · ●●●Unusual 45
-  · Quadrant SE mean Iset_-1.2V is 48.6% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined
-      hint: quadrant SE mean Iset_-1.2V is 48.6% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e1cyc is 2.5% higher than the rest of the map — higher on 4/6 wafers, all wafers' data combined
-      hint: Ring 1 (core) mean Ilrs_1e1cyc is 2.5% higher than the rest of the map — higher on 4/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e2cyc is 3.8% higher than the rest of the map — higher on 4/6 wafers, all wafers' data combined
-      hint: Ring 1 (core) mean Ilrs_1e2cyc is 3.8% higher than the rest of the map — higher on 4/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e3cyc is 6.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 1 (core) mean Ilrs_1e3cyc is 6.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e4cyc is 10.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 1 (core) mean Ilrs_1e4cyc is 10.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e1cyc is 5.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ihrs_1e1cyc is 5.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e2cyc is 12.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ihrs_1e2cyc is 12.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e3cyc is 14.9% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ihrs_1e3cyc is 14.9% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e4cyc is 16.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ihrs_1e4cyc is 16.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e5cyc is 16.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ihrs_1e5cyc is 16.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e6cyc is 16.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ihrs_1e6cyc is 16.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e3cyc is 5.1% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ilrs_1e3cyc is 5.1% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e4cyc is 8.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ilrs_1e4cyc is 8.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e5cyc is 15.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ilrs_1e5cyc is 15.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e6cyc is 31.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ilrs_1e6cyc is 31.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.3V is 24.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ireset_-0.3V is 24.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.4V is 35.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ireset_-0.4V is 35.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.5V is 25.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ireset_-0.5V is 25.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.6V is 9.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ireset_-0.6V is 9.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.7V is 1.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Ireset_-0.7V is 1.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.2V is 7.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Iset_+0.2V is 7.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.3V is 23.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Iset_+0.3V is 23.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.4V is 41.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Iset_+0.4V is 41.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.5V is 40.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Iset_+0.5V is 40.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.6V is 22.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Iset_+0.6V is 22.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.7V is 8.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Ring 4 (edge) mean Iset_+0.7V is 8.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e2cyc is 11.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ihrs_1e2cyc is 11.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e3cyc is 13.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ihrs_1e3cyc is 13.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e4cyc is 14.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ihrs_1e4cyc is 14.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e5cyc is 15.2% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ihrs_1e5cyc is 15.2% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ihrs_1e6cyc is 15.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ihrs_1e6cyc is 15.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e5cyc is 16.0% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ilrs_1e5cyc is 16.0% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e6cyc is 40.2% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ilrs_1e6cyc is 40.2% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.5V is 31.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ireset_-0.5V is 31.0% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.6V is 9.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Ireset_-0.6V is 9.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.5V is 51.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Iset_+0.5V is 51.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.6V is 22.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Rings 1–2 mean Iset_+0.6V is 22.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.6V is 3.9% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined
-      hint: Sector NW mean Ireset_-0.6V is 3.9% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_+0.3V is 7.9% lower than the rest of the map — lower on 5/6 wafers, all wafers' data combined
-      hint: Sector NW mean Iset_+0.3V is 7.9% lower than the rest of the map — lower on 5/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ilrs_1e2cyc is 2.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Sector S mean Ilrs_1e2cyc is 2.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_-0.3V is 22.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
-      hint: Sector S mean Ireset_-0.3V is 22.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_-0.7V is 12.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
-      hint: Sector S mean Iset_-0.7V is 12.8% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Iset_-1.2V is 61.9% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined
-      hint: Sector SE mean Iset_-1.2V is 61.9% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_+0.6V is 65.0% lower than other test sites — lower on 6/6 wafers, all wafers' data combined
-      hint: Site 2 mean Ireset_+0.6V is 65.0% lower than other test sites — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · Mean Ireset_+1.1V is 3094.9% higher than other test sites — higher on 6/6 wafers, all wafers' data combined
-      hint: Site 4 mean Ireset_+1.1V is 3094.9% higher than other test sites — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
-  · ▶Wafer Yield (93.7–97.7%) · median 94.3%
+  · ▶Findings (41)41 unusual
+  · ●●●Unusual 41
+  · Yield is 5.3 percentage points lower than the rest of the map — lower on 5/6 wafers, all wafers' data combined
+      hint: NW yield is 5.3 percentage points lower than the rest of the map — lower on 5/6 wafers, all wafers' data combined Click to show it on the map
+  · Quadrant NW has contact_check pass rate 1.9 percentage points lower than the rest of the map — lower on 5/6 wafers, all wafers' data combined
+      hint: quadrant NW has contact_check pass rate 1.9 percentage points lower than the rest of the map — lower on 5/6 wafers, all wafers' data combined Click to show it on the map
+  · Quadrant NW has hard bin and soft bin 2 (Init fail) (same dies) occurrence 3.3 percentage points higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: quadrant NW has HBin and SBin 2 (Init fail) (same dies) occurrence 3.3 percentage points higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Quadrant NW has init_check pass rate 1.8 percentage points lower than the rest of the map — lower on 4/6 wafers, all wafers' data combined
+      hint: quadrant NW has init_check pass rate 1.8 percentage points lower than the rest of the map — lower on 4/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ihigh_1e2cyc is 3.4% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 2 mean Ihigh_1e2cyc is 3.4% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ihigh_1e3cyc is 6.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 2 mean Ihigh_1e3cyc is 6.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+1.4V is 3.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 2 mean Iup_+1.4V is 3.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Idown_-0.6V is 29.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Idown_-0.6V is 29.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Idown_-0.8V is 33.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Idown_-0.8V is 33.0% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Idown_-1.0V is 16.1% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Idown_-1.0V is 16.1% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Idown_-1.2V is 3.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Idown_-1.2V is 3.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ihigh_1e3cyc is 6.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ihigh_1e3cyc is 6.8% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ihigh_1e4cyc is 13.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ihigh_1e4cyc is 13.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ihigh_1e5cyc is 30.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ihigh_1e5cyc is 30.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e1cyc is 7.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ilow_1e1cyc is 7.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e2cyc is 12.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ilow_1e2cyc is 12.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e3cyc is 14.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ilow_1e3cyc is 14.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e4cyc is 15.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ilow_1e4cyc is 15.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e5cyc is 16.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Ilow_1e5cyc is 16.3% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+0.4V is 9.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Iup_+0.4V is 9.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+0.6V is 29.6% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Iup_+0.6V is 29.6% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+0.8V is 39.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Iup_+0.8V is 39.7% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+1.0V is 26.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Iup_+1.0V is 26.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+1.2V is 9.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Ring 4 (edge) mean Iup_+1.2V is 9.5% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Idown_-0.8V is 49.2% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Idown_-0.8V is 49.2% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Idown_-1.0V is 20.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Idown_-1.0V is 20.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Idown_-1.2V is 4.2% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Idown_-1.2V is 4.2% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ihigh_1e4cyc is 14.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Ihigh_1e4cyc is 14.5% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ihigh_1e5cyc is 40.6% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Ihigh_1e5cyc is 40.6% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e1cyc is 7.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Ilow_1e1cyc is 7.4% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e2cyc is 12.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Ilow_1e2cyc is 12.3% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e3cyc is 14.1% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Ilow_1e3cyc is 14.1% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e4cyc is 14.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Ilow_1e4cyc is 14.9% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Ilow_1e5cyc is 15.2% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Ilow_1e5cyc is 15.2% lower than the rest of the map — lower on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+0.6V is 44.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Iup_+0.6V is 44.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+0.8V is 59.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Iup_+0.8V is 59.1% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+1.0V is 32.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Iup_+1.0V is 32.7% higher than the rest of the map — higher on 6/6 wafers, all wafers' data combined Click to show it on the map
+  · Mean Iup_+1.2V is 9.4% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined
+      hint: Rings 1–2 mean Iup_+1.2V is 9.4% higher than the rest of the map — higher on 5/6 wafers, all wafers' data combined Click to show it on the map
+  · ▶Wafer Yield (91.9–95.5%) · median 94.1%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W012494.6%+0.2  [aria="W01, 94.6% yield, 24 findings, 17 unusual — open wafer"]
-  · W023393.7%−0.7  [aria="W02, 93.7% yield, 33 findings, 24 unusual — open wafer"]
-  · W033094.1%−0.2  [aria="W03, 94.1% yield, 30 findings, 11 unusual — open wafer"]
-  · W041595.5%+1.1  [aria="W04, 95.5% yield, 15 findings, 14 unusual — open wafer"]
-  · W052894.1%−0.2  [aria="W05, 94.1% yield, 28 findings, 15 unusual — open wafer"]
-  · W063097.7%+3.4  [aria="W06, 97.7% yield, 30 findings, 28 unusual — open wafer"]
+  · W011591.9%−2.3  [aria="W01, 91.9% yield, 15 findings, 13 unusual — open wafer"]
+  · W022292.8%−1.4  [aria="W02, 92.8% yield, 22 findings, 15 unusual — open wafer"]
+  · W031595.5%+1.4  [aria="W03, 95.5% yield, 15 findings, 13 unusual — open wafer"]
+  · W042495.5%+1.4  [aria="W04, 95.5% yield, 24 findings, 15 unusual — open wafer"]
+  · W051793.7%−0.5  [aria="W05, 93.7% yield, 17 findings, 14 unusual — open wafer"]
+  · W062794.6%+0.5  [aria="W06, 94.6% yield, 27 findings, 22 unusual — open wafer"]
   · ▶Hard Bin Breakdown — % of dies (N=1,326)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
   · ▶Ring Yield
   · Ring  [radio, checked]
   · Quadrant  [radio, unchecked]
-  · ▶Test Values (76) — 6 wafers pooled · N=1,326
-  · ▶Functional Tests (1) — 6 wafers pooled · N=1,326
+  · ▶Test Values (54) — 6 wafers pooled · N=1,326
+  · ▶Functional Tests (4) — 6 wafers pooled · N=1,326
   · Log
       hint: Show the log panel
   · Close
@@ -1826,82 +1990,63 @@ Controls:
   · Select none
   · Select range
   · 2001F  [checkbox, checked]
-  · 3000≥50 uAP  [checkbox, checked]
-  · 3001uAP  [checkbox, checked]
-  · 3002uAP  [checkbox, checked]
-  · 3003uAP  [checkbox, checked]
-  · 3004uAP  [checkbox, checked]
-  · 3005uAP  [checkbox, checked]
-  · 3006uAP  [checkbox, checked]
-  · 3007uAP  [checkbox, checked]
-  · 3008uAP  [checkbox, checked]
-  · 3009uAP  [checkbox, checked]
-  · 3010uAP  [checkbox, checked]
-  · 3011uAP  [checkbox, checked]
-  · 3012uAP  [checkbox, checked]
-  · 3013uAP  [checkbox, checked]
-  · 3014uAP  [checkbox, checked]
-  · 3015uAP  [checkbox, checked]
-  · 3016uAP  [checkbox, checked]
-  · 3017uAP  [checkbox, checked]
-  · 3018uAP  [checkbox, checked]
-  · 3019uAP  [checkbox, checked]
-  · 3020uAP  [checkbox, checked]
-  · 3021uAP  [checkbox, checked]
-  · 3022uAP  [checkbox, checked]
-  · 3023uAP  [checkbox, checked]
-  · 3024uAP  [checkbox, checked]
-  · 3025uAP  [checkbox, checked]
-  · 3026uAP  [checkbox, checked]
-  · 3027uAP  [checkbox, checked]
-  · 3028uAP  [checkbox, checked]
-  · 3029uAP  [checkbox, checked]
-  · 3030≤20 uAP  [checkbox, checked]
-  · 3100uAP  [checkbox, checked]
-  · 3101uAP  [checkbox, checked]
-  · 3102uAP  [checkbox, checked]
-  · 3103uAP  [checkbox, checked]
-  · 3104uAP  [checkbox, checked]
-  · 3105uAP  [checkbox, checked]
-  · 3106uAP  [checkbox, checked]
-  · 3107uAP  [checkbox, checked]
-  · 3108uAP  [checkbox, checked]
-  · 3109uAP  [checkbox, checked]
-  · 3110uAP  [checkbox, checked]
-  · 3111uAP  [checkbox, checked]
-  · 3112uAP  [checkbox, checked]
-  · 3113uAP  [checkbox, checked]
-  · 3114uAP  [checkbox, checked]
-  · 3115uAP  [checkbox, checked]
-  · 3116uAP  [checkbox, checked]
-  · 3117uAP  [checkbox, checked]
-  · 3118uAP  [checkbox, checked]
-  · 3119uAP  [checkbox, checked]
-  · 3120uAP  [checkbox, checked]
-  · 3121uAP  [checkbox, checked]
-  · 3122uAP  [checkbox, checked]
-  · 3123uAP  [checkbox, checked]
-  · 3124uAP  [checkbox, checked]
-  · 3125uAP  [checkbox, checked]
-  · 3126uAP  [checkbox, checked]
-  · 3127uAP  [checkbox, checked]
-  · 3128uAP  [checkbox, checked]
-  · 3129uAP  [checkbox, checked]
-  · 3130≥50 uAP  [checkbox, checked]
-  · 3200uAP  [checkbox, checked]
-  · 3201uAP  [checkbox, checked]
-  · 3202uAP  [checkbox, checked]
-  · 3203uAP  [checkbox, checked]
-  · 3204uAP  [checkbox, checked]
-  · 3205uAP  [checkbox, checked]
-  · 3206uAP  [checkbox, checked]
-  · 3300uAP  [checkbox, checked]
-  · 3301uAP  [checkbox, checked]
-  · 3302uAP  [checkbox, checked]
-  · 3303uAP  [checkbox, checked]
-  · 3304uAP  [checkbox, checked]
-  · 3305uAP  [checkbox, checked]
-  · 3306uAP  [checkbox, checked]
+  · 2002F  [checkbox, checked]
+  · 2003F  [checkbox, checked]
+  · 2004F  [checkbox, checked]
+  · 5000≥50 uAP  [checkbox, checked]
+  · 5001uAP  [checkbox, checked]
+  · 5002uAP  [checkbox, checked]
+  · 5003uAP  [checkbox, checked]
+  · 5004uAP  [checkbox, checked]
+  · 5005uAP  [checkbox, checked]
+  · 5006uAP  [checkbox, checked]
+  · 5007uAP  [checkbox, checked]
+  · 5008uAP  [checkbox, checked]
+  · 5009uAP  [checkbox, checked]
+  · 5010uAP  [checkbox, checked]
+  · 5011uAP  [checkbox, checked]
+  · 5012uAP  [checkbox, checked]
+  · 5013uAP  [checkbox, checked]
+  · 5014uAP  [checkbox, checked]
+  · 5015uAP  [checkbox, checked]
+  · 5016uAP  [checkbox, checked]
+  · 5017uAP  [checkbox, checked]
+  · 5018uAP  [checkbox, checked]
+  · 5019uAP  [checkbox, checked]
+  · 5020≤20 uAP  [checkbox, checked]
+  · 5100uAP  [checkbox, checked]
+  · 5101uAP  [checkbox, checked]
+  · 5102uAP  [checkbox, checked]
+  · 5103uAP  [checkbox, checked]
+  · 5104uAP  [checkbox, checked]
+  · 5105uAP  [checkbox, checked]
+  · 5106uAP  [checkbox, checked]
+  · 5107uAP  [checkbox, checked]
+  · 5108uAP  [checkbox, checked]
+  · 5109uAP  [checkbox, checked]
+  · 5110uAP  [checkbox, checked]
+  · 5111uAP  [checkbox, checked]
+  · 5112uAP  [checkbox, checked]
+  · 5113uAP  [checkbox, checked]
+  · 5114uAP  [checkbox, checked]
+  · 5115uAP  [checkbox, checked]
+  · 5116uAP  [checkbox, checked]
+  · 5117uAP  [checkbox, checked]
+  · 5118uAP  [checkbox, checked]
+  · 5119uAP  [checkbox, checked]
+  · 5120≥50 uAP  [checkbox, checked]
+  · 5200uAP  [checkbox, checked]
+  · 5201uAP  [checkbox, checked]
+  · 5202uAP  [checkbox, checked]
+  · 5203uAP  [checkbox, checked]
+  · 5204uAP  [checkbox, checked]
+  · 5205uAP  [checkbox, checked]
+  · 5300uAP  [checkbox, checked]
+  · 5301uAP  [checkbox, checked]
+  · 5302uAP  [checkbox, checked]
+  · 5303uAP  [checkbox, checked]
+  · 5304uAP  [checkbox, checked]
+  · 5305uAP  [checkbox, checked]
   · Save definitions
   · Load definitions
   · ▾  [aria="Load a recently used definitions file", opens menu]
@@ -1910,7 +2055,7 @@ Controls:
   · Derived tests…
       hint: Add, edit or delete tests computed per die from other tests
   · Cancel
-  · Apply to 77 tests →
+  · Apply to 58 tests →
 
 ## Column mapping (CSV)
 

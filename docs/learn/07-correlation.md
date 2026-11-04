@@ -87,7 +87,7 @@ You can set **Max tests** between 5 and 100 (default 20). The card counts pairs 
 
 # Open a pair
 
-Click a cell and the scatter shows that pair, with **r** and **n**, the number of dies, above it. Here `idsat_p_uA` falls as `vth_p_mV` rises, r = −0.865. Click a point to open its wafer's map.
+Click a cell and the scatter shows that pair, with **r** and **n**, the number of dies, above it. Here `idsat_p_uA` falls as `vth_p_mV` rises, r = −0.81. Click a point to open its wafer's map.
 
 ![The scatter after clicking the idsat_p_uA, vth_p_mV cell](images/07/scatter-pair.png)
 
@@ -142,7 +142,7 @@ The **Wafer** menu narrows the scatter to one wafer. The **X** and **Y** menus p
 
 # Inside one wafer
 
-On W07 alone, r is −0.564, not −0.865. Part of the pooled figure may come from the splits sitting at different levels. The warning is gone because only one wafer is left.
+On W07 alone, r is −0.564, not −0.81. Part of the pooled figure may come from the splits sitting at different levels. The warning is gone because only one wafer is left.
 
 ![The scatter for W07 · TT only](images/07/one-wafer.png)
 
@@ -179,7 +179,7 @@ With Group by on, the matrix offers **Pooled | Within Split**. Pooled is the mat
 
 # Group by
 
-**Group by → Split**, then **Show → TT**: the matrix and scatter use only TT's dies. `idsat_p_uA` against `vth_p_mV` reads r = −0.529 inside TT, not −0.865 pooled.
+**Group by → Split**, then **Show → TT**: the matrix and scatter use only TT's dies. `idsat_p_uA` against `vth_p_mV` reads r = −0.41 inside TT, not −0.81 pooled.
 
 ![The Correlation tab with Show set to TT](images/07/grouped.png)
 
@@ -217,8 +217,8 @@ Drag a rectangle over the scatter: the dies inside it, on any wafer, open the me
 
 # Check your results
 
-2. **`idsat_p_uA`** against **`vth_p_mV`** reads r = −0.865: when one rises the other falls. (`vth_n_mV` against `idsat_n_uA` is a little stronger, at −0.870.)
-3. On W07 · TT alone r is **−0.564**, weaker than the pooled −0.865. The warning has gone, because one wafer is not a mix of splits.
+2. **`idsat_p_uA`** against **`vth_p_mV`** reads r = −0.81: when one rises the other falls. (`vth_n_mV` against `idsat_n_uA` reads −0.81 as well.)
+3. On W07 · TT alone r is **−0.564**, weaker than the pooled −0.81. The warning has gone, because one wafer is not a mix of splits.
 
 ---
 
@@ -226,7 +226,7 @@ Drag a rectangle over the scatter: the dies inside it, on any wafer, open the me
 
 # Check your results, continued
 
-4. Inside TT, r is **−0.529**: still clearly negative, but weaker than pooled. Some of the pooled figure came from the splits sitting at different levels.
+4. Inside TT, r is **−0.41**: still clearly negative, but weaker than pooled. Some of the pooled figure came from the splits sitting at different levels.
 5. The menu names how many dies you selected; it depends on the box you drag.
 
 ---

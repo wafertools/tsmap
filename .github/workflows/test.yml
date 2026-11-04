@@ -7,6 +7,12 @@ on:
     branches: [main]
   # Reusable: build.yml and deploy.yml call this so releases/deploys are gated on it.
   workflow_call:
+    inputs:
+      # The Rust steps run once per commit. A release pushes the commit to main (deploy.yml, with Rust) and tags it
+      # (build.yml, which skips them here and compiles the whole app for every platform anyway).
+      skip_rust:
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -20,10 +26,13 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        if: inputs.skip_rust != true
 
       - uses: Swatinem/rust-cache@v2
+        if: inputs.skip_rust != true
 
       - name: Install Linux dependencies
+        if: inputs.skip_rust != true
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -50,8 +59,21 @@ jobs:
       - name: Unit tests (JS)
         run: npm test
 
-      - name: Type check (Rust)
-        run: npm run check:rust
+      # An unset input (a pull request) is null, which GitHub's expressions compare equal to false, so the flag is "skip", not "run".
+      #
+      # `cargo test --workspace` builds src-tauri as well, so a separate `cargo check` would compile the same crates a second
+      # time. CI's own cargo settings (see .github/cargo-ci.toml) keep the dependencies unoptimised.
+      #
+      # The fingerprint log names why cargo rebuilt a crate it should have found in the cache (a full cache match once still
+      # compiled 637 crates); the next step prints the first few reasons.
+      - name: Tests (Rust)
+        if: inputs.skip_rust != true
+        env:
+          CARGO_LOG: cargo::core::compiler::fingerprint=info
+        run: |
+          set -o pipefail
+          npm run test:rust -- --config .github/cargo-ci.toml 2>&1 | tee cargo-fingerprint.log
 
-      - name: Parser tests (Rust)
-        run: npm run test:rust
+      - name: Why cargo rebuilt
+        if: always() && inputs.skip_rust != true
+        run: grep -i -m 25 "dirty\|stale\|fingerprint error" cargo-fingerprint.log || echo "nothing was rebuilt for a stated reason"

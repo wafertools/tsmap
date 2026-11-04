@@ -1,0 +1,40 @@
+{
+  "format": "wafermap-plots",
+  "version": 1,
+  "plots": [
+    {
+      "id": "up-down",
+      "title": "Up / down switching",
+      "chart": "sweep",
+      "sweep": {
+        "xLabel": "Voltage (V)",
+        "yLabel": "Read current",
+        "separationAt": [
+          10,
+          50
+        ],
+        "series": [
+          {"label": "Down", "tests": ["5000..5020"], "xValues": [-2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]},
+          {"label": "Up", "tests": ["5100..5120"], "xValues": [-2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]}
+        ]
+      }
+    },
+    {
+      "id": "endurance",
+      "title": "Endurance \u2014 read window vs cycling",
+      "chart": "sweep",
+      "sweep": {
+        "xLabel": "Cycles",
+        "xScale": "log",
+        "yLabel": "Read current",
+        "separationAt": [
+          30
+        ],
+        "series": [
+          {"label": "High state", "tests": ["5200..5205"], "xFromName": "{x}*cyc"},
+          {"label": "Low state", "tests": ["5300..5305"], "xFromName": "{x}*cyc"}
+        ]
+      }
+    }
+  ]
+}

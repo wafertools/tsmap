@@ -15,6 +15,7 @@ random.seed(42)
 
 # ── STDF records ──────────────────────────────────────────────────────────────
 # The one spec-conformant set of record builders: stdf_spec.py.
+from functional_tests import ExtraFtr
 from stdf_spec import far, mir, sdr, wir, wrr, pir, prr, ptr as ptr_rec, ftr as ftr_rec, file_end
 
 # ── Wafer geometry ─────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ TESTS = [
 ]
 FT_NUM  = 2001
 FT_NAME = 'scan_chain'
+EXTRA = ExtraFtr(FT_NUM)
 
 SITES = [1, 2, 3, 4]
 WAFERS = ['W01', 'W02', 'W03']
@@ -85,6 +87,10 @@ def generate(output_path: Path) -> None:
                 if not ft_passed:
                     failed_tests.append(FT_NUM)
                 buf += ftr_rec(FT_NUM, 1, site, ft_passed, FT_NAME)
+                for n, name, ok in EXTRA.draw(edge):
+                    if not ok:
+                        failed_tests.append(n)
+                    buf += ftr_rec(n, 1, site, ok, name)
 
                 die_passed = len(failed_tests) == 0
                 hbin = 1 if die_passed else (2 if len(failed_tests) == 1 else 3)
@@ -101,7 +107,7 @@ def generate(output_path: Path) -> None:
     buf += file_end(part_counter - 1, lot_good)
     output_path.write_bytes(buf)
     print(f"Written {len(buf):,} bytes → {output_path}")
-    print(f"  {len(WAFERS)} wafers × ~{len(dies)} dies, {len(TESTS)} PTR + 1 FTR tests")
+    print(f"  {len(WAFERS)} wafers × ~{len(dies)} dies, {len(TESTS)} PTR + 5 FTR tests")
 
 if __name__ == '__main__':
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('test.stdf')

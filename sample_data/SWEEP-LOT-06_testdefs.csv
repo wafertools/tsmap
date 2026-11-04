@@ -1,0 +1,72 @@
+# tsmap test definitions — SWEEP-LOT-06
+# Readable names for the sweep tests, then derived tests: rows with an
+# expression are computed per die from the tests they read (t[n] = value,
+# testPass[n] = recorded verdict, 5116..5120 = every test in that range).
+# 910003 and 910004 read other derived tests. Numbers 910001+ are unused
+# by the tester, as a derived test must not reuse a measured number.
+num,name,loLimit,hiLimit,units,testType,expression
+5000,Down-sweep I @ -2.0 V,50.0,,uA,P,
+5001,Down-sweep I @ -1.8 V,,,uA,P,
+5002,Down-sweep I @ -1.6 V,,,uA,P,
+5003,Down-sweep I @ -1.4 V,,,uA,P,
+5004,Down-sweep I @ -1.2 V,,,uA,P,
+5005,Down-sweep I @ -1.0 V,,,uA,P,
+5006,Down-sweep I @ -0.8 V,,,uA,P,
+5007,Down-sweep I @ -0.6 V,,,uA,P,
+5008,Down-sweep I @ -0.4 V,,,uA,P,
+5009,Down-sweep I @ -0.2 V,,,uA,P,
+5010,Down-sweep I @ +0.0 V,,,uA,P,
+5011,Down-sweep I @ +0.2 V,,,uA,P,
+5012,Down-sweep I @ +0.4 V,,,uA,P,
+5013,Down-sweep I @ +0.6 V,,,uA,P,
+5014,Down-sweep I @ +0.8 V,,,uA,P,
+5015,Down-sweep I @ +1.0 V,,,uA,P,
+5016,Down-sweep I @ +1.2 V,,,uA,P,
+5017,Down-sweep I @ +1.4 V,,,uA,P,
+5018,Down-sweep I @ +1.6 V,,,uA,P,
+5019,Down-sweep I @ +1.8 V,,,uA,P,
+5020,Down-sweep I @ +2.0 V,,20.0,uA,P,
+5100,Up-sweep I @ -2.0 V,,,uA,P,
+5101,Up-sweep I @ -1.8 V,,,uA,P,
+5102,Up-sweep I @ -1.6 V,,,uA,P,
+5103,Up-sweep I @ -1.4 V,,,uA,P,
+5104,Up-sweep I @ -1.2 V,,,uA,P,
+5105,Up-sweep I @ -1.0 V,,,uA,P,
+5106,Up-sweep I @ -0.8 V,,,uA,P,
+5107,Up-sweep I @ -0.6 V,,,uA,P,
+5108,Up-sweep I @ -0.4 V,,,uA,P,
+5109,Up-sweep I @ -0.2 V,,,uA,P,
+5110,Up-sweep I @ +0.0 V,,,uA,P,
+5111,Up-sweep I @ +0.2 V,,,uA,P,
+5112,Up-sweep I @ +0.4 V,,,uA,P,
+5113,Up-sweep I @ +0.6 V,,,uA,P,
+5114,Up-sweep I @ +0.8 V,,,uA,P,
+5115,Up-sweep I @ +1.0 V,,,uA,P,
+5116,Up-sweep I @ +1.2 V,,,uA,P,
+5117,Up-sweep I @ +1.4 V,,,uA,P,
+5118,Up-sweep I @ +1.6 V,,,uA,P,
+5119,Up-sweep I @ +1.8 V,,,uA,P,
+5120,Up-sweep I @ +2.0 V,50.0,,uA,P,
+5200,High-state I after 1e0 cycles,,,uA,P,
+5201,High-state I after 1e1 cycles,,,uA,P,
+5202,High-state I after 1e2 cycles,,,uA,P,
+5203,High-state I after 1e3 cycles,,,uA,P,
+5204,High-state I after 1e4 cycles,,,uA,P,
+5205,High-state I after 1e5 cycles,,,uA,P,
+5300,Low-state I after 1e0 cycles,,,uA,P,
+5301,Low-state I after 1e1 cycles,,,uA,P,
+5302,Low-state I after 1e2 cycles,,,uA,P,
+5303,Low-state I after 1e3 cycles,,,uA,P,
+5304,Low-state I after 1e4 cycles,,,uA,P,
+5305,Low-state I after 1e5 cycles,,,uA,P,
+2001,Init check,,,,F,
+2002,Contact check,,,,F,
+2003,Ramp monotonic,,,,F,
+2004,Readback crc,,,,F,
+910001,Up plateau,50,,uA,P,mean(t[5116..5120])
+910002,Down plateau,50,,uA,P,mean(t[5000..5004])
+910003,Plateau mismatch,,15,uA,P,abs(t[910001] - t[910002])
+910004,State separation,1.5,,dec,P,"log10(t[910001] / max(t[5110], 0.01))"
+910005,Endurance high-state loss,,65,%,P,100 * (1 - t[5205] / t[5200])
+910006,Window at 1e4 cycles,5,,uA,P,t[5204] - t[5304]
+910007,Sweep OK,,,,F,testPass[2001] and t[910001] > 50 and t[5110] < 5

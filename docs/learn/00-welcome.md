@@ -28,7 +28,7 @@ Learn tsmap
 
 # What you will be using
 
-A lot of 13 wafers open in tsmap: the bin legend, one map per wafer and a summary of what stands out.
+A lot of 25 wafers open in tsmap: the bin legend, one map per wafer and a summary of what stands out.
 
 ![tsmap with the sample lot loaded](images/00/layout.png)
 
@@ -60,7 +60,7 @@ A lot of 13 wafers open in tsmap: the bin legend, one map per wafer and a summar
 
 - **Hard bin**: the sort result. Bin 1 is a pass bin here, in green
 - **Soft bin**: the test program's reason, finer than the hard bin
-- **Yield**: the share of dies in a pass bin, 76.3% for this lot, shown in the legend
+- **Yield**: the share of dies in a pass bin, 65.6% for this lot, shown in the legend
 
 ![The bin legend above one wafer of the sample lot: each square is one die, green for bin 1 (Pass), red for bin 2 and blue for bin 3](images/00/wafer-legend.png)
 
@@ -129,7 +129,7 @@ Eight screen areas, numbered once, then one at a time
 
 # Everything starts here
 
-**Load sample data** opens a synthetic lot of 13 wafers. Most labs use it.
+**Load sample data** opens a synthetic lot of 25 wafers. Most labs use it.
 
 ![The start screen, with Load sample data outlined](images/00/start-screen.png)
 

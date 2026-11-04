@@ -77,7 +77,7 @@ One bar per wafer, with the median as a line. **Sort: yield** <span class="badge
 
 # Sorted by yield
 
-Highest yield first, so the weakest wafers are at the right: W04 and W11, both SS. (The Wafer Yield list in lesson 03 sorts the other way, lowest first.)
+Highest yield first, so the weakest wafers are at the right: W10 (FF), then W11 and W18 (both SS). (The Wafer Yield list in lesson 03 sorts the other way, lowest first.)
 
 ![Yield by wafer sorted by yield](images/05/yield-sorted.png)
 
@@ -119,7 +119,7 @@ The share of judged dies that pass each test, lowest first. The three buttons ch
 
 # Tester flag
 
-**Test limits** judges the measured value against the limits. **Tester flag** uses the pass or fail the tester recorded. When the two disagree the card says how many dies they judged differently. In the sample lot they agree, so no note appears.
+**Test limits** judges the measured value against the limits. **Tester flag** uses the pass or fail the tester recorded. When the two disagree the card counts the dies judged differently: 215 in the sample lot.
 
 ![Pass rate by tester flag](images/05/pass-rate-flag.png)
 
@@ -255,21 +255,21 @@ The **Expand** button, to the left of the ⋯ button, opens a chart in its own l
 
 ---
 
-<!-- covers: What divides yield; Group by; chart › What divides yield; wmap guide › What divides yield -->
+<!-- covers: What divides yield; Show all 24 rows; Group by; chart › What divides yield; wmap guide › What divides yield -->
 
 # What divides yield
 
-Each wafer field, such as the split, compared for yield and the top fail bins (four or more wafers). A low [**q**](https://wafertools.github.io/tsmap/learn/glossary/#q) means the groups differ by more than noise: where to look, not why.
+Each wafer field, such as the split or the tester, compared for yield and the top fail bins (four or more wafers). A low [**q**](https://wafertools.github.io/tsmap/learn/glossary/#q) means the groups differ by more than noise: where to look, not why. Fields that change together, such as the tester, node and probe card here, divide the wafers identically, so the card says it cannot tell them apart.
 
 ![The What divides yield card](images/05/what-divides-yield.png)
 
 ---
 
-<!-- covers: Part average testing (PAT); Show all 13 wafers; chart › Part average testing (PAT); glossary › Part average testing (PAT) -->
+<!-- covers: Part average testing (PAT); Show all 25 wafers; chart › Part average testing (PAT); glossary › Part average testing (PAT) -->
 
 # Part average testing
 
-PAT finds dies that pass every limit but sit far from the rest of their wafer. The card counts them per wafer; **Show all 13 wafers** lists every wafer.
+PAT finds dies that pass every limit but sit far from the rest of their wafer. The card counts them per wafer; **Show all 25 wafers** lists every wafer.
 
 ![The Part average testing card, left part](images/05/pat-card.png)
 
@@ -297,20 +297,27 @@ More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#
 
 ---
 
-<!-- _class: split -->
-<!-- covers: Group by › None; Group by › Split; glossary › Group by; glossary › Wafer attribute; tsmap guide › Grouping data in the Insights tab -->
+<!-- covers: Group by › None; Group by › Split; Group by › Temperature (2); Group by › Operator (2); Group by › Tester (2); Group by › Node (2); Group by › Probe card (2); Group by › Burn-in time (2); Group by › Program rev (2); glossary › Group by; glossary › Wafer attribute; tsmap guide › Grouping data in the Insights tab -->
 
 # Group by
 
-When a wafer field varies across the lot, **Group by** offers it. **None** shows each wafer; a field such as **Split (5)** pools wafers into groups. One wafer has nothing to group, so it has no Group by.
+When a wafer field varies across the lot, **Group by** offers it. **None** shows each wafer; a field such as **Split (5)** pools wafers into groups. The number is how many groups the field makes. One wafer has nothing to group, so it has no Group by.
 
-![The Group by menu, offering None and Split (5)](images/05/group-by-menu.png)
+---
+
+<!-- _class: split -->
+
+# Fields to group by
+
+The sample lot was tested in five sessions, so the menu also offers **Temperature**, **Tester**, **Node**, **Probe card**, **Burn-in time**, **Program rev** and **Operator**.
+
+![The Group by menu, offering Split, Temperature, Operator, Tester, Node, Probe card, Burn-in time and Program rev](images/05/group-by-fields.png)
 
 ---
 
 # Grouped by Split
 
-One bar per split, and the pareto shows each split's share of each bin. SS is lowest at 54.1%, TT highest at 96.3%. Click a split's bar to see its wafers; **Back** returns.
+One bar per split, and the pareto shows each split's share of each bin. SS is lowest at 42.6%, TT highest at 86.6%. Click a split's bar to see its wafers; **Back** returns.
 
 ![The Overview grouped by Split](images/05/grouped-overview.png)
 
@@ -366,8 +373,8 @@ Beside **Group by** and **Show**, **Columns** sets how many columns of cards eve
 
 # Check your results
 
-2. **`fmax_MHz`** passes least often, at 93.8%. `vth_n_mV` and `vth_p_mV` are close behind at 93.9%.
-3. **SS** has the lowest yield, at 54.1%. TT is highest, at 96.3%.
+2. **`ioff_nA`** passes least often, at 91.8%. `vth_p_mV` is close behind at 91.9%.
+3. **SS** has the lowest yield, at 42.6%. TT is highest, at 86.6%.
 
 ---
 
