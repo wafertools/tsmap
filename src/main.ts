@@ -2889,7 +2889,7 @@ function adoptPlotsFile(text: string): boolean {
   const count = (n: number, what: string) => `${n} ${what}${n !== 1 ? 's' : ''}`;
   const named = [...r.titles, ...(r.untitled ? [count(r.untitled, 'untitled plot')] : [])];
   log('info', named.length
-    ? `Plots loaded: ${named.join(', ')} (${count(r.added, 'added')}${r.replaced ? `, ${r.replaced} replaced` : ''}) — see Insights → Plot`
+    ? `Plots loaded: ${named.join(', ')} (${count(r.added, 'added')}${r.replaced ? `, ${r.replaced} replaced` : ''}) — see Insights → My plots`
     : 'The plots file defines no plots');
   return r.added + r.replaced > 0;
 }

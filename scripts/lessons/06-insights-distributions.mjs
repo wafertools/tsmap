@@ -83,6 +83,13 @@ export const scenario = {
       shots: [{ name: 'test-menu', clip: { target: MENU, pad: 120, maxHeight: 420 } }],
     },
     {
+      id: '19b-pin-test',
+      title: 'A ☆ at the end of a row pins that test: it is listed first, under Pinned, in every test menu',
+      steps: [['click', '*:has(> [data-wmap-pin]):has-text("ioff_nA") > [data-wmap-pin]'], ['wait', 600]],
+      checks: [isVisible(MENU, 'the Test menu is still open'), hasText(MENU, 'Pinned')],
+      shots: [{ name: 'test-menu-pinned', clip: { target: MENU, pad: 120, maxHeight: 420 } }],
+    },
+    {
       id: '20-box-controls',
       title: 'Axis includes limits, Clip outliers and Log scale',
       steps: [['click', `${MENU} >> text=ioff_nA`], ['wait', 700], PARK],

@@ -21,6 +21,8 @@ Learn tsmap
 
 # In this lesson
 
+When one test moves, does another move with it? Knowing which tests travel together helps you find a shared cause, and spot a number that only looks like a link. This lesson shows how to read the matrix, and how to check a relationship before you trust it.
+
 - Read the correlation matrix and open a pair as a scatter
 - Check a relationship wafer by wafer and group by group
 - Chart just the dies you drag a box around
@@ -37,7 +39,7 @@ Learn tsmap
 
 # The Correlation tab
 
-A matrix of the correlation between pairs of tests on the left, and a scatter of one pair on the right, a point per die.
+The matrix on the left shows the correlation between every pair of tests. The scatter on the right shows one pair, with a point for each die. Use the matrix to find a pair worth looking at, then the scatter to see it.
 
 ![The Correlation tab: the matrix and the test scatter](images/07/correlation-tab.png)
 
@@ -48,7 +50,7 @@ A matrix of the correlation between pairs of tests on the left, and a scatter of
 
 # The matrix
 
-Each cell is r for two tests. Blue: they rise together; orange: one falls as the other rises. Stronger colour, stronger link. <span class="badge" role="img" aria-label="callout 1">1</span> sets how many tests; <span class="badge" role="img" aria-label="callout 2">2</span> saves a table.
+Each cell is r for two tests. Blue: they rise together; orange: one falls as the other rises. Stronger colour, stronger link. A link is not a cause, but it tells you where to look. <span class="badge" role="img" aria-label="callout 1">1</span> sets how many tests; <span class="badge" role="img" aria-label="callout 2">2</span> saves a table.
 
 ![The matrix, with Max tests and Correlation CSV outlined](images/07/matrix.png)
 
@@ -56,7 +58,7 @@ Each cell is r for two tests. Blue: they rise together; orange: one falls as the
 
 # Fewer tests
 
-You can set **Max tests** between 5 and 100 (default 20). The card counts pairs with |r| of 0.7 or more as strong and 0.4 to 0.7 as moderate. With five tests it finds 2 strong and 4 moderate.
+A matrix of many tests gets hard to read. You can set **Max tests** between 5 and 100 (default 20). The card counts pairs with |r| of 0.7 or more as strong and 0.4 to 0.7 as moderate. With five tests it finds 2 strong and 4 moderate.
 
 ![The matrix limited to five tests](images/07/max-tests.png)
 
@@ -75,6 +77,8 @@ You can set **Max tests** between 5 and 100 (default 20). The card counts pairs 
 
 # Reading fails together
 
+Read this view when you want to know which failures go together.
+
 - A high cell means the two tests tend to fail on the same dies, which often means one cause
 - A low cell means they fail on different dies
 - The card names the pair that shares the most failures, and clicking a cell shows that pair in the scatter
@@ -87,7 +91,7 @@ You can set **Max tests** between 5 and 100 (default 20). The card counts pairs 
 
 # Open a pair
 
-Click a cell and the scatter shows that pair, with **r** and **n**, the number of dies, above it. Here `idsat_p_uA` falls as `vth_p_mV` rises, r = −0.81. Click a point to open its wafer's map.
+Click a cell and the scatter shows that pair, with **r** and **n**, the number of dies, above it. Here `idsat_p_uA` falls as `vth_p_mV` rises, r = −0.81, a strong link. Click a point to open its wafer's map.
 
 ![The scatter after clicking the idsat_p_uA, vth_p_mV cell](images/07/scatter-pair.png)
 
@@ -114,7 +118,7 @@ Click a cell and the scatter shows that pair, with **r** and **n**, the number o
 
 # Bin buttons
 
-The **Bin 1**, **Bin 2** and **Bin 3** buttons above the plot show or hide the dies of each bin. Click one to switch it off or on, so you can see whether failing dies sit at one end of the relationship.
+The **Bin 1**, **Bin 2** and **Bin 3** buttons above the plot show or hide the dies of each bin. Click one to switch it off or on. This shows whether failing dies sit at one end of the relationship, which tells you whether the link has anything to do with yield.
 
 ![The scatter with only bin 1 shown, the Bin 1 button outlined](images/07/scatter-bins.png)
 
@@ -124,7 +128,7 @@ The **Bin 1**, **Bin 2** and **Bin 3** buttons above the plot show or hide the d
 
 # The Mixed Split warning
 
-Pooling splits can make a trend that is only the groups sitting at different levels, not a link inside each group (Simpson's paradox). The card warns when the dies mix a field.
+A strong r is not always real. Pooling splits can make a trend that is only the groups sitting at different levels, not a link inside each group (Simpson's paradox). The card warns when the dies mix a field, so you know to check.
 
 ![The Mixed Split warning above the matrix](images/07/mixed-warning.png)
 
@@ -134,7 +138,7 @@ Pooling splits can make a trend that is only the groups sitting at different lev
 
 # One wafer at a time
 
-The **Wafer** menu narrows the scatter to one wafer. The **X** and **Y** menus pick the tests, as the matrix cells do.
+The first check is to look at one wafer. The **Wafer** menu narrows the scatter to one wafer. The **X** and **Y** menus pick the tests, as the matrix cells do.
 
 ![The Wafer menu on the scatter](images/07/wafer-picker.png)
 
@@ -142,7 +146,7 @@ The **Wafer** menu narrows the scatter to one wafer. The **X** and **Y** menus p
 
 # Inside one wafer
 
-On W07 alone, r is −0.564, not −0.81. Part of the pooled figure may come from the splits sitting at different levels. The warning is gone because only one wafer is left.
+Looking at W07 alone, r is −0.564, not −0.81. Part of the pooled figure may come from the splits sitting at different levels. The warning is gone because only one wafer is left. The link is still there, but weaker than the pooled figure suggested.
 
 ![The scatter for W07 · TT only](images/07/one-wafer.png)
 
@@ -152,7 +156,7 @@ On W07 alone, r is −0.564, not −0.81. Part of the pooled figure may come fro
 
 # A line for each group
 
-With Group by on, the scatter colours the dies by group and draws a fitted line through each. If the lines sit apart but run parallel, the groups differ in level; if they run in different directions, the pair does not move together in the same way in every group.
+The second check is to look at each group. With Group by on, the scatter colours the dies by group and draws a fitted line through each. If the lines sit apart but run parallel, the groups differ in level; if they run in different directions, the pair does not move together in the same way in every group.
 
 ![The test scatter coloured by Split, with a fitted line for each split](images/07/scatter-fit.png)
 
@@ -161,13 +165,15 @@ With Group by on, the scatter colours the dies by group and draws a fitted line 
 <!-- _class: split -->
 # Within groups
 
-With Group by on, the matrix offers **Pooled | Within Split**. Pooled is the matrix you have seen. **Within** takes each group's own mean off every test first.
+You can run the same check on the whole matrix. With Group by on, it offers **Pooled | Within Split**. Pooled is the matrix you have seen. **Within** takes each group's own mean off every test first.
 
 ![The matrix drawn Within Split, with Within outlined](images/07/within-groups.png)
 
 ---
 
 # Pooled or within
+
+Compare the two views pair by pair.
 
 - Taking the group means off means a difference in level between groups is not read as a link between tests
 - A pair that is strong pooled but weak within is the groups sitting at different levels, not the tests moving together
@@ -179,7 +185,7 @@ With Group by on, the matrix offers **Pooled | Within Split**. Pooled is the mat
 
 # Group by
 
-**Group by → Split**, then **Show → TT**: the matrix and scatter use only TT's dies. `idsat_p_uA` against `vth_p_mV` reads r = −0.41 inside TT, not −0.81 pooled.
+You can also look at one group on its own. **Group by → Split**, then **Show → TT**: the matrix and scatter use only TT's dies. `idsat_p_uA` against `vth_p_mV` reads r = −0.41 inside TT, not −0.81 pooled. The link holds, but part of the pooled figure was the splits sitting at different levels.
 
 ![The Correlation tab with Show set to TT](images/07/grouped.png)
 
@@ -193,7 +199,7 @@ With Group by on, the matrix offers **Pooled | Within Split**. Pooled is the mat
 
 # Drag a box
 
-Drag a rectangle over the scatter: the dies inside it, on any wafer, open the menu of charts and tables for just those dies.
+To find out which dies sit at an extreme of the relationship, drag a rectangle over the scatter. The dies inside it, on any wafer, open the menu of charts and tables for just those dies.
 
 ![A box dragged over the scatter, with the menu of charts and tables](images/07/drag-box.png)
 
@@ -236,6 +242,8 @@ Drag a rectangle over the scatter: the dies inside it, on any wafer, open the me
 - The matrix shows every pair; a cell opens that pair as a scatter
 - r says two tests move together, not why
 - Check it wafer by wafer and group by group before trusting a pooled figure
+
+Next you will learn to filter and chart exactly the dies you care about.
 
 More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#8-insights-tab)
 

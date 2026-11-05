@@ -1,8 +1,9 @@
 /**
- * Lesson 10 — Your own plots. Screenshots for docs/learn/10-your-own-plots.md.
+ * Lesson 10 — Your own plots and sweeps. Screenshots for docs/learn/10-your-own-plots.md.
  *
  * The sample lot's My plots: Examples and Add all, + New plot, the chart types, the X, Y and Colour fields, Customise, a draft
- * from the right-click menu, and the plot buttons (Edit, Duplicate, Delete, Export, Import, Delete all).
+ * from the right-click menu, and the plot buttons (Edit, Duplicate, Delete, Export, Import, Delete all); then, on SWEEP-LOT-06, the sweeps: its plots file
+ * imported, a card's Crossing and Width, and the sweep editor.
  * Run by scripts/lesson-shots.mjs.
  */
 
@@ -26,7 +27,7 @@ const hdr = { rect: { x: 0, y: 50, width: 900, height: 560 } };
 
 export const scenario = {
   session: '10',
-  title: 'Your own plots',
+  title: 'Your own plots and sweeps',
   theme: 'github-light',
   viewport: { width: 900, height: 700 },
   deviceScaleFactor: 2,
@@ -156,6 +157,46 @@ export const scenario = {
       ],
       checks: [isVisible(plotBtn('Export plots…'), 'My plots is showing on the new lot')],
       shots: [{ name: 'plots-next-lot', clip: { rect: { x: 0, y: 50, width: 1280, height: 700 } } }],
+    },
+    {
+      id: '14-sweep-definitions',
+      title: 'SWEEP-LOT-06 again, with its definitions file loaded as in lesson 09, so the sweep plots find their tests by name',
+      steps: [
+        ['openTestsDialog'], ['chooseFile', SEL_BTN('Load definitions'), SWEEP_DEFS], ['wait', 600],
+        ['click', SEL_BTN('All')], ['wait', 300], ['click', `${SELECTOR} button:has-text("Apply to")`], ['wait', 2500],
+        ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('My plots')], ['wait', 1000],
+        ['click', plotBtn('Delete all plots…')], ['wait', 600], ['click', '[role="dialog"] button:has-text("Delete ")'], ['wait', 800], PARK,
+      ],
+      checks: [isVisible('[data-wmap-plot-views]', 'the My plots buttons are showing')],
+      shots: [],
+    },
+    {
+      id: '15-import-plots',
+      title: 'Import plots… reads the sweeps file: two sweep cards',
+      steps: [['chooseFile', plotBtn('Import plots…'), SWEEP_PLOTS], ['wait', 2500], PARK],
+      checks: [hasText('#map-container', 'Up / down switching')],
+      shots: [{ name: 'sweep-cards', clip: hdr }],
+    },
+    {
+      id: '15a-sweep-measures',
+      title: 'A sweep card reports its crossing and the width between its first two curves',
+      steps: [PARK],
+      checks: [hasText(card('Endurance'), 'Crossing')],
+      shots: [{ name: 'sweep-measures', clip: cardClip(card('Endurance')) }],
+    },
+    {
+      id: '16-sweep-editor',
+      title: 'Edit opens the sweep beside a live copy of its curve',
+      steps: [['click', `${card('Up / down switching')} button:text-is("Edit")`], ['wait', 1500], ['click', '[role="dialog"] >> text="Edit plot"'], ['wait', 300]],
+      checks: [isVisible('[role="dialog"]', 'the sweep editor is open')],
+      shots: [{ name: 'sweep-editor', clip: { target: '[role="dialog"]', pad: 8 } }],
+    },
+    {
+      id: '17-sweep-editor-name',
+      title: 'Each series says where its X values come from: Test order, Values or From test name',
+      steps: [['click', '[role="dialog"] button:text-is("Cancel")'], ['wait', 600], ['click', `${card('Endurance')} button:text-is("Edit")`], ['wait', 1500], ['click', '[role="dialog"] >> text="Edit plot"'], ['wait', 300]],
+      checks: [isVisible('[role="dialog"]', 'the sweep editor is open')],
+      shots: [{ name: 'sweep-editor-name', clip: { target: '[role="dialog"]', pad: 8 } }],
     },
     ],
 };

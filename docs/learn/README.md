@@ -42,6 +42,13 @@ screen the beat expects.
 `CHROME_PATH` picks the browser, and `HEADED=1` shows it while a scenario runs.
 `lessons:check` needs `../wafermap` checked out beside tsmap to read its controls too.
 
+**Desktop-only screens.** The captures drive the web build, so the parts of the interface that exist only in the desktop
+app (the Recent list, File associations…) are reached with a `['desktopMode', true]` step. It reloads the page with a
+stand-in for the Tauri bridge (`scripts/lib/desktop-mock.mjs`) and some seeded recent files, and `['desktopMode', false]`
+returns to the browser build. The pixels are the app's own interface; only the native commands behind it are stood in
+for. Native dialogs (the file picker, the save dialog, "Include subfolders?") belong to the operating system and cannot be
+captured this way, so the deck describes them in words.
+
 ## Writing a lesson
 
 1. **Copy the pattern.** Start from `scripts/lessons/01-getting-data-in.mjs` and
@@ -50,6 +57,20 @@ screen the beat expects.
    Run it until every beat passes, then look at every image.
 3. **Write the deck around the images.** Then build it and read every slide.
 4. **Declare coverage** on each slide that teaches a control, and run `lessons:check`.
+
+### Writing the slide text
+
+- **Each slide's first sentence stands on its own.** Do not lean on the slide title as the subject:
+  write "When you load several files at once, tsmap asks for a label per wafer", not "Several files
+  at once ask for a label per wafer".
+- **Say why, not only where.** Open a lesson with the question the reader has, give a reason for each
+  step, and put a lead-in sentence before a bullet list.
+- **Split a slide rather than squeeze it.** When a slide runs past its box, move the last paragraph to
+  a slide of its own. `lessons:check:overflow` runs after `lessons:build`.
+- **A lesson's "Next lesson" blurb must equal the next lesson's `teaser:`** word for word, or the
+  build fails.
+- **Read every slide after editing**, for grammar and for sentences that only make sense with the
+  title beside them.
 
 ### A beat
 
@@ -179,7 +200,7 @@ control (`fold <Name> = <pattern> | <reason>`), and leaves out what is not taugh
 | 06 | Insights: distributions and data |
 | 07 | Correlation |
 | 08 | Drilling into any population |
-| 09 | Derived tests and sweeps |
-| 10 | Your own plots |
+| 09 | Derived tests |
+| 10 | Your own plots and sweeps |
 | 11 | Unusual wafers: multi-project, no positions, retests, multi-site, reticle, geometry, clamped values |
 | 12 | Automation and integration |

@@ -56,7 +56,7 @@ The cut in the edge of a wafer that tells machines which way round it is: a smal
 The range a test's value must fall in for the die to pass: the low and high limits stored in the test program. In Test Value mode a die outside them is marked ▽ (below) or △ (above). Lesson [02](02-reading-a-map.md).
 
 ## Verdict
-A go or no-go result: the pass or fail the tester recorded for a die on a test, or a derived test that gives yes or no. It can differ from what the limits say, because guard bands are one reason. A verdict has no value to plot, so charts treat it as a category. Lessons [02](02-reading-a-map.md) and [10](10-your-own-plots.md).
+A go or no-go result: the pass or fail the tester recorded for a die on a test, or a derived test that gives yes or no. It can differ from what the limits say; guard bands are one reason. A verdict has no value to plot, so charts treat it as a category. Lessons [02](02-reading-a-map.md) and [10](10-your-own-plots.md).
 
 ## Spec limits
 The product specification for a test. Test limits are often set inside the spec limits as a guard band. Process capability is measured against the spec limits when a test has both, and against the test limits otherwise. Lesson [06](06-insights-distributions.md).
@@ -92,7 +92,7 @@ The rectangular area exposed in one step of the lithography machine. The same pa
 A die's place inside the reticle: which of the field's dies it is, such as column 1, row 3 of a 4 × 3 field. The same cell recurs in every exposure across the wafer, so a cell that is poor everywhere points at the mask or the lens rather than at the wafer. Lesson [11](11-unusual-wafers.md).
 
 ## Reticle shot
-Where on the wafer the reticle was placed for a die: one exposure of the mask. Each shot is a different place on the wafer, so a poor shot points at something that varies across the wafer, such as focus, tilt or the edge. Not the reticle cell, which is inside the mask. Lesson [11](11-unusual-wafers.md).
+Where on the wafer the reticle was placed for a die: one exposure of the mask. Each shot is a different place on the wafer, so a poor shot points at something that varies across the wafer, such as focus, tilt or the edge. This is not the reticle cell, which is inside the mask. Lesson [11](11-unusual-wafers.md).
 
 ## Retest policy
 When the same die position appears more than once, one result has to stand for the die. **Last** is the default; **First** keeps the earliest probe; **Best** prefers a pass over a fail, then the lower hard bin; **Worst** prefers a fail over a pass, then the higher hard bin. The choice feeds every figure. Lesson [11](11-unusual-wafers.md).

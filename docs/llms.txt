@@ -37,8 +37,8 @@ Absolute URLs: this file is served on its own, where repo-relative paths do not 
 - [06 Insights: distributions and data](https://wafertools.github.io/tsmap/learn/06-insights-distributions/) - capability, comparing groups of wafers, the data tables.
 - [07 Correlation](https://wafertools.github.io/tsmap/learn/07-correlation/) - tests that move together.
 - [08 Drilling down](https://wafertools.github.io/tsmap/learn/08-drilling-down/) - filtering wafers and dies.
-- [09 Derived tests and sweeps](https://wafertools.github.io/tsmap/learn/09-derived-tests-and-sweeps/)
-- [10 Your own plots](https://wafertools.github.io/tsmap/learn/10-your-own-plots/) - the plot editor.
+- [09 Derived tests](https://wafertools.github.io/tsmap/learn/09-derived-tests/) - computing new tests.
+- [10 Your own plots](https://wafertools.github.io/tsmap/learn/10-your-own-plots/) - the plot editor, and sweeps.
 - [11 Unusual wafers](https://wafertools.github.io/tsmap/learn/11-unusual-wafers/) - multi-project wafers, no positions, retests, multi-site, reticles, edge exclusion, clamped values.
 - [12 Automation and integration](https://wafertools.github.io/tsmap/learn/12-automation/) - open from a link or the command line, saved settings.
 

@@ -298,9 +298,27 @@ export const scenario = {
       ],
     },
     {
+      id: '13b-long-prompt',
+      title: 'Continue on a long-format file asks to confirm that it will be pivoted',
+      steps: [['click', '#map-render'], ['wait', 600]],
+      checks: [isVisible('[role="dialog"]:has-text("Long-format CSV detected")', 'the long-format prompt is open')],
+      shots: [{ name: 'long-format-prompt', clip: { target: '[role="dialog"]:has-text("Long-format CSV detected")', pad: 14 } }],
+    },
+    {
+      id: '13c-no-position-prompt',
+      title: 'Continue with no X or Y column asks first: the dies get a list, not a map',
+      steps: [
+        ['click', '[role="dialog"]:has-text("Long-format CSV detected") button:text-is("Cancel")'], ['wait', 400],
+        ['click', '#map-cancel'], ['wait', 500], ['loadFile', S('ALL-COORDLESS-01.csv')], ['waitForOverlay', '.mapping-panel'],
+        ['click', '#map-render'], ['wait', 600],
+      ],
+      checks: [isVisible('[role="dialog"]:has-text("No X/Y columns assigned")', 'the no-position prompt is open')],
+      shots: [{ name: 'no-position-prompt', clip: { target: '[role="dialog"]:has-text("No X/Y columns assigned")', pad: 14 } }],
+    },
+    {
       id: '14-theme-menu',
       title: 'The colour theme picker',
-      steps: [['click', '#map-cancel'], ['wait', 500], ['click', '#theme-select'], ['wait', 300]],
+      steps: [['click', '[role="dialog"]:has-text("No X/Y columns assigned") button:text-is("Cancel")'], ['wait', 400], ['click', '#map-cancel'], ['wait', 500], ['click', '#theme-select'], ['wait', 300]],
       checks: [isVisible('[role="listbox"][aria-label="Colour theme"]', 'the theme list is open')],
       shots: [
         {
@@ -330,6 +348,33 @@ export const scenario = {
       ],
       checks: [isVisible('#log-panel', 'the log panel is open'), hasText('#log-list', 'tsmap-few-tests.csv')],
       shots: [{ name: 'log-panel', clip: { target: '#log-panel', pad: 12 }, callouts: [['#log-panel', { badgeAt: 'tr' }]] }],
+    },
+    {
+      id: '17-log-menu',
+      title: 'Right-click in the log: Select all and Copy all',
+      steps: [['rightClick', '#log-panel', [0.3, 0.2]], ['wait', 400]],
+      checks: [isVisible('text="Copy all"', 'the log menu is open')],
+      shots: [{ name: 'log-menu', clip: { target: '#log-panel', pad: 12 }, callouts: [['text="Copy all"', { pad: 2 }]] }],
+    },
+    {
+      id: '18-desktop-recent',
+      title: 'Desktop app: the last file sets opened are listed on the start screen',
+      steps: [['click', '#log-toggle'], ['desktopMode', true]],
+      checks: [isVisible('text="Recent"', 'the start screen lists recent files')],
+      shots: [{ name: 'recent-start', clip: { target: 'text=Open files to get started', through: 'text=PVT-LOT-05.stdf', pad: 40 } }],
+    },
+    {
+      id: '19-desktop-recent-menu',
+      title: 'Desktop app: Open files ▾ lists them too, below Choose files… and Scan a folder…',
+      steps: [['click', '#open-btn'], ['wait', 400]],
+      checks: [isVisible('text="Scan a folder…"', 'the Open files menu is open'), isVisible('text="EDGE-LOT-01_W01.stdf + 1 more" >> nth=-1', 'the menu lists a recent file set')],
+      shots: [{ name: 'recent-menu', clip: { rect: { x: 0, y: 0, width: 560, height: 420 } }, callouts: [['#open-btn', { pad: 3 }]] }],
+    },
+    {
+      id: '20-web-again',
+      title: 'Back to the browser build',
+      steps: [['press', 'Escape'], ['desktopMode', false]],
+      shots: [],
     },
   ],
 };

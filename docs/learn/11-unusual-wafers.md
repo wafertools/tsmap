@@ -21,6 +21,8 @@ Learn tsmap
 
 # In this lesson
 
+Not every wafer is a neat circle of positioned dies with one result each. This lesson covers the awkward cases: wafers that are mostly empty, wafers with no positions, dies probed more than once, and data the tester recorded wrongly.
+
 - Read multi-project wafers and wafers with missing positions
 - Set the reticle, diameter and edge exclusion
 - Handle clamped values and repeated dies
@@ -38,7 +40,7 @@ Learn tsmap
 <!-- covers: tsmap guide › Multi-project wafers -->
 
 # A multi-project wafer
-Each reticle holds only a few of one product's dies, so the map is mostly empty and every die is tiny. This is [`MPW-LOT-08`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-multi-project.csv&dataFormat=csv).
+A multi-project wafer shares one wafer between several products. Each reticle holds only a few of one product's dies, so the map is mostly empty and every die is tiny. This is [`MPW-LOT-08`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-multi-project.csv&dataFormat=csv).
 
 ![The multi-project wafer map, mostly empty](images/11/mpw-wafer.png)
 
@@ -49,7 +51,7 @@ Each reticle holds only a few of one product's dies, so the map is mostly empty 
 
 # Compact layout
 
-When the occupied columns and rows repeat at a regular pitch, **Overlays** offers **Compact layout** and **Layout diagnostics** at the top.
+tsmap can tidy this up for you. When the occupied columns and rows repeat at a regular pitch, **Overlays** offers **Compact layout** and **Layout diagnostics** at the top.
 
 ![The Overlays menu with Compact layout and Layout diagnostics](images/11/overlays-compact.png)
 
@@ -59,7 +61,7 @@ When the occupied columns and rows repeat at a regular pitch, **Overlays** offer
 
 # Compact
 
-Empty rows and columns are removed and each group of dies is outlined. Every die is still counted, so yield and findings do not change, and a die's tooltip keeps its original coordinates.
+In the compact layout, empty rows and columns are removed and each group of dies is outlined. Every die is still counted, so yield and findings do not change, and a die's tooltip keeps its original coordinates.
 
 ![The three wafers in the compact layout](images/11/mpw-compact.png)
 
@@ -69,7 +71,7 @@ Empty rows and columns are removed and each group of dies is outlined. Every die
 
 # Layout diagnostics
 
-If a layout is not recognised as you expect, this window shows what the detector saw: counts and scores only, with no positions, bins or wafer names. Use **Copy** or **Save as file**, then send the result to whoever supports tsmap.
+If a layout is not recognised as you expect, this window shows what the detector saw: counts and scores only, with no positions, bins or wafer names, so nothing about your data leaves with it. Use **Copy** or **Save as file**, then send the result to whoever supports tsmap.
 
 ![The Layout diagnostics window](images/11/layout-diagnostics.png)
 
@@ -94,7 +96,7 @@ In the lot [`COORDLESS-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=
 
 # A mixed wafer
 
-It draws the dies that have positions. A footer counts the rest; click it to see them.
+A mixed wafer draws the dies that have positions, so the map is true to what is known. A footer counts the rest; click it to see them.
 
 ![W02 with its dies-without-position footer outlined](images/11/mixed-footer.png)
 
@@ -112,7 +114,7 @@ With no positions there is no map to draw, so the card shows a summary instead: 
 
 # The die list
 
-A row for every die, with its position (blank here), site, bins and every test value. **Export CSV** saves it, and **View chart** switches back.
+The die list has a row for every die, with its position (blank here), site, bins and every test value. **Export CSV** saves it, and **View chart** switches back.
 
 ![W03's die list](images/11/die-list.png)
 
@@ -120,7 +122,7 @@ A row for every die, with its position (blank here), site, bins and every test v
 
 # What it changes
 
-Layout findings (edge ring, quadrants, clusters) use only positioned dies. Yield, bin counts and test statistics include every die.
+Layout findings (edge ring, quadrants, clusters) use only positioned dies, because they need to know where a die is. Yield, bin counts and test statistics include every die, so no result is lost.
 
 More in the [user guide](../user-guide.md#dies-with-no-reported-position)
 
@@ -135,6 +137,8 @@ More in the [user guide](../user-guide.md#dies-with-no-reported-position)
 <!-- covers: glossary › Retest / retest policy -->
 
 # Retests
+
+A die is sometimes probed again after it fails, to see whether the failure was real. Every probe is a result, but the die needs only one.
 
 - When the same die position appears more than once, one result has to stand for the die
 - By default it is the last
@@ -165,6 +169,8 @@ When a lot has dies probed more than once, the Overview gains a **Re-probed dies
 
 # Reading the retests
 
+Look for where the retests concentrate.
+
 - A bright cell is a ring where retests cluster
 - That can mean a contact problem at that radius, rather than bad dies
 - Re-probed is also a field you can plot (lesson 10)
@@ -176,18 +182,25 @@ When a lot has dies probed more than once, the Overview gains a **Re-probed dies
 
 # Setup ▾ → Retests…
 
+The probe you choose changes the yield.
+
 - **Last** or **First**: the probe by its place in the file
 - **Best**: a pass over a fail, then the lower hard bin
 - **Worst**: a fail over a pass, then the higher hard bin
-- A result the tester marked as replacing an earlier one always counts
 
 ![The Retests window](images/11/retests-dialog.png)
 
 ---
 
+# A result that replaces another
+
+A result the tester marked as replacing an earlier one always counts, whichever choice you make.
+
+---
+
 # One choice, every figure
 
-The chosen result is the die on the map and in the yield, findings, Insights, tables and exports. `RETEST-LOT-07` yields 86.1% with the last result, 79.2% with the first, 91.2% with the best and 75.8% with the worst.
+The chosen result is the die on the map and in the yield, findings, Insights, tables and exports, so every figure agrees. `RETEST-LOT-07` yields 86.1% with the last result, 79.2% with the first, 91.2% with the best and 75.8% with the worst.
 
 ![RETEST-LOT-07 with the best result: 91.2% yield](images/11/retests-best.png)
 
@@ -202,6 +215,8 @@ If one file holds the same wafer more than once, a column that tells the passes 
 <!-- covers: Column mapping › Subdivide file by this column -->
 
 # Test site
+
+Sites are a different kind of repeat, and are not retests.
 
 - Many testers probe several dies at the same time, each through its own numbered **site** (1, 2, 3…)
 - STDF and ATDF record each die's site. In a CSV, JSON or Parquet file, map the site-number column to **Test site**
@@ -226,7 +241,7 @@ If one file holds the same wafer more than once, a column that tells the passes 
 
 # Reticle…
 
-The group of dies exposed in one stepper shot. Files don't record its size, so enter its width and height in dies. Set the corner die only if a field doesn't start at (0, 0).
+A reticle is the group of dies exposed in one stepper shot. Defects that repeat in every field point at the mask, so it is worth telling tsmap the reticle's size. Files don't record it, so enter its width and height in dies. Set the corner die only if a field doesn't start at (0, 0).
 
 ![The Reticle window](images/11/reticle-dialog.png)
 
@@ -270,7 +285,8 @@ Here the field is 4 dies wide and 3 high. **Apply** takes effect at once. **Clea
 
 # Diameter and edge exclusion
 
-- Enter the diameter when there are too few dies to work it out
+tsmap works out the wafer's size from its dies. When there are too few dies to do that, enter the diameter.
+
 - **Edge exclusion**: a band at the rim, in mm, left out of yield and drawn dimmed
 - The band needs a diameter first
 
@@ -291,11 +307,18 @@ With 300 mm and 10 mm entered, dies within 10 mm of the edge are left out of yie
 
 # Exclude values outside limits…
 
+Sometimes a number in the data is not a measurement.
+
 - A tester out of range records its rail, such as a compliance clamp, not a reading
 - Values outside a test's **validity limits** count as missing: grey, and out of the statistics
-- Or choose spec limits, test limits, or Off
 
 ![The Exclude values outside limits window](images/11/exclude-values.png)
+
+---
+
+# Other limits to exclude by
+
+Instead of validity limits, you can choose the spec limits or the test limits, or switch the exclusion Off.
 
 ---
 
@@ -323,6 +346,8 @@ The tooltip on a grey die names the excluded value, and the Summary panel's Test
 - Wafers with missing positions keep every die in the numbers
 - **Retests…** chooses which probe stands for a die tested more than once
 - **Reticle…** and **Diameter & edge exclusion…** supply what the file does not say, and **Exclude values outside limits…** removes tester clamp values
+
+The last lesson covers automation.
 
 More in the [user guide](../user-guide.md#analysing-your-data)
 

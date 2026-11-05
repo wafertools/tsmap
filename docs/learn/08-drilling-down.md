@@ -21,6 +21,8 @@ Learn tsmap
 
 # In this lesson
 
+Sooner or later you want to ask about part of the data: one split, one bin, one region of a wafer. This lesson shows the two tools for that, filters and selections, and what the right-click menu does with them.
+
 - Keep only the wafers and dies that meet your conditions
 - Chart and tabulate any selection, bin or wafer
 - Know what each entry of the right-click menu opens
@@ -37,7 +39,7 @@ Learn tsmap
 
 # Filter…
 
-The button at the right of the toolbar, beside Maps and Insights. It keeps only the wafers and dies that meet conditions you set, in the gallery, on a single map and on every Insights tab.
+**Filter…** lets you look at only the data you care about. The button is at the right of the toolbar, beside Maps and Insights. It keeps only the wafers and dies that meet conditions you set, in the gallery, on a single map and on every Insights tab.
 
 ![The Filter… button, outlined](images/08/filter-button.png)
 
@@ -57,7 +59,7 @@ Add conditions; every one must hold. At the bottom of the window, **Apply** filt
 
 # Choose a field
 
-A condition starts with a field: a test, a die field such as bin, ring or site, or a wafer field such as split, lot or yield. Type to search the list.
+Each condition starts with a field: a test, a die field such as bin, ring or site, or a wafer field such as split, lot or yield. Type to search the list.
 
 ![The list of fields for a condition](images/08/filter-fields.png)
 
@@ -77,7 +79,7 @@ A category field, such as the split, lists its values to tick; **is not** keeps 
 
 # What it would keep
 
-Untick every split except SS. As you edit, the window shows how many wafers and dies the conditions would keep.
+Untick every split except SS. As you edit, the window shows how many wafers and dies the conditions would keep, so you can check the filter before you apply it.
 
 ![Only SS ticked: keeps 4 of 25 wafers](images/08/filter-keeps.png)
 
@@ -97,12 +99,14 @@ Untick every split except SS. As you edit, the window shows how many wafers and 
 # Suggestions in the JSON
 
 - **Suggest**, or typing a comma or a brace, offers the keys, the lot's fields and tests, and the values a field takes
-- The line under the text still says how many wafers and dies the filter keeps
-- The line under the text follows what you type; while the text cannot be read, **Apply** is held and the window says why
+- The line under the text says how many wafers and dies the filter keeps, and follows what you type
+- While the text cannot be read, **Apply** is held and the window says why
 
 ---
 
 # Wafer or die
+
+A condition works on one of two levels, and they behave differently.
 
 - A **wafer** condition keeps whole wafers; the rest leave the gallery
 - A **die** condition keeps matching dies; the rest are drawn faded
@@ -115,6 +119,8 @@ Untick every split except SS. As you edit, the window shows how many wafers and 
 
 # Saved filters
 
+If you use a filter again and again, save it.
+
 - **Save** keeps the conditions under a name
 - **Load** puts them in the window to check; **Apply** uses them
 - **Export…** writes the list to a file; **Import…** reads one back in
@@ -125,7 +131,7 @@ Untick every split except SS. As you edit, the window shows how many wafers and 
 
 # Applied
 
-Four cards remain, W04, W11, W18 and W24, and the legend and yield describe only those wafers.
+With the filter applied, four cards remain (W04, W11, W18 and W24), and the legend and yield describe only those wafers.
 
 ![The gallery filtered to the SS wafers](images/08/filtered-gallery.png)
 
@@ -141,7 +147,7 @@ A line above the view always states the filter and what it keeps. Its checkbox s
 
 # Insights follows
 
-It is one filter for everything you are looking at, so Insights shows the same four wafers, and its charts and the **Group by** control work on what is kept.
+There is one filter for everything you are looking at, so Insights shows the same four wafers, and its charts and the **Group by** control work on what is kept. You never have to set the same filter twice.
 
 ![Insights Overview with the SS filter on](images/08/filter-insights.png)
 
@@ -161,7 +167,7 @@ tsmap remembers the filter, and whether it is on, for the next lot and the next 
 
 # Select dies
 
-Drag a box on a map: the selected dies keep their colour and the rest fade, with an outline round them. Ctrl or Cmd + click adds or removes a die; **Esc** clears.
+A filter is for the whole session. A selection is for a quick question. Drag a box on a map: the selected dies keep their colour and the rest fade, with an outline round them. Ctrl or Cmd + click adds or removes a die; **Esc** clears.
 
 ![A box dragged on W02; the other dies are faded](images/08/selected-dies.png)
 
@@ -172,7 +178,7 @@ Drag a box on a map: the selected dies keep their colour and the rest fade, with
 
 # Right-click
 
-Right-click the selection for charts and tables of just those dies: **Distributions**, your **Plots**, and **Tables**.
+Right-click the selection to ask about just those dies. The menu offers charts and tables: **Distributions**, your **Plots**, and **Tables**.
 
 ![The right-click menu on a selection](images/08/context-menu.png)
 
@@ -182,7 +188,7 @@ Right-click the selection for charts and tables of just those dies: **Distributi
 
 # Value histogram
 
-How one test is distributed over just those dies. The title and the line above state the population, so it cannot be mistaken for the whole wafer. The PAT lines are outlier limits worked out per wafer (lesson 05).
+Value histogram shows how one test is distributed over just those dies, which tells you whether the selected region reads differently from the rest. The title and the line above state the population, so it cannot be mistaken for the whole wafer. The PAT lines are outlier limits worked out per wafer (lesson 05).
 
 ![A value histogram of 60 selected dies](images/08/dies-histogram.png)
 
@@ -192,7 +198,7 @@ How one test is distributed over just those dies. The title and the line above s
 
 # Process capability
 
-Each test's spread over the selected dies only, drawn against its limits and ordered worst Ppk first. Lesson 06 explains Ppk and charts the whole lot's capability to compare it with.
+Process capability shows each test's spread over the selected dies only, drawn against its limits and ordered worst Ppk first. Lesson 06 explains Ppk and charts the whole lot's capability, for comparison.
 
 ![Process capability of the selected dies](images/08/dies-capability.png)
 
@@ -202,7 +208,7 @@ Each test's spread over the selected dies only, drawn against its limits and ord
 
 # Test statistics
 
-The Test Values and Functional Tests tables, over the same dies.
+Test statistics shows the Test Values and Functional Tests tables, over the same dies.
 
 ![Test statistics for the selected dies](images/08/dies-statistics.png)
 
@@ -212,13 +218,15 @@ The Test Values and Functional Tests tables, over the same dies.
 
 # Dies
 
-One row per selected die, with its position, bins and every test value. **Export CSV** writes the table to a file and **Copy** puts it on the clipboard. Choose **Wide** (a column per test) or **Long** (a row per die and test) first.
+The Dies table has one row per selected die, with its position, bins and every test value. **Export CSV** writes the table to a file and **Copy** puts it on the clipboard. Choose **Wide** (a column per test) or **Long** (a row per die and test) first.
 
 ![The Dies table for the selection](images/08/dies-table.png)
 
 ---
 
 # A snapshot of its dies
+
+These charts are snapshots, so they do not change under you.
 
 - Each chart states its population, so it is never taken for the whole lot
 - A chart already open keeps its dies when the selection changes
@@ -227,6 +235,8 @@ One row per selected die, with its position, bins and every test value. **Export
 ---
 
 # What you right-click decides the population
+
+The menu is always the same. What changes is which dies it covers.
 
 | If you right-click… | the charts and tables cover… |
 | --- | --- |
@@ -241,7 +251,7 @@ One row per selected die, with its position, bins and every test value. **Export
 
 # A bin
 
-Right-click a bin in the gallery's legend: the menu opens on that bin's dies on every wafer of the lot. It leaves your selection as it is; the legend only changes what is drawn.
+To study one failure mode across the whole lot, right-click a bin in the gallery's legend. The menu opens on that bin's dies on every wafer of the lot. It leaves your selection as it is; the legend only changes what is drawn.
 
 ![The menu opened from the bin 3 legend entry](images/08/legend-menu.png)
 
@@ -282,6 +292,8 @@ Each card's **Charts and tables** button, the small chart icon in its toolbar, o
 - Select dies, then right-click for charts and tables of just those dies
 - A bin, a wafer or a finding each opens the same menu on its own dies
 
+Next, make new tests of your own, and read a run of tests as a curve.
+
 More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#44-charting-dies-and-wafers)
 
 ---
@@ -291,6 +303,6 @@ More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#
 
 # Next lesson
 
-[09 · Derived tests and sweeps →](09-derived-tests-and-sweeps.md)
+[09 · Derived tests →](09-derived-tests.md)
 
-Compute new tests and read a run of tests as a curve.
+Compute new tests from measured ones.

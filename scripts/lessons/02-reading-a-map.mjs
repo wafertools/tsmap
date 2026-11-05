@@ -19,6 +19,8 @@ const menu = (label) => `[role="menu"][aria-label="${label}"]`;
 const row = (text) => `[role^="menuitem"]:has-text("${text}")`;
 const cardBtn = (label) => `${CARD} >> nth=0 >> button[aria-label="${label}"]`;
 const PARK = ['hover', '#toolbar-title'];
+const SELECTOR = '#tsmap-test-selector-overlay [role="dialog"]';
+const LIMITS = '[role="dialog"]:has(p:has-text("Rename tests and set the limits"))';
 const SINGLE = '[data-wmap-toolbar="single"]';
 const one = (label) => `${SINGLE} button[aria-label="${label}"]`;
 const SWITCH = '[data-wmap-view-switch]';
@@ -304,6 +306,35 @@ export const scenario = {
         expect: (v) => v === 'true',
       }],
       shots: [{ name: 'wafer-info', clip: { target: CARD, nth: 0, pad: 8 }, callouts: [['[aria-label^="Wafer info for W01"]', { pad: 3 }]] }],
+    },
+    {
+      id: '17-edit-limits',
+      title: 'Setup ▾ → Tests… → Edit limits…: every test with its test, spec and validity limits, units and type',
+      steps: [['openTestsDialog'], ['click', `${SELECTOR} button:has-text("Edit limits")`], ['wait', 800]],
+      checks: [isVisible(LIMITS, 'the Edit limits table is open')],
+      shots: [{ name: 'limits-editor', clip: { target: LIMITS, pad: 12 } }],
+    },
+    {
+      id: '18-edit-limits-change',
+      title: 'Typing a new high limit marks the row changed; the table counts the edited rows on Apply',
+      steps: [
+        ['fillInput', `${LIMITS} input[aria-label^="High limit of"] >> nth=0`, '1000'], ['press', 'Tab'], ['wait', 500],
+      ],
+      checks: [hasText(LIMITS, 'changed'), hasText(LIMITS, '1 edited')],
+      shots: [{ name: 'limits-changed', clip: { target: LIMITS, pad: 12 }, callouts: [[`${LIMITS} input[aria-label^="High limit of"] >> nth=0`, { badge: 1, pad: 2 }], [`${LIMITS} button:has-text("Apply")`, { badge: 2, pad: 2 }]] }],
+    },
+    {
+      id: '19-edit-limits-refused',
+      title: 'A low limit above its high limit is refused',
+      steps: [['fillInput', `${LIMITS} input[aria-label^="Low limit of"] >> nth=0`, '2000'], ['press', 'Tab'], ['wait', 300], ['click', `${LIMITS} button:has-text("Apply")`], ['wait', 500]],
+      checks: [isVisible(LIMITS, 'the table is still open')],
+      shots: [{ name: 'limits-refused', clip: { target: LIMITS, pad: 12 } }],
+    },
+    {
+      id: '20-edit-limits-close',
+      title: 'Cancel and close the selector: nothing was changed',
+      steps: [['click', `${LIMITS} button:text-is("Cancel")`], ['wait', 500], ['click', `${SELECTOR} button[aria-label="Close"]`], ['wait', 800], PARK],
+      shots: [],
     },
   ],
 };

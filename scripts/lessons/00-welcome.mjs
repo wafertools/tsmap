@@ -88,5 +88,14 @@ export const scenario = {
         { name: 'help-menu', clip: { target: '#help-btn', through: 'text="User guide"', pad: 90 }, callouts: [['#help-btn', { pad: 3 }], ['text="User guide"', { pad: 3 }]] },
       ],
     },
+    {
+      id: '04-desktop-start',
+      title: 'The desktop app: the start screen also takes a folder and lists recently opened files',
+      steps: [['press', 'Escape'], ['desktopMode', true]],
+      checks: [isVisible('text="Recent"', 'the start screen lists recent files')],
+      shots: [
+        { name: 'desktop-start', clip: { target: 'text=Open files to get started', through: 'text=SWEEP-LOT-06.stdf', pad: 30 }, callouts: [['text="or drop files or a folder anywhere in this window"', { badge: 1, pad: 3 }], ['text="Recent" >> nth=0', { badge: 2, pad: 3 }]] },
+      ],
+    },
   ],
 };

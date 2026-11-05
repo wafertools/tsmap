@@ -590,6 +590,17 @@ async function runStep(page, name, args, baseUrl, { allowCosmetic, strict, tempD
       await openTestsDialog(page);
       break;
 
+    case 'desktopMode': {
+      // ['desktopMode', true|false] — reload the page as the desktop app (Tauri bridge stood in, see lib/desktop-mock.mjs)
+      // or as the browser build again. A reload drops whatever was loaded, so use it between parts of a lesson.
+      await page.evaluate((on) => {
+        if (on) localStorage.setItem('lesson:desktop', '1'); else localStorage.removeItem('lesson:desktop');
+      }, args[0] !== false);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(600);
+      break;
+    }
+
     case 'dismissSelector':
       await dismissSelector(page);
       break;

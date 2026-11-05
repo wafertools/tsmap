@@ -21,6 +21,8 @@ Learn tsmap
 
 # In this lesson
 
+Yield tells you how many dies passed. The measurements behind it tell you how close to their limits the dies were. This lesson shows how test values spread, how groups of wafers compare, and where to find the numbers behind every chart.
+
 - Read how values spread, and where tests sit against their limits
 - Compare groups of wafers and see where on the wafer they differ
 - Export the numbers behind every chart
@@ -37,7 +39,7 @@ Learn tsmap
 
 # The Distributions tab
 
-How values spread: process capability, a box plot per wafer, a histogram and the trend across wafers.
+This tab is about how values spread: process capability, a box plot per wafer, a histogram and the trend across wafers. It answers "are my tests healthy, or close to failing?"
 
 ![The Distributions tab](images/06/distributions.png)
 
@@ -48,13 +50,21 @@ How values spread: process capability, a box plot per wafer, a histogram and the
 
 # Tests by wafer
 
-At the top of Distributions, **Tests by wafer** picks the tests whose wafers differ most and draws them as a grid. Each row is a test and each column is a wafer. The colour is how far that wafer's mean is from the mean of all the wafers: blue is below, orange is above, and a pale cell is close to average.
+Which wafers behave differently from the rest? At the top of Distributions, **Tests by wafer** picks the tests whose wafers differ most and draws them as a grid. Each row is a test and each column is a wafer.
 
 ![The Tests by wafer grid, six tests by twenty-five wafers](images/06/tests-by-wafer.png)
 
 ---
 
+# Reading the colours of the grid
+
+The colour of a cell shows how far that wafer's mean is from the mean of all the wafers: blue is below, orange is above, and a pale cell is close to average.
+
+---
+
 # Reading the grid in z-scores
+
+Each cell needs a common scale, so that millivolts and megahertz can sit side by side.
 
 - Each test is rescaled on its own, so tests in different units share one colour scale
 - The number in a cell is a [**z-score**](https://wafertools.github.io/tsmap/learn/glossary/#z-score): how many standard deviations the wafer's mean is from the mean of all wafers
@@ -67,7 +77,7 @@ At the top of Distributions, **Tests by wafer** picks the tests whose wafers dif
 
 # Process capability
 
-Each test is rescaled against its own limits: the low limit becomes 0 and the high limit becomes 1. That puts tests in different units on one scale.
+How much room does each test have before it fails? Each test is rescaled against its own limits: the low limit becomes 0 and the high limit becomes 1. That puts tests in different units on one scale, so you can compare their margins directly.
 
 ![The Process capability card](images/06/capability.png)
 
@@ -76,6 +86,8 @@ Each test is rescaled against its own limits: the low limit becomes 0 and the hi
 <!-- covers: wmap guide › Capability, Ppk and the goal plot -->
 
 # Reading the colours
+
+Each test is a box showing where its values sit between the limits.
 
 - A box centred between 0 and 1, whiskers inside, has room; one against 0 or 1 does not
 - Lowest [**Ppk**](https://wafertools.github.io/tsmap/learn/glossary/#ppk) first: 1.33 or more is capable, under 1.0 poor
@@ -87,7 +99,7 @@ Each test is rescaled against its own limits: the low limit becomes 0 and the hi
 
 # Tests with no limits
 
-A test without both limits still appears, drawn muted and dashed on its own range, with no Ppk. Its place says how its values spread, not how near a limit they are.
+A test without both limits still appears, drawn muted and dashed on its own range, with no Ppk. Its place says how its values spread, not how near a limit they are, because there is no limit to be near.
 
 ![SWEEP-LOT-06 capability chart: tests without limits drawn muted and dashed](images/06/no-limits.png)
 
@@ -98,9 +110,25 @@ A test without both limits still appears, drawn muted and dashed on its own rang
 
 # One test for every card
 
-Under the heading **Test by test** there is one **Test** menu. Changing it changes the box plot, the histogram, the trend and the scatter together, so every card is about the same test. Clicking a test in the capability chart does the same. A card shows a Test menu of its own only while you have expanded it.
+Under the heading **Test by test** there is one **Test** menu. Changing it changes the box plot, the histogram, the trend and the scatter together, so every card is about the same test and you can read them as one story.
 
 ![The Test menu in the Test by test row, listing every test](images/06/test-menu.png)
+
+---
+
+<!-- _class: split -->
+
+# Pin the tests you use
+
+A lot can have hundreds of tests. Click the **☆** at the end of a row in any test menu, or press **P** on the focused row, to pin that test. Pinned tests are listed first, under **Pinned**, in every test menu in Insights, and tsmap remembers them for the next lot.
+
+![The Test menu with ioff_nA pinned at the top, under Pinned](images/06/test-menu-pinned.png)
+
+---
+
+# Other ways to change the test
+
+Clicking a test in the capability chart does the same. A card shows a Test menu of its own only while you have expanded it.
 
 ---
 
@@ -116,7 +144,7 @@ Under the heading **Test by test** there is one **Test** menu. Changing it chang
 
 # Clipping changes only the axis
 
-The chart states how many values fall outside the axis, and every statistic still includes them.
+Clipping does not remove data. The chart states how many values fall outside the axis, and every statistic still includes them.
 
 ![The box plot with Clip outliers on](images/06/box-clipped.png)
 
@@ -147,7 +175,7 @@ The histogram has a **Wafer** menu: all wafers pooled, or one wafer. Type to fil
 
 # Wafer-to-wafer trend
 
-Each wafer's mean in slot order, with a band of ±1 standard deviation. There is no sort: a drift only shows in sequence.
+Is the process drifting from wafer to wafer? This chart shows each wafer's mean in slot order, with a band of ±1 standard deviation. There is no sort, because a drift only shows in sequence.
 
 ![The wafer-to-wafer trend of ioff_nA](images/06/trend.png)
 
@@ -158,9 +186,15 @@ Each wafer's mean in slot order, with a band of ±1 standard deviation. There is
 
 # Trend or control chart
 
-**Control chart** shows the same wafers against control limits, with the points that break a rule marked. The trend shows how the dies within each wafer spread; the control chart shows whether a wafer's mean stands out from the others. It needs at least three wafers.
+**Control chart** shows the same wafers against control limits, with the points that break a rule marked.
 
 ![The control chart view of the wafer-to-wafer card](images/06/trend-control.png)
+
+---
+
+# Which view to use
+
+The two views answer different questions. The trend shows how the dies within each wafer spread. The control chart shows whether a wafer's mean stands out from the others, and it needs at least three wafers.
 
 ---
 
@@ -168,7 +202,7 @@ Each wafer's mean in slot order, with a band of ±1 standard deviation. There is
 
 # The histogram when grouped
 
-With Group by on, each group's bars are a share of its own dies, so groups of different sizes compare by shape. **Counts** shows the number of dies instead.
+With Group by on, each group's bars are a share of its own dies, so groups of different sizes compare by shape rather than by size. **Counts** shows the number of dies instead.
 
 ![The value histogram with one series per split, as shares](images/06/histogram-share.png)
 
@@ -212,6 +246,8 @@ The box plot can show one box for each wafer (**By wafer**) or one for each ring
 
 # Why each wafer counts once
 
+Comparing groups raises a fair question: why not use every die? Because the dies are not independent.
+
 - Dies on one wafer went through the same processing, so they are not independent
 - Counted die by die, thousands of dies make a tiny difference between two wafers look certain
 - So a comparison of groups takes each wafer's mean as one value: n is wafers
@@ -221,6 +257,8 @@ The box plot can show one box for each wafer (**By wafer**) or one for each ring
 <!-- covers: Comparing groups of wafers; wmap guide › Comparing groups of wafers; chart › Comparison by group; glossary › Welch test, Kruskal–Wallis and q-value -->
 
 # Comparing groups
+
+When you compare groups, the table gives you three things to read.
 
 - [**Welch p**](https://wafertools.github.io/tsmap/learn/glossary/#welch-p), [**Rank p**](https://wafertools.github.io/tsmap/learn/glossary/#rank-p): how likely a difference this large is by chance
 - [**q**](https://wafertools.github.io/tsmap/learn/glossary/#q) corrects p for many tests: read q
@@ -234,7 +272,7 @@ The box plot can show one box for each wafer (**By wafer**) or one for each ring
 
 # Tests by group
 
-With Group by on, **Tests by wafer** becomes **Tests by split**: one column for each group instead of each wafer, in z-scores again. A group that is dark across several rows differs on several tests at once, which usually means one cause.
+With Group by on, **Tests by wafer** becomes **Tests by split**: one column for each group instead of each wafer, in z-scores again. A group that is dark across several rows differs on several tests at once, which suggests one cause.
 
 ![Tests by split, six tests by five splits](images/06/tests-by-split.png)
 
@@ -244,7 +282,7 @@ With Group by on, **Tests by wafer** becomes **Tests by split**: one column for 
 
 # Group by temperature
 
-Grouped by **Temperature**, the card compares the six wafers tested at 85 °C with the nineteen at 25 °C. At 85 °C leakage (`ioff_nA`) is high and the thresholds, `idsat_n_uA` and `fmax_MHz` are lower. Tester, program revision and burn-in time group the same way.
+Grouped by **Temperature**, the card compares the six wafers tested at 85 °C with the nineteen at 25 °C. At 85 °C leakage (`ioff_nA`) is high, while the thresholds and both `idsat_n_uA` and `fmax_MHz` are lower. Tester, program revision and burn-in time group the same way.
 
 ![Tests by temperature: the 85 group against the 25 group](images/06/tests-by-temperature.png)
 
@@ -254,7 +292,7 @@ Grouped by **Temperature**, the card compares the six wafers tested at 85 °C wi
 
 # Where on the wafer
 
-The difference map shows where on the wafer two groups differ, not whether the difference is significant.
+Once you know two groups differ, the next question is where. The difference map shows where on the wafer two groups differ, not whether the difference is significant. Use the comparison table for that.
 
 ![The difference map: FF minus FS on ioff_nA](images/06/difference-map.png)
 
@@ -270,7 +308,7 @@ The difference map shows where on the wafer two groups differ, not whether the d
 
 # The Data tab
 
-**Data**, the tab after Correlation, holds every number behind the charts as tables. The foot of the Overview links to it too.
+Every chart is drawn from numbers, and you can have them. **Data**, the tab after Correlation, holds every number behind the charts as tables. The foot of the Overview links to it too.
 
 ![The link to the Data tab at the foot of the Overview, outlined](images/06/data-tab-link.png)
 
@@ -290,7 +328,7 @@ The **Data** tab holds the same numbers as tables, in three sub-tabs: Statistics
 
 # Wafers
 
-One row per wafer: its lot fields, die counts, yield and the mean of each test.
+The Wafers table has one row per wafer: its lot fields, die counts, yield and the mean of each test.
 
 ![The Wafers table](images/06/data-wafers.png)
 
@@ -300,7 +338,7 @@ One row per wafer: its lot fields, die counts, yield and the mean of each test.
 
 # Dies
 
-One row per die: position, ring, quadrant, site, bins, every test and the PAT verdict. **Copy** puts it on the clipboard and **Export CSV** saves a file; **Wide** has a column per test, **Long** a row per die and test.
+The Dies table has one row per die: position, ring, quadrant, site, bins, every test and the PAT verdict. **Copy** puts it on the clipboard and **Export CSV** saves a file; **Wide** has a column per test, **Long** a row per die and test.
 
 ![The Dies table](images/06/data-dies.png)
 
@@ -321,6 +359,8 @@ One row per die: position, ring, quadrant, site, bins, every test and the PAT ve
 - **Distributions** shows how values spread and where tests sit against their limits
 - With **Group by** on, the same tab compares groups of wafers
 - **Data** holds every number as a table you can export
+
+You can now say how a test behaves and whether groups differ. Next: which tests move together.
 
 More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#8-insights-tab)
 

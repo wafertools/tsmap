@@ -48,7 +48,7 @@ const ROWS: TemplateRow[] = [
   },
   {
     label: 'Plots',
-    description: 'Saved plots, including sweeps (runs of tests read as response curves) — import with Insights → Plot → Import plots…, or launch with --plots. JSON, not CSV: a sweep has series inside it.',
+    description: 'Saved plots, including sweeps (runs of tests read as response curves) — import with Insights → My plots → Import plots…, or launch with --plots. JSON, not CSV: a sweep has series inside it.',
     fileName: 'plots-template.json',
     content: plotsTemplateText,
   },

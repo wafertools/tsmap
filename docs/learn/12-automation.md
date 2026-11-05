@@ -21,6 +21,8 @@ Learn tsmap
 
 # In this lesson
 
+If you open the same kind of data every day, or you want another tool to open it for you, clicking through the dialogs gets tiresome. This lesson shows how to open data from a link or the command line, and how to save your setup so you only have to make it once.
+
 - Open data from a link or the command line
 - Use the definitions files: tests, splits, bins and plots
 - See and reset what tsmap remembers
@@ -36,7 +38,7 @@ Learn tsmap
 <!-- covers: tsmap guide › Opening data from a URL -->
 
 # From a link
-Another application can open the web app on a data file:
+Another application, or a colleague's message, can open the web app on a data file. The link holds the address of the file:
 
 `…/app/?dataUrl=<encoded URL>&dataFormat=csv`
 
@@ -47,7 +49,7 @@ Name the format: `stdf`, `atdf`, `csv`, `json`, `parquet` or `zip`.
 <!-- covers: tsmap guide › Browser build: the data server must allow cross-origin requests (CORS) -->
 
 # The lab link
-The labs in these lessons use it. This opens the sample CSV:
+The labs in these lessons use this kind of link. This one opens the sample CSV:
 
 [Open the sample CSV](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sample.csv&dataFormat=csv)
 
@@ -60,7 +62,7 @@ More in the [user guide](../user-guide.md#opening-data-from-a-url)
 <!-- covers: tsmap guide › Command line -->
 
 # The command line
-On the desktop app, name files when you launch it:
+On the desktop app, name files when you launch it, and they open without a single click:
 
 `tsmap lot1.stdf lot2.stdf`
 `tsmap lot1.stdf --splits my-splits.csv`
@@ -71,7 +73,27 @@ On the desktop app, name files when you launch it:
 
 ---
 
+# tsmap --help
+
+The first lines of what it prints:
+
+```text
+tsmap [OPTIONS] [FILE...]
+
+Options:
+  --list <FILE>         A text file of data-file paths, one per line
+  --tests <FILE>        A test-selection list; pre-fills the selector
+  --splits <FILE>       A wafer-splits CSV, applied once loaded
+  --bins <FILE>         A bin-definitions CSV, applied over the data
+  --setup <FILE>        A setup file: diameter, edge exclusion, reticle, ...
+  --plots <FILE>        A plots file, added to your saved plots
+```
+
+---
+
 # More options
+
+Options let a launch carry its own setup.
 
 - `--wafer-diameter`, `--edge-exclusion`, `--reticle`: the dialogs' values, for that launch
 - `--tests` fills in the test selector; `--list` reads a list of paths
@@ -85,7 +107,9 @@ More in the [user guide](../user-guide.md#command-line)
 
 # Data behind a login
 
-- A link carries no password: use a presigned URL
+Data often sits behind a login, and a link should not carry a password.
+
+- Use a presigned URL, which builds the access into the address
 - `--url-headers auth.txt` sends a token from a file (desktop)
 - See the [integration guide](../integrating-data-selection.md) and a [live demo](../demos/open-from-link.html)
 
@@ -93,8 +117,23 @@ More in the [user guide](../user-guide.md#command-line)
 
 <!-- covers: tsmap guide › File associations (desktop) -->
 
+<!-- _class: split -->
+
 # File associations
-On the desktop app, **Preferences → File associations…** opens `.stdf`, `.atdf` and `.parquet` files in tsmap by double-click. Nothing is associated until you tick it. It is not available in the browser.
+
+To open files by double-clicking them, use the desktop app. **Preferences → File associations…** opens `.stdf`, `.atdf` and `.parquet` files in tsmap. Nothing is associated until you tick it. It is not available in the browser.
+
+![The desktop app's Preferences menu, with File associations… outlined](images/12/preferences-desktop.png)
+
+---
+
+<!-- _class: split -->
+
+# The File associations window
+
+One row per file type. A tick means double-clicking that type opens it in tsmap, and the path under it is the copy of tsmap that is registered. A **⚠** warns when that is a different copy from the one running, as after an upgrade or a dev build.
+
+![The File associations window: STDF registered, ATDF not, and Parquet registered to another copy](images/12/file-associations.png)
 
 ---
 
@@ -111,6 +150,16 @@ On the desktop app, **Preferences → File associations…** opens `.stdf`, `.at
 
 ---
 
+<!-- _class: split -->
+
+# Keyboard shortcuts
+
+**Help → Keyboard shortcuts…**, or **?** from anywhere, lists the keys for maps, galleries, windows and menus. Zooming, panning, **E** for an enlarged map and **1–5** for the columns of cards are all here.
+
+![The Keyboard shortcuts window](images/12/shortcuts.png)
+
+---
+
 # The rest of the Help menu
 
 - **Support tsmap…** opens the page on how to support the project
@@ -123,7 +172,7 @@ On the desktop app, **Preferences → File associations…** opens `.stdf`, `.at
 
 # The Preferences menu
 
-The gear works with nothing loaded.
+The gear works with nothing loaded, so you can set things up before you open any data.
 
 - **Export or import settings…** carries your column mappings and preferences to another machine
 
@@ -131,9 +180,13 @@ The gear works with nothing loaded.
 
 ---
 
+<!-- _class: split -->
+
 # Export or import settings
 
-**Export…** writes a file and **Import…** reads one. Column mappings merge at once; the other settings are chosen from a list, and tsmap then reloads. Recent files, split assignments and the setup values are never included.
+Use this to set up a second machine. **Export…** writes a file and **Import…** reads one. Column mappings merge at once; the other settings are chosen from a list, and tsmap then reloads. The window lists what is never included.
+
+![The Export or import settings window: column mappings above, other saved settings below](images/12/settings-dialog.png)
 
 ---
 
@@ -155,17 +208,25 @@ The gear works with nothing loaded.
 
 # Definitions file formats…
 
-Five kinds of file, each with a **Save template…** button that writes a filled-in example in the exact layout tsmap reads. You can save a template and edit it before you have any data.
+Earlier lessons used files that tell tsmap about your data: test names and limits, splits, plots, bin names. This window lists all five kinds. Each has a **Save template…** button that writes a filled-in example in the exact layout tsmap reads.
 
 ![The Definitions file formats window](images/12/definitions-formats.png)
+
+---
+
+# Start from a template
+
+You can save a template and edit it before you have any data. It is the easiest way to get a layout right.
 
 ---
 
 <!-- covers: tsmap guide › Test definitions file; tsmap guide › Splits file; tsmap guide › Bin definitions file; tsmap guide › Sweeps in a plots file -->
 
 # Four CSV files and one JSON
+Where each is covered:
+
 - CSV: test definitions (lesson 01), splits (04), bin definitions and the setup file (here)
-- JSON: plots and sweeps (09 and 10)
+- JSON: plots and sweeps (10)
 - Every format is in the [user guide](../user-guide.md#definitions-files)
 
 ---
@@ -174,7 +235,7 @@ Five kinds of file, each with a **Save template…** button that writes a filled
 
 # Setup file…
 
-The last rows of **Setup ▾** (diameter, edge exclusion, reticle, retests, value filter) can be saved as one file for a product or a site, and loaded again from **Setup ▾ → Setup file…**: **Save…** writes it, **Load…** reads one, and the **▾** lists recent files. On the command line, `--setup` applies one for a single launch.
+If you set the same geometry for every lot of a product, save it once. The last rows of **Setup ▾** (diameter, edge exclusion, reticle, retests, value filter) can be saved as one file for a product or a site, and loaded again from **Setup ▾ → Setup file…**: **Save…** writes it, **Load…** reads one, and the **▾** lists recent files. On the command line, `--setup` applies one for a single launch.
 
 ---
 
@@ -184,19 +245,12 @@ The last rows of **Setup ▾** (diameter, edge exclusion, reticle, retests, valu
 
 ---
 
-<!-- covers: tsmap guide › Bin definitions; Setup ▾ › Bin definitions…; Bin definitions… › Save…; Bin definitions… › Load…; Bin definitions… › Load a recently used definitions file; Bin definitions… › Mark pass; Bin definitions… › Mark fail; Bin definitions… › Tick every row that matches the filter; Bin definitions… › Revert all; Bin definitions… › Cancel; Bin definitions… › Apply -->
-
-# Bin definitions…
-
-A table of every hard and soft bin with its die count, a name, whether a hard bin passes, and optionally its map colour. Tick rows for **Mark pass** or **Mark fail**; **Revert all** undoes the edits. Changing a pass flag shows the lot's yield before and after, and **Apply** asks you to confirm.
-
----
-
 <!-- _class: split -->
+<!-- covers: Bin definitions… › Save…; Bin definitions… › Load…; Bin definitions… › Load a recently used definitions file -->
 
 # Saving and loading bin definitions
 
-<span class="badge" role="img" aria-label="callout 1">1</span> **Save…** writes them to a CSV file. <span class="badge" role="img" aria-label="callout 2">2</span> **Load…** reads one. <span class="badge" role="img" aria-label="callout 3">3</span> The **▾** lists recently used files.
+The Bin definitions window ([lesson 04](04-the-lot-view.md)) saves and loads files, and a loaded file lands as edits you can check before **Apply**. <span class="badge" role="img" aria-label="callout 1">1</span> **Save…** writes them to a CSV file. <span class="badge" role="img" aria-label="callout 2">2</span> **Load…** reads one. <span class="badge" role="img" aria-label="callout 3">3</span> The **▾** lists recently used files.
 
 ![The Bin definitions window, with its three buttons outlined](images/12/bin-definitions.png)
 
@@ -206,7 +260,7 @@ A table of every hard and soft bin with its die count, a name, whether a hard bi
 
 # STDF, ATDF and the rest
 
-STDF and ATDF name their bins; in a table every bin is a bare number until you load definitions. Bin colours from a file can be switched off under **Colour scheme**.
+A table has only bin numbers, so every bin is a bare number until you load definitions. STDF and ATDF files can carry bin names, but you can load definitions for them as well. Bin colours from a file can be switched off under **Colour scheme**.
 
 ---
 
@@ -214,7 +268,7 @@ STDF and ATDF name their bins; in a table every bin is a bare number until you l
 
 # In the column mapping
 
-For those formats, name the bins in the column mapping before you continue: **Name bins…** opens the bin table over the bins in the sample of rows it holds (add a rare one by number), and **Load bin definitions…** reads a file. Both are next to **Pass bin(s)**.
+For a table, you can name the bins in the column mapping before you continue: **Name bins…** opens the bin table over the bins in the sample of rows it holds (add a rare one by number), and **Load bin definitions…** reads a file. Both are next to **Pass bin(s)**.
 
 ![The column mapping's footer, with Name bins… and Load bin definitions… outlined](images/12/mapping-bin-definitions.png)
 
@@ -244,12 +298,24 @@ For those formats, name the bins in the column mapping before you continue: **Na
 
 # Reset saved settings…
 
+tsmap keeps a lot between sessions, which is convenient until you want a clean start.
+
 - Theme, splits, mappings, plots, filters, geometry: kept on this machine
 - The window lists what is stored now
-- Tick items, then **Forget selected**
-- It is also the way to undo anything an earlier lab left behind
 
 ![The Reset saved settings window](images/12/reset-settings.png)
+
+---
+
+<!-- _class: split -->
+
+# Forgetting settings
+
+On the desktop app the list also holds **Recently opened files**.
+
+![The Reset saved settings window on the desktop app, with Recently opened files in the list](images/12/reset-settings-desktop.png)
+
+Tick the items you want to forget, then choose **Forget selected**. **Reset saved settings…** is also the way to undo anything an earlier lab left behind.
 
 ---
 
@@ -275,6 +341,8 @@ Loaded wafer data is not affected by a reset. Saved settings stay on this machin
 - A link or the command line opens data with no clicking
 - Templates show the exact layout of every definitions file
 - **Reset saved settings…** shows and forgets what tsmap remembers
+
+That is the whole app, from loading a file to automating it.
 
 More in the [user guide](../user-guide.md#reference)
 

@@ -52,7 +52,7 @@ WAFERS = [('W01', 0.0), ('W02', 0.15), ('W03', 1.0)]
 def generate(output_path: Path) -> None:
     buf = bytearray()
     buf += far()
-    buf += mir('LOT-COORDLESS-01', 'CHIP-X', 'test_program', 'UltraTester-9000', 'node-01')
+    buf += mir('COORDLESS-LOT-01', 'CHIP-X', 'test_program', 'UltraTester-9000', 'node-01')
     buf += sdr(1, 1, SITES)
 
     dies = wafer_dies(8)

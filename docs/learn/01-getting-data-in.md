@@ -21,6 +21,8 @@ Learn tsmap
 
 # In this lesson
 
+Most of the time, opening a file is a simple drag and drop. This lesson also covers the cases where you need more: many files, or a table whose columns tsmap has to be told about.
+
 - Open files from inside the app, and build one lot from several files
 - Choose and rename tests in the test selector
 - Map the columns of a CSV, JSON or Parquet file
@@ -29,7 +31,7 @@ Learn tsmap
 
 <!-- _class: divider -->
 
-# Opening files
+# Opening test data files
 
 ---
 
@@ -45,8 +47,10 @@ Learn tsmap
 
 # What tsmap reads
 
+Whatever test data you have, you can probably open it in tsmap.
+
 - **STDF** and **ATDF**: tester files, read directly
-- **CSV**, **JSON** and **Parquet**: tables, after a column mapping step
+- **CSV**, **JSON** and **Parquet**: tables, after a simple column mapping step
 - **.gz**, **.bz2** and **.zip**: compressed files are read without unpacking first
 
 ---
@@ -75,7 +79,21 @@ Drop one or more files anywhere in the window. It is the same as picking them. I
 
 # Recent files
 
-*Desktop app only.* The last 8 file sets you opened are listed under **Open files ▾** and on the start screen.
+*Desktop app only.*
+
+The last 8 file sets you opened are listed on the start screen, with when you opened each. Click one to open it again, or **×** to forget it.
+
+![The desktop app's start screen with three recent file sets](images/01/recent-start.png)
+
+---
+
+<!-- _class: split -->
+
+# Recent files in the menu
+
+Once data is loaded the start screen is gone, so the same list sits under **Open files ▾**, below **Choose files…** and **Scan a folder…**. Opening a recent set replaces what is loaded. **Add files ▾** has no list, because adding from a recent set is not offered.
+
+![The Open files menu in the desktop app, with Recent below the two choices](images/01/recent-menu.png)
 
 ---
 
@@ -83,7 +101,7 @@ Drop one or more files anywhere in the window. It is the same as picking them. I
 
 # Scanning a folder
 
-Hundreds of files? Let tsmap tell you what is in them.
+Hundreds of files? Let tsmap tell you what is in them before you load any.
 
 ---
 
@@ -92,8 +110,9 @@ Hundreds of files? Let tsmap tell you what is in them.
 
 # The file filter
 
-- Scanning a folder reads only each file's header: quick, even for big batches
-- Click a heading to sort; **▾** to filter that column
+Scanning a folder reads only each file's header data, so it is quick even for a big batch. You then choose what to load.
+
+- Click a column heading to sort; click **▾** to filter that column
 - Search across every column
 
 ![The file filter after scanning six files](images/01/file-filter.png)
@@ -102,9 +121,9 @@ Hundreds of files? Let tsmap tell you what is in them.
 
 <!-- covers: Select all; Select none; Invert; Load selected…; Save filter…; Load filter… -->
 
-# Pick, then load
+# Select, then load
 
-Search for **EDGE**, **Select all** of what is shown, then **Load selected…**
+The usual routine: search for a string like **EDGE**, **Select all** of what is shown, then **Load selected…**. You load only the files you want.
 
 ![Two of the six files selected](images/01/file-filter-selected.png)
 
@@ -114,7 +133,7 @@ Search for **EDGE**, **Select all** of what is shown, then **Load selected…**
 
 - **Save filter…** keeps the filters in a file; **Load filter…** reselects matching rows
 - A mixed folder: buttons above the table pick which kind of file to load
-- Pick more than five files with **Open files** and tsmap offers this table
+- Pick more than five files with **Open files** and tsmap offers this filter table
 
 ---
 
@@ -122,7 +141,7 @@ Search for **EDGE**, **Select all** of what is shown, then **Load selected…**
 
 # Naming the wafers
 
-Several files at once ask for a label per wafer. A plain ID such as W01 gets its lot in front, so two lots' W01 stay apart. Edit any label, then **Continue →**
+When you load several files at once, tsmap suggests a label per wafer. A plain ID such as W01 gets its lot in front, so two lots' W01 stay separate, instead of being mistaken for one wafer. Edit any label, then **Continue →**
 
 ![The wafer labels step for the two EDGE-LOT-01 files](images/01/wafer-labels.png)
 
@@ -130,7 +149,7 @@ Several files at once ask for a label per wafer. A plain ID such as W01 gets its
 
 # One lot from separate files
 
-The two files hold one wafer each. They load as one lot, `EDGE-LOT-01`. The six files used here are in the scan-folder zip on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
+The two files of EDGE-LOT-01 hold one wafer each, and they load as one lot, `EDGE-LOT-01`. The six files used here are in the scan-folder zip on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
 
 ![Two wafers of EDGE-LOT-01, loaded from two files](images/01/scanned-lot.png)
 
@@ -142,7 +161,7 @@ The two files hold one wafer each. They load as one lot, `EDGE-LOT-01`. The six 
 
 # Add files
 
-**Add files** appends wafers to what is already loaded. The confirmation warns when they differ: another die count, other bins, or a wafer ID already loaded.
+**Add files** appends wafers to what is already loaded. The confirmation warns when the new wafers differ from the ones you have: another die count, other bins, or a wafer ID that's already loaded. Read it and confirm before you continue, because mixing unlike wafers can mislead.
 
 ![The confirmation before adding a wafer](images/01/add-confirm.png)
 
@@ -150,22 +169,24 @@ The two files hold one wafer each. They load as one lot, `EDGE-LOT-01`. The six 
 
 # The lot grows
 
-The third wafer joins the same gallery, Summary and yield.
+Once the third file is added, its wafer joins the same gallery, Summary and yield.
 
 ![Three wafers of EDGE-LOT-01, the added one outlined](images/01/merged-lot.png)
 
 ---
 
-# Units across files
+# Test units across files
+
+When files are combined, a test can arrive in different units.
 
 - One file in mV and another in V? tsmap converts the later file to the first file's unit, and the log says so
-- Any other difference, `mV` against `MV` included, may be another measurement: that test is left out of the views that compare wafers
+- Any other difference, `mV` against `MV` included, may be another measurement. That test is left out of the views that compare wafers, so unlike numbers are never compared.
 
 ---
 
-# Two more ways to open data
+# Two more ways to open test data
 
-- **A link** that tells the web app which file to load
+- **A link** that tells the web app which files to load
 - **The command line**, which opens the files you name in the desktop app
 
 Both are in [lesson 12](12-automation.md).
@@ -182,7 +203,7 @@ Both are in [lesson 12](12-automation.md).
 
 # The test selector
 
-A small lot imports every test by default. **Setup ▾ → Tests…** opens the test selector at any time.
+A test program can have hundreds or thousands of tests, and you rarely need them all at once. The test selector is where you choose what you need to analyse. A small lot imports every test by default, and **Setup ▾ → Tests…** opens the selector at any time.
 
 ![The test selector for the sample lot](images/01/test-selector.png)
 
@@ -192,7 +213,7 @@ A small lot imports every test by default. **Setup ▾ → Tests…** opens the 
 
 # Edit limits…
 
-**Edit limits…** in the selector opens a table of every test: its name, test limits, spec limits, validity limits, units and type. A blank cell means the data's own value, and **Use the data's values** discards the changes on ticked rows. The changes take effect when the tests are imported.
+**Edit limits…** in the selector opens a table of every test, where you can change its name, limits, units and type before the tests are imported. [Lesson 02](02-reading-a-map.md) explains test and spec limits, then walks through the table.
 
 ---
 
@@ -213,6 +234,8 @@ A small lot imports every test by default. **Setup ▾ → Tests…** opens the 
 
 # Big lots start with no tests selected
 
+Every test you import costs memory, so a large lot asks you to choose before it loads.
+
 - A lot with many tests opens the selector first, nothing ticked
 - The footer estimates memory: amber is slow, red asks first
 
@@ -229,7 +252,7 @@ A small lot imports every test by default. **Setup ▾ → Tests…** opens the 
 
 # Rename a test
 
-Click into a name and type. **Enter** keeps it; only the displayed name changes.
+Test names from a tester can be cryptic. Click into a name and type a clearer one. **Enter** keeps it; only the displayed name changes, not the data.
 
 ![Test 1006 renamed to Max frequency](images/01/test-rename.png)
 
@@ -259,7 +282,7 @@ CSV, JSON and Parquet only
 
 STDF and ATDF name every field in their records, so they go straight to the test selector without any need for column mapping.
 
-A CSV, JSON or Parquet table can lay its columns out any way, so tsmap asks which column is which.
+A CSV, JSON or Parquet table can lay its columns out any way, so tsmap has to ask which column is the X position, which is the bin, and so on.
 
 ---
 
@@ -267,7 +290,7 @@ A CSV, JSON or Parquet table can lay its columns out any way, so tsmap asks whic
 
 # Column mapping
 
-Every column gets a role. Common names are detected for you; check, then **Continue →**
+Every column gets a role. Common names are detected for you, so most of the time you only need to check that they are right, then **Continue →**
 
 ![The column mapping for a wide CSV](images/01/mapping-wide.png)
 
@@ -277,7 +300,7 @@ Every column gets a role. Common names are detected for you; check, then **Conti
 
 # Wide format
 
-One column per test. Each test column takes the **Test value** role <span class="badge" role="img" aria-label="callout 1">1</span>.
+In wide format there is one column per test. Each test column takes the **Test value** role <span class="badge" role="img" aria-label="callout 1">1</span>.
 
 ![A test column with the Test value role](images/01/mapping-test-value.png)
 
@@ -285,7 +308,7 @@ One column per test. Each test column takes the **Test value** role <span class=
 
 # Long format
 
-One row per die per test: a test number or name column, and a result column.
+In long format there is one row per die per test: a test number or name column, and a result column.
 
 ![A long-format CSV: test_num and test_val outlined](images/01/mapping-long.png)
 
@@ -294,6 +317,8 @@ One row per die per test: a test number or name column, and a result column.
 <!-- covers: tsmap guide › Role reference; tsmap guide › Dies with no position -->
 
 # Roles worth knowing
+
+Most columns are a test value or something to ignore. A few roles do more.
 
 - **Lot ID**: map it so two lots' W01 stay two separate wafers
 - **Pass/fail test**: a PASS/FAIL column, chosen for you
@@ -316,7 +341,7 @@ One row per die per test: a test number or name column, and a result column.
 
 # Pass bins
 
-**Pass bin(s)** says which hard bins count as a pass. The default is 1; list several with commas, such as `1,7`.
+**Pass bin(s)** says which hard bins count as a pass, and the yield figure follows it. The default is 1. If your program passes in another bin, or several, list them with commas, such as `1,7`.
 
 ![The Pass bin(s) field at the foot of the column mapping](images/01/mapping-pass-bins.png)
 
@@ -326,15 +351,35 @@ One row per die per test: a test number or name column, and a result column.
 
 # Saved mappings
 
-The roles you confirm are remembered for that set of columns. **Reset to auto-detected** forgets them.
+The roles you confirm are remembered for that set of columns, so the next file with the same columns needs no checking. **Reset to auto-detected** forgets them.
 
 ![The same file again: the saved mapping applied](images/01/mapping-saved.png)
 
 ---
 
+<!-- _class: split -->
+
+# Long format asks first
+
+When you press **Continue →** on a table in which several rows share the same X and Y, tsmap says it looks like long format and offers to **Render as long format**, pivoting it to one column per test. **Cancel** returns you to the mapping.
+
+![The Long-format CSV detected prompt](images/01/long-format-prompt.png)
+
+---
+
+<!-- _class: split -->
+
+# No position columns
+
+With no X or Y column, tsmap asks before it carries on. **Continue without position data** shows each wafer as a bin and value summary and a die list, not a map. Yield, histograms and correlation work as normal; only spatial analysis, such as rings and clusters, is unavailable.
+
+![The No X/Y columns assigned prompt](images/01/no-position-prompt.png)
+
+---
+
 # Bin names
 
-A file may carry only bin numbers. Tables show them as bare numbers until you load a bin definitions file, which also names the bins in the legend. Lesson [12](12-automation.md) covers it.
+A file may carry only bin numbers. Tables show them as bare numbers until you name them in **Bin definitions…** or load a bin definitions file, which also names the bins in the legend. Lesson [04](04-the-lot-view.md) covers the window and lesson [12](12-automation.md) the files.
 
 ---
 
@@ -349,7 +394,7 @@ A file may carry only bin numbers. Tables show them as bare numbers until you lo
 
 # Colour theme
 
-Auto follows your system. Or pick a light or dark theme: it is remembered.
+Choose a colour theme. Auto follows your system, or pick a light or dark theme. Your choice is remembered.
 
 ![The colour theme list](images/01/theme-menu.png)
 
@@ -367,9 +412,17 @@ Maps, charts and panels all take the theme's colours.
 
 # The log panel
 
-What each load did. Warnings are counted on the **Log** button until you open it.
+The log panel shows what each load did. Warnings are counted on the **Log** button until you open it.
 
 ![The log panel, open](images/01/log-panel.png)
+
+---
+
+# Copy the log
+
+Right-click in the log for **Select all** and **Copy all**, which puts every entry on the clipboard: the thing to paste into a bug report.
+
+![The log menu: Select all and Copy all](images/01/log-menu.png)
 
 ---
 
@@ -398,6 +451,8 @@ What each load did. Warnings are counted on the **Log** button until you open it
 - Drop files, **Open files**, or scan a folder and filter by lot
 - **Add files** grows the lot; **Setup ▾ → Tests…** chooses and renames tests
 - Tables need a column mapping, and tsmap remembers it
+
+With your data loaded and your tests chosen, you are ready to read the maps.
 
 More in the user guide: [Loading your data](../user-guide.md#loading-your-data)
 

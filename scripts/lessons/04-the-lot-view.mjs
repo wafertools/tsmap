@@ -14,6 +14,7 @@ import { SAMPLEDATA } from '../lib/paths.mjs';
 const EDGE = `${SAMPLEDATA}/EDGE-LOT-01.stdf`;
 const GT = '[data-wmap-toolbar="gallery"]';
 const CARD = '.wmap-gallery-card';
+const BIN = '[role="dialog"]:has(input[aria-label="Tick every row that matches the filter"])';
 const DIALOG = 'div[role="dialog"]';
 const btn = (label) => `${GT} button[aria-label="${label}"]`;
 const SAME = `${GT} button[aria-label^="Select the same dies"]`;
@@ -289,6 +290,35 @@ export const scenario = {
           ],
         },
       ],
+    },
+    {
+      id: '17-bin-definitions',
+      title: 'Setup ▾ → Bin definitions…: every hard and soft bin with its die count, name, pass flag and colour',
+      steps: [['click', `${DIALOG} button:has-text("Done")`], ['wait', 500], ['click', '#lot-btn'], ['wait', 300], ['click', 'button:has-text("Bin definitions")'], ['wait', 800]],
+      checks: [isVisible(BIN, 'the Bin definitions window is open')],
+      shots: [{ name: 'bin-editor', clip: { target: BIN, pad: 12 } }],
+    },
+    {
+      id: '18-bin-rename-and-pass',
+      title: 'Tick hard bin 2 and Mark pass: the lot yield is shown now and with the new pass bins',
+      steps: [
+        ['click', `${BIN} input[data-select="1"] >> nth=1`], ['click', `${BIN} button:has-text("Mark pass")`], ['wait', 500],
+      ],
+      checks: [hasText(BIN, 'with these pass bins')],
+      shots: [{ name: 'bin-editor-pass', clip: { target: BIN, pad: 12 }, callouts: [[`${BIN} input[data-select="1"] >> nth=1`, { badge: 1, pad: 2 }], [`${BIN} button:has-text("Mark pass")`, { badge: 2, pad: 2 }], [`${BIN} [role="status"] >> nth=1`, { badge: 3, pad: 2, badgeAt: 'tr' }]] }],
+    },
+    {
+      id: '19-bin-apply-confirm',
+      title: 'Apply asks you to confirm a changed pass flag before the lot is re-judged',
+      steps: [['click', `${BIN} button:has-text("Apply")`], ['wait', 500]],
+      checks: [isVisible(`${BIN} button:text-is("Change pass bins")`, 'the confirmation is showing')],
+      shots: [{ name: 'bin-editor-confirm', clip: { target: BIN, pad: 12 } }],
+    },
+    {
+      id: '20-bin-close',
+      title: 'Back, then Cancel: the lot is left as it was',
+      steps: [['click', `${BIN} button:text-is("Back")`], ['wait', 300], ['click', `${BIN} button:text-is("Cancel")`], ['wait', 500], PARK],
+      shots: [],
     },
     ],
 };

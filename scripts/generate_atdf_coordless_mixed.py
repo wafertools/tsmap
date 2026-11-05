@@ -18,7 +18,7 @@ DIES = [(0, 0, 1), (1, 0, 1), (-1, 0, 1), (0, 1, 1), (0, -1, 1), (1, 1, 1), (Non
 
 
 def generate(out: Path) -> None:
-    lines = [A.far(), A.mir('LOT-COORDLESS-01', 'WIDGET', 'JOB1', 'NODE1', 'TSTR-A', sblot_id='SUBLOT-1'), A.sdr(1, 1, [1]),
+    lines = [A.far(), A.mir('COORDLESS-LOT-01', 'WIDGET', 'JOB1', 'NODE1', 'TSTR-A', sblot_id='SUBLOT-1'), A.sdr(1, 1, [1]),
              A.wir(1, 'W01', site_grp=1)]
     good = 0
     for part_id, (x, y, hbin) in enumerate(DIES, start=1):

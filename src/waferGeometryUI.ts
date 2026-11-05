@@ -72,17 +72,17 @@ export function showWaferGeometryDialog(
         } else if (inferredHint.source === 'inferred') {
           diameterHintText.style.color = 'var(--text-dim)';
           diameterHintText.textContent =
-            `wmap's current estimate for this wafer: ${inferredHint.diameter} mm (confidence ${inferredHint.confidencePercent}%)`;
+            `The current estimate for this wafer: ${inferredHint.diameter} mm (confidence ${inferredHint.confidencePercent}%)`;
         } else {
           diameterHintText.style.color = 'var(--warn-text)';
           diameterHintText.textContent =
-            "wmap has no physical size information for this data (no die size or wafer diameter recorded) — enter your process's actual wafer diameter.";
+            "This data records no die size or wafer diameter, so there is no physical size to go on — enter your process's actual wafer diameter.";
         }
       } else if (inferredHint.source !== 'none' && Math.abs(inferredHint.diameter - current.diameterMm) > 0.5) {
         diameterHintText.style.color = 'var(--warn-text)';
         diameterHintText.textContent = inferredHint.source === 'wcr'
           ? `This file's WCR record specifies ${inferredHint.diameter} mm — check the saved value still suits the data now loaded.`
-          : `wmap's own estimate for this wafer is now ~${inferredHint.diameter} mm — check the saved value still suits the data now loaded.`;
+          : `The automatic estimate for this wafer is now ~${inferredHint.diameter} mm — check the saved value still suits the data now loaded.`;
       }
 
       // ── Edge exclusion ────────────────────────────────────────────────────
@@ -145,7 +145,7 @@ export function showWaferGeometryDialog(
         | { ok: false } {
         const parsedDiameter = parseDiameterField();
         if (parsedDiameter.kind === 'invalid') {
-          errorText.textContent = "Enter a positive diameter, or leave blank to use wmap's automatic estimate.";
+          errorText.textContent = "Enter a positive diameter, or leave blank to use the automatic estimate.";
           return { ok: false };
         }
         const diameterMm = parsedDiameter.kind === 'valid' ? parsedDiameter.value : undefined;
