@@ -1411,7 +1411,7 @@ mod tests {
 
     #[test]
     fn sample_file_multi_wafer() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.atdf");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_S1.atdf");
         let result = parse_atdf_sync(path.to_string()).unwrap();
         assert!(result.wafers.len() > 1, "expected multiple wafers");
         assert!(result.meta.get("lotId").is_some(), "expected lot ID");
@@ -1480,7 +1480,7 @@ mod tests {
 
     #[test]
     fn file_meta_lot_fields_and_wafer_count_match_full_parse() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.atdf");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_S1.atdf");
         let bytes = std::fs::read(path).unwrap();
         let meta = parse_atdf_file_meta(&bytes).unwrap();
         let full = parse_atdf_from_bytes(&bytes).unwrap();
@@ -1519,7 +1519,7 @@ mod tests {
 
     #[test]
     fn gz_parsed_same_as_plain() {
-        let plain_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.atdf");
+        let plain_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_S1.atdf");
         let plain   = parse_atdf_sync(plain_path.to_string()).unwrap();
         let gz_path = gz_of(plain_path);
         let gz      = parse_atdf_sync(gz_path.to_str().unwrap().to_string()).unwrap();
@@ -1535,7 +1535,7 @@ mod tests {
     #[test]
     fn filtered_bytes_read_gzip_and_bzip2() {
         use std::io::Write;
-        let raw = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03.atdf")).unwrap();
+        let raw = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample_data/CLUST-LOT-03_S1.atdf")).unwrap();
         let selected: std::collections::HashSet<u32> = parse_atdf_test_names(&raw).unwrap()
             .test_defs.keys().filter_map(|k| k.parse().ok()).collect();
         let dies = |p: &ParsedStdf| p.wafers.iter().map(|w| w.results.len()).sum::<usize>();

@@ -122,8 +122,8 @@ The repository's `sample_data/` folder holds synthetic lots for trying each feat
 | `RETEST-LOT-07.csv` | Dies probed more than once: most failing dies are retested and about two thirds recover, a few passing dies are re-probed and some of those fail, and a few recovered dies fail a third probe. | **Setup ▾ → Retests…**: each choice gives its own yield. The die tooltip's retest count; the log's note about repeated dies |
 | `MPW-LOT-08.csv` | A multi-project wafer: a small cluster of dies repeats in every reticle. | **Overlays ▾ → Compact layout** and **Layout diagnostics** |
 | `VALID-LOT-09.csv` | Long-format file with test limits and validity limits (`lo_limit`, `hi_limit`, `lvl`, `uvl`). A few readings per test are tester clamps: Idsat at its 5000 µA compliance clamp, Vth at 0 mV with no probe contact, Ioff at its ammeter rail. | **Setup ▾ → Exclude values outside limits…**: switch between validity limits and off, and compare the map, the Test Values table's **Excl.** column and the Distributions charts. Yield does not change |
-| `SWEEP-LOT-06.stdf`, `_testdefs.csv`, `_plots.json` | A two-state switching lot of 6 wafers and more than 70 tests: readable names, 7 derived tests, and two sweeps. | Load the lot, load the definitions in the test selector, then **Insights → My plots → Import plots…** (or launch with `--plots`) |
-| `EDGE-LOT-01`, `HY-LOT-04`, `CLUST-LOT-03`, `PARAM-LOT-02` (`.stdf`, `.atdf`, and one file per wafer) | Four lots, each with one story (an edge-ring defect, a high-yield lot, a failure cluster, a parametric shift) probed on four sites with five functional tests each, and its own wafer and die size: 300 mm with 10×8 mm dies (799 dies a wafer), 150 mm with 10 mm dies (145), 200 mm with 8×6 mm dies (581) and 300 mm with 5 mm dies (2,709). Open several together for a mixed gallery and the file filter. | The Summary panel's findings; **Open files ▾ → Scan a folder…**; the gallery's **Columns** (keys **1** to **5**, **0** for Auto) on the 2,709-die lot |
+| `SWEEP-LOT-06.stdf`, `_testdefs.csv`, `_plots.json` | A two-state switching lot of 8 wafers in four probe sessions and more than 70 tests: readable names, 7 derived tests, and two sweeps. | Load the lot, load the definitions in the test selector, then **Insights → My plots → Import plots…** (or launch with `--plots`) |
+| `EDGE-LOT-01`, `HY-LOT-04`, `CLUST-LOT-03`, `PARAM-LOT-02` (`.stdf` for the lot, `_S1`… `.stdf`/`.atdf` per probe session, `_W01`… per wafer, `.csv` merged, `_splits.csv`) | Four lots, each with one story (an edge-ring defect, a high-yield lot, a failure cluster, a parametric shift) probed on four sites with five functional tests each, and its own wafer and die size: 300 mm with 10×8 mm dies (799 dies a wafer), 150 mm with 10 mm dies (145), 200 mm with 8×6 mm dies (581) and 300 mm with 5 mm dies (2,709). Each lot is probed in several sessions that differ in tester, handler, probe card, operator and date, and the wafers differ in a fab split; some of these change the data and one is a decoy (`HY-LOT-04` has none that do). The lot's `.stdf` is the sessions written one after another, `.csv` is the same lot as one export, and `_splits.csv` is the fab's split. Open several together for a mixed gallery and the file filter. | The Summary panel's findings; **Open files ▾ → Scan a folder…**; the gallery's **Columns** (keys **1** to **5**, **0** for Auto) on the 2,709-die lot |
 | `COORDLESS-LOT-01.stdf`, `TESTNUM-COORDLESS-01.{csv,json,parquet}`, `ALL-COORDLESS-01.csv` | Wafers whose dies have no reported position: one positioned, one mixed, one with none. | [Dies with no position](#dies-with-no-reported-position) |
 | `TESTNUM-LONG-01`, `TESTNUM-WIDE-01` (`.csv`, `.json`, `.parquet`) | Real test numbers in long format (no name column, with validity limits and boundary values) and in wide format (numeric column headers). | The column mapping dialog's test number choice |
 | `CORR-LOT-01.parquet`, `PARQUET-LOT-01.parquet`, `sample-lot.stdf.gz`, `large.zip` | Parquet with designed correlations, a general Parquet lot, a gzipped STDF, and a 66 MB zip holding a 358 MB STDF to try a large load. | Open directly: `.gz` and `.zip` are read without unpacking |
@@ -901,7 +901,7 @@ derived)").
 
 **Writing derived tests in the app.** **Derived tests…** in the selector footer opens a table of them,
 each with a number, name, expression, units, test limits and type. **Add derived test** starts a row on
-the next unused number from 910001 and puts the cursor in its expression; **Delete** removes a row.
+the next unused number from 900001 and puts the cursor in its expression; **Delete** removes a row.
 Every expression is checked as you type, by the same rules the map is built with: the **Check** column
 reads ✓ with *Number* or *Verdict (functional)*, or ✗ with the reason and the position, and **Reads** lists
 the tests it depends on by number and name. A derived test may read another. **Apply** is refused while any
@@ -972,9 +972,9 @@ whose dies are excluded from yield and shown dimmed on the map.
 
 - **Wafer diameter (mm)** pre-fills from whichever source tsmap trusts most for the currently
   loaded file: a WCR record's own diameter (real data, shown with no confidence figure), or
-  wmap's own geometric inference — but only when that inference actually resolved physical
+  tsmap's own geometric estimate — but only when that estimate actually resolved physical
   units; a dimensionless grid-step count is never shown as if it were millimetres. If a value
-  is already pinned and it disagrees with what the current file/wmap now say (for example, a
+  is already pinned and it disagrees with what the current file and estimate now say (for example, a
   different lot loaded since), a caption flags the mismatch without blocking Apply.
 - **Edge exclusion width (mm)** is only meaningful relative to a confirmed diameter, so the
   field stays disabled — greyed out, with a "Set a diameter first" hint — until the diameter
@@ -1514,7 +1514,7 @@ The file is a CSV with a required header row:
   independent entries — the same rule STDF/ATDF's own HBR/SBR follow. Defaults to `hard` when
   omitted, since most single-axis CSV/JSON/Parquet loads only map one bin column.
 - **`pass`** accepts `P`/`F`, `Y`/`N`, `true`/`false`, or `1`/`0`. Only meaningful for hard
-  bins in practice — a soft-bin row's `pass` value is still read, but wmap's own pass/fail
+  bins in practice — a soft-bin row's `pass` value is still read, but tsmap's own pass/fail
   logic looks at hard bin membership.
 - **`color`** is optional: a hex colour such as `#1f77b4` (or the short form `#17b`). A bin
   with a colour is drawn in it on every map, in place of the colour scheme's choice — the way

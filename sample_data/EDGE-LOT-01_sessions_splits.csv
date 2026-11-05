@@ -1,0 +1,12 @@
+# tsmap wafer splits
+# Fab split of each wafer of EDGE-LOT-01
+# Keys use the "{lotId} · {waferId}" form a wafer ID takes when the session files are opened together
+waferId,split
+EDGE-LOT-01 · W01,Baseline
+EDGE-LOT-01 · W02,Recipe-2
+EDGE-LOT-01 · W03,Baseline
+EDGE-LOT-01 · W04,Recipe-2
+EDGE-LOT-01 · W05,Baseline
+EDGE-LOT-01 · W06,Recipe-2
+EDGE-LOT-01 · W07,Baseline
+EDGE-LOT-01 · W08,Recipe-2

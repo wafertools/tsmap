@@ -1,0 +1,15 @@
+# tsmap wafer splits
+# Fab split of each wafer of PARAM-LOT-02
+waferId,split
+W01,TT
+W02,FF
+W03,SS
+W04,TT
+W05,FF
+W06,SS
+W07,TT
+W08,FF
+W09,SS
+W10,TT
+W11,FF
+W12,SS

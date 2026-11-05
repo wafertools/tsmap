@@ -1,0 +1,12 @@
+# tsmap wafer splits
+# Fab split of each wafer of CLUST-LOT-03
+# Keys use the "{lotId} · {waferId}" form a wafer ID takes when the session files are opened together
+waferId,split
+CLUST-LOT-03 · W01,Baseline
+CLUST-LOT-03 · W02,Recipe-2
+CLUST-LOT-03 · W03,Baseline
+CLUST-LOT-03 · W04,Recipe-2
+CLUST-LOT-03 · W05,Baseline
+CLUST-LOT-03 · W06,Recipe-2
+CLUST-LOT-03 · W07,Baseline
+CLUST-LOT-03 · W08,Recipe-2

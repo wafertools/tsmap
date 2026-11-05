@@ -1,8 +1,8 @@
 FAR:A|4|2|S
-MIR:HY-LOT-04|CHIP-A|HY_v3|node-02|Tester-1|14:56:40 16-JUN-2025|15:06:40 16-JUN-2025|bob|P|1||WS||1.0||||||25
-SDR:1|1|1,2,3,4|PRB-200|P-100|PC-A|C-1002
+MIR:HY-LOT-04|CHIP-A|HY_v3|node-02|Tester-1|08:50:00 19-JUN-2025|09:00:00 19-JUN-2025|bob|P|1||WS||1.0||||||25
+SDR:1|1|1,2,3,4|PRB-200|P-100|PC-A|C-1001
 WCR:D|||150|10|10|3
-WIR:1|20:26:40 16-JUN-2025|1|W09
+WIR:1|09:00:00 19-JUN-2025|1|W09
 PIR:1|3
 PTR:1001|1|3|2.36|P||Iddq|||uA||5
 PTR:1002|1|3|1.809|P||Vref|||V|1.7|1.88
@@ -1453,7 +1453,7 @@ FTR:2003|1|3|P|||||||||||||||||io_loopback
 FTR:2004|1|3|P|||||||||||||||||pll_lock
 FTR:2005|1|3|P|||||||||||||||||jtag_idcode
 PRR:1|3|145|8|P|1|10|6|3|||100
-WRR:1|21:01:40 16-JUN-2025|145|W09|1|||142
+WRR:1|09:35:00 19-JUN-2025|145|W09|1|||142
 HBR:||1|142|P|Pass
 HBR:||2|2|F|Continuity
 HBR:||3|1|F|Iddq
@@ -1462,4 +1462,4 @@ SBR:||20|1|F|Continuity - Open
 SBR:||21|1|F|Continuity - Short
 SBR:||30|1|F|Iddq - High
 PCR:||145|||142
-MRR:21:01:40 16-JUN-2025
+MRR:09:35:00 19-JUN-2025

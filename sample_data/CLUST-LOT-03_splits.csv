@@ -1,0 +1,11 @@
+# tsmap wafer splits
+# Fab split of each wafer of CLUST-LOT-03
+waferId,split
+W01,Baseline
+W02,Recipe-2
+W03,Baseline
+W04,Recipe-2
+W05,Baseline
+W06,Recipe-2
+W07,Baseline
+W08,Recipe-2

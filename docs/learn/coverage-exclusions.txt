@@ -18,6 +18,7 @@ fold Finding detail row = re:(than the rest of|than other |^Spatial pattern: ) |
 fold Finding chart link = Chart: * | one per finding the analysis produced
 fold Finding chip (bin) = re:^Hard bin \d+( \(.*\))?$ | one per bin a finding names
 fold Finding chip (test) = re:^(vth_mV|leakage_nA|freq_MHz|Idsat|vth_n_mV|vth_p_mV|idsat_n_uA|idsat_p_uA|fmax_MHz|ioff_nA|scan_chain|bist_mem|io_loopback|pll_lock|ddr_phy|serdes_prbs|jtag_idcode|power_seq|Iddq|Vref|Fmax)$ | one per test a finding names
+fold Finding chip (test) = re:^\S+ \d+\.\dσ$ | one per test a group comparison names, with its shift in σ
 fold Finding chip (pattern) = re:^[A-Z][a-z-]+ pattern$ | one per spatial pattern a finding names
 re:^(FF|FS|SF|SS|TT)$ | one button per split value in the loaded lot; the lot's data decides which
 fold Show supporting findings = Show * supporting finding* | the count depends on the finding
@@ -36,6 +37,9 @@ fold Splits… › wafer row = re:^Splits… › W\d\d.*\.stdf | one per wafer i
 fold Splits… › split name suggestion = re:^Splits… › (TT|FF|SS|FS|SF)$ | one per split name already in use
 fold Reset saved settings… › stored item = re:^Reset saved settings… › (Colour theme|Wafer split assignments) | one per setting currently stored
 fold Group by › Split = re:^Group by › .*Split \(\d+\)$ | the label carries the lot's split count
+Group by › Probe Card (3) | a field of wafermap's own demo lot, not of the sample lot the lessons use
+fold Show all N rows = re:^Show all \d+ rows$ | the count depends on the lot
+Vth | a test of wafermap's own demo lot, not of the sample lot the lessons use
 fold Test menu › (one per test) = Test › * | one per test in the lot
 fold Wafer menu › (one per wafer) = Wafer › * | one per wafer in the lot
 fold Plot editor wafer row = re:^W\d\d( · \w+)?$ | one per wafer in the lot

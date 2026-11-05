@@ -182,6 +182,13 @@ const SCENES = [
     views: [{ name: 'Insights', setup: (p) => press(p, 'Insights') }],
   },
   {
+    // A lot whose top item is a spatial pattern: its Summary panel row carries the pattern, bin and test buttons, which the
+    // sample lot's top item (a comparison of groups of wafers) does not.
+    name: 'Lot with a spatial pattern',
+    menus: false,
+    setup: (page) => openFile(page, 'EDGE-LOT-01.stdf'),
+  },
+  {
     // A lot with 77 tests and derived-test definitions to load: the selector's own controls.
     name: 'Test selector (Setup ▾ → Tests…)',
     menus: false,

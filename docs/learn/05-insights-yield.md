@@ -21,6 +21,8 @@ Learn tsmap
 
 # In this lesson
 
+Maps show you where on a wafer dies fail. Charts show you which wafers, bins and tests are responsible. This lesson walks through the charts that answer "where is the yield going?"
+
 - Find which wafers, bins and tests lose yield
 - Use the buttons and menus every chart shares
 - Compare groups of wafers, such as process splits
@@ -37,7 +39,7 @@ Learn tsmap
 
 # From maps to charts
 
-The **Maps | Insights** switch <span class="badge" role="img" aria-label="callout 1">1</span> swaps the wafer view for charts of the same dies. **Overview** <span class="badge" role="img" aria-label="callout 2">2</span> is the first tab; its tiles state the population.
+The **Maps | Insights** switch <span class="badge" role="img" aria-label="callout 1">1</span> swaps the wafer view for charts of the same dies. **Overview** <span class="badge" role="img" aria-label="callout 2">2</span> is the first tab. Its tiles state the population, so you know which dies the charts describe.
 
 ![The Maps | Insights switch and the Overview tab, outlined](images/05/switch-and-tabs.png)
 
@@ -45,7 +47,7 @@ The **Maps | Insights** switch <span class="badge" role="img" aria-label="callou
 
 # The Overview
 
-**Worth a look** comes first when something stands out, then **What divides yield**, then the standing cards: yield, bins, pass rates and regions. Scroll down: every card is a chart you can click.
+Read it from the top. **Worth a look** comes first when something stands out, then **What divides yield**, then the standing cards: yield, bins, pass rates and regions. Scroll down: every card is a chart you can click.
 
 ![Insights Overview on the sample lot](images/05/insights-overview.png)
 
@@ -62,12 +64,18 @@ The same items as **What stands out** (lesson 03), each drawn as the chart that 
 
 ---
 
+# Cards about groups of wafers
+
+A card about groups of wafers has no **Show on map**, because it has no place on the map. It is a bar of yield for each group, such as each split. When Insights is already grouped by that field, the card is left out, because the yield card shows the same bars.
+
+---
+
 <!-- _class: split -->
 <!-- covers: Sort: yield; Sort: wafer; chart › Yield by wafer -->
 
 # Yield by wafer
 
-One bar per wafer, with the median as a line. **Sort: yield** <span class="badge" role="img" aria-label="callout 1">1</span> orders the bars from highest to lowest yield; click a bar to open that wafer.
+Start here to see which wafers are weak. Each wafer is one bar, with the median as a line. **Sort: yield** <span class="badge" role="img" aria-label="callout 1">1</span> orders the bars from highest to lowest yield. Click a bar to open that wafer.
 
 ![Yield by wafer in wafer order, with Sort: yield outlined](images/05/yield-by-wafer.png)
 
@@ -77,7 +85,7 @@ One bar per wafer, with the median as a line. **Sort: yield** <span class="badge
 
 # Sorted by yield
 
-Highest yield first, so the weakest wafers are at the right: W10 (FF), then W11 and W18 (both SS). (The Wafer Yield list in lesson 03 sorts the other way, lowest first.)
+With **Sort: yield** on, the bars run from highest yield to lowest, so the weakest wafers are at the right: W10 (FF), then W11 and W18 (both SS). (The Wafer Yield list in lesson 03 sorts the other way, lowest first.)
 
 ![Yield by wafer sorted by yield](images/05/yield-sorted.png)
 
@@ -88,7 +96,7 @@ Highest yield first, so the weakest wafers are at the right: W10 (FF), then W11 
 
 # Bin pareto
 
-A pareto chart: one bar per bin, largest first, with the running share of all dies as a line. **Hard bins** or **Soft bins** switches the bin type. Click a bar to chart or tabulate its dies.
+The bin pareto shows where the lost dies went. A pareto chart is one bar per bin, largest first, with the running share of all dies as a line. The biggest bars are the ones to chase first. **Hard bins** or **Soft bins** switches the bin type. Click a bar to chart or tabulate its dies.
 
 ![The hard bin pareto, with Soft bins outlined](images/05/bin-pareto.png)
 
@@ -109,7 +117,7 @@ Soft bins (lesson 00) are numbered separately from hard bins, so the two charts 
 
 # Pass rate by test
 
-The share of judged dies that pass each test, lowest first. The three buttons choose how a die is judged.
+The share of judged dies that pass each test, lowest first, so the tests that cost you most are at the top. The three buttons choose how a die is judged.
 
 ![The pass rate card with its three judging buttons outlined](images/05/pass-rate.png)
 
@@ -119,7 +127,7 @@ The share of judged dies that pass each test, lowest first. The three buttons ch
 
 # Tester flag
 
-**Test limits** judges the measured value against the limits. **Tester flag** uses the pass or fail the tester recorded. When the two disagree the card counts the dies judged differently: 215 in the sample lot.
+**Test limits** judges the measured value against the limits. **Tester flag** uses the pass or fail the tester recorded. When the two disagree the card counts the dies judged differently: 215 in the sample lot. A large count is worth raising with whoever owns the test program.
 
 ![Pass rate by tester flag](images/05/pass-rate-flag.png)
 
@@ -140,13 +148,15 @@ The share of judged dies that pass each test, lowest first. The three buttons ch
 
 # Ring yield by wafer
 
-A grid with a row for each ring and a column for each wafer, each cell coloured by its yield. Ring 1 is the centre and the last ring the edge. **Heatmap | Diagram** <span class="badge" role="img" aria-label="callout 1">1</span> in the card's header chooses how the rings are drawn.
+Is the loss at the edge on every wafer, or just on a few? This grid answers it: a row for each ring and a column for each wafer, each cell coloured by its yield. Ring 1 is the centre and the last ring the edge. **Heatmap | Diagram** <span class="badge" role="img" aria-label="callout 1">1</span> in the card's header chooses how the rings are drawn.
 
 ![Ring yield by wafer: rings down the side, wafers across, each cell coloured by yield, with Diagram outlined](images/05/ring-yield-by-wafer.png)
 
 ---
 
 # Reading the ring grid
+
+Look for the shape of the dark cells.
 
 - A dark row across every column is a process pattern: that ring loses yield on every wafer
 - A dark cell in one column is one wafer
@@ -170,7 +180,7 @@ A grid with a row for each ring and a column for each wafer, each cell coloured 
 
 # Quadrant yield by wafer
 
-The same grid for the four quadrants. A quadrant that is low on every wafer points at something one-sided in the process; one that is low on a single wafer points at that wafer.
+Quadrant yield by wafer is the same grid, for the four quadrants. A quadrant that is low on every wafer points at something one-sided in the process; one that is low on a single wafer points at that wafer.
 
 ![Quadrant yield by wafer: quadrants down the side, wafers across, each cell coloured by yield](images/05/quadrant-yield-by-wafer.png)
 
@@ -192,7 +202,7 @@ With **Diagram** chosen, each quadrant is labelled with its yield, pooled over e
 
 # Yield by site
 
-Many testers probe several dies at once, each through its own numbered **site**. When a lot's dies come from two or more sites, this card shows the yield of each site over every wafer.
+Many testers probe several dies at once, each through its own numbered **site**. When a lot's dies come from two or more sites, this card shows the yield of each site over every wafer, so you can tell a weak probe site from a weak wafer.
 
 ![Yield by site: four sites, each with its pooled yield](images/05/yield-by-site.png)
 
@@ -215,7 +225,7 @@ Many testers probe several dies at once, each through its own numbered **site**.
 
 # The ⋯ menu
 
-Every chart has a ⋯ menu. **Save as PNG** saves the picture. **Save data as CSV** saves the numbers behind it, and **Copy data** puts them on the clipboard as tab-separated text to paste into a spreadsheet. **Edit as plot** opens the chart as a plot of your own (lesson 10), and **About this chart** adds a line saying what it shows.
+Every chart has the same ⋯ menu, so once you know it you know them all. **Save as PNG** saves the picture. **Save data as CSV** saves the numbers behind it, and **Copy data** puts them on the clipboard as tab-separated text to paste into a spreadsheet. **Edit as plot** opens the chart as a plot of your own (lesson 10), and **About this chart** adds a line saying what it shows.
 
 ![A chart's ⋯ menu: Save as PNG, Save data as CSV, Copy data, Edit as plot and About this chart](images/05/chart-actions.png)
 
@@ -223,7 +233,7 @@ Every chart has a ⋯ menu. **Save as PNG** saves the picture. **Save data as CS
 
 # About this chart
 
-The line explains what the chart shows and how to read it. The **About this chart** entry turns it on or off.
+When you meet a chart you do not know, turn on **About this chart** in its ⋯ menu. A line then explains what the chart shows and how to read it.
 
 ![Yield by wafer with the About this chart line shown](images/05/about-chart.png)
 
@@ -243,6 +253,8 @@ The **Expand** button, to the left of the ⋯ button, opens a chart in its own l
 
 # Every mark opens something
 
+Charts are not dead ends. Click a mark to go deeper.
+
 - A wafer's bar, box or point opens that wafer's map
 - A bin, a histogram bar or a ring opens the menu of charts and tables for those dies (lesson 08)
 - A capability box or a correlation cell moves the other charts to that test
@@ -255,13 +267,19 @@ The **Expand** button, to the left of the ⋯ button, opens a chart in its own l
 
 ---
 
-<!-- covers: What divides yield; Show all 24 rows; Group by; chart › What divides yield; wmap guide › What divides yield -->
+<!-- covers: What divides yield; Show all N rows; Group by; chart › What divides yield; wmap guide › What divides yield -->
 
 # What divides yield
 
-Each wafer field, such as the split or the tester, compared for yield and the top fail bins (four or more wafers). A low [**q**](https://wafertools.github.io/tsmap/learn/glossary/#q) means the groups differ by more than noise: where to look, not why. Fields that change together, such as the tester, node and probe card here, divide the wafers identically, so the card says it cannot tell them apart.
+Yield differs between wafers. This card checks whether it differs along a line you know about: each wafer field, such as the split or the tester, is compared for yield and the top fail bins (four or more wafers). A low [**q**](https://wafertools.github.io/tsmap/learn/glossary/#q) means the groups differ by more than noise: where to look, not why. Fields that change together, such as the tester, node and probe card here, divide the wafers identically, so the card says it cannot tell them apart.
 
 ![The What divides yield card](images/05/what-divides-yield.png)
+
+---
+
+# Allowing for another field
+
+Wafers differ in several fields at once, and a strong one can hide another. So each field is read after taking out the strongest other field. A row that says **allowing for Split** shows what is left once the split's effect is removed. Its **Spread** is still the plain difference between the groups.
 
 ---
 
@@ -269,7 +287,7 @@ Each wafer field, such as the split or the tester, compared for yield and the to
 
 # Part average testing
 
-PAT finds dies that pass every limit but sit far from the rest of their wafer. The card counts them per wafer; **Show all 25 wafers** lists every wafer.
+Some dies pass every limit and still look wrong, because they sit far from the rest of their wafer. Part average testing (PAT) finds them. The card counts them per wafer; **Show all 25 wafers** lists every wafer.
 
 ![The Part average testing card, left part](images/05/pat-card.png)
 
@@ -301,7 +319,7 @@ More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#
 
 # Group by
 
-When a wafer field varies across the lot, **Group by** offers it. **None** shows each wafer; a field such as **Split (5)** pools wafers into groups. The number is how many groups the field makes. One wafer has nothing to group, so it has no Group by.
+Group by lets you compare groups of wafers instead of single wafers. When a wafer field varies across the lot, **Group by** offers it. **None** shows each wafer; a field such as **Split (5)** pools wafers into groups. The number is how many groups the field makes. One wafer has nothing to group, so it has no Group by.
 
 ---
 
@@ -317,7 +335,7 @@ The sample lot was tested in five sessions, so the menu also offers **Temperatur
 
 # Grouped by Split
 
-One bar per split, and the pareto shows each split's share of each bin. SS is lowest at 42.6%, TT highest at 86.6%. Click a split's bar to see its wafers; **Back** returns.
+Every card now reports per split instead of per wafer. SS is lowest at 42.6%, TT highest at 86.6%, so the process corners account for the differences in yield. Click a split's bar to see its wafers; **Back** returns.
 
 ![The Overview grouped by Split](images/05/grouped-overview.png)
 
@@ -383,6 +401,8 @@ Beside **Group by** and **Show**, **Columns** sets how many columns of cards eve
 - **Overview** shows where yield is lost: by wafer, by bin and by test
 - Every chart has a **⋯** menu, and every mark opens something
 - **What divides yield** and **Part average testing** point at causes; **Group by** compares groups
+
+You now know where the yield is going. The next lesson looks at how test values behave, and at the tables behind every chart.
 
 More in the [wafer map guide](https://wafertools.github.io/wafermap/user-guide/#8-insights-tab)
 

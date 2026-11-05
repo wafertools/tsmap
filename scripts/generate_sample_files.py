@@ -3,7 +3,9 @@
 
 Cuts the four scenario lots with wafermap's demo generator (../wafermap/docs/examples/data/generate-demos.js, run for each lot's
 own wafer size, see GEOMETRY) and reads their CSVs and `.meta.json` (wafer geometry, bin names, test definitions). Produces:
-  - One multi-wafer STDF and ATDF per scenario (all wafers in one file)
+  - One STDF per scenario holding the lot assembled from its probe sessions (each session a whole sequence with its own MIR/SDR)
+  - One STDF and ATDF per probe session (`<LOT>_S1`, ...), the way a tester writes them
+  - The merged CSV (`<LOT>.csv`, every field as a column) and, where the lot has a fab split, splits CSVs
   - One single-wafer STDF and ATDF per wafer (named <LOT>_<WAFER>.stdf/.atdf)
 
 Every file is built with the one spec-conformant set of record builders (stdf_spec.py, atdf_spec.py): a complete initial sequence
@@ -18,10 +20,12 @@ Usage:
 
 import csv
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import random
@@ -65,9 +69,11 @@ class Scenario:
         path = data_dir / csv_name
         meta = json.loads(path.with_suffix('.meta.json').read_text())
         self.wafers = defaultdict(list)
+        self.wafer_fields = {}      # per wafer: the equipment and fab columns the wafermap CSV carries (see WAFER_FIELDS)
         with open(path) as f:
             for row in csv.DictReader(f):
                 self.wafers[row['wafer']].append(row)
+                self.wafer_fields.setdefault(row['wafer'], {k: row[k] for k in WAFER_FIELDS if k in row})
         self.pass_bins = set(meta.get('passBins', [1]))
         self.hbin_names = {b['bin']: ascii_text(b['name']) for b in meta.get('hbinDefs', [])}
         self.sbin_names = {b['bin']: ascii_text(b['name']) for b in meta.get('sbinDefs', [])}
@@ -114,20 +120,21 @@ def within(value: float, lo, hi) -> bool:
     return (lo is None or value >= lo) and (hi is None or value <= hi)
 
 
-# Per-lot MIR metadata so the faceting demo has fields that actually VARY across lots: program, temperature, test date (epoch),
-# operator, tester, node, and the equipment an SDR names (handler, probe card). Dates are days apart so "group by date" buckets
-# distinctly.
-DAY = 86_400
-BASE_EPOCH = 1_750_000_000  # ~2025-06-15
+# What a tester writes into one probe session's file is fixed for that session and changes between sessions: the tester, handler,
+# probe card, operator and test date. A lot is probed in several sessions, each its own file (`<LOT>_S1`, `_S2`, ...); the
+# wafermap CSV carries the same fields as columns, as an export assembled from the sessions would. `split` is the fab's: it
+# reaches tsmap through a splits CSV, never from the tester.
+WAFER_FIELDS = ['tester', 'handler', 'probe_card', 'operator', 'test_program', 'test_date', 'split']
+HANDLER_IDS = {'PRB-200': 'P-100', 'PRB-300': 'P-200'}
+CARD_IDS = {'PC-A': 'C-1001', 'PC-B': 'C-1002'}
+SESSION_START_HOUR = 9
+WAFER_MINUTES = 40  # probe slot per wafer; the wafers of a session run back to back from its start
+
 LOT_META = {
-    'EDGE-LOT-01':  dict(scenario='edge-ring', program='EDGE_v2',  temp='25',  start_t=BASE_EPOCH,           oper='alice', tstr='Tester-1', node='node-01',
-                         handler='PRB-200', handler_id='P-100', card='PC-A', card_id='C-1001'),
-    'HY-LOT-04':    dict(scenario='high-yield', program='HY_v3',    temp='25',  start_t=BASE_EPOCH + 1 * DAY, oper='bob',   tstr='Tester-1', node='node-02',
-                         handler='PRB-200', handler_id='P-100', card='PC-A', card_id='C-1002'),
-    'CLUST-LOT-03': dict(scenario='cluster', program='CLUST_v1', temp='-40', start_t=BASE_EPOCH + 5 * DAY, oper='alice', tstr='Tester-2', node='node-02',
-                         handler='PRB-300', handler_id='P-200', card='PC-B', card_id='C-2001'),
-    'PARAM-LOT-02': dict(scenario='parametric', program='PARAM_v5', temp='85',  start_t=BASE_EPOCH + 5 * DAY, oper='carol', tstr='Tester-2', node='node-03',
-                         handler='PRB-300', handler_id='P-200', card='PC-B', card_id='C-2002'),
+    'EDGE-LOT-01':  dict(scenario='edge-ring',  node='node-01'),
+    'HY-LOT-04':    dict(scenario='high-yield', node='node-02'),
+    'CLUST-LOT-03': dict(scenario='cluster',    node='node-02'),
+    'PARAM-LOT-02': dict(scenario='parametric', node='node-03'),
 }
 
 SCENARIOS = [
@@ -137,48 +144,87 @@ SCENARIOS = [
     ('parametric.csv', 'PARAM-LOT-02', 'CHIP-B'),
 ]
 
-WAFER_MINUTES = 40  # probe slot per wafer; wafers run back to back from the lot start
+
+class Session:
+    """One probe session: the equipment, operator and date shared by its wafers, and the wafers in the order they ran."""
+
+    def __init__(self, number, fields):
+        self.number, self.fields, self.wafer_ids = number, fields, []
+        y, m, d = (int(x) for x in fields['test_date'].split('-'))
+        self.start_t = int(datetime(y, m, d, SESSION_START_HOUR, tzinfo=timezone.utc).timestamp())
+
+    @property
+    def name(self):
+        return f'S{self.number}'
+
+    @property
+    def tester(self):
+        return self.fields['tester']
+
+    @property
+    def operator(self):
+        return self.fields['operator']
+
+    @property
+    def program(self):
+        return self.fields['test_program']
+
+    @property
+    def equipment(self):
+        """(handler type, handler id, card type, card id), as an SDR names them."""
+        h, c = self.fields['handler'], self.fields['probe_card']
+        return (h, HANDLER_IDS.get(h, ''), c, CARD_IDS.get(c, ''))
+
+    def wafer_times(self, wafer_id):
+        """(start_t, finish_t) epochs: the wafer's slot in the session, so the Tested column of the file-filter dialog has times."""
+        t = self.start_t + self.wafer_ids.index(wafer_id) * WAFER_MINUTES * 60
+        return t, t + (WAFER_MINUTES - 5) * 60
 
 
-def wafer_times(lot_id, wafer_id, index):
-    """(start_t, finish_t) epochs for one wafer: its slot after the lot's MIR start, so the file-filter dialog's Tested column has
-    real wafer times to show. The slot comes from the wafer number (W03 → third), not the position in this file, so a single-wafer
-    file carries the same time as that wafer in the whole-lot file."""
-    start = LOT_META[lot_id]['start_t']
-    digits = ''.join(ch for ch in wafer_id if ch.isdigit())
-    slot = int(digits) - 1 if digits else index
-    t = start + slot * WAFER_MINUTES * 60
-    return t, t + (WAFER_MINUTES - 5) * 60
+def sessions_of(sc: Scenario) -> list:
+    """The lot's probe sessions, in the order their first wafer appears. Wafers share a session when the file-level fields agree."""
+    keys, out = {}, []
+    for wafer_id in sc.wafers:
+        f = sc.wafer_fields[wafer_id]
+        key = (f['test_date'], f['tester'], f['handler'], f['probe_card'], f['operator'])
+        if key not in keys:
+            keys[key] = Session(len(out) + 1, f)
+            out.append(keys[key])
+        keys[key].wafer_ids.append(wafer_id)
+    return out
 
 
-def mir_args(lot_id):
-    m = LOT_META[lot_id]
-    return dict(setup_t=m['start_t'] - 600, start_t=m['start_t'], oper_nam=m['oper'], tst_temp=m['temp'])
-
-
-def equipment(lot_id):
-    m = LOT_META[lot_id]
-    return (m['handler'], m['handler_id'], m['card'], m['card_id'])
+def mir_args(lot_id, ses: Session):
+    """A session's MIR: its own start, operator and temperature."""
+    return dict(setup_t=ses.start_t - 600, start_t=ses.start_t, tst_temp='25', oper_nam=ses.operator)
 
 
 # ── Files ─────────────────────────────────────────────────────────────────────
 
 
-def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> bytes:
+def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict, sessions: list) -> bytes:
+    """A file for `sessions`. A lot assembled from several is their files written one after another, each a whole sequence
+    (FAR to MRR) with its own MIR and SDR, the way a lot probed over several days arrives; a session's own file is one sequence."""
+    return b''.join(stdf_sequence(sc, lot_id, part_typ, {w: wafers[w] for w in ses.wafer_ids if w in wafers}, ses) for ses in sessions)
+
+
+def stdf_sequence(sc: Scenario, lot_id, part_typ, wafers: dict, ses: Session) -> bytes:
     m = LOT_META[lot_id]
-    h_typ, h_id, c_typ, c_id = equipment(lot_id)
+    group = {w: 1 for w in wafers}
+    session_of = {w: ses for w in wafers}
     buf = bytearray()
     buf += S.far()
-    buf += S.mir(lot_id, part_typ, m['program'], m['tstr'], m['node'], **mir_args(lot_id))
+    buf += S.mir(lot_id, part_typ, ses.program, ses.tester, m['node'], **mir_args(lot_id, ses))
+    h_typ, h_id, c_typ, c_id = ses.equipment
     buf += S.sdr(1, 1, SITES, hand_typ=h_typ, hand_id=h_id, card_typ=c_typ, card_id=c_id)
     if sc.diameter_mm:
         buf += S.wcr(sc.diameter_mm, sc.die_h or 0, sc.die_w or 0, 3, sc.flat or ' ', S.MISSING_I2, S.MISSING_I2, ' ', ' ')
     part_id, first, last_finish = 1, True, S.TS_BASE
     hbins, sbins, all_rows = Counter(), Counter(), []
     for index, (wafer_id, rows) in enumerate(wafers.items()):
-        start_t, finish_t = wafer_times(lot_id, wafer_id, index)
+        start_t, finish_t = session_of[wafer_id].wafer_times(wafer_id)
         last_finish = max(last_finish, finish_t)
-        buf += S.wir(1, wafer_id, site_grp=1, start_t=start_t)
+        buf += S.wir(1, wafer_id, site_grp=group[wafer_id], start_t=start_t)
         good = 0
         for row in rows:
             x, y, hbin, sbin = int(row['x']), int(row['y']), int(row['hbin']), int(row['sbin'])
@@ -197,7 +243,7 @@ def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> bytes:
             hbins[hbin] += 1
             sbins[sbin] += 1
         all_rows += rows
-        buf += S.wrr(1, wafer_id, len(rows), good, site_grp=1, finish_t=finish_t)
+        buf += S.wrr(1, wafer_id, len(rows), good, site_grp=group[wafer_id], finish_t=finish_t)
     for b in sorted(hbins):
         buf += S.hbr(b, hbins[b], 'P' if sc.hbin_passes(b) else 'F', sc.hbin_names.get(b, f'Bin {b}'))
     for b in sorted(sbins):
@@ -206,18 +252,25 @@ def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> bytes:
     return bytes(buf)
 
 
-def build_atdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> str:
+def build_atdf(sc: Scenario, lot_id, part_typ, wafers: dict, sessions: list) -> str:
+    """The ATDF twin of {@link build_stdf}."""
+    return ''.join(atdf_sequence(sc, lot_id, part_typ, {w: wafers[w] for w in ses.wafer_ids if w in wafers}, ses) for ses in sessions)
+
+
+def atdf_sequence(sc: Scenario, lot_id, part_typ, wafers: dict, ses: Session) -> str:
     m = LOT_META[lot_id]
-    lines = [A.far(), A.mir(lot_id, part_typ, m['program'], m['node'], m['tstr'], **mir_args(lot_id)),
-             A.sdr(1, 1, SITES, *equipment(lot_id))]
+    group = {w: 1 for w in wafers}
+    session_of = {w: ses for w in wafers}
+    lines = [A.far(), A.mir(lot_id, part_typ, ses.program, m['node'], ses.tester, **mir_args(lot_id, ses))]
+    lines += [A.sdr(1, 1, SITES, *ses.equipment)]
     if sc.diameter_mm:
         lines.append(A.wcr(sc.diameter_mm, sc.die_h or '', sc.die_w or '', 3, sc.flat, '', '', '', ''))
     part_id, first, last_finish = 1, True, S.TS_BASE
     hbins, sbins, all_rows = Counter(), Counter(), []
     for index, (wafer_id, rows) in enumerate(wafers.items()):
-        start_t, finish_t = wafer_times(lot_id, wafer_id, index)
+        start_t, finish_t = session_of[wafer_id].wafer_times(wafer_id)
         last_finish = max(last_finish, finish_t)
-        lines.append(A.wir(1, wafer_id, start_t=start_t, site_grp=1))
+        lines.append(A.wir(1, wafer_id, start_t=start_t, site_grp=group[wafer_id]))
         good = 0
         for row in rows:
             x, y, hbin, sbin = int(row['x']), int(row['y']), int(row['hbin']), int(row['sbin'])
@@ -236,7 +289,7 @@ def build_atdf(sc: Scenario, lot_id, part_typ, wafers: dict) -> str:
             hbins[hbin] += 1
             sbins[sbin] += 1
         all_rows += rows
-        lines.append(A.wrr(1, wafer_id, len(rows), good, finish_t=finish_t, site_grp=1))
+        lines.append(A.wrr(1, wafer_id, len(rows), good, finish_t=finish_t, site_grp=group[wafer_id]))
     for b in sorted(hbins):
         lines.append(A.hbr(b, hbins[b], 'P' if sc.hbin_passes(b) else 'F', sc.hbin_names.get(b, f'Bin {b}')))
     for b in sorted(sbins):
@@ -259,13 +312,35 @@ def main():
             wafer_ids = list(sc.wafers)
             print(f'\n{lot_id} ({len(wafer_ids)} wafers from {csv_name}, {GEOMETRY[csv_name[:-4]]})')
 
-            # Multi-wafer file, then one file per wafer.
-            sets = [(lot_id, sc.wafers)] + [(f'{lot_id}_{w}', {w: sc.wafers[w]}) for w in wafer_ids]
-            for stem, wafers in sets:
-                (out_dir / f'{stem}.stdf').write_bytes(build_stdf(sc, lot_id, part_typ, wafers))
-                (out_dir / f'{stem}.atdf').write_text(build_atdf(sc, lot_id, part_typ, wafers))
-                total_files += 2
-                print(f'  {stem}.stdf/.atdf  ({sum(len(r) for r in wafers.values())} dies, {len(wafers)} wafer(s))')
+            sessions = sessions_of(sc)
+            session_of = {w: ses for ses in sessions for w in ses.wafer_ids}
+            print(f'  {len(sessions)} probe sessions: ' + '; '.join(
+                f"{ses.name} {ses.tester}/{ses.fields['handler']}/{ses.fields['probe_card']}/{ses.operator} {ses.fields['test_date']} ({len(ses.wafer_ids)} wafers)"
+                for ses in sessions))
+
+            # The lot assembled from its sessions, one file per session, then one file per wafer.
+            sets = [(lot_id, sc.wafers, sessions)]
+            sets += [(f'{lot_id}_{ses.name}', {w: sc.wafers[w] for w in ses.wafer_ids}, [ses]) for ses in sessions]
+            sets += [(f'{lot_id}_{w}', {w: sc.wafers[w]}, [session_of[w]]) for w in wafer_ids]
+            for stem, wafers, ses_list in sets:
+                (out_dir / f'{stem}.stdf').write_bytes(build_stdf(sc, lot_id, part_typ, wafers, ses_list))
+                total_files += 1
+                # An ATDF file holds exactly one MIR (the spec), so a lot of several sessions is an ATDF per session, not one file.
+                if len(ses_list) == 1:
+                    (out_dir / f'{stem}.atdf').write_text(build_atdf(sc, lot_id, part_typ, wafers, ses_list))
+                    total_files += 1
+                print(f'  {stem}.stdf{"/.atdf" if len(ses_list) == 1 else ""}  ({sum(len(r) for r in wafers.values())} dies, {len(wafers)} wafer(s))')
+
+            # The merged export, and the fab's split where the lot has one.
+            shutil.copyfile(Path(tmp) / csv_name, out_dir / f'{lot_id}.csv')
+            total_files += 1
+            if 'split' in sc.wafer_fields[wafer_ids[0]]:
+                header = ['# tsmap wafer splits', f'# Fab split of each wafer of {lot_id}']
+                for suffix, key in (('', lambda w: w), ('_sessions', lambda w: f'{lot_id} \u00b7 {w}')):
+                    note = ([] if not suffix else ['# Keys use the "{lotId} \u00b7 {waferId}" form a wafer ID takes when the session files are opened together'])
+                    rows = [f'{key(w)},{sc.wafer_fields[w]["split"]}' for w in wafer_ids]
+                    (out_dir / f'{lot_id}{suffix}_splits.csv').write_text('\n'.join(header + note + ['waferId,split'] + rows) + '\n')
+                    total_files += 1
 
     print(f'\nDone — {total_files} files written to {out_dir}/')
 

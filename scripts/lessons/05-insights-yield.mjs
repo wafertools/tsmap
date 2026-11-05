@@ -110,11 +110,11 @@ export const scenario = {
     {
       id: '08b-worth-a-look',
       title: 'Worth a look: the same items as What stands out, each drawn as a chart, with Show on map',
-      steps: [top('[data-wmap-worth-a-look] [data-wmap-chart-card] >> nth=0'), PARK],
-      checks: [isVisible('[data-wmap-worth-a-look] [data-wmap-chart-card] >> nth=0', 'the first Worth a look card is showing')],
+      steps: [top('[data-wmap-worth-a-look] [data-wmap-chart-card]:has(button:has-text("Show on map")) >> nth=0'), PARK],
+      checks: [isVisible('[data-wmap-worth-a-look] [data-wmap-chart-card]:has(button:has-text("Show on map")) >> nth=0', 'the first Worth a look card with a Show on map button is showing')],
       shots: [{
         name: 'worth-a-look',
-        clip: { target: '[data-wmap-worth-a-look] [data-wmap-chart-card] >> nth=0', pad: 8 },
+        clip: { target: '[data-wmap-worth-a-look] [data-wmap-chart-card]:has(button:has-text("Show on map")) >> nth=0', pad: 8 },
         callouts: [['[data-wmap-worth-a-look] button:has-text("Show on map") >> nth=0', { pad: 2 }]],
       }],
     },

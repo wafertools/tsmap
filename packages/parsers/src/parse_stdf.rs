@@ -1524,7 +1524,7 @@ mod tests {
         assert_eq!(result.meta.get("centerY"), Some("0"));
         assert_eq!(result.meta.get("posX"), Some("R"));
         assert_eq!(result.meta.get("posY"), Some("U"));
-        assert_eq!(result.wafers.len(), 13);
+        assert_eq!(result.wafers.len(), 25);
     }
 
     #[test]
@@ -1535,9 +1535,9 @@ mod tests {
         assert_eq!(result.hbin_defs.iter().find(|d| d.bin == 3).map(|d| d.name.as_str()), Some("Fail (multi)"));
         assert_eq!(result.sbin_defs.iter().find(|d| d.bin == 1).map(|d| d.name.as_str()), Some("Pass"));
         assert_eq!(result.pass_hbins, vec![1]);
-        // Sanity check the counts sum to the total die count (2873).
+        // Sanity check the counts sum to the total die count (5525).
         let total: u32 = result.wafers.iter().map(|w| w.results.len() as u32).sum();
-        assert_eq!(total, 2873);
+        assert_eq!(total, 5525);
     }
 
     #[test]

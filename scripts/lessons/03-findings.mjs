@@ -2,11 +2,11 @@
  * Lesson 03 — Findings. Screenshots for docs/learn/03-findings.md.
  *
  * The Summary panel on the sample lot, top to bottom: What stands out (the
- * headline, the ranked rows, the chips on the top item, the Chart link, Full
+ * headline, the top item about groups of wafers, the ranked rows, the Chart link, Full
  * report), then the Findings list (severity groups, detail rows), then the
  * tables (Wafer Yield, Hard Bin Breakdown, Ring Yield, Test Values, Functional
  * Tests), and the Summary report and Data tables buttons. EDGE-LOT-01 shows a
- * spatial pattern with its supporting findings and bin chips. Run by
+ * spatial pattern with its supporting findings and its pattern, bin and test buttons. Run by
  * scripts/lesson-shots.mjs.
  */
 
@@ -75,38 +75,32 @@ export const scenario = {
     },
     {
       id: '02-top-item',
-      title: 'What stands out: the headline and the top item with its chips',
+      title: 'What stands out: the headline and the top item, which compares groups of wafers',
       steps: [['scrollIntoView', section('What stands out')], PARK],
-      checks: [hasText(RIGHT, 'differ by Split')],
+      checks: [hasText(RIGHT, 'Yield is'), hasText(RIGHT, 'Split TT')],
       shots: [
-        { name: 'what-stands-out', clip: fromHeader('What stands out', CHIPS) },
+        { name: 'what-stands-out', clip: fromHeader('What stands out', `${RIGHT} >> text=Also, each affecting`) },
         {
-          name: 'top-item-chips',
-          clip: fromHeader('What stands out', CHIPS),
+          name: 'top-item-group',
+          clip: fromHeader('What stands out', `${RIGHT} >> text=Also, each affecting`),
           callouts: [
-            ['[role="group"][aria-label="Show one part on the map"]', { badge: 1, pad: 2 }],
+            [`${RIGHT} >> text=/^Yield \\d/`, { badge: 1, pad: 2 }],
+            [`${RIGHT} >> text=/^Yield is .* points/`, { badge: 2, pad: 2 }],
           ],
         },
       ],
     },
     {
-      id: '03-chip-on-map',
-      title: 'A chip shows its one part on the map',
-      steps: [['click', `${CHIPS} >> text=fmax_MHz`], ['wait', 800], PARK],
-      checks: [isVisible(LOG, 'the map is in Test Value mode: the log scale button is showing')],
-      shots: [{ name: 'chip-on-map', clip: { rect: { x: 0, y: 40, width: 1280, height: 600 } }, callouts: [[`${CHIPS} >> text=fmax_MHz`, { pad: 2 }]] }],
-    },
-    {
       id: '04-row-on-map',
       title: 'A ranked row shows its dies on the map',
-      steps: [['click', `${CHIPS} >> text=fmax_MHz`], ['wait', 500], ['click', `${RIGHT} >> text=vth_n_mV: 391 dies`], ['wait', 800], PARK],
-      shots: [{ name: 'row-on-map', callouts: [[`${RIGHT} >> text=vth_n_mV: 391 dies`, { closest: '[data-wmap-test]', pad: 2 }]] }],
+      steps: [['click', `${RIGHT} >> text=/ioff_nA: \\d+ dies/`], ['wait', 800], PARK],
+      shots: [{ name: 'row-on-map', callouts: [[`${RIGHT} >> text=/ioff_nA: \\d+ dies/`, { closest: '[data-wmap-test]', pad: 2 }]] }],
     },
     {
       id: '05-chart-link',
-      title: 'The Chart link on a row opens its card in Insights',
-      steps: [['click', `${RIGHT} >> text=vth_n_mV: 391 dies`], ['wait', 500], PARK],
-      shots: [{ name: 'chart-link', clip: fromHeader('What stands out', CHIPS), callouts: [[`${RIGHT} [aria-label^="Chart:"]`, { nth: 0, pad: 2 }]] }],
+      title: 'The Chart link on the top item opens its card in Insights',
+      steps: [['click', `${RIGHT} >> text=/ioff_nA: \\d+ dies/`], ['wait', 500], ['scrollTop', RIGHT, 0], PARK],
+      shots: [{ name: 'chart-link', clip: fromHeader('What stands out', `${RIGHT} >> text=Also, each affecting`), callouts: [[`${RIGHT} [aria-label^="Chart:"]`, { nth: 0, pad: 2 }]] }],
     },
       {
       id: '06-full-report',
@@ -209,7 +203,17 @@ export const scenario = {
       title: 'EDGE-LOT-01: a spatial pattern and the bins behind it',
       steps: [['press', 'Escape'], ['wait', 500], ['setViewport', 1280, 820], ['click', '#reset-btn'], ['wait', 800], ['loadFile', S('EDGE-LOT-01.stdf')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Lot EDGE-LOT-01')],
-      shots: [{ name: 'edge-top-item', clip: fromHeader('What stands out', CHIPS) }],
+      shots: [
+        { name: 'edge-top-item', clip: fromHeader('What stands out', CHIPS) },
+        { name: 'top-item-chips', clip: fromHeader('What stands out', CHIPS), callouts: [[CHIPS, { badge: 1, pad: 2 }]] },
+      ],
+    },
+    {
+      id: '19b-edge-test-button',
+      title: 'A test button shows just that test on the map',
+      steps: [['click', `${CHIPS} >> text="Iddq"`], ['wait', 800], PARK],
+      checks: [isVisible(LOG, 'the map is in Test Value mode: the log scale button is showing')],
+      shots: [{ name: 'chip-on-map', clip: { rect: { x: 0, y: 40, width: 1280, height: 600 } }, callouts: [[`${CHIPS} >> text="Iddq"`, { pad: 2 }]] }],
     },
     {
       id: '20-supporting',

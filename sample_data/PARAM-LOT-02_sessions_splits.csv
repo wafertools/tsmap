@@ -1,0 +1,16 @@
+# tsmap wafer splits
+# Fab split of each wafer of PARAM-LOT-02
+# Keys use the "{lotId} · {waferId}" form a wafer ID takes when the session files are opened together
+waferId,split
+PARAM-LOT-02 · W01,TT
+PARAM-LOT-02 · W02,FF
+PARAM-LOT-02 · W03,SS
+PARAM-LOT-02 · W04,TT
+PARAM-LOT-02 · W05,FF
+PARAM-LOT-02 · W06,SS
+PARAM-LOT-02 · W07,TT
+PARAM-LOT-02 · W08,FF
+PARAM-LOT-02 · W09,SS
+PARAM-LOT-02 · W10,TT
+PARAM-LOT-02 · W11,FF
+PARAM-LOT-02 · W12,SS
