@@ -84,10 +84,11 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-          - os: macos-latest
-            target: x86_64-apple-darwin
+          # Both Mac builds run on one macOS runner, one after the other: macOS runners are the scarce kind, and a job
+          # that never gets one is cancelled. One job needs one runner, and one re-run brings back both installers.
           - os: macos-latest
             target: aarch64-apple-darwin
+            target2: x86_64-apple-darwin
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
 
@@ -109,7 +110,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.target }}${{ matrix.target2 && format(',{0}', matrix.target2) || '' }}
 
       - uses: Swatinem/rust-cache@v2
 
@@ -126,16 +127,20 @@ jobs:
         with:
           args: --target ${{ matrix.target }}
 
+      - uses: tauri-apps/tauri-action@v0
+        if: matrix.target2
+        with:
+          args: --target ${{ matrix.target2 }}
+
       - name: Rename and upload artifacts
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.create-release.outputs.version }}
-          TARGET: ${{ matrix.target }}
+          TARGETS: ${{ matrix.target }} ${{ matrix.target2 }}
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          B="target/${TARGET}/release/bundle"
           stage="$(mktemp -d)"
 
           copyas() { # copyas <glob> <newname>  — no-op if glob matches nothing
@@ -145,6 +150,8 @@ jobs:
             echo "staged: $2"
           }
 
+          for TARGET in $TARGETS; do
+          B="target/${TARGET}/release/bundle"
           case "$TARGET" in
             x86_64-pc-windows-msvc)
               copyas "$B/msi/*.msi"           "tsmap-${VERSION}-windows-x64.msi"
@@ -162,6 +169,7 @@ jobs:
               copyas "$B/rpm/*.rpm"           "tsmap-${VERSION}-linux-x86_64.rpm"
               ;;
           esac
+          done
 
           # .app.tar.gz updater bundles are deliberately not uploaded — they duplicate
           # the .dmg and only confused users on the release page.

@@ -6,6 +6,12 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **The two Mac installers are built on one macOS runner.** Apple silicon, then Intel, in one job, so a release needs one macOS runner and one re-run of that job brings back both installers. The release assets keep their names.
+- **Dependabot leaves TypeScript on its current major** until typescript-eslint accepts the next one, since a newer major fails `npm ci` on its peer range.
+- **Learn tsmap lesson 03** says where the top item's Chart link opens: What divides yield, for a difference in yield between splits.
+
 ## [0.2.2] — 2026-11-06
 
 ### Added

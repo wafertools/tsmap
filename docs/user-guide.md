@@ -822,7 +822,7 @@ Every number behind a chart is also a table. Insights' **Data** tab holds three,
 **Copy** puts a table on the clipboard and **Export CSV** saves it. Numbers are written at full precision,
 not as rounded on screen, and a table of hundreds of thousands of dies is written in pieces, so the app stays
 responsive. The desktop app asks where to save; the web app downloads the file. Click a row of the Dies table
-to go back to the map with that die ringed.
+to open that die's wafer with the die ringed, showing the test whose column you clicked.
 
 To tabulate just some dies, select them on a map (or drag a rectangle on the Insights scatter) and right-click:
 the menu offers the same tables for the selection. With **Select the same dies on every wafer** on in the gallery

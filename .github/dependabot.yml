@@ -7,6 +7,11 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    # typescript-eslint names the TypeScript majors it supports as a peer; a newer major fails `npm ci`. Lift this once
+    # typescript-eslint accepts it, and move both together.
+    ignore:
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
     schedule:

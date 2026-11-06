@@ -116,7 +116,7 @@ The dots and word beside an item are its **impact**: the share of the lot it aff
 
 # Chart links
 
-When you want the numbers behind an item, **Chart** opens Insights at this item's card, under **Worth a look**. For the top item that is the bar of yield by split. *(Insights is covered in lessons 05 and 06.)*
+When you want the numbers behind an item, **Chart** opens Insights at this item's card, under **Worth a look**. The top item here is a difference in yield between splits, so its link opens **What divides yield**, the table that compares groups of wafers. *(Insights is covered in lessons 05 and 06.)*
 
 ![The Chart link on the top item](images/03/chart-link.png)
 
