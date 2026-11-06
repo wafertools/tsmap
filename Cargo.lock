@@ -4451,7 +4451,7 @@ dependencies = [
 
 [[package]]
 name = "testdata-parser"
-version = "0.16.2"
+version = "0.16.3"
 dependencies = [
  "bytes",
  "bzip2",

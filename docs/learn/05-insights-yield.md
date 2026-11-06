@@ -271,7 +271,7 @@ Charts are not dead ends. Click a mark to go deeper.
 
 # What divides yield
 
-Yield differs between wafers. This card checks whether it differs along a line you know about: each wafer field, such as the split or the tester, is compared for yield and the top fail bins (four or more wafers). A low [**q**](https://wafertools.github.io/tsmap/learn/glossary/#q) means the groups differ by more than noise: where to look, not why. Fields that change together, such as the tester, node and probe card here, divide the wafers identically, so the card says it cannot tell them apart.
+Yield differs between wafers. This card checks whether it differs along a line you know about: each wafer field, such as the split or the tester, is compared for yield and the top fail bins (four or more wafers). Each field is one row: two bars, the worst and the best group's mean yield, a sentence giving the gap in points, and a **Confidence** of **Clear**, **Possible** or **Not clear**. Clear means a low [**q**](https://wafertools.github.io/tsmap/learn/glossary/#q): the groups differ by more than noise, so it is where to look, not why. A button under a field opens its other measures. Fields that change together, such as the tester, node and probe card here, divide the wafers identically, so the card shows them as one row, since the wafers cannot tell them apart.
 
 ![The What divides yield card](images/05/what-divides-yield.png)
 
@@ -279,7 +279,7 @@ Yield differs between wafers. This card checks whether it differs along a line y
 
 # Allowing for another field
 
-Wafers differ in several fields at once, and a strong one can hide another. So each field is read after taking out the strongest other field. A row that says **allowing for Split** shows what is left once the split's effect is removed. Its **Spread** is still the plain difference between the groups.
+Wafers differ in several fields at once, and a strong one can hide another. So each field is read after taking out the strongest other field. A row that says **allowing for Split** shows what is left once the split's effect is removed. Its bars and the gap in points are still the plain difference between the groups.
 
 A field can also rank because it goes with a group that has an effect of its own. In this lot the operator follows the sessions, so its row shows what the sessions did, not what the operator did. Read a row as where to look, not as a cause.
 
