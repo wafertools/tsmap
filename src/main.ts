@@ -3088,7 +3088,7 @@ function openPreferencesMenu(anchor: HTMLElement) {
         popup.appendChild(makeMenuRow(close, {
           label: 'Check for updates now',
           hint: 'Ask GitHub which release is newest, whatever the startup setting',
-          onClick: () => { void checkForUpdate(updateCheckOptions(), true); },
+          onClick: () => { void checkForUpdate(updateCheckOptions(), true, anchor); },
         }));
       }
 

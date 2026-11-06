@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { isNewerVersion, checkForUpdate, startupCheckEnabled, setStartupCheckEnabled, type UpdateCheckOptions } from './updateCheck';
 
 const store = new Map<string, string>();
@@ -9,7 +9,23 @@ const store = new Map<string, string>();
   clear: () => { store.clear(); },
 };
 
-beforeEach(() => { store.clear(); });
+// The suite runs without a DOM; the notice needs only enough of one to be mounted and read back.
+let shown: { textContent: string; removed: boolean; style: Record<string, string> }[] = [];
+beforeEach(() => {
+  store.clear();
+  shown = [];
+  vi.useFakeTimers();
+  vi.stubGlobal('document', {
+    createElement: () => {
+      const el = { textContent: '', removed: false, style: {} as Record<string, string>, setAttribute() {}, remove() { el.removed = true; } };
+      shown.push(el);
+      return el;
+    },
+    getElementById: () => null,
+    body: { appendChild() {} },
+  });
+});
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('isNewerVersion', () => {
   it('compares each part as a number, not as text', () => {
@@ -53,10 +69,11 @@ describe('checkForUpdate', () => {
     onLog: vi.fn(),
   });
 
-  it('stays quiet at startup when the build is current', async () => {
+  it('logs at startup that the build is current, without showing anything', async () => {
     const o = opts(async () => ({ version: '0.2.1', url: 'u' }));
     await checkForUpdate(o, false);
-    expect(o.onLog).not.toHaveBeenCalled();
+    expect(o.onLog).toHaveBeenCalledWith('info', expect.stringContaining('up to date'));
+    expect(shown).toHaveLength(0);
   });
 
   it('does not mention a version the user skipped, at startup', async () => {
@@ -70,6 +87,34 @@ describe('checkForUpdate', () => {
     const o = opts(async () => ({ version: '0.2.1', url: 'u' }));
     await checkForUpdate(o, true);
     expect(o.onLog).toHaveBeenCalledWith('info', expect.stringContaining('up to date'));
+  });
+
+  it('shows a notice for a manual check, and clears it by itself', async () => {
+    const o = opts(async () => ({ version: '0.2.1', url: 'u' }));
+    await checkForUpdate(o, true);
+    expect(shown).toHaveLength(1);
+    expect(shown[0].textContent).toContain('up to date');
+    vi.advanceTimersByTime(6000);
+    expect(shown[0].removed).toBe(true);
+  });
+
+  it('puts the notice under the control the check was started from', async () => {
+    vi.stubGlobal('window', { innerWidth: 1000 });
+    const near = { getBoundingClientRect: () => ({ bottom: 40, right: 900 }) } as unknown as HTMLElement;
+    await checkForUpdate(opts(async () => ({ version: '0.2.1', url: 'u' })), true, near);
+    expect(shown[0].style.top).toBe('46px');
+    expect(shown[0].style.right).toBe('100px');
+  });
+
+  it('shows no notice for a startup check', async () => {
+    await checkForUpdate(opts(async () => ({ version: '0.2.1', url: 'u' })), false);
+    await checkForUpdate(opts(async () => { throw new Error('offline'); }), false);
+    expect(shown).toHaveLength(0);
+  });
+
+  it('shows the reason in the notice when a manual check fails', async () => {
+    await checkForUpdate(opts(async () => { throw new Error('offline'); }), true);
+    expect(shown[0].textContent).toContain('offline');
   });
 
   it('logs an unreachable GitHub quietly at startup and as a warning when asked', async () => {

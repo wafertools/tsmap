@@ -74,23 +74,28 @@ export function setStartupCheckEnabled(on: boolean): void {
 /**
  * Check for a newer release.
  *
- * `manual` is the user asking: it reports "up to date" and failures, and ignores
- * a version they skipped. A startup check says nothing unless there is news —
- * an offline machine gets one line in the log, not a warning at every launch.
+ * `manual` is the user asking: it shows a notice for "up to date" and for
+ * failures (beside `near`, the control they used, when given), and ignores a
+ * version they skipped. A startup check writes the same lines to the log but
+ * shows nothing unless there is news — an offline machine is not warned at
+ * every launch.
  */
-export async function checkForUpdate(opts: UpdateCheckOptions, manual: boolean): Promise<void> {
+export async function checkForUpdate(opts: UpdateCheckOptions, manual: boolean, near?: HTMLElement): Promise<void> {
   let latest: LatestRelease;
   try {
     latest = await opts.fetchLatest();
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
-    if (manual) opts.onLog('warn', `Could not check for updates: ${reason}`);
-    else opts.onLog('info', `Update check skipped: ${reason}`);
+    if (manual) {
+      opts.onLog('warn', `Could not check for updates: ${reason}`);
+      showNotice(`Could not check for updates: ${reason}`, near);
+    } else opts.onLog('info', `Update check skipped: ${reason}`);
     return;
   }
 
   if (!isNewerVersion(latest.version, opts.currentVersion)) {
-    if (manual) opts.onLog('info', `tsmap ${opts.currentVersion} is up to date.`);
+    opts.onLog('info', `tsmap ${opts.currentVersion} is up to date.`);
+    if (manual) showNotice(`tsmap ${opts.currentVersion} is up to date.`, near);
     return;
   }
   if (!manual && read(SKIPPED_KEY) === latest.version) return;
@@ -109,18 +114,60 @@ function closeBanner(): void {
   bannerObserver = null;
 }
 
-function showBanner(opts: UpdateCheckOptions, latest: LatestRelease): void {
+/**
+ * The box both the banner and the short notice sit in, placed on screen.
+ * Same band and corner as the web build's update banner (pwa.ts): --z-modal so
+ * it clears wmap's overlays, measured from #log-bar so it never covers the log toggle.
+ */
+function mountBox(near?: HTMLElement): HTMLElement {
   closeBanner();
-
   const box = document.createElement('div');
-  // Same band and corner as the web build's update banner (pwa.ts): --z-modal so
-  // it clears wmap's overlays, measured from #log-bar so it never covers the log toggle.
   box.style.cssText = 'position:fixed;right:16px;z-index:var(--z-modal);'
     + 'max-width:340px;display:flex;flex-direction:column;gap:8px;'
     + 'padding:12px 14px;border:1px solid var(--border-mid);border-radius:var(--radius-container);'
     + 'background:var(--bg-overlay);box-shadow:var(--shadow-modal);'
     + 'font-size:12px;color:var(--text-light)';
   box.setAttribute('role', 'status');
+  document.body.appendChild(box);
+  banner = box;
+
+  if (near) {
+    // Where the menu the user clicked just was: under its button, right edges level,
+    // kept inside the window.
+    const r = near.getBoundingClientRect();
+    box.style.top = `${r.bottom + 6}px`;
+    box.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+    return box;
+  }
+
+  const logBar = document.getElementById('log-bar');
+  if (!logBar) { box.style.bottom = '16px'; return box; }
+  const place = () => { box.style.bottom = `${logBar.getBoundingClientRect().height + 16}px`; };
+  place();
+  bannerObserver = new ResizeObserver(place);
+  bannerObserver.observe(logBar);
+  return box;
+}
+
+/**
+ * The answer to a manual check that found nothing to offer. `near` is the button
+ * that opened the menu the check was started from; without it the notice takes the
+ * corner the banner uses. The Log panel has
+ * the line too, but a user who has just clicked a menu row should not have to
+ * open a closed panel to learn it ran. Goes away by itself: unlike the update
+ * banner there is nothing to act on.
+ */
+function showNotice(text: string, near?: HTMLElement): void {
+  const box = mountBox(near);
+  box.textContent = text;
+  const mine = box;
+  setTimeout(() => { if (banner === mine) closeBanner(); }, NOTICE_MS);
+}
+
+const NOTICE_MS = 6000;
+
+function showBanner(opts: UpdateCheckOptions, latest: LatestRelease): void {
+  const box = mountBox();
 
   const title = document.createElement('div');
   title.style.cssText = 'font-weight:600';
@@ -156,13 +203,4 @@ function showBanner(opts: UpdateCheckOptions, latest: LatestRelease): void {
 
   row.append(skip, later, view);
   box.appendChild(row);
-  document.body.appendChild(box);
-  banner = box;
-
-  const logBar = document.getElementById('log-bar');
-  if (!logBar) { box.style.bottom = '16px'; return; }
-  const place = () => { box.style.bottom = `${logBar.getBoundingClientRect().height + 16}px`; };
-  place();
-  bannerObserver = new ResizeObserver(place);
-  bannerObserver.observe(logBar);
 }
