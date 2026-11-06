@@ -1742,6 +1742,12 @@ settings…**, **Reset saved settings…** and, on the desktop, **File associati
 under *Troubleshooting*, is **Record load timings**. It is for bug reports only: it adds a timing line to the Log
 panel at each stage of a load, so you can copy the lines into a report about a slow load. Leave it off otherwise.
 
+On the desktop, the *Updates* rows control the new-version notice. **Check for updates at startup** is on by default: a few
+seconds after tsmap starts it asks GitHub which release is newest and, if yours is older, shows a notice with **View release**,
+**Not now** and **Skip this version**. It only opens the release page; nothing is downloaded or installed for you, and
+nothing about your data is sent. Turn it off on a machine that should not contact the internet. **Check for updates now**
+asks on demand whatever the setting, and says so when you are already up to date.
+
 #### Taking settings to another machine
 
 **Preferences → Export or import settings…** saves what tsmap remembers as files and reads them back, in two parts.

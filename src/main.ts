@@ -57,6 +57,7 @@ import { isShortcutsKey, showShortcutsDialog } from './shortcutsUI';
 import { adoptSavedPinnedTests, restoreAndWatchPinnedTests } from './pinnedTestsPrefs';
 import { rememberSelection } from './testSelectionMemory';
 import { initPwa } from './pwa';
+import { checkForUpdate, startupCheckEnabled, setStartupCheckEnabled, type UpdateCheckOptions } from './updateCheck';
 import { TSMAP_GUIDE_HTML } from './guideExtension';
 import { UnseenProblems } from './logBadge';
 import { wireLogContextMenu } from './logContextMenu';
@@ -3009,6 +3010,16 @@ function appendMenuHeading(popup: HTMLElement, text: string, first = false): voi
   popup.appendChild(el);
 }
 
+/** What the desktop update check needs from the app (see `updateCheck.ts`). */
+function updateCheckOptions(): UpdateCheckOptions {
+  return {
+    currentVersion: __APP_VERSION__,
+    fetchLatest: () => platform.checkLatestRelease(),
+    openRelease: (url) => { platform.openExternal(url); },
+    onLog: log,
+  };
+}
+
 let closePreferencesMenu: (() => void) | null = null;
 
 /**
@@ -3062,6 +3073,22 @@ function openPreferencesMenu(anchor: HTMLElement) {
               setAssociation: (extension, associate) => platform.setFileAssociation(extension, associate),
             });
           },
+        }));
+      }
+
+      // Desktop only: the web build is updated by its service worker (pwa.ts), and nothing there asks GitHub.
+      if (isTauri) {
+        appendMenuHeading(popup, 'Updates');
+        popup.appendChild(makeMenuRow(close, {
+          label: 'Check for updates at startup',
+          hint: 'When tsmap starts it asks GitHub which release is newest and, if yours is older, offers a link to it. Nothing is downloaded or installed, and nothing about your data is sent. Turn off if this machine should not contact the internet',
+          checked: startupCheckEnabled(),
+          onClick: () => { setStartupCheckEnabled(!startupCheckEnabled()); },
+        }));
+        popup.appendChild(makeMenuRow(close, {
+          label: 'Check for updates now',
+          hint: 'Ask GitHub which release is newest, whatever the startup setting',
+          onClick: () => { void checkForUpdate(updateCheckOptions(), true); },
         }));
       }
 
@@ -3385,6 +3412,14 @@ if (!isTauri) {
     // and on web the originals cannot be re-read, so the prompt says so.
     hasLoadedData: () => session.wafers.length > 0,
   });
+}
+
+// ── Update notice (desktop only) ──────────────────────────────────────────
+// Deferred a few seconds so it never competes with opening the files the app was
+// launched with, and so it is not issued in the same breath as the startup
+// commands (see fetch_url.rs's module doc on IPC chained at cold start).
+if (isTauri && startupCheckEnabled()) {
+  setTimeout(() => { void checkForUpdate(updateCheckOptions(), false); }, 5000);
 }
 
 /**

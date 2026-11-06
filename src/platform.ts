@@ -229,6 +229,8 @@ export interface Platform {
   openReport(html: string): void;
   /** Opens an external URL in the system browser (Tauri) / a new tab (web). */
   openExternal(url: string): void;
+  /** Desktop only: the newest published tsmap release, from GitHub (see `updateCheck.ts`). Rejects when it cannot be reached. */
+  checkLatestRelease(): Promise<{ version: string; url: string }>;
   confirm(message: string): Promise<boolean>;
   stdfTestNames(file: FileHandle): Promise<ScanResult>;
   atdfTestNames(file: FileHandle): Promise<ScanResult>;
@@ -629,6 +631,11 @@ function makeTauriPlatform(): Platform {
       // `getSampleSplitsCsv` already does for arbitrary bundled-resource paths.
       const invoke = await getInvoke();
       return invoke<string>('read_text_file', { path });
+    },
+
+    async checkLatestRelease() {
+      const invoke = await getInvoke();
+      return invoke<{ version: string; url: string }>('check_latest_release');
     },
 
     async getFileAssociationStatus() {
@@ -1280,6 +1287,7 @@ function makeWebPlatform(): Platform {
     async readTextFile() { throw new Error('readTextFile is not supported on web'); },
     // No concept of "the OS's default app for a file type" in a browser —
     // never called on web (the Help menu row is Tauri-only, see main.ts).
+    async checkLatestRelease() { throw new Error('The update check is not used on web — the service worker offers updates'); },
     async getFileAssociationStatus() { throw new Error('File associations are not supported on web'); },
     async setFileAssociation() { throw new Error('File associations are not supported on web'); },
 

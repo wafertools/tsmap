@@ -145,6 +145,18 @@ export const STORED_ITEMS: readonly StoredItem[] = [
     scope: 'both',
   },
   {
+    key: 'tsmap:update-check',
+    label: 'Update check at startup',
+    description: 'Whether tsmap looks for a newer release when it starts (Preferences → Check for updates at startup). Back to on if cleared.',
+    scope: 'desktop',
+  },
+  {
+    key: 'tsmap:update-skipped',
+    label: 'Skipped update',
+    description: 'The newest version you chose "Skip this version" for, so the startup notice does not repeat it.',
+    scope: 'desktop',
+  },
+  {
     key: 'tsmap:log-timings',
     label: 'Load timings (troubleshooting)',
     description: 'The troubleshooting switch (Preferences → Record load timings): whether a timing line for each stage of a load is written to the log panel.',

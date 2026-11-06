@@ -208,6 +208,7 @@ src/
   tooltip.ts          — shared themed hover tooltip for tsmap's own chrome
   theme.ts            — theme selection, persistence, and re-render notification
   pwa.ts              — web build only: offline service worker + the update prompt
+  updateCheck.ts      — desktop only: the "newer release available" notice (startup check, Preferences switch)
 
 packages/parsers/     — shared Rust crate (native + WASM targets), published as
                         @wafertools/testdata-parser
@@ -238,6 +239,7 @@ src-tauri/src/
     parse_{stdf,atdf}_filtered.rs           — filtered parse for a chosen test subset
     {stdf,atdf}_test_names.rs               — first-pass test name scan
     {stdf,atdf}_file_meta.rs                — header-only metadata scan for the file filter
+    check_update.rs     — check_latest_release(): newest tsmap release from GitHub, for the update notice
     fetch_url.rs        — fetch --url / tsmap:// data to a temp file before the window opens
     file_associations.rs — register/unregister default handler (Windows registry, xdg-mime)
     extract_archive.rs  — extract_archive(path), cleanup_extract()

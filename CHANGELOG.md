@@ -6,6 +6,10 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Added
+
+- **A new-version notice on the desktop.** A few seconds after start-up tsmap asks GitHub which release is newest and, if yours is older, offers a link to its release page, with **Not now** and **Skip this version**. Nothing is downloaded or installed, and nothing about your data is sent. **Preferences → Check for updates at startup** turns it off, and **Check for updates now** asks on demand.
+
 ### Changed
 
 - **The four story sample lots are probed in sessions.** `EDGE-LOT-01`, `HY-LOT-04`, `CLUST-LOT-03` and `PARAM-LOT-02` are written the way a tester writes them: one STDF and ATDF per probe session (`_S1`…), each with its own MIR and SDR, so tester, handler, probe card, operator and test date change between files and not within one. The lot's `.stdf` is those sessions written one after another (its `.atdf` is no longer written, as an ATDF file holds one MIR), `<LOT>.csv` is the same lot as one merged export, and `_splits.csv` carries the fab's split (`_sessions_splits.csv` for the keys a wafer takes when the session files are opened together). Group by now has fields that change the data (a recipe, a probe card, a tester, a process corner), decoys that do not, and, in `HY-LOT-04`, none that do. `PARAM-LOT-02` is 12 wafers, four of each corner; `CLUST-LOT-03` is 8.

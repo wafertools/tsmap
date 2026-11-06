@@ -1,5 +1,6 @@
 pub mod atdf_file_meta;
 pub mod atdf_test_names;
+pub mod check_update;
 pub mod extract_archive;
 pub mod fetch_url;
 pub mod file_associations;
@@ -21,6 +22,7 @@ pub mod stdf_test_names;
 pub mod write_temp_html;
 pub use atdf_file_meta::atdf_file_meta;
 pub use atdf_test_names::atdf_test_names;
+pub use check_update::check_latest_release;
 pub use extract_archive::{extract_archive, cleanup_extract};
 pub use fetch_url::{resolve_cli_url, cleanup_url_fetch};
 pub use file_associations::{get_file_association_status, set_file_association};

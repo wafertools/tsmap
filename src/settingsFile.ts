@@ -45,6 +45,8 @@ export const EXCLUDED: Readonly<Record<string, string>> = {
   'tsmap:retest-policy': 'they travel in the setup file',
   'tsmap:file-filter': 'the last folder scan, not a setting',
   'tsmap:log-timings': 'a debugging switch',
+  'tsmap:update-check': 'whether this machine contacts the internet is decided on this machine',
+  'tsmap:update-skipped': 'it records what this machine was told about',
 };
 
 const MAX_VALUE_CHARS = 2 * 1024 * 1024;
