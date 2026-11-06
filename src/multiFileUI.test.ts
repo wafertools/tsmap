@@ -65,11 +65,17 @@ describe('needsWaferLabelPrompt', () => {
     expect(needsWaferLabelPrompt([file('lot.stdf', ['W01', 'W02'])])).toBe(false);
   });
 
-  it('always prompts for several files', () => {
+  it('does not prompt for several files that are one lot: one lot ID and no wafer twice', () => {
     expect(needsWaferLabelPrompt([
-      file('A_W01.stdf', ['W01'], 'A'),
-      file('A_W02.stdf', ['W02'], 'A'),
-    ])).toBe(true);
+      file('A_S1.stdf', ['W01', 'W02'], 'A'),
+      file('A_S2.stdf', ['W03'], 'A'),
+    ])).toBe(false);
+  });
+
+  it('prompts for several files of different lots, without a lot ID, or with a wafer twice', () => {
+    expect(needsWaferLabelPrompt([file('A.stdf', ['W01'], 'A'), file('B.stdf', ['W02'], 'B')])).toBe(true);
+    expect(needsWaferLabelPrompt([file('x.stdf', ['W01']), file('y.stdf', ['W02'])])).toBe(true);
+    expect(needsWaferLabelPrompt([file('A_S1.stdf', ['W01'], 'A'), file('A_S2.stdf', ['W01'], 'A')])).toBe(true);
   });
 });
 

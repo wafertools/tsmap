@@ -1,5 +1,5 @@
 # tsmap test list — robustness / warning-path check (not a screenshot demo)
-# Pairs with sample_data/PVT-LOT-05.stdf. Load it, open the test selector,
+# Pairs with sample_data/PVT-LOT-05.zip. Load it, open the test selector,
 # click "Load list", pick this file, then check the log panel / footer note
 # for each warning called out below. Nothing here should crash or drop an
 # entire row — only the single bad field (or bad row) noted should be lost.

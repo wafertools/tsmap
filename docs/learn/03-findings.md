@@ -137,7 +137,7 @@ The sample lot mixes test programs, so its report has one section for each group
 <!-- _class: split -->
 # A lot with nothing to report
 
-A lot with nothing to report is a result too. When no region, bin or wafer costs about a yield point, the panel says so and lists what it compared, so you know it looked. This is [`HY-LOT-04`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-hy-lot.stdf&dataFormat=stdf).
+A lot with nothing to report is a result too. When no region, bin or wafer costs about a yield point, the panel says so and lists what it compared, so you know it looked. This is [`HY-LOT-04`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-hy-lot.zip&dataFormat=zip).
 
 ![What stands out for HY-LOT-04](images/03/nothing-stands-out.png)
 
@@ -192,7 +192,7 @@ tsmap compares each part of the lot with the rest, and checks the failing dies f
 
 # A pattern and what backs it
 
-A spatial pattern is a shape tsmap recognises in the failing dies. It can have a **Show N supporting findings** line, which holds the smaller findings that add up to it. This is [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.stdf&dataFormat=stdf).
+A spatial pattern is a shape tsmap recognises in the failing dies. It can have a **Show N supporting findings** line, which holds the smaller findings that add up to it. This is [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.zip&dataFormat=zip).
 
 ![A spatial pattern with its supporting findings closed](images/03/supporting-closed.png)
 
@@ -270,7 +270,7 @@ Failing dies that sit together form a **cluster**. Here a small group fails near
 
 # A shift with no defect
 
-Not every item is a pattern of failing dies. In [`PARAM-LOT-02`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-dense-lot.stdf&dataFormat=stdf) the top item is a test: `Iddq` is higher toward the edge on all twelve wafers, and many dies cross its high limit.
+Not every item is a pattern of failing dies. In [`PARAM-LOT-02`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-dense-lot.zip&dataFormat=zip) the top item is a test: `Iddq` is higher toward the edge on all twelve wafers, and many dies cross its high limit.
 
 ![What stands out for PARAM-LOT-02](images/03/param-top-item.png)
 

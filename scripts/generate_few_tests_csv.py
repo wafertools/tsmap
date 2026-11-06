@@ -7,11 +7,12 @@ and test names and values rather than invented columns. Run from the repository 
     python3 scripts/generate_few_tests_csv.py
 """
 import csv
+import zipfile
 import struct
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / 'sample_data' / 'PVT-LOT-05.stdf'
+SOURCE = ROOT / 'sample_data' / 'PVT-LOT-05.zip'   # the lot's session STDFs, read in order
 OUT = ROOT / 'docs' / 'samples' / 'tsmap-few-tests.csv'
 WAFERS = ('W01', 'W02', 'W03')            # TT, FF, TT: two corners, so the map shows a difference
 TESTS = ('vth_n_mV', 'vth_p_mV', 'idsat_n_uA', 'idsat_p_uA')
@@ -23,7 +24,8 @@ def cn(b, i):
 
 
 def main():
-    data = SOURCE.read_bytes()
+    with zipfile.ZipFile(SOURCE) as z:
+        data = b''.join(z.read(name) for name in z.namelist())
     rows, wafer, current = [], None, {}
     i = 0
     while i < len(data):

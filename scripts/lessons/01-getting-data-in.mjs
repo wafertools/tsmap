@@ -361,7 +361,7 @@ export const scenario = {
       title: 'Desktop app: the last file sets opened are listed on the start screen',
       steps: [['click', '#log-toggle'], ['desktopMode', true]],
       checks: [isVisible('text="Recent"', 'the start screen lists recent files')],
-      shots: [{ name: 'recent-start', clip: { target: 'text=Open files to get started', through: 'text=PVT-LOT-05.stdf', pad: 40 } }],
+      shots: [{ name: 'recent-start', clip: { target: 'text=Open files to get started', through: 'text=PVT-LOT-05.zip', pad: 40 } }],
     },
     {
       id: '19-desktop-recent-menu',

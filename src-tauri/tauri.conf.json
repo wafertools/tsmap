@@ -56,7 +56,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../sample_data/sample-lot.stdf.gz": "sample-lot.stdf.gz",
+      "../sample_data/sample-lot.zip": "sample-lot.zip",
       "../sample_data/PVT-LOT-05_splits.csv": "sample-lot-splits.csv"
     }
   }

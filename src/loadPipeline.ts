@@ -162,6 +162,8 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
   // Captured before archive expansion/reassignment below, so a reopened .zip
   // records (and re-expands) its own path rather than its extracted contents.
   const originalPaths = files.every(f => f.path) ? files.map(f => f.path as string) : null;
+  // A single archive opened on its own names the load (a lot's sessions in one zip), not its file count.
+  const archiveName = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip') ? files[0].name : undefined;
 
   loadPhase('reading', `Reading ${files.length} file${files.length > 1 ? 's' : ''}`);
   // Yield two animation frames so the spinner actually paints before the
@@ -466,7 +468,6 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
   deps.logUnitConversions(harmoniseTestUnits(entries, isAppend && session.wafers.length > 0 ? session.testDefs : undefined));
 
   // Rename step — see needsWaferLabelPrompt for when it is shown.
-  const allWafers = entries.flatMap(e => e.parsed.wafers);
   const needsRename = needsWaferLabelPrompt(entries);
 
   // Wafer geometry stated in a flat file's own columns (see columnGeometry.ts): say what was taken, and what was not.
@@ -481,25 +482,27 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
   const appending = isAppend && session.wafers.length > 0;
   const getRenamed = async (): Promise<RenamedWafer[] | null> => {
     if (!needsRename) {
-      // needsRename is false only for a single entry, so all wafers share its source.
-      const source = makeWaferSource(entries[0].parsed.meta, entries[0].fileName, entries[0].parsed.wafers);
-      const lotId = entries[0].parsed.meta.fields.find(f => f.key === 'lotId')?.value;
-      return Promise.resolve(allWafers.map(w => ({
-        // Added to a gallery, a wafer with a lot ID is labelled the way the wafer
-        // labels step would label it (`<lot> · W03`), so it reads like the wafers
-        // already there. Without one it keeps its own ID: the step's file-name
-        // fallback would give every wafer of the file the same label. A file
-        // opened on its own keeps its plain wafer IDs.
-        waferId: appending && lotId?.trim()
-          ? resolveWaferId(w.waferId, entries[0].fileName, lotId, w.waferIdPlaceholder)
-          : markPlaceholder(w.waferId, w.waferIdPlaceholder),
-        results: w.results,
-        partCount: w.partCount,
-        goodCount: w.goodCount,
-        failCount: w.failCount,
-        fields: w.fields,
-        source,
-      })));
+      // One file, or several that are one lot (filesFormOneLot): each wafer keeps its own file as its source.
+      return Promise.resolve(entries.flatMap(e => {
+        const source = makeWaferSource(e.parsed.meta, e.fileName, e.parsed.wafers);
+        const lotId = e.parsed.meta.fields.find(f => f.key === 'lotId')?.value;
+        return e.parsed.wafers.map(w => ({
+          // Added to a gallery, a wafer with a lot ID is labelled the way the wafer
+          // labels step would label it (`<lot> · W03`), so it reads like the wafers
+          // already there. Without one it keeps its own ID: the step's file-name
+          // fallback would give every wafer of the file the same label. A lot
+          // opened on its own keeps its plain wafer IDs.
+          waferId: appending && lotId?.trim()
+            ? resolveWaferId(w.waferId, e.fileName, lotId, w.waferIdPlaceholder)
+            : markPlaceholder(w.waferId, w.waferIdPlaceholder),
+          results: w.results,
+          partCount: w.partCount,
+          goodCount: w.goodCount,
+          failCount: w.failCount,
+          fields: w.fields,
+          source,
+        }));
+      }));
     }
     // Say so. Without this the indicator kept claiming "Parsing x.csv…" while
     // the app was actually sitting at a dialog waiting for the user — the same
@@ -554,7 +557,7 @@ export async function runLoad(files: FileHandle[], isAppend: boolean, continuesC
     deps.logPassBinCollisions(bins.collisions);
     deps.renderWafers(
       renamed.map(toWaferData),
-      entries.length === 1 ? entries[0].fileName : `${entries.length} files`,
+      entries.length === 1 ? entries[0].fileName : archiveName ?? `${entries.length} files`,
       united.defs,
       { hbinDefs: bins.hbinDefs, sbinDefs: bins.sbinDefs, passHbins: bins.passHbins },
       defsBySourceFrom(renamed),

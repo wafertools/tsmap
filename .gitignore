@@ -45,5 +45,8 @@ __pycache__/
 !/sample_data/*.atdf
 
 # Ad-hoc large local fixtures (e.g. a zipped copy of a profiling STDF) —
-# never a committed sample, whatever the extension.
+# never a committed sample, whatever the extension. The exceptions are the lots
+# tested in several sessions, each a zip of its session STDFs (lot_files.py).
 /sample_data/*.zip
+!/sample_data/*-LOT-*.zip
+!/sample_data/sample-lot.zip

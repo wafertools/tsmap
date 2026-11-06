@@ -6,14 +6,14 @@ Produces: 25 wafers (a full lot), ~220 dies each, 4-site parallel test, 6 PTR te
 (NMOS/PMOS Vth, NMOS/PMOS Idsat, Ioff leakage, Fmax) + 8 FTR tests (scan chain, memory BIST, I/O loopback, PLL lock,
 DDR PHY, SerDes PRBS, JTAG ID, power sequencing).
 
-The lot was tested in five sessions, written one after another into the one file, each with its own MIR (and SDR), the
-way a lot that is probed over several days arrives. The sessions differ in the fields Group by offers, and each
+The lot was tested in five sessions. Each session is its own STDF file (one data stream, one MIR and SDR, the spec), and
+the five are written into one zip, `<LOT>.zip` (lot_files.py), which tsmap opens as one load. The sessions differ in the fields Group by offers, and each
 difference has an effect on the data, so every one of them is worth grouping on (SESSIONS below):
 
   1  W01-W06  25 C, tester A, program 1.0                        the baseline
   2  W07-W12  85 C, tester A: yield falls; Vth and Idsat drop, leakage rises by half, PLL/DDR fail more
   3  W13-W17  tester B on node-02 and probe card PC-0207: Vth reads ~20 mV high, Idsat ~3 % low
-  4  W18-W22  program 1.1, tighter limits: the same silicon, a lower yield
+  4  W18-W22  program 1.1: a longer SerDes PRBS pattern fails more dies, a finer Fmax search reads Fmax ~1.5 % low
   5  W23-W25  48 h burn-in: leakage up, memory BIST fails more (early-life fails)
 
 Operator follows the session and has no effect of its own, so a Group by Operator shows nothing a reader should believe.
@@ -57,6 +57,7 @@ random.seed(7)
 # ── STDF records ──────────────────────────────────────────────────────────────
 # One head, as every file here: thin wrappers over the one spec-conformant set of record builders, stdf_spec.py.
 import stdf_spec as S
+from lot_files import session_file_name, write_lot_zip
 
 def far() -> bytes: return S.far()
 def mir(lot_id: str, ses: 'Session') -> bytes:
@@ -158,8 +159,6 @@ class Session:
     burn_hours: int = 0
     handler: str = 'PRB-11'
     probe_card: str = 'PC-0114'
-    # Per-test (lsl, usl) overrides: a tighter program draws the same silicon against narrower limits.
-    limits: dict[int, tuple[float, float]] = field(default_factory=dict)
     # Additive shift and multiplier applied to a test's value: {test_num: (shift, scale)}.
     response: dict[int, tuple[float, float]] = field(default_factory=dict)
     # Extra fail probability per FTR test number.
@@ -177,10 +176,10 @@ SESSIONS = [
     # Tester B drifts: Vth reads ~20 mV high and Idsat ~3 % low on the same silicon.
     Session(ids(13, 17), tester='UT-9000-B', node='node-02', probe_card='PC-0207', operator='b.smith',
             response={1001: (20, 1), 1002: (20, 1), 1003: (0, 0.97), 1004: (0, 0.97)}),
-    # Program 1.1 tightens the limits; nothing about the silicon changes.
+    # Program 1.1 runs a longer SerDes PRBS pattern, which catches more marginal dies, and a finer Fmax search step that
+    # reads Fmax ~1.5 % lower. Its limits are the lot's: one spec for the whole lot, so capability and spec yield hold.
     Session(ids(18, 22), program_rev='1.1',
-            limits={1001: (265.0, 375.0), 1002: (265.0, 375.0), 1003: (510.0, 890.0), 1004: (470.0, 830.0),
-                    1005: (0.0, 11.0), 1006: (1630.0, 2190.0)}),
+            response={1006: (0, 0.985)}, ftr_extra={2006: 0.03}),
     # 48 h burn-in: stress raises leakage and the memory BIST finds the early-life fails.
     Session(ids(23, 25), burn_hours=48, operator='b.smith',
             response={1005: (0, 1.15)}, ftr_extra={2002: 0.025}),
@@ -220,7 +219,6 @@ def gen_die_values(corner: str, edge: bool, site: int, ses: Session) -> dict[int
             val += (usl - lsl) * random.choice([-1, 1]) * 0.35
         shift, scale = ses.response.get(tnum, (0.0, 1.0))
         val = val * scale + shift
-        lsl, usl = ses.limits.get(tnum, (lsl, usl))
         passed = lsl <= val <= usl
         result[tnum] = (val, passed)
     return result
@@ -228,7 +226,8 @@ def gen_die_values(corner: str, edge: bool, site: int, ses: Session) -> dict[int
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def generate(output_path: Path) -> None:
-    buf = bytearray()
+    """`output_path` names the lot (its stem is the lot ID): `<LOT>.zip` of the session files is written beside it."""
+    session_files = []
     # Die pitch must actually contain every die's grid position (radius=8
     # steps, see wafer_dies below) within the 300mm wafer, or wmap correctly
     # rejects it as a geometry-conflict warning (a probed die is always a
@@ -244,6 +243,7 @@ def generate(output_path: Path) -> None:
     corner_of = dict(WAFER_CORNERS)
 
     for ses in SESSIONS:
+        buf = bytearray()
         buf += far()
         buf += mir(output_path.stem, ses)
         buf += sdr(SITES, ses)
@@ -252,7 +252,6 @@ def generate(output_path: Path) -> None:
         lot_good = 0
         lot_parts = 0
         bin_counts = {1: 0, 2: 0, 3: 0}
-        limits = {t[0]: ses.limits.get(t[0], (t[3], t[4])) for t in TESTS}
 
         for wafer_id in ses.wafers:
             corner = corner_of[wafer_id]
@@ -273,9 +272,9 @@ def generate(output_path: Path) -> None:
                     values = gen_die_values(corner, edge, site, ses)
                     failed_tests = [t for t, (_, p) in values.items() if not p]
 
-                    for tnum, tname, units, _lsl, _usl, _drive, _dir, _sig, _noise in TESTS:
+                    # One spec for the whole lot: every session judges a test against the same limits.
+                    for tnum, tname, units, lsl, usl, _drive, _dir, _sig, _noise in TESTS:
                         val, passed = values[tnum]
-                        lsl, usl = limits[tnum]
                         buf += ptr_rec(tnum, site, val, passed, tname, lsl, usl, units, first=is_first)
 
                     ft_passed = random.random() >= CORNER_FT_FAIL_P[corner]
@@ -313,9 +312,11 @@ def generate(output_path: Path) -> None:
         buf += sbr(2, bin_counts[2], 'F', 'Fail (1 test)')
         buf += sbr(3, bin_counts[3], 'F', 'Fail (multi)')
         buf += S.file_end(lot_parts, lot_good)
-        print(f"  session {SESSIONS.index(ses) + 1}: {ses.wafers[0]}-{ses.wafers[-1]}  yield {lot_good / lot_parts:.1%}")
+        number = SESSIONS.index(ses) + 1
+        session_files.append((session_file_name(output_path.stem, number), bytes(buf)))
+        print(f"  session {number}: {ses.wafers[0]}-{ses.wafers[-1]}  yield {lot_good / lot_parts:.1%}")
 
-    output_path.write_bytes(buf)
+    zip_path = write_lot_zip(output_path.with_suffix('.zip'), session_files)
 
     splits_path = output_path.with_name(output_path.stem + '_splits.csv')
     lines = [
@@ -328,17 +329,17 @@ def generate(output_path: Path) -> None:
 
     total_dies = len(WAFER_CORNERS) * len(dies)
     corner_counts = {c: sum(1 for _, cc in WAFER_CORNERS if cc == c) for c in CORNER_CENTRES}
-    print(f"Written {len(buf):,} bytes → {output_path}")
+    print(f"Written {len(session_files)} session files → {zip_path}")
     print(f"  {len(WAFER_CORNERS)} wafers × ~{len(dies)} dies = ~{total_dies} die results")
     print(f"  {len(TESTS)} PTR tests + {1 + len(EXTRA_FTR)} FTR tests")
     print(f"  Corners: " + ', '.join(f'{c}×{n}' for c, n in corner_counts.items()))
     print(f"Written splits definition → {splits_path}")
     print()
-    print("  Load the .stdf, select all tests, then use the toolbar's")
+    print("  Open the .zip, select all tests, then use the toolbar's")
     print("  \"Splits…\" button → \"Load splits…\" to apply the CSV, then set")
     print("  Charts → Group by → Split to compare corners.")
 
 
 if __name__ == '__main__':
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('corner_lot.stdf')
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture_path('corner_lot.zip')
     generate(out)

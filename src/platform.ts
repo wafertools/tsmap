@@ -595,10 +595,11 @@ function makeTauriPlatform(): Platform {
       // src-tauri) gets its ".." segments rewritten to a literal "_up_" in
       // the resource tree under the array form, so resolveResource('sample-
       // lot.stdf.gz') would 404 (ENOENT) against the real registered key,
-      // "_up_/sample_data/sample-lot.stdf.gz". The object form pins the
+      // "_up_/sample_data/sample-lot.zip". The object form pins the
       // target name explicitly instead of relying on that rewrite.
-      const path = await resolveResource('sample-lot.stdf.gz');
-      return { name: 'PVT-LOT-05.stdf.gz', bytes: new Uint8Array(0), path };
+      // The lot's five probe sessions, one STDF each, in one zip (one MIR per file, the spec).
+      const path = await resolveResource('sample-lot.zip');
+      return { name: 'PVT-LOT-05.zip', bytes: new Uint8Array(0), path };
     },
 
     async getSampleSplitsCsv() {
@@ -823,7 +824,7 @@ function callWorker(
  * body before this function ever sees it. Calling DecompressionStream again
  * on already-decompressed bytes throws `The compressed data was not valid:
  * incorrect header check` — which is exactly what shipped (2026-08,
- * getSampleFile's `sample-lot.stdf.gz`): the error was real, but harmless
+ * getSampleFile's `sample-lot.zip`): the error was real, but harmless
  * only by accident, because the Rust parser's own maybe_decompress silently
  * absorbed the already-decompressed bytes downstream. Web-only — Tauri
  * reads the file straight off disk (resolveResource), no HTTP transport
@@ -1273,11 +1274,11 @@ function makeWebPlatform(): Platform {
       // base used for the GitHub Pages web build. Fetched bytes still carry
       // the .gz suffix in their name; expandArchives() in handleFiles already
       // decompresses that via DecompressionStream, same as a dropped .gz file.
-      const url = new URL('../sample_data/sample-lot.stdf.gz', import.meta.url);
+      const url = new URL('../sample_data/sample-lot.zip', import.meta.url);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Failed to fetch sample data: ${res.status}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
-      return { name: 'sample-lot.stdf.gz', bytes };
+      return { name: 'PVT-LOT-05.zip', bytes };
     },
 
     // No CLI entry point on web — these three are never actually invoked

@@ -1,7 +1,7 @@
 # tsmap test list — clean demo of the extended (limits + type) format
-# Pairs with sample_data/PVT-LOT-05.stdf (13-wafer PVT corner lot, tests
+# Pairs with sample_data/PVT-LOT-05.zip (25-wafer PVT corner lot in five session files, tests
 # 1001-1006 parametric with baked-in spec limits, 2001 functional with none).
-# Load PVT-LOT-05.stdf, open the test selector, click "Load list", pick this
+# Open PVT-LOT-05.zip, open the test selector, click "Load list", pick this
 # file — every row below overrides something visibly different from what's
 # in the STDF, so the effect is easy to confirm in the selector/screenshot:
 #   - 1001/1002/1003/1005/1006: renamed, limits tightened/widened vs. the

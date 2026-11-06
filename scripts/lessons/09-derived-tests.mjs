@@ -9,7 +9,7 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
-const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.stdf`;
+const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.zip`;
 const SWEEP_DEFS = `${SAMPLEDATA}/SWEEP-LOT-06_testdefs.csv`;
 const GT = '[data-wmap-toolbar="gallery"]';
 const SELECTOR = '#tsmap-test-selector-overlay [role="dialog"]';

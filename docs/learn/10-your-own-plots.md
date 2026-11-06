@@ -365,7 +365,7 @@ A sweep is saved with the names of its tests. If a later lot uses the same test 
 3. Set **X axis** to **Split**: which split differs most?
 4. Open **Customise** and put a reference line on the value axis
 5. **Export plots…**, then **Delete all plots…** and **Undo**
-6. Open [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.stdf&dataFormat=stdf), load its definitions as in lesson 09, then **My plots → Import plots…** and choose `tsmap-sweep-plots.json`. **Edit** the **Endurance** plot and read where its X values come from
+6. Open [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.zip&dataFormat=zip), load its definitions as in lesson 09, then **My plots → Import plots…** and choose `tsmap-sweep-plots.json`. **Edit** the **Endurance** plot and read where its X values come from
 
 ---
 

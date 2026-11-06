@@ -186,14 +186,14 @@ const SCENES = [
     // sample lot's top item (a comparison of groups of wafers) does not.
     name: 'Lot with a spatial pattern',
     menus: false,
-    setup: (page) => openFile(page, 'EDGE-LOT-01.stdf'),
+    setup: (page) => openFile(page, 'EDGE-LOT-01.zip'),
   },
   {
     // A lot with 77 tests and derived-test definitions to load: the selector's own controls.
     name: 'Test selector (Setup ▾ → Tests…)',
     menus: false,
     setup: async (page) => {
-      await openFile(page, 'SWEEP-LOT-06.stdf');
+      await openFile(page, 'SWEEP-LOT-06.zip');
       await openTestsDialog(page);
     },
   },
@@ -235,7 +235,7 @@ const SCENES = [
     setup: async (page) => {
       const dir = await mkdtemp(join(tmpdir(), 'tsmap-surface-'));
       try {
-        for (const f of ['EDGE-LOT-01.stdf', 'CLUST-LOT-03.stdf', 'PARAM-LOT-02.stdf', 'HY-LOT-04.stdf']) {
+        for (const f of ['EDGE-LOT-01.zip', 'CLUST-LOT-03.zip', 'PARAM-LOT-02.zip', 'HY-LOT-04.zip']) {
           await copyFile(SAMPLE(f), join(dir, basename(f)));
         }
         // Chromium's showDirectoryPicker raises no filechooser event; hiding it sends the

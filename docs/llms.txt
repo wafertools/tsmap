@@ -18,7 +18,7 @@ Absolute URLs: this file is served on its own, where repo-relative paths do not 
 - [Tutorial](https://wafertools.github.io/tsmap/tutorial/) - load a lot, find the worst wafer, find out why. No installation, no files needed.
 - [Learn tsmap](https://wafertools.github.io/tsmap/learn/) - thirteen short slide lessons, each ending in a lab on the bundled sample data.
 - [Glossary](https://wafertools.github.io/tsmap/learn/glossary/) - wafer-test terms and tsmap's own words (Group by, Compare by, retest policy, edge exclusion, verdict) in plain English, each naming the lesson that teaches it. Check it before explaining a term.
-- Sample files: the files the lessons and tutorial use sit under https://wafertools.github.io/tsmap/samples/, for example `tsmap-sample.stdf`, `tsmap-sample.csv`, `tsmap-retest.csv`, `tsmap-edge-ring-lot.stdf`.
+- Sample files: the files the lessons and tutorial use sit under https://wafertools.github.io/tsmap/samples/, for example `tsmap-sample.stdf`, `tsmap-sample.csv`, `tsmap-retest.csv`, `tsmap-edge-ring-lot.zip` (a lot tested in several sessions, one STDF file per session).
 
 ## Use tsmap
 - [User guide](https://wafertools.github.io/tsmap/user-guide/) - the full reference: loading data, column mapping, the test selector, reading the map, splits, Insights, your own plots, sweeps, derived tests, bin definitions, edge exclusion, reticle, retests, saved setups, command line.

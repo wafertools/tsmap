@@ -94,7 +94,7 @@ export const scenario = {
       steps: [['press', 'Escape'], ['desktopMode', true]],
       checks: [isVisible('text="Recent"', 'the start screen lists recent files')],
       shots: [
-        { name: 'desktop-start', clip: { target: 'text=Open files to get started', through: 'text=SWEEP-LOT-06.stdf', pad: 30 }, callouts: [['text="or drop files or a folder anywhere in this window"', { badge: 1, pad: 3 }], ['text="Recent" >> nth=0', { badge: 2, pad: 3 }]] },
+        { name: 'desktop-start', clip: { target: 'text=Open files to get started', through: 'text=SWEEP-LOT-06.zip', pad: 30 }, callouts: [['text="or drop files or a folder anywhere in this window"', { badge: 1, pad: 3 }], ['text="Recent" >> nth=0', { badge: 2, pad: 3 }]] },
       ],
     },
   ],

@@ -3,8 +3,8 @@
 
 Cuts the four scenario lots with wafermap's demo generator (../wafermap/docs/examples/data/generate-demos.js, run for each lot's
 own wafer size, see GEOMETRY) and reads their CSVs and `.meta.json` (wafer geometry, bin names, test definitions). Produces:
-  - One STDF per scenario holding the lot assembled from its probe sessions (each session a whole sequence with its own MIR/SDR)
-  - One STDF and ATDF per probe session (`<LOT>_S1`, ...), the way a tester writes them
+  - One STDF and ATDF per probe session (`<LOT>_S1`, ...), the way a tester writes them: each file one data stream with one MIR
+  - The lot as one zip of its session STDFs (`<LOT>.zip`), which tsmap opens as one load (lot_files.py)
   - The merged CSV (`<LOT>.csv`, every field as a column) and, where the lot has a fab split, splits CSVs
   - One single-wafer STDF and ATDF per wafer (named <LOT>_<WAFER>.stdf/.atdf)
 
@@ -31,6 +31,7 @@ from pathlib import Path
 import random
 
 import atdf_spec as A
+from lot_files import write_lot_zip
 import stdf_spec as S
 
 GENERATOR = Path(__file__).parent.parent.parent / 'wafermap' / 'docs' / 'examples' / 'data' / 'generate-demos.js'
@@ -202,10 +203,10 @@ def mir_args(lot_id, ses: Session):
 # ── Files ─────────────────────────────────────────────────────────────────────
 
 
-def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict, sessions: list) -> bytes:
-    """A file for `sessions`. A lot assembled from several is their files written one after another, each a whole sequence
-    (FAR to MRR) with its own MIR and SDR, the way a lot probed over several days arrives; a session's own file is one sequence."""
-    return b''.join(stdf_sequence(sc, lot_id, part_typ, {w: wafers[w] for w in ses.wafer_ids if w in wafers}, ses) for ses in sessions)
+def build_stdf(sc: Scenario, lot_id, part_typ, wafers: dict, ses: Session) -> bytes:
+    """One file: the `wafers` of one probe session, as one data stream (FAR to MRR, one MIR). A lot of several sessions is
+    several files (lot_files.py), never sessions written one after another into one file."""
+    return stdf_sequence(sc, lot_id, part_typ, {w: wafers[w] for w in ses.wafer_ids if w in wafers}, ses)
 
 
 def stdf_sequence(sc: Scenario, lot_id, part_typ, wafers: dict, ses: Session) -> bytes:
@@ -252,9 +253,9 @@ def stdf_sequence(sc: Scenario, lot_id, part_typ, wafers: dict, ses: Session) ->
     return bytes(buf)
 
 
-def build_atdf(sc: Scenario, lot_id, part_typ, wafers: dict, sessions: list) -> str:
+def build_atdf(sc: Scenario, lot_id, part_typ, wafers: dict, ses: Session) -> str:
     """The ATDF twin of {@link build_stdf}."""
-    return ''.join(atdf_sequence(sc, lot_id, part_typ, {w: wafers[w] for w in ses.wafer_ids if w in wafers}, ses) for ses in sessions)
+    return atdf_sequence(sc, lot_id, part_typ, {w: wafers[w] for w in ses.wafer_ids if w in wafers}, ses)
 
 
 def atdf_sequence(sc: Scenario, lot_id, part_typ, wafers: dict, ses: Session) -> str:
@@ -318,18 +319,22 @@ def main():
                 f"{ses.name} {ses.tester}/{ses.fields['handler']}/{ses.fields['probe_card']}/{ses.operator} {ses.fields['test_date']} ({len(ses.wafer_ids)} wafers)"
                 for ses in sessions))
 
-            # The lot assembled from its sessions, one file per session, then one file per wafer.
-            sets = [(lot_id, sc.wafers, sessions)]
-            sets += [(f'{lot_id}_{ses.name}', {w: sc.wafers[w] for w in ses.wafer_ids}, [ses]) for ses in sessions]
-            sets += [(f'{lot_id}_{w}', {w: sc.wafers[w]}, [session_of[w]]) for w in wafer_ids]
-            for stem, wafers, ses_list in sets:
-                (out_dir / f'{stem}.stdf').write_bytes(build_stdf(sc, lot_id, part_typ, wafers, ses_list))
-                total_files += 1
-                # An ATDF file holds exactly one MIR (the spec), so a lot of several sessions is an ATDF per session, not one file.
-                if len(ses_list) == 1:
-                    (out_dir / f'{stem}.atdf').write_text(build_atdf(sc, lot_id, part_typ, wafers, ses_list))
-                    total_files += 1
-                print(f'  {stem}.stdf{"/.atdf" if len(ses_list) == 1 else ""}  ({sum(len(r) for r in wafers.values())} dies, {len(wafers)} wafer(s))')
+            # One file per session, then one file per wafer: each one data stream with one MIR (the spec).
+            sets = [(f'{lot_id}_{ses.name}', {w: sc.wafers[w] for w in ses.wafer_ids}, ses) for ses in sessions]
+            sets += [(f'{lot_id}_{w}', {w: sc.wafers[w]}, session_of[w]) for w in wafer_ids]
+            session_stdfs = []
+            for stem, wafers, ses in sets:
+                data = build_stdf(sc, lot_id, part_typ, wafers, ses)
+                (out_dir / f'{stem}.stdf').write_bytes(data)
+                (out_dir / f'{stem}.atdf').write_text(build_atdf(sc, lot_id, part_typ, wafers, ses))
+                total_files += 2
+                if stem == f'{lot_id}_{ses.name}':
+                    session_stdfs.append((f'{stem}.stdf', data))
+                print(f'  {stem}.stdf/.atdf  ({sum(len(r) for r in wafers.values())} dies, {len(wafers)} wafer(s))')
+            # The whole lot as one zip of its session files, which tsmap opens as one load.
+            write_lot_zip(out_dir / f'{lot_id}.zip', session_stdfs)
+            total_files += 1
+            print(f'  {lot_id}.zip  ({len(session_stdfs)} session files)')
 
             # The merged export, and the fab's split where the lot has one.
             shutil.copyfile(Path(tmp) / csv_name, out_dir / f'{lot_id}.csv')

@@ -268,6 +268,25 @@ describe('runLoad', () => {
       expect(h.remembered).toEqual([['/data/lot.stdf']]);
     });
 
+    it('opens one lot\'s session files, zipped, as one load: no rename step, plain wafer IDs, named after the zip', async () => {
+      const lot = { fields: [{ key: 'lotId', label: 'Lot', value: 'LOT-A' }] };
+      const sessions = [[wafer('W01'), wafer('W02')], [wafer('W03')]];
+      let n = 0;
+      const parse = vi.fn(async () => ({ meta: lot, wafers: sessions[n++ % 2], testDefs: { '1': def('A') }, warnings: [] }));
+      const h = harness({
+        scan: vi.fn(async () => ({ testDefs: { '1': def('A') }, dieCount: 10 })),
+        platform: {
+          expandArchives: vi.fn(async () => [file('LOT-A_S1.stdf'), file('LOT-A_S2.stdf')]),
+          parseStdf: parse, parseStdfFiltered: parse,
+        },
+      });
+      await runLoad([file('LOT-A.zip')], false, false, h.deps);
+      expect(h.ui.renameWafers).not.toHaveBeenCalled();
+      expect(h.rendered).toHaveLength(1);
+      expect(h.rendered[0].fileName).toBe('LOT-A.zip');
+      expect(h.rendered[0].wafers.map(w => w.waferId)).toEqual(['W01', 'W02', 'W03']);
+    });
+
     it('names a several-file load by its count', async () => {
       const renamed = (id: string): RenamedWafer => ({ waferId: id, results: wafer(id).results });
       const h = harness({

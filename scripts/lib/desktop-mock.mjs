@@ -45,9 +45,9 @@ export function desktopInitScript() {
       const now = Date.now();
       const hour = 3600 * 1000;
       localStorage.setItem(KEY, JSON.stringify([
-        { paths: ['/home/lab/probe/PVT-LOT-05.stdf'], label: 'PVT-LOT-05.stdf', time: now - 2 * hour },
+        { paths: ['/home/lab/probe/PVT-LOT-05.zip'], label: 'PVT-LOT-05.zip', time: now - 2 * hour },
         { paths: ['/home/lab/probe/EDGE-LOT-01_W01.stdf', '/home/lab/probe/EDGE-LOT-01_W02.stdf'], label: 'EDGE-LOT-01_W01.stdf + 1 more', time: now - 27 * hour },
-        { paths: ['/home/lab/char/SWEEP-LOT-06.stdf'], label: 'SWEEP-LOT-06.stdf', time: now - 80 * hour },
+        { paths: ['/home/lab/char/SWEEP-LOT-06.zip'], label: 'SWEEP-LOT-06.zip', time: now - 80 * hour },
       ]));
     }
   } catch { /* storage unavailable */ }

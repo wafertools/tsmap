@@ -11,7 +11,7 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
-const EDGE = `${SAMPLEDATA}/EDGE-LOT-01.stdf`;
+const EDGE = `${SAMPLEDATA}/EDGE-LOT-01.zip`;
 const GT = '[data-wmap-toolbar="gallery"]';
 const CARD = '.wmap-gallery-card';
 const BIN = '[role="dialog"]:has(input[aria-label="Tick every row that matches the filter"])';

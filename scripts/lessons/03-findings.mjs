@@ -201,7 +201,7 @@ export const scenario = {
     {
       id: '19-edge-lot',
       title: 'EDGE-LOT-01: a spatial pattern and the bins behind it',
-      steps: [['press', 'Escape'], ['wait', 500], ['setViewport', 1280, 820], ['click', '#reset-btn'], ['wait', 800], ['loadFile', S('EDGE-LOT-01.stdf')], ['waitForWafers'], TOP, PARK],
+      steps: [['press', 'Escape'], ['wait', 500], ['setViewport', 1280, 820], ['click', '#reset-btn'], ['wait', 800], ['loadFile', S('EDGE-LOT-01.zip')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Lot EDGE-LOT-01')],
       shots: [
         { name: 'edge-top-item', clip: fromHeader('What stands out', CHIPS) },
@@ -245,21 +245,21 @@ export const scenario = {
     {
       id: '22-nothing-stands-out',
       title: 'A healthy lot says so: Nothing stands out',
-      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('HY-LOT-04.stdf')], ['waitForWafers'], TOP, PARK],
+      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('HY-LOT-04.zip')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Nothing stands out')],
       shots: [{ name: 'nothing-stands-out', clip: fromHeader('What stands out', `${RIGHT} >> text=Full report`) }],
     },
     {
       id: '23-cluster-lot',
       title: 'CLUST-LOT-03: a cluster of failing dies near the centre of every wafer',
-      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('CLUST-LOT-03.stdf')], ['waitForWafers'], TOP, PARK],
+      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('CLUST-LOT-03.zip')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Lot CLUST-LOT-03')],
       shots: [{ name: 'cluster-top-item', clip: fromHeader('What stands out', CHIPS) }],
     },
     {
       id: '24-param-lot',
       title: 'PARAM-LOT-02: a parametric shift, with no defect to find',
-      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('PARAM-LOT-02.stdf')], ['waitForWafers'], TOP, PARK],
+      steps: [['click', '#reset-btn'], ['wait', 800], ['loadFile', S('PARAM-LOT-02.zip')], ['waitForWafers'], TOP, PARK],
       checks: [hasText(RIGHT, 'Lot PARAM-LOT-02')],
       shots: [{ name: 'param-top-item', clip: fromHeader('What stands out', `${RIGHT} >> text=Also, each affecting`) }],
     },

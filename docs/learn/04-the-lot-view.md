@@ -38,7 +38,7 @@ One wafer can mislead you: a pattern may be chance. A lot can show what repeats.
 
 # One card per wafer
 
-A gallery shows each wafer on its own card. This is [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.stdf&dataFormat=stdf), eight wafers with an edge-ring defect. The buttons above act on all the cards at once (lesson 02).
+A gallery shows each wafer on its own card. This is [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.zip&dataFormat=zip), eight wafers with an edge-ring defect. The buttons above act on all the cards at once (lesson 02).
 
 ![EDGE-LOT-01 as a gallery, one card per wafer](images/04/gallery.png)
 
@@ -302,7 +302,7 @@ When a wafer is detached, its card becomes a placeholder. Its **Reattach to gall
 
 # Try it yourself
 
-1. Open [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.stdf&dataFormat=stdf) in the web app
+1. Open [`EDGE-LOT-01`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-edge-ring-lot.zip&dataFormat=zip) in the web app
 2. **Plot mode → Stacked Hard Bins**: on the **Pass** card, where is the count lower?
 3. **Stacked Test Values**, then **Σ → Std Dev**
 4. Back to **Hard Bin**: **Select the same dies on every wafer**, drag a box

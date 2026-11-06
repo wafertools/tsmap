@@ -192,10 +192,25 @@ function labelFallsBackToFileName(contentId: string, lotId?: string): boolean {
 }
 
 /**
+ * Whether several files are one lot: every file names the same lot ID and no
+ * wafer ID appears twice. A lot tested in several sessions is one file per
+ * session (an STDF file holds one MIR), so this is how such a lot arrives, as
+ * its session files or a zip of them; its wafers need no telling apart.
+ */
+export function filesFormOneLot(entries: FileWaferEntry[]): boolean {
+  if (entries.length < 2) return false;
+  const lots = entries.map(e => e.parsed.meta.fields.find(f => f.key === 'lotId')?.value?.trim());
+  if (!lots[0] || lots.some(l => l !== lots[0])) return false;
+  const ids = entries.flatMap(e => e.parsed.wafers.map(w => w.waferId));
+  return new Set(ids).size === ids.length;
+}
+
+/**
  * Whether a load must stop at the wafer labels overlay before rendering.
  *
- * Always for several files at once — each file's wafers need telling apart and
- * the user should see the list. For a single file, only when its one wafer has
+ * For several files at once, unless they are one lot (`filesFormOneLot`) —
+ * otherwise each file's wafers need telling apart and the user should see the
+ * list. For a single file, only when its one wafer has
  * nothing identifying it but the file name (a generic `W06` with no lot ID):
  * `resolveWaferId` would otherwise label it `<lot> · W06` from the data, and
  * asking the user to confirm a label the data already supplies is noise.
@@ -203,7 +218,7 @@ function labelFallsBackToFileName(contentId: string, lotId?: string): boolean {
  * the file-name fallback would give every wafer the same label.
  */
 export function needsWaferLabelPrompt(entries: FileWaferEntry[]): boolean {
-  if (entries.length !== 1) return entries.length > 1;
+  if (entries.length !== 1) return entries.length > 1 && !filesFormOneLot(entries);
   const { parsed } = entries[0];
   if (parsed.wafers.length !== 1) return false;
   const lotId = parsed.meta.fields.find(f => f.key === 'lotId')?.value;

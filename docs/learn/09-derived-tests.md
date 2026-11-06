@@ -47,7 +47,7 @@ Sometimes the number you want was never measured. A derived test computes it.
 
 Open the test selector with **Setup ▾ → Tests…**, then press **Derived tests…** in its footer. The editor is a table with a row for each derived test: its number, name, expression, units, limits and type. It starts empty.
 
-These slides use [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.stdf&dataFormat=stdf), a two-state switching lot.
+These slides use [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.zip&dataFormat=zip), a two-state switching lot.
 
 ![The Derived tests editor with no tests yet, Add derived test outlined](images/09/editor-empty.png)
 
@@ -204,7 +204,7 @@ You do not have to redefine your derived tests each time.
 
 # Try it yourself
 
-1. Open [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.stdf&dataFormat=stdf), then **Setup ▾ → Tests… → Derived tests…**
+1. Open [`SWEEP-LOT-06`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-sweep-lot.zip&dataFormat=zip), then **Setup ▾ → Tests… → Derived tests…**
 2. **Add derived test**, name it `Up plateau`, expression `mean(t[5116..5120])`: what do **Check** and **Reads** say?
 3. Delete the closing bracket: what does the check say now? Put it back
 4. **Apply**, **Apply to 59 tests →**, then **Plot mode → † Up plateau**

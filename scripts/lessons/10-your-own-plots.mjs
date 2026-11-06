@@ -10,7 +10,7 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
-const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.stdf`;
+const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.zip`;
 const SWEEP_DEFS = `${SAMPLEDATA}/SWEEP-LOT-06_testdefs.csv`;
 const SWEEP_PLOTS = `${SAMPLEDATA}/SWEEP-LOT-06_plots.json`;
 const GT = '[data-wmap-toolbar="gallery"]';
@@ -152,7 +152,7 @@ export const scenario = {
       title: 'Undo, then open SWEEP-LOT-06: the plots are kept, and those that need tests this lot lacks are dimmed with the reason',
       steps: [
         ['click', plotBtn('Undo')], ['wait', 600],
-        ['loadFile', `${SAMPLEDATA}/SWEEP-LOT-06.stdf`], ['waitForWafers'],
+        ['loadFile', `${SAMPLEDATA}/SWEEP-LOT-06.zip`], ['waitForWafers'],
         ['click', '[data-wmap-view="insights"]'], ['wait', 1500], ['click', tab('My plots')], ['wait', 1200], PARK,
       ],
       checks: [isVisible(plotBtn('Export plots…'), 'My plots is showing on the new lot')],

@@ -8,7 +8,7 @@
 import { isVisible, hasText } from '../lib/checks.mjs';
 import { SAMPLEDATA } from '../lib/paths.mjs';
 
-const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.stdf`;
+const SWEEP = `${SAMPLEDATA}/SWEEP-LOT-06.zip`;
 const SPEC_DEFS = `${SAMPLEDATA}/PVT-LOT-05_testdefs_spec.csv`;
 const SELECTOR = '#tsmap-test-selector-overlay [role="dialog"]';
 const SEL_BTN = (t) => `#tsmap-test-selector-overlay button:has-text("${t}")`;

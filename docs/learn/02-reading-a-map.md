@@ -298,7 +298,7 @@ Once the wafer is turned, the XY indicator is shown too. **Reset orientation** g
 
 **Auto** fits as many cards as keep each die at least 6 pixels across, so a dense wafer gets a wider card. A number divides the width between that many cards. With the pointer over the gallery, the keys **1** to **5** set the columns and **0** returns to Auto.
 
-Try it on [`PARAM-LOT-02`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-dense-lot.stdf&dataFormat=stdf), twelve wafers of 2,709 dies each: with few columns the dies are big enough to aim at; with five they are not.
+Try it on [`PARAM-LOT-02`](https://wafertools.github.io/tsmap/app/?dataUrl=https%3A%2F%2Fwafertools.github.io%2Ftsmap%2Fsamples%2Ftsmap-dense-lot.zip&dataFormat=zip), twelve wafers of 2,709 dies each: with few columns the dies are big enough to aim at; with five they are not.
 
 ![The Columns menu](images/02/columns-menu.png)
 

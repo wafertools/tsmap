@@ -78,15 +78,15 @@ No wafer files to hand? Download one of these synthetic samples and open it in t
   single wafer opens: one map, its own toolbar and the Summary panel.
 - [tsmap-coordless.stdf](samples/tsmap-coordless.stdf) — STDF: 3 wafers, one with a position for
   every die, one with some dies unpositioned, and one with none, to see how each is shown.
-- [tsmap-edge-ring-lot.stdf](samples/tsmap-edge-ring-lot.stdf) — STDF: lot `EDGE-LOT-01`, 8 wafers of 300 mm
+- [tsmap-edge-ring-lot.zip](samples/tsmap-edge-ring-lot.zip) — a zip of four STDF files, one per probe session: lot `EDGE-LOT-01`, 8 wafers of 300 mm
   with 10×8 mm dies (799 dies a wafer), with an edge-ring defect that shows up when the wafers are stacked.
-- [tsmap-dense-lot.stdf](samples/tsmap-dense-lot.stdf) — STDF: lot `PARAM-LOT-02`, 12 wafers of 300 mm with 5 mm dies
+- [tsmap-dense-lot.zip](samples/tsmap-dense-lot.zip) — a zip of four STDF files, one per probe session: lot `PARAM-LOT-02`, 12 wafers of 300 mm with 5 mm dies
   (2,709 dies a wafer), a parametric shift. A dense wafer, to try the gallery's **Columns** (keys **1** to **5**,
   **0** for Auto) and to aim at small dies.
-- [tsmap-hy-lot.stdf](samples/tsmap-hy-lot.stdf) — STDF: lot `HY-LOT-04`, 10 wafers of 150 mm with 10 mm dies
+- [tsmap-hy-lot.zip](samples/tsmap-hy-lot.zip) — a zip of five STDF files, one per probe session: lot `HY-LOT-04`, 10 wafers of 150 mm with 10 mm dies
   (145 dies a wafer), a high-yield lot with little for the Summary panel to find. A sparse wafer, the opposite of
   the dense lot above.
-- [tsmap-sweep-lot.stdf](samples/tsmap-sweep-lot.stdf) — STDF: lot `SWEEP-LOT-06`, a two-state switching
+- [tsmap-sweep-lot.zip](samples/tsmap-sweep-lot.zip) — a zip of four STDF files, one per probe session: lot `SWEEP-LOT-06`, a two-state switching
   lot with sweep tests. Load [tsmap-sweep-testdefs.csv](samples/tsmap-sweep-testdefs.csv) with
   **Setup ▾ → Tests… → Load definitions** for readable names and derived tests, and
   [tsmap-sweep-plots.json](samples/tsmap-sweep-plots.json) in the plot editor for two sweep plots.

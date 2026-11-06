@@ -5,7 +5,7 @@ Written straight from the specifications (specs/STDF-v4-spec.pdf, specs/ATDF-spe
 Rust parser: the parser and the generators were once written to each other's layout, so a file the parser reads proves nothing
 about the file. This reads every field by the spec's own record tables and reports what the spec forbids.
 
-  python3 scripts/validate_stdf_atdf.py FILE...          # .stdf / .atdf (.gz and .bz2 read through)
+  python3 scripts/validate_stdf_atdf.py FILE...          # .stdf / .atdf (.gz and .bz2 read through; each file in a .zip checked)
   python3 scripts/validate_stdf_atdf.py --quiet FILE...  # only the summary line per file
 
 Exit status 1 when any file has an error. Warnings (optional things a file could say) do not fail it.
@@ -17,6 +17,7 @@ import math
 import re
 import struct
 import sys
+import zipfile
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -196,11 +197,9 @@ def validate_stdf(path, rep, data):
         rep.counts[name] += 1
         seq.append((name, f, n))
         check_stdf_values(name, f, f'record {n} ({name})', rep)
-    # A lot tested in several sessions arrives as several data streams in one file, each led by its own FAR; every stream
-    # is checked against the rules on its own.
-    starts = [k for k, s in enumerate(seq) if s[0] == 'FAR'] or [0]
-    for a, b in zip(starts, starts[1:] + [len(seq)]):
-        check_stdf_sequence(seq[a:b], rep)
+    # One file is one data stream (spec: the FAR is the first record, the MIR appears once, the MRR is the last). A lot
+    # tested in several sessions is several files, never sessions concatenated into one.
+    check_stdf_sequence(seq, rep)
 
 
 def check_stdf_values(name, f, where, rep):
@@ -269,6 +268,8 @@ def check_stdf_sequence(seq, rep):
         return
     if names[0] != 'FAR':
         rep.err('order', 'the first record must be the FAR')
+    if names.count('FAR') != 1:
+        rep.err('order', f'exactly one FAR is allowed per file, found {names.count("FAR")}')
     # Initial sequence: FAR, ATRs, MIR, RDR, SDRs.
     i = 1
     while i < len(names) and names[i] == 'ATR':
@@ -277,7 +278,7 @@ def check_stdf_sequence(seq, rep):
         rep.err('order', 'the MIR must follow the FAR (and ATRs)')
         return
     if names.count('MIR') != 1:
-        rep.err('order', f'exactly one MIR is required per data stream, found {names.count("MIR")}')
+        rep.err('order', f'exactly one MIR is required per file, found {names.count("MIR")}')
     j = i + 1
     while j < len(names) and names[j] == 'SDR':
         j += 1
@@ -551,10 +552,10 @@ def validate_atdf(path, rep, data):
 # ── driver ────────────────────────────────────────────────────────────────────
 
 
-def validate(path, quiet=False, limit=8):
+def validate(path, quiet=False, limit=8, data=None):
     rep = Report(path)
     try:
-        data = read_bytes(path)
+        data = read_bytes(path) if data is None else data
     except OSError as e:
         rep.err('file', str(e))
         return rep
@@ -572,8 +573,20 @@ def main(argv):
     quiet = '--quiet' in argv
     files = [a for a in argv if not a.startswith('--')]
     bad = 0
-    for path in files:
-        rep = validate(path)
+    # A .zip (a lot tested in several sessions) is checked file by file: each must be a whole STDF or ATDF on its own.
+    def checks():
+        for path in files:
+            if path.lower().endswith('.zip'):
+                with zipfile.ZipFile(path) as z:
+                    for name in z.namelist():
+                        if re.search(r'\.(stdf?|atdf?)(\.gz|\.bz2)?$', name, re.I):
+                            yield validate(f'{path}!{name}', data=z.read(name))
+            else:
+                yield validate(path)
+    checked = 0
+    for rep in checks():
+        checked += 1
+        path = rep.path
         status = 'FAIL' if rep.errors else 'ok'
         bad += bool(rep.errors)
         print(f'{status:4} {path}  ({sum(rep.counts.values()):,} records, {len(rep.errors)} errors, {len(rep.warnings)} warnings)')
@@ -582,7 +595,7 @@ def main(argv):
         summary = collections.Counter(e.split(': ', 1)[1] if ': ' in e else e for e in rep.errors)
         for msg, count in list(summary.most_common(8)):
             print(f'       {count:>6} × {msg[:160]}')
-    print(f'{len(files) - bad} of {len(files)} files conform')
+    print(f'{checked - bad} of {checked} files conform')
     return 1 if bad else 0
 
 

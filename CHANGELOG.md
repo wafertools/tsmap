@@ -6,6 +6,13 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **A lot tested in several sessions is one STDF file per session, in a zip.** An STDF file holds one data stream: one FAR, one MIR and one MRR. `PVT-LOT-05`, `SWEEP-LOT-06`, `EDGE-LOT-01`, `PARAM-LOT-02`, `CLUST-LOT-03` and `HY-LOT-04` ship as `<LOT>.zip` of their session files (`<LOT>_S1.stdf`, …), and so do the docs-site samples `tsmap-edge-ring-lot.zip`, `tsmap-dense-lot.zip`, `tsmap-hy-lot.zip` and `tsmap-sweep-lot.zip`. **Load sample data** opens `PVT-LOT-05.zip`. The generators write the zips through `scripts/lot_files.py`, and `scripts/validate_stdf_atdf.py` checks one data stream per file and every STDF and ATDF inside a zip; `check:fixtures` covers the zips.
+- **Several files of one lot open as one load.** When every file names the same lot ID and no wafer ID repeats (a lot's session files, or a zip of them), the wafers keep their own IDs and no wafer labels step is shown. A load from one zip is named after it.
+- **The sample lot is judged against one spec.** Program 1.1 (wafers W18 to W22) runs a longer SerDes PRBS pattern and a finer Fmax search, which reads Fmax about 1.5 % lower and costs those wafers about five yield points, under the same test limits as the rest of the lot, so capability, spec yield and limit lines cover every wafer.
+- **`Cargo.lock` matches parquet 60.**
+
 ## [0.2.3] — 2026-11-06
 
 ### Changed

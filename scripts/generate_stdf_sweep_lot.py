@@ -2,14 +2,15 @@
 """Generate a synthetic two-state switching lot, with the definitions files that
 turn it into a sweeps + derived-tests demo.
 
-Produces, next to the output path (default sample_data/SWEEP-LOT-06.stdf):
+Produces, next to the output path (default sample_data/SWEEP-LOT-06.zip):
 
-  SWEEP-LOT-06.stdf           8 wafers, ~220 dies each, 54 PTR tests + 4 FTR, probed in four sessions
+  SWEEP-LOT-06.zip            8 wafers, ~220 dies each, 54 PTR tests + 4 FTR, probed in four sessions: one STDF
+                              per session (each one data stream with one MIR, the spec) in one zip (lot_files.py)
   SWEEP-LOT-06_testdefs.csv   readable names for every test, plus 7 DERIVED
                               tests (rows with an expression)
   SWEEP-LOT-06_plots.json     2 sweeps, as plots for Insights → Plot
 
-Load the .stdf; in the test selector, Load definitions → the _testdefs.csv;
+Open the .zip; in the test selector, Load definitions → the _testdefs.csv;
 import; then open Insights → Plot → Import plots… → the _plots.json
 (or launch with --plots).
 
@@ -75,6 +76,7 @@ from pathlib import Path
 # Record builders: the corner lot's single-head wrappers over stdf_spec.py (the one spec-conformant set). Its module-level
 # random.seed runs on import, so ours is set after.
 import stdf_spec as S
+from lot_files import session_file_name, write_lot_zip
 from generate_stdf_corner_lot import far, wcr, sdr, hbr, sbr, wir, wrr, pir, ftr_rec, wafer_dies
 
 random.seed(2026)
@@ -202,12 +204,14 @@ def die_values(wafer: str, r: float) -> tuple[dict[int, float], str | None]:
 
 
 def generate(stdf_path: Path) -> None:
-    buf = bytearray()
+    """`stdf_path` names the lot's folder and file stem: `<LOT>.zip` of the session files is written beside it."""
+    session_files = []
     dies = wafer_dies(8)
     part = 1
     total_bins = {1: 0, 2: 0, 3: 0, 4: 0}
     names = {1: ('P', 'Pass'), 2: ('F', 'Init fail'), 3: ('F', 'No up-switch'), 4: ('F', 'No down-switch')}
     for ses in SESSIONS:
+        buf = bytearray()
         buf += far()
         buf += mir(LOT, ses)
         # Same grid and die pitch as the corner lot: 16.9 mm fits radius 8 in 300 mm.
@@ -262,11 +266,12 @@ def generate(stdf_path: Path) -> None:
         buf += S.file_end(part - session_first, bins[1])
         for b in bins:
             total_bins[b] += bins[b]
-    stdf_path.write_bytes(buf)
+        session_files.append((session_file_name(LOT, len(session_files) + 1), bytes(buf)))
+    zip_path = write_lot_zip(stdf_path.with_name(f'{LOT}.zip'), session_files)
 
     write_testdefs(stdf_path.with_name(f'{LOT}_testdefs.csv'))
     write_plots(stdf_path.with_name(f'{LOT}_plots.json'))
-    print(f'Written {len(buf):,} bytes → {stdf_path}')
+    print(f'Written {len(session_files)} session files → {zip_path}')
     print(f'  {len(WAFERS)} wafers × {len(dies)} dies in {len(SESSIONS)} sessions, {len(TESTS)} PTR + {1 + len(EXTRA_FTR)} FTR; bins {total_bins}')
 
 
@@ -354,5 +359,5 @@ def write_plots(path: Path) -> None:
 
 
 if __name__ == '__main__':
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent.parent / 'sample_data' / f'{LOT}.stdf'
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent.parent / 'sample_data' / f'{LOT}.zip'
     generate(out)
