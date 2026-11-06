@@ -123,11 +123,11 @@ jobs:
       - run: npm ci
 
       # Build only — we rename and upload ourselves below.
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         with:
           args: --target ${{ matrix.target }}
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         if: matrix.target2
         with:
           args: --target ${{ matrix.target2 }}
