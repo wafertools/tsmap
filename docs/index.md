@@ -1,4 +1,6 @@
 ---
+title: "Wafer map viewer for STDF, CSV and Parquet"
+description: "tsmap is a free desktop and browser wafer map viewer. Open STDF, ATDF, CSV, JSON and Parquet lots for yield maps, bin paretos, distributions and correlation."
 hide:
   - navigation
   - toc

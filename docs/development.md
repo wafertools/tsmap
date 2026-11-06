@@ -1,3 +1,7 @@
+---
+description: "Build and run tsmap from source: the prerequisites, the Tauri desktop app, the web build and the Rust and WebAssembly parsers."
+---
+
 # Development
 
 ## Prerequisites

@@ -1,3 +1,7 @@
+---
+description: "Run tsmap in your browser with nothing to install. A WebAssembly build of the same Rust parser reads your files on your machine; nothing is uploaded."
+---
+
 # tsmap in the browser
 
 The browser version of tsmap is available at

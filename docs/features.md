@@ -1,3 +1,7 @@
+---
+description: "What tsmap does: multi-wafer STDF, ATDF, CSV, JSON and Parquet loading, interactive bin and test maps, findings and Insights charts, all parsed locally."
+---
+
 # Features
 
 A tour of what tsmap does. For step-by-step instructions on any of this, see the

@@ -1,3 +1,7 @@
+---
+description: "Open a selected lot or wafer in tsmap straight from a data-selection system through a URL, with API-key and short-lived download link options."
+---
+
 # Integrating tsmap with a data-selection system
 
 This guide describes the **URL-based** way a data-selection application can open a selected lot or

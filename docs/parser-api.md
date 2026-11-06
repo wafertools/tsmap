@@ -1,3 +1,7 @@
+---
+description: "The @wafertools/testdata-parser package behind tsmap: parse STDF, ATDF, CSV, JSON and Parquet test data in the browser with WebAssembly, or in Node."
+---
+
 # Parser API
 
 tsmap's file parsing is not built into the app — it lives in a standalone package,

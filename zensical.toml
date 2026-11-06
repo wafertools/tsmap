@@ -1,5 +1,6 @@
 [project]
 site_name   = "tsmap"
+site_description = "tsmap: a free desktop and browser wafer map viewer for STDF, ATDF, CSV, JSON and Parquet semiconductor test data."
 site_url    = "https://wafertools.github.io/tsmap/"
 site_author = "Paul Robins"
 repo_url    = "https://github.com/wafertools/tsmap"

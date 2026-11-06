@@ -1,3 +1,7 @@
+---
+description: "Fixes for problems you can see in tsmap, on the desktop or in the browser, grouped by where they show up, with how to confirm each fix worked."
+---
+
 # Troubleshooting
 
 **For:** anyone using tsmap, desktop or browser. Symptoms you can actually see, what causes

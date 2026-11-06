@@ -1,3 +1,7 @@
+---
+description: "Five wafer-analysis workflows tsmap is built for, written as procedures: what each needs, what you should see and how to avoid over-reading the result."
+---
+
 # Use cases
 
 Five workflows tsmap is built for, written as procedures you can follow. Each states what it

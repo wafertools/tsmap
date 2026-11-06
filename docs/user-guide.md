@@ -1,4 +1,5 @@
 ---
+description: "The tsmap user guide: opening wafer test files, choosing tests, reading maps and galleries, the Summary panel, Insights charts and exporting results."
 title: User Guide
 ---
 

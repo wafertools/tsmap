@@ -1,3 +1,7 @@
+---
+description: "Analyse your first wafer lot in about ten minutes in the browser: load a bundled multi-wafer sample, find its worst wafer and discover why."
+---
+
 # Analyse your first wafer lot
 
 **For:** anyone new to tsmap. No wafer files, no installation, and no prior knowledge of the
