@@ -6,8 +6,15 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-11-06
+
 ### Changed
 
+- **A wafer opens on what you clicked.** From any chart or table, a wafer opens on the test the chart or column is about, on its bins for a yield (a yield bar, the Yield % column, a row of the Summary panel's Wafer Yield list), and otherwise in the mode the maps are in. A wafer opened from a lot-stacked gallery shows the same kind of measure on its own, never a grey stack of one wafer. A row of the Dies table opens its wafer with the die ringed, on the test whose column you clicked.
+- **Worth a look and What stands out list the same items, under a filter too**, so each Chart link in the Summary panel opens its card. A difference in yield between groups of wafers is shown once, in What divides yield, and What stands out, What divides yield and the example plots compare the same fields.
+- **A lot-stacked gallery names only what its wafers share**, and says how it stacks in words ("occurrence count"). A filter that keeps nothing says so on the maps as well as in Insights.
+- **wafermap 0.40.1.**
+- **The documentation site describes each page for search engines**, and the web app's page has a description.
 - **The two Mac installers are built on one macOS runner.** Apple silicon, then Intel, in one job, so a release needs one macOS runner and one re-run of that job brings back both installers. The release assets keep their names.
 - **Dependabot leaves TypeScript on its current major** until typescript-eslint accepts the next one, since a newer major fails `npm ci` on its peer range.
 - **Learn tsmap lesson 03** says where the top item's Chart link opens: What divides yield, for a difference in yield between splits.
