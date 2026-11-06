@@ -27,7 +27,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - id: v
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - name: Create release with download guide
@@ -99,7 +99,7 @@ jobs:
       # build` -> prebuild -> scripts/check-testdata-parser-published.js, which
       # needs git log on packages/parsers/ to detect source drift since the
       # crate's last version bump; a shallow clone makes it silently skip that check.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -202,7 +202,7 @@ jobs:
       # Full history: build:web -> prebuild:web -> check-testdata-parser-published.js
       # needs git log on packages/parsers/ to detect crate drift, exactly as in
       # deploy.yml. A shallow clone makes that check silently pass.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
