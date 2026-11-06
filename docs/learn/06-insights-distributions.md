@@ -282,9 +282,15 @@ With Group by on, **Tests by wafer** becomes **Tests by split**: one column for 
 
 # Group by temperature
 
-Grouped by **Temperature**, the card compares the six wafers tested at 85 °C with the nineteen at 25 °C. At 85 °C leakage (`ioff_nA`) is high, while the thresholds and both `idsat_n_uA` and `fmax_MHz` are lower. Tester, program revision and burn-in time group the same way.
+Grouped by **Temperature**, the card compares the six wafers tested at 85 °C with the nineteen at 25 °C. At 85 °C leakage (`ioff_nA`) is high, while the thresholds and both `idsat_n_uA` and `fmax_MHz` are lower.
 
 ![Tests by temperature: the 85 group against the 25 group](images/06/tests-by-temperature.png)
+
+---
+
+# Other fields
+
+Tester, program revision and burn-in time each pick out a different set of wafers. Group by each in turn to see which tests it moves.
 
 ---
 

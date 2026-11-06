@@ -281,6 +281,8 @@ Yield differs between wafers. This card checks whether it differs along a line y
 
 Wafers differ in several fields at once, and a strong one can hide another. So each field is read after taking out the strongest other field. A row that says **allowing for Split** shows what is left once the split's effect is removed. Its **Spread** is still the plain difference between the groups.
 
+A field can also rank because it goes with a group that has an effect of its own. In this lot the operator follows the sessions, so its row shows what the sessions did, not what the operator did. Read a row as where to look, not as a cause.
+
 ---
 
 <!-- covers: Part average testing (PAT); Show all 25 wafers; chart › Part average testing (PAT); glossary › Part average testing (PAT) -->
