@@ -6,6 +6,8 @@ technical record, including internal changes.
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-11-07
+
 ### Changed
 
 - **A lot tested in several sessions is one STDF file per session, in a zip.** An STDF file holds one data stream: one FAR, one MIR and one MRR. `PVT-LOT-05`, `SWEEP-LOT-06`, `EDGE-LOT-01`, `PARAM-LOT-02`, `CLUST-LOT-03` and `HY-LOT-04` ship as `<LOT>.zip` of their session files (`<LOT>_S1.stdf`, …), and so do the docs-site samples `tsmap-edge-ring-lot.zip`, `tsmap-dense-lot.zip`, `tsmap-hy-lot.zip` and `tsmap-sweep-lot.zip`. **Load sample data** opens `PVT-LOT-05.zip`. The generators write the zips through `scripts/lot_files.py`, and `scripts/validate_stdf_atdf.py` checks one data stream per file and every STDF and ATDF inside a zip; `check:fixtures` covers the zips.
