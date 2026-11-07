@@ -200,7 +200,7 @@ export const scenario = {
       title: 'Back in Insights, Group by lists the wafer fields that vary',
       steps: [['click', '[data-wmap-view="insights"]'], ['wait', 1200], ['click', groupBy], ['wait', 300]],
       checks: [isVisible('[role="option"]:has-text("Split")', 'Split is offered by Group by')],
-      shots: [{ name: 'group-by-menu', clip: { target: groupBy, through: '[role="option"]:has-text("Split")', pad: 60 } }],
+      shots: [],
     },
     {
       id: '13-grouped',

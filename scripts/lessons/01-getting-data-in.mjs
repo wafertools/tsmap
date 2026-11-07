@@ -99,21 +99,10 @@ export const scenario = {
       ],
     },
     {
-      id: '05a-wafer-labels',
-      title: 'Loading several files asks for a label per wafer, pre-filled from the lot and wafer IDs',
+      id: '05-load-selected',
+      title: 'Load selected… loads the two files as one lot, with no labels to set: they share a lot ID and no wafer',
       steps: [
         ['clickButtonByText', MODAL, 'Load selected…'],
-        ['waitForOverlay', '#tsmap-rename-overlay'],
-      ],
-      checks: [hasText('#tsmap-rename-overlay', 'EDGE-LOT-01'), isVisible('#rename-confirm', 'Continue is showing')],
-      // The overlay fills the window; its rows are at the top, so keep those.
-      shots: [{ name: 'wafer-labels', clip: { rect: { x: 0, y: 0, width: 1280, height: 150 } }, callouts: [['#tsmap-rename-overlay input >> nth=0', { pad: 3 }]] }],
-    },
-    {
-      id: '05-load-selected',
-      title: 'Load selected… loads the two files as one lot',
-      steps: [
-        ['click', '#rename-confirm'],
         ['waitForWafers'],
         ['hover', '#toolbar-title'],
       ],
@@ -148,6 +137,24 @@ export const scenario = {
       ],
       checks: [cardCount(3)],
       shots: [{ name: 'merged-lot', callouts: [['.wmap-gallery-card', { nth: 2 }]] }],
+    },
+    {
+      id: '07b-wafer-labels',
+      title: 'Files from two lots ask for a label per wafer, each W01 led by its lot',
+      steps: [
+        ['loadFiles', [S('EDGE-LOT-01_W01.stdf'), S('HY-LOT-04_W01.stdf')]],
+        ['waitForOverlay', '#tsmap-rename-overlay'],
+      ],
+      checks: [hasText('#tsmap-rename-overlay', 'EDGE-LOT-01'), hasText('#tsmap-rename-overlay', 'HY-LOT-04'), isVisible('#rename-confirm', 'Continue is showing')],
+      // The overlay fills the window; its rows are at the top, so keep those.
+      shots: [{ name: 'wafer-labels', clip: { rect: { x: 0, y: 0, width: 1280, height: 150 } }, callouts: [['#tsmap-rename-overlay input >> nth=0', { pad: 3 }]] }],
+    },
+    {
+      id: '07c-two-lots',
+      title: 'Continue loads the two wafers under their labels',
+      steps: [['click', '#rename-confirm'], ['waitForWafers']],
+      checks: [cardCount(2)],
+      shots: [],
     },
     {
       id: '08-test-selector',

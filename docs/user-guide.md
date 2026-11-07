@@ -192,7 +192,7 @@ After selecting files, what happens depends on the format:
 |--------|-----------|
 | STDF / ATDF | [Test selector overlay](#test-selector-stdf-and-atdf) appears first for large files; small lots import every test directly |
 | CSV / JSON / Parquet | [Column mapping overlay](#column-mapping-csv-json-and-parquet) appears first |
-| Multiple files | [Wafer rename overlay](#wafer-rename-overlay) appears before rendering |
+| Multiple files | [Wafer rename overlay](#wafer-rename-overlay) appears before rendering, unless the files are one lot |
 
 ## Loading your data
 
@@ -516,7 +516,9 @@ explicitly resolves the ambiguity rather than hiding it.
 When loading multiple files (or a zip containing multiple files, or a single file whose
 only wafer has a generic ID like `W01` and no lot ID to go with it), tsmap shows a rename
 overlay listing each wafer
-with an editable label. Labels are pre-filled from whatever identifies the wafer in the
+with an editable label. Files that are one lot (every file names the same lot ID and no wafer ID
+appears in two of them, as a lot tested in several sessions arrives, one file per session) need no
+labels: they open straight away with their own wafer IDs, and a zip of them is named after the zip. Labels are pre-filled from whatever identifies the wafer in the
 data — a distinctive wafer ID is used as-is; a generic one (`W01`) is combined with the
 lot ID (`LOT-A · W01`) so wafers stay distinct within and across lots without you needing
 to edit anything; with neither, it falls back to the file name. Edit any label that needs

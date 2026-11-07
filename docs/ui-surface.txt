@@ -87,11 +87,11 @@ Controls:
       hint: Charts and statistics for this lot
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
-  · 1 · Pass3,62765.6%
+  · 1 · Pass3,65866.2%
       hint: Right-click: charts and tables for these dies
-  · 2 · Fail (1 test)1,23822.4%
+  · 2 · Fail (1 test)1,26122.8%
       hint: Right-click: charts and tables for these dies
-  · 3 · Fail (multi)66011.9%
+  · 3 · Fail (multi)60611.0%
       hint: Right-click: charts and tables for these dies
   · W01 · TT▾  [aria="Wafer info for W01 · TT. Click to expand."]
   · Open full view   (×25)
@@ -132,7 +132,7 @@ Controls:
   · Data tables
   · ▶What stands out
   · Chart  [aria="Chart: Split TT: yield higher"]
-      hint: Open Insights at the chart of this, under Worth a look
+      hint: Open Insights at What divides yield, which compares these groups
   · ●●●HighSplit: 6 tests differ3.2σ
       hint: Click to show this test on the map, with the dies it fails
   · Chart  [aria="Chart: Split: 6 tests differ"]
@@ -143,18 +143,12 @@ Controls:
       hint: Open Insights at the chart of this, under Worth a look
   · ●●●Highvth_p_mV: 447 dies outside limits8.1%
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: Split TT: ring pass rate higher"]
-      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●Highfmax_MHz: 442 dies outside limits8.0%
+      hint: Click to show this test on the map, with the dies it fails
   · ●●●HighTester, Node and Probe card: 2 tests differ1.3σ
       hint: Click to show this test on the map, with the dies it fails
-  · ●●●Highfmax_MHz: 400 dies outside limits7.2%
+  · ●●●HighTemperature: 3 tests differ1.1σ
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: fmax_MHz: 400 dies outside limits"]
-      hint: Open Insights at the chart of this, under Worth a look
-  · ●●●HighTemperature: 4 tests differ1.1σ
-      hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: Temperature: 4 tests differ"]
-      hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
   · ▶Findings (6)4 unusual, 2 notable
   · ●●●Unusual 4
@@ -171,34 +165,34 @@ Controls:
       hint: Site 3 has bist_mem pass rate 3.8 percentage points lower than other test sites — lower on 22/25 wafers, all wafers' data combined Click to show it on the map
   · Io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined
       hint: Site 3 has io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined Click to show it on the map
-  · ▶Wafer Yield (23.5–91.4%) · median 62.9%
+  · ▶Wafer Yield (23.5–91.4%) · median 64.7%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W01 · TT91.4%+28.5  [aria="W01 · TT, 91.4% yield — open wafer"]
-  · W02 · FF68.8%+5.9  [aria="W02 · FF, 68.8% yield — open wafer"]
-  · W03 · TT91.0%+28.1  [aria="W03 · TT, 91.0% yield — open wafer"]
-  · W04 · SS54.8%−8.1  [aria="W04 · SS, 54.8% yield — open wafer"]
-  · W05 · TT89.6%+26.7  [aria="W05 · TT, 89.6% yield — open wafer"]
-  · W06 · FS162.9%0.0  [aria="W06 · FS, 62.9% yield, 1 finding — open wafer"]
-  · W07 · TT82.8%+19.9  [aria="W07 · TT, 82.8% yield — open wafer"]
-  · W08 · SF40.3%−22.6  [aria="W08 · SF, 40.3% yield — open wafer"]
-  · W09 · TT684.2%+21.3  [aria="W09 · TT, 84.2% yield, 6 findings, 5 unusual — open wafer"]
-  · W10 · FF123.5%−39.4  [aria="W10 · FF, 23.5% yield, 1 finding — open wafer"]
-  · W11 · SS133.5%−29.4  [aria="W11 · SS, 33.5% yield, 1 finding — open wafer"]
-  · W12 · TT278.3%+15.4  [aria="W12 · TT, 78.3% yield, 2 findings — open wafer"]
-  · W13 · FS343.9%−19.0  [aria="W13 · FS, 43.9% yield, 3 findings — open wafer"]
-  · W14 · TT687.8%+24.9  [aria="W14 · TT, 87.8% yield, 6 findings — open wafer"]
-  · W15 · SF49.8%−13.1  [aria="W15 · SF, 49.8% yield — open wafer"]
-  · W16 · FF178.3%+15.4  [aria="W16 · FF, 78.3% yield, 1 finding — open wafer"]
-  · W17 · TT88.2%+25.3  [aria="W17 · TT, 88.2% yield — open wafer"]
-  · W18 · SS135.3%−27.6  [aria="W18 · SS, 35.3% yield, 1 finding — open wafer"]
-  · W19 · TT188.2%+25.3  [aria="W19 · TT, 88.2% yield, 1 finding — open wafer"]
-  · W20 · FS658.4%−4.5  [aria="W20 · FS, 58.4% yield, 6 findings — open wafer"]
-  · W21 · SF157.0%−5.9  [aria="W21 · SF, 57.0% yield, 1 finding — open wafer"]
-  · W22 · FF158.8%−4.1  [aria="W22 · FF, 58.8% yield, 1 finding — open wafer"]
-  · W23 · TT84.6%+21.7  [aria="W23 · TT, 84.6% yield — open wafer"]
-  · W24 · SS47.1%−15.8  [aria="W24 · SS, 47.1% yield — open wafer"]
-  · W25 · FS162.9%0.0  [aria="W25 · FS, 62.9% yield, 1 finding — open wafer"]
+  · W01 · TT91.4%+26.7  [aria="W01 · TT, 91.4% yield — open wafer on its bins"]
+  · W02 · FF68.8%+4.1  [aria="W02 · FF, 68.8% yield — open wafer on its bins"]
+  · W03 · TT91.0%+26.2  [aria="W03 · TT, 91.0% yield — open wafer on its bins"]
+  · W04 · SS54.8%−10.0  [aria="W04 · SS, 54.8% yield — open wafer on its bins"]
+  · W05 · TT89.6%+24.9  [aria="W05 · TT, 89.6% yield — open wafer on its bins"]
+  · W06 · FS162.9%−1.8  [aria="W06 · FS, 62.9% yield, 1 finding — open wafer on its bins"]
+  · W07 · TT82.8%+18.1  [aria="W07 · TT, 82.8% yield — open wafer on its bins"]
+  · W08 · SF40.3%−24.4  [aria="W08 · SF, 40.3% yield — open wafer on its bins"]
+  · W09 · TT684.2%+19.5  [aria="W09 · TT, 84.2% yield, 6 findings, 5 unusual — open wafer on its bins"]
+  · W10 · FF123.5%−41.2  [aria="W10 · FF, 23.5% yield, 1 finding — open wafer on its bins"]
+  · W11 · SS133.5%−31.2  [aria="W11 · SS, 33.5% yield, 1 finding — open wafer on its bins"]
+  · W12 · TT278.3%+13.6  [aria="W12 · TT, 78.3% yield, 2 findings — open wafer on its bins"]
+  · W13 · FS343.9%−20.8  [aria="W13 · FS, 43.9% yield, 3 findings — open wafer on its bins"]
+  · W14 · TT687.8%+23.1  [aria="W14 · TT, 87.8% yield, 6 findings — open wafer on its bins"]
+  · W15 · SF49.8%−14.9  [aria="W15 · SF, 49.8% yield — open wafer on its bins"]
+  · W16 · FF178.3%+13.6  [aria="W16 · FF, 78.3% yield, 1 finding — open wafer on its bins"]
+  · W17 · TT88.2%+23.5  [aria="W17 · TT, 88.2% yield — open wafer on its bins"]
+  · W18 · SS138.9%−25.8  [aria="W18 · SS, 38.9% yield, 1 finding — open wafer on its bins"]
+  · W19 · TT287.3%+22.6  [aria="W19 · TT, 87.3% yield, 2 findings — open wafer on its bins"]
+  · W20 · FS260.6%−4.1  [aria="W20 · FS, 60.6% yield, 2 findings — open wafer on its bins"]
+  · W21 · SF160.2%−4.5  [aria="W21 · SF, 60.2% yield, 1 finding — open wafer on its bins"]
+  · W22 · FF64.7%0.0  [aria="W22 · FF, 64.7% yield — open wafer on its bins"]
+  · W23 · TT84.6%+19.9  [aria="W23 · TT, 84.6% yield — open wafer on its bins"]
+  · W24 · SS47.1%−17.6  [aria="W24 · SS, 47.1% yield — open wafer on its bins"]
+  · W25 · FS162.9%−1.8  [aria="W25 · FS, 62.9% yield, 1 finding — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=5,525)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -207,7 +201,7 @@ Controls:
   · Quadrant  [radio, unchecked]
   · ▶Test Values (6) — 25 wafers pooled · N=5,525
   · ▶Functional Tests (8) — 25 wafers pooled · N=5,525
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 Menu — Open files ▾:
@@ -332,31 +326,31 @@ Dialog — Splits…
     · Show split in wafer map labels  [checkbox, checked]
     · Select all
     · Select none
-    · W01sample-lot.stdfTT  [checkbox, unchecked]
-    · W02sample-lot.stdfFF  [checkbox, unchecked]
-    · W03sample-lot.stdfTT  [checkbox, unchecked]
-    · W04sample-lot.stdfSS  [checkbox, unchecked]
-    · W05sample-lot.stdfTT  [checkbox, unchecked]
-    · W06sample-lot.stdfFS  [checkbox, unchecked]
-    · W07sample-lot.stdfTT  [checkbox, unchecked]
-    · W08sample-lot.stdfSF  [checkbox, unchecked]
-    · W09sample-lot.stdfTT  [checkbox, unchecked]
-    · W10sample-lot.stdfFF  [checkbox, unchecked]
-    · W11sample-lot.stdfSS  [checkbox, unchecked]
-    · W12sample-lot.stdfTT  [checkbox, unchecked]
-    · W13sample-lot.stdfFS  [checkbox, unchecked]
-    · W14sample-lot.stdfTT  [checkbox, unchecked]
-    · W15sample-lot.stdfSF  [checkbox, unchecked]
-    · W16sample-lot.stdfFF  [checkbox, unchecked]
-    · W17sample-lot.stdfTT  [checkbox, unchecked]
-    · W18sample-lot.stdfSS  [checkbox, unchecked]
-    · W19sample-lot.stdfTT  [checkbox, unchecked]
-    · W20sample-lot.stdfFS  [checkbox, unchecked]
-    · W21sample-lot.stdfSF  [checkbox, unchecked]
-    · W22sample-lot.stdfFF  [checkbox, unchecked]
-    · W23sample-lot.stdfTT  [checkbox, unchecked]
-    · W24sample-lot.stdfSS  [checkbox, unchecked]
-    · W25sample-lot.stdfFS  [checkbox, unchecked]
+    · W01PVT-LOT-05_S1.stdfTT  [checkbox, unchecked]
+    · W02PVT-LOT-05_S1.stdfFF  [checkbox, unchecked]
+    · W03PVT-LOT-05_S1.stdfTT  [checkbox, unchecked]
+    · W04PVT-LOT-05_S1.stdfSS  [checkbox, unchecked]
+    · W05PVT-LOT-05_S1.stdfTT  [checkbox, unchecked]
+    · W06PVT-LOT-05_S1.stdfFS  [checkbox, unchecked]
+    · W07PVT-LOT-05_S2.stdfTT  [checkbox, unchecked]
+    · W08PVT-LOT-05_S2.stdfSF  [checkbox, unchecked]
+    · W09PVT-LOT-05_S2.stdfTT  [checkbox, unchecked]
+    · W10PVT-LOT-05_S2.stdfFF  [checkbox, unchecked]
+    · W11PVT-LOT-05_S2.stdfSS  [checkbox, unchecked]
+    · W12PVT-LOT-05_S2.stdfTT  [checkbox, unchecked]
+    · W13PVT-LOT-05_S3.stdfFS  [checkbox, unchecked]
+    · W14PVT-LOT-05_S3.stdfTT  [checkbox, unchecked]
+    · W15PVT-LOT-05_S3.stdfSF  [checkbox, unchecked]
+    · W16PVT-LOT-05_S3.stdfFF  [checkbox, unchecked]
+    · W17PVT-LOT-05_S3.stdfTT  [checkbox, unchecked]
+    · W18PVT-LOT-05_S4.stdfSS  [checkbox, unchecked]
+    · W19PVT-LOT-05_S4.stdfTT  [checkbox, unchecked]
+    · W20PVT-LOT-05_S4.stdfFS  [checkbox, unchecked]
+    · W21PVT-LOT-05_S4.stdfSF  [checkbox, unchecked]
+    · W22PVT-LOT-05_S4.stdfFF  [checkbox, unchecked]
+    · W23PVT-LOT-05_S5.stdfTT  [checkbox, unchecked]
+    · W24PVT-LOT-05_S5.stdfSS  [checkbox, unchecked]
+    · W25PVT-LOT-05_S5.stdfFS  [checkbox, unchecked]
     · Assign to selected  [disabled]
     · Clear split  [disabled]
     · Clear all
@@ -523,22 +517,30 @@ Controls:
       hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
-  · Expand   (×11)
-  · Chart actions  [opens menu]   (×11)
-  · Show on map
-      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
+  · Expand   (×10)
+  · Chart actions  [opens menu]   (×10)
+  · Show fmax_MHz on map
+      hint: Leave Insights and show fmax_MHz on the map. The map shows the test, not the groups
   · Heatmaps and the difference map   (×3)
   · Rescaling values
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does
   · What divides yield
+  · +2 other measures differ
   · Group by
-      hint: Group Insights by Split, so every chart compares its groups   (×3)
+      hint: Group Insights by Split, so every chart compares its groups
+  · +1 other measure differs
   · Group by
-      hint: Group Insights by Operator, so every chart compares its groups   (×2)
+      hint: Group Insights by Operator, so every chart compares its groups
+  · 2 other measures   (×4)
   · Group by
-      hint: Group Insights by Temperature, so every chart compares its groups   (×2)
+      hint: Group Insights by Temperature, so every chart compares its groups
   · Group by
       hint: Group Insights by Program rev, so every chart compares its groups
-  · Show all 24 rows
+  · Group by
+      hint: Group Insights by Tester, so every chart compares its groups; Node and Probe card give the same groups
+  · Group by
+      hint: Group Insights by Burn-in time, so every chart compares its groups
   · Sort: yield  [radio, unchecked]
   · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
@@ -553,7 +555,7 @@ Controls:
   · Map the verdicts
       hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
   · Data tab
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 Menu — Open files ▾:
@@ -668,22 +670,30 @@ Controls:
       hint: Plots you have built and saved
   · None▾  [aria="Group by", opens menu]
   · Auto (0)▾  [aria="Columns", opens menu]
-  · Expand   (×11)
-  · Chart actions  [opens menu]   (×11)
-  · Show on map
-      hint: Leave Insights and show this on the map, as its row in What stands out does   (×3)
+  · Expand   (×10)
+  · Chart actions  [opens menu]   (×10)
+  · Show fmax_MHz on map
+      hint: Leave Insights and show fmax_MHz on the map. The map shows the test, not the groups
   · Heatmaps and the difference map   (×3)
   · Rescaling values
+  · Show on map
+      hint: Leave Insights and show this on the map, as its row in What stands out does
   · What divides yield
+  · +2 other measures differ
   · Group by
-      hint: Group Insights by Split, so every chart compares its groups   (×3)
+      hint: Group Insights by Split, so every chart compares its groups
+  · +1 other measure differs
   · Group by
-      hint: Group Insights by Operator, so every chart compares its groups   (×2)
+      hint: Group Insights by Operator, so every chart compares its groups
+  · 2 other measures   (×4)
   · Group by
-      hint: Group Insights by Temperature, so every chart compares its groups   (×2)
+      hint: Group Insights by Temperature, so every chart compares its groups
   · Group by
       hint: Group Insights by Program rev, so every chart compares its groups
-  · Show all 24 rows
+  · Group by
+      hint: Group Insights by Tester, so every chart compares its groups; Node and Probe card give the same groups
+  · Group by
+      hint: Group Insights by Burn-in time, so every chart compares its groups
   · Sort: yield  [radio, unchecked]
   · Sort: wafer  [radio, checked]
   · Hard bins  [radio, checked]
@@ -698,7 +708,7 @@ Controls:
   · Map the verdicts
       hint: Show the maps with their dies coloured by PAT verdict: within the limits, outlier, fails anyway
   · Data tab
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 ## Insights (sample lot) › Distributions
@@ -754,7 +764,7 @@ Controls:
   · Trend  [radio, checked]
   · Control chart  [radio, unchecked]
   · Bands on a line
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 Menu — Test:
@@ -858,7 +868,7 @@ Controls:
   · Bin 1
   · Bin 2
   · Bin 3
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 Menu — Chart actions:
@@ -911,7 +921,7 @@ Controls:
       hint: Save the test-values table as a CSV file
   · Functional CSV
       hint: Save the functional-tests table as a CSV file
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 ## Insights (sample lot) › My plots
@@ -960,7 +970,7 @@ Controls:
       hint: Save all your plots to a file, to share or to keep a copy
   · Delete all plots…  [disabled]
       hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 ## Insights (sample lot) › My plots › Examples
@@ -1011,10 +1021,10 @@ Controls:
       hint: Remove every plot and sweep. You are asked first, and Undo brings them back for ten seconds
   · Add all
       hint: Add every example you do not have yet to My plots
-  · Expand   (×27)
-  · Chart actions  [opens menu]   (×27)
+  · Expand   (×28)
+  · Chart actions  [opens menu]   (×28)
   · Add to my plots
-      hint: Add this example to My plots, where you can edit it   (×23)
+      hint: Add this example to My plots, where you can edit it   (×24)
   · Fit lines, R² and y = x
   · FF   (×8)
   · FS   (×8)
@@ -1032,7 +1042,7 @@ Controls:
   · Bin 3
   · Control charts
   · Capability, Ppk and the goal plot
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 Menu — Chart actions:
@@ -1120,7 +1130,7 @@ Controls:
   · W23 · TT   (×2)
   · W24 · SS   (×2)
   · W25 · FS   (×2)
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
   · Maximize (F)
   · Close (Esc)
@@ -1355,7 +1365,7 @@ Controls:
   · W23 · TT   (×2)
   · W24 · SS   (×2)
   · W25 · FS   (×2)
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
   · Maximize (F)
   · Close (Esc)
@@ -1429,7 +1439,7 @@ Controls:
       hint: Make a copy of this plot to vary
   · Delete
       hint: Remove this plot. Undo brings it back for ten seconds
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
   · Maximize (F)
   · Close (Esc)
@@ -1489,11 +1499,11 @@ Controls:
       hint: Charts and statistics for this lot
   · Filter…
       hint: Show only the wafers and dies that meet conditions you set, on the maps, the gallery and every Insights tab
-  · 1 · Pass3,62765.6%
+  · 1 · Pass3,65866.2%
       hint: Right-click: charts and tables for these dies
-  · 2 · Fail (1 test)1,23822.4%
+  · 2 · Fail (1 test)1,26122.8%
       hint: Right-click: charts and tables for these dies
-  · 3 · Fail (multi)66011.9%
+  · 3 · Fail (multi)60611.0%
       hint: Right-click: charts and tables for these dies
   · W01 · TT▾  [aria="Wafer info for W01 · TT. Click to expand."]
   · Reattach to gallery
@@ -1535,7 +1545,7 @@ Controls:
   · Data tables
   · ▶What stands out
   · Chart  [aria="Chart: Split TT: yield higher"]
-      hint: Open Insights at the chart of this, under Worth a look
+      hint: Open Insights at What divides yield, which compares these groups
   · ●●●HighSplit: 6 tests differ3.2σ
       hint: Click to show this test on the map, with the dies it fails
   · Chart  [aria="Chart: Split: 6 tests differ"]
@@ -1546,18 +1556,12 @@ Controls:
       hint: Open Insights at the chart of this, under Worth a look
   · ●●●Highvth_p_mV: 447 dies outside limits8.1%
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: Split TT: ring pass rate higher"]
-      hint: Open Insights at the chart of this, under Worth a look
+  · ●●●Highfmax_MHz: 442 dies outside limits8.0%
+      hint: Click to show this test on the map, with the dies it fails
   · ●●●HighTester, Node and Probe card: 2 tests differ1.3σ
       hint: Click to show this test on the map, with the dies it fails
-  · ●●●Highfmax_MHz: 400 dies outside limits7.2%
+  · ●●●HighTemperature: 3 tests differ1.1σ
       hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: fmax_MHz: 400 dies outside limits"]
-      hint: Open Insights at the chart of this, under Worth a look
-  · ●●●HighTemperature: 4 tests differ1.1σ
-      hint: Click to show this test on the map, with the dies it fails
-  · Chart  [aria="Chart: Temperature: 4 tests differ"]
-      hint: Open Insights at the chart of this, under Worth a look
   · Full report ▸
   · ▶Findings (6)4 unusual, 2 notable
   · ●●●Unusual 4
@@ -1574,34 +1578,34 @@ Controls:
       hint: Site 3 has bist_mem pass rate 3.8 percentage points lower than other test sites — lower on 22/25 wafers, all wafers' data combined Click to show it on the map
   · Io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined
       hint: Site 3 has io_loopback pass rate 5.1 percentage points lower than other test sites — lower on 25/25 wafers, all wafers' data combined Click to show it on the map
-  · ▶Wafer Yield (23.5–91.4%) · median 62.9%
+  · ▶Wafer Yield (23.5–91.4%) · median 64.7%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W01 · TT91.4%+28.5  [aria="W01 · TT, 91.4% yield — open wafer"]
-  · W02 · FF68.8%+5.9  [aria="W02 · FF, 68.8% yield — open wafer"]
-  · W03 · TT91.0%+28.1  [aria="W03 · TT, 91.0% yield — open wafer"]
-  · W04 · SS54.8%−8.1  [aria="W04 · SS, 54.8% yield — open wafer"]
-  · W05 · TT89.6%+26.7  [aria="W05 · TT, 89.6% yield — open wafer"]
-  · W06 · FS162.9%0.0  [aria="W06 · FS, 62.9% yield, 1 finding — open wafer"]
-  · W07 · TT82.8%+19.9  [aria="W07 · TT, 82.8% yield — open wafer"]
-  · W08 · SF40.3%−22.6  [aria="W08 · SF, 40.3% yield — open wafer"]
-  · W09 · TT684.2%+21.3  [aria="W09 · TT, 84.2% yield, 6 findings, 5 unusual — open wafer"]
-  · W10 · FF123.5%−39.4  [aria="W10 · FF, 23.5% yield, 1 finding — open wafer"]
-  · W11 · SS133.5%−29.4  [aria="W11 · SS, 33.5% yield, 1 finding — open wafer"]
-  · W12 · TT278.3%+15.4  [aria="W12 · TT, 78.3% yield, 2 findings — open wafer"]
-  · W13 · FS343.9%−19.0  [aria="W13 · FS, 43.9% yield, 3 findings — open wafer"]
-  · W14 · TT687.8%+24.9  [aria="W14 · TT, 87.8% yield, 6 findings — open wafer"]
-  · W15 · SF49.8%−13.1  [aria="W15 · SF, 49.8% yield — open wafer"]
-  · W16 · FF178.3%+15.4  [aria="W16 · FF, 78.3% yield, 1 finding — open wafer"]
-  · W17 · TT88.2%+25.3  [aria="W17 · TT, 88.2% yield — open wafer"]
-  · W18 · SS135.3%−27.6  [aria="W18 · SS, 35.3% yield, 1 finding — open wafer"]
-  · W19 · TT188.2%+25.3  [aria="W19 · TT, 88.2% yield, 1 finding — open wafer"]
-  · W20 · FS658.4%−4.5  [aria="W20 · FS, 58.4% yield, 6 findings — open wafer"]
-  · W21 · SF157.0%−5.9  [aria="W21 · SF, 57.0% yield, 1 finding — open wafer"]
-  · W22 · FF158.8%−4.1  [aria="W22 · FF, 58.8% yield, 1 finding — open wafer"]
-  · W23 · TT84.6%+21.7  [aria="W23 · TT, 84.6% yield — open wafer"]
-  · W24 · SS47.1%−15.8  [aria="W24 · SS, 47.1% yield — open wafer"]
-  · W25 · FS162.9%0.0  [aria="W25 · FS, 62.9% yield, 1 finding — open wafer"]
+  · W01 · TT91.4%+26.7  [aria="W01 · TT, 91.4% yield — open wafer on its bins"]
+  · W02 · FF68.8%+4.1  [aria="W02 · FF, 68.8% yield — open wafer on its bins"]
+  · W03 · TT91.0%+26.2  [aria="W03 · TT, 91.0% yield — open wafer on its bins"]
+  · W04 · SS54.8%−10.0  [aria="W04 · SS, 54.8% yield — open wafer on its bins"]
+  · W05 · TT89.6%+24.9  [aria="W05 · TT, 89.6% yield — open wafer on its bins"]
+  · W06 · FS162.9%−1.8  [aria="W06 · FS, 62.9% yield, 1 finding — open wafer on its bins"]
+  · W07 · TT82.8%+18.1  [aria="W07 · TT, 82.8% yield — open wafer on its bins"]
+  · W08 · SF40.3%−24.4  [aria="W08 · SF, 40.3% yield — open wafer on its bins"]
+  · W09 · TT684.2%+19.5  [aria="W09 · TT, 84.2% yield, 6 findings, 5 unusual — open wafer on its bins"]
+  · W10 · FF123.5%−41.2  [aria="W10 · FF, 23.5% yield, 1 finding — open wafer on its bins"]
+  · W11 · SS133.5%−31.2  [aria="W11 · SS, 33.5% yield, 1 finding — open wafer on its bins"]
+  · W12 · TT278.3%+13.6  [aria="W12 · TT, 78.3% yield, 2 findings — open wafer on its bins"]
+  · W13 · FS343.9%−20.8  [aria="W13 · FS, 43.9% yield, 3 findings — open wafer on its bins"]
+  · W14 · TT687.8%+23.1  [aria="W14 · TT, 87.8% yield, 6 findings — open wafer on its bins"]
+  · W15 · SF49.8%−14.9  [aria="W15 · SF, 49.8% yield — open wafer on its bins"]
+  · W16 · FF178.3%+13.6  [aria="W16 · FF, 78.3% yield, 1 finding — open wafer on its bins"]
+  · W17 · TT88.2%+23.5  [aria="W17 · TT, 88.2% yield — open wafer on its bins"]
+  · W18 · SS138.9%−25.8  [aria="W18 · SS, 38.9% yield, 1 finding — open wafer on its bins"]
+  · W19 · TT287.3%+22.6  [aria="W19 · TT, 87.3% yield, 2 findings — open wafer on its bins"]
+  · W20 · FS260.6%−4.1  [aria="W20 · FS, 60.6% yield, 2 findings — open wafer on its bins"]
+  · W21 · SF160.2%−4.5  [aria="W21 · SF, 60.2% yield, 1 finding — open wafer on its bins"]
+  · W22 · FF64.7%0.0  [aria="W22 · FF, 64.7% yield — open wafer on its bins"]
+  · W23 · TT84.6%+19.9  [aria="W23 · TT, 84.6% yield — open wafer on its bins"]
+  · W24 · SS47.1%−17.6  [aria="W24 · SS, 47.1% yield — open wafer on its bins"]
+  · W25 · FS162.9%−1.8  [aria="W25 · FS, 62.9% yield, 1 finding — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=5,525)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -1610,7 +1614,7 @@ Controls:
   · Quadrant  [radio, unchecked]
   · ▶Test Values (6) — 25 wafers pooled · N=5,525
   · ▶Functional Tests (8) — 25 wafers pooled · N=5,525
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 ## One wafer loaded
@@ -1864,14 +1868,14 @@ Controls:
   · ▶Wafer Yield (90.2–98.7%) · median 95.4%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W01598.2%+2.8  [aria="W01, 98.2% yield, 5 findings — open wafer"]
-  · W021496.0%+0.6  [aria="W02, 96.0% yield, 14 findings — open wafer"]
-  · W0393.1%−2.3  [aria="W03, 93.1% yield — open wafer"]
-  · W041091.0%−4.4  [aria="W04, 91.0% yield, 10 findings, 4 unusual — open wafer"]
-  · W05798.7%+3.3  [aria="W05, 98.7% yield, 7 findings, 3 unusual — open wafer"]
-  · W061396.0%+0.6  [aria="W06, 96.0% yield, 13 findings — open wafer"]
-  · W07194.9%−0.6  [aria="W07, 94.9% yield, 1 finding — open wafer"]
-  · W081090.2%−5.2  [aria="W08, 90.2% yield, 10 findings, 5 unusual — open wafer"]
+  · W01598.2%+2.8  [aria="W01, 98.2% yield, 5 findings — open wafer on its bins"]
+  · W021496.0%+0.6  [aria="W02, 96.0% yield, 14 findings — open wafer on its bins"]
+  · W0393.1%−2.3  [aria="W03, 93.1% yield — open wafer on its bins"]
+  · W041091.0%−4.4  [aria="W04, 91.0% yield, 10 findings, 4 unusual — open wafer on its bins"]
+  · W05798.7%+3.3  [aria="W05, 98.7% yield, 7 findings, 3 unusual — open wafer on its bins"]
+  · W061396.0%+0.6  [aria="W06, 96.0% yield, 13 findings — open wafer on its bins"]
+  · W07194.9%−0.6  [aria="W07, 94.9% yield, 1 finding — open wafer on its bins"]
+  · W081090.2%−5.2  [aria="W08, 90.2% yield, 10 findings, 5 unusual — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=6,392)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -1880,7 +1884,7 @@ Controls:
   · Quadrant  [radio, unchecked]
   · ▶Test Values (3) — 8 wafers pooled · N=6,392
   · ▶Functional Tests (5) — 8 wafers pooled · N=6,392
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
 
 ## Test selector (Setup ▾ → Tests…)
@@ -2055,14 +2059,14 @@ Controls:
   · ▶Wafer Yield (91.9–96.8%) · median 94.3%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W011591.9%−2.5  [aria="W01, 91.9% yield, 15 findings, 13 unusual — open wafer"]
-  · W022292.8%−1.6  [aria="W02, 92.8% yield, 22 findings, 15 unusual — open wafer"]
-  · W031695.5%+1.1  [aria="W03, 95.5% yield, 16 findings, 13 unusual — open wafer"]
-  · W042295.5%+1.1  [aria="W04, 95.5% yield, 22 findings, 15 unusual — open wafer"]
-  · W051793.7%−0.7  [aria="W05, 93.7% yield, 17 findings, 14 unusual — open wafer"]
-  · W062794.6%+0.2  [aria="W06, 94.6% yield, 27 findings, 22 unusual — open wafer"]
-  · W071996.8%+2.5  [aria="W07, 96.8% yield, 19 findings, 17 unusual — open wafer"]
-  · W082294.1%−0.2  [aria="W08, 94.1% yield, 22 findings, 18 unusual — open wafer"]
+  · W011591.9%−2.5  [aria="W01, 91.9% yield, 15 findings, 13 unusual — open wafer on its bins"]
+  · W022292.8%−1.6  [aria="W02, 92.8% yield, 22 findings, 15 unusual — open wafer on its bins"]
+  · W031695.5%+1.1  [aria="W03, 95.5% yield, 16 findings, 13 unusual — open wafer on its bins"]
+  · W042295.5%+1.1  [aria="W04, 95.5% yield, 22 findings, 15 unusual — open wafer on its bins"]
+  · W051793.7%−0.7  [aria="W05, 93.7% yield, 17 findings, 14 unusual — open wafer on its bins"]
+  · W062794.6%+0.2  [aria="W06, 94.6% yield, 27 findings, 22 unusual — open wafer on its bins"]
+  · W071996.8%+2.5  [aria="W07, 96.8% yield, 19 findings, 17 unusual — open wafer on its bins"]
+  · W082294.1%−0.2  [aria="W08, 94.1% yield, 22 findings, 18 unusual — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=1,768)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -2071,7 +2075,7 @@ Controls:
   · Quadrant  [radio, unchecked]
   · ▶Test Values (54) — 8 wafers pooled · N=1,768
   · ▶Functional Tests (4) — 8 wafers pooled · N=1,768
-  · ▲ 1 new warningLog
+  · Log
       hint: Show the log panel
   · Close
   · All
@@ -2139,6 +2143,8 @@ Controls:
   · 5303uAP  [checkbox, checked]
   · 5304uAP  [checkbox, checked]
   · 5305uAP  [checkbox, checked]
+  · Scan all 4 files
+      hint: Re-scan every file and merge the full test definitions (use when a test only appears in a smaller file). Your current selection is kept.
   · Save definitions
   · Load definitions
   · ▾  [aria="Load a recently used definitions file", opens menu]
@@ -2240,9 +2246,9 @@ Controls:
   · ▶Wafer Yield (85.2–87.4%) · median 85.8%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W01287.4%+1.6  [aria="W01, 87.4% yield, 2 findings — open wafer"]
-  · W02285.2%−0.6  [aria="W02, 85.2% yield, 2 findings, 1 unusual — open wafer"]
-  · W0385.8%0.0  [aria="W03, 85.8% yield — open wafer"]
+  · W01287.4%+1.6  [aria="W01, 87.4% yield, 2 findings — open wafer on its bins"]
+  · W02285.2%−0.6  [aria="W02, 85.2% yield, 2 findings, 1 unusual — open wafer on its bins"]
+  · W0385.8%0.0  [aria="W03, 85.8% yield — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=951)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -2309,9 +2315,9 @@ Controls:
   · ▶Wafer Yield (85.2–87.4%) · median 85.8%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W01287.4%+1.6  [aria="W01, 87.4% yield, 2 findings — open wafer"]
-  · W02285.2%−0.6  [aria="W02, 85.2% yield, 2 findings, 1 unusual — open wafer"]
-  · W0385.8%0.0  [aria="W03, 85.8% yield — open wafer"]
+  · W01287.4%+1.6  [aria="W01, 87.4% yield, 2 findings — open wafer on its bins"]
+  · W02285.2%−0.6  [aria="W02, 85.2% yield, 2 findings, 1 unusual — open wafer on its bins"]
+  · W0385.8%0.0  [aria="W03, 85.8% yield — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=951)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -2390,9 +2396,9 @@ Controls:
   · ▶Wafer Yield (35.5–95.0%) · median 82.8%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W0195.0%+12.2  [aria="W01, 95.0% yield — open wafer"]
-  · W0282.8%0.0  [aria="W02, 82.8% yield — open wafer"]
-  · W03635.5%−47.3  [aria="W03, 35.5% yield, 6 findings — open wafer"]
+  · W0195.0%+12.2  [aria="W01, 95.0% yield — open wafer on its bins"]
+  · W0282.8%0.0  [aria="W02, 82.8% yield — open wafer on its bins"]
+  · W03635.5%−47.3  [aria="W03, 35.5% yield, 6 findings — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=1,428)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -2515,9 +2521,9 @@ Controls:
   · ▶Wafer Yield (82.4–86.4%) · median 84.6%
   · Slot  [radio, checked]
   · Yield  [radio, unchecked]
-  · W011482.4%−2.3  [aria="W01, 82.4% yield, 14 findings, 1 unusual — open wafer"]
-  · W021284.6%0.0  [aria="W02, 84.6% yield, 12 findings, 1 unusual — open wafer"]
-  · W0386.4%+1.8  [aria="W03, 86.4% yield — open wafer"]
+  · W011482.4%−2.3  [aria="W01, 82.4% yield, 14 findings, 1 unusual — open wafer on its bins"]
+  · W021284.6%0.0  [aria="W02, 84.6% yield, 12 findings, 1 unusual — open wafer on its bins"]
+  · W0386.4%+1.8  [aria="W03, 86.4% yield — open wafer on its bins"]
   · ▶Hard Bin Breakdown — % of dies (N=663)
   · Hard  [radio, checked]
   · Soft  [radio, unchecked]
@@ -2570,10 +2576,6 @@ Controls:
       hint: Sort by Tested
   · ▾  [aria="Filter by Tested", opens dialog]
       hint: Filter by Tested
-  · Modified  [aria="Sort by Modified"]
-      hint: Sort by Modified
-  · ▾  [aria="Filter by Modified", opens dialog]
-      hint: Filter by Modified
   · Size  [aria="Sort by Size"]
       hint: Sort by Size
   · ▾  [aria="Filter by Size", opens dialog]

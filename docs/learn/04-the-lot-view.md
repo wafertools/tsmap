@@ -253,7 +253,7 @@ STDF and ATDF files carry names and pass flags of their own, so the table starts
 
 <span class="badge" role="img" aria-label="callout 1">1</span> Tick hard bins, then <span class="badge" role="img" aria-label="callout 2">2</span> **Mark pass** or **Mark fail**. Soft bins have no pass flag.
 
-<span class="badge" role="img" aria-label="callout 3">3</span> The window shows the lot's yield now and with the new pass bins: here 65.65% becomes 88.05% if bin 2 counts as a pass.
+<span class="badge" role="img" aria-label="callout 3">3</span> The window shows the lot's yield now and with the new pass bins: here 66.21% becomes 89.03% if bin 2 counts as a pass.
 
 ![Hard bin 2 ticked and marked pass: the yield line shows both figures](images/04/bin-editor-pass.png)
 
@@ -266,7 +266,7 @@ STDF and ATDF files carry names and pass flags of their own, so the table starts
 
 A changed pass flag changes the lot's yield and every finding, so **Apply** asks first, with both figures. **Change pass bins** goes ahead, **Back** returns to the table, and **Cancel** leaves the lot untouched. Files of bin definitions are in [lesson 12](12-automation.md).
 
-![The confirmation: lot yield goes from 65.65% to 88.05%, and every finding, summary and report follows](images/04/bin-editor-confirm.png)
+![The confirmation: lot yield goes from 66.21% to 89.03%, and every finding, summary and report follows](images/04/bin-editor-confirm.png)
 
 ---
 

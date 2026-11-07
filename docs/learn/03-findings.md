@@ -70,7 +70,7 @@ The section opens with the yield as its headline. Below it are the items that co
 
 # An item about groups of wafers
 
-An item can compare groups of wafers, not just look at dies. <span class="badge" role="img" aria-label="callout 1">1</span> is the lot's yield. <span class="badge" role="img" aria-label="callout 2">2</span> says that wafers with split TT yield 34.9 points more than the other wafers, and that the loss is mostly in hard bin 3. Each wafer counts as one value, so the figure is about wafers, not dies.
+An item can compare groups of wafers, not just look at dies. <span class="badge" role="img" aria-label="callout 1">1</span> is the lot's yield. <span class="badge" role="img" aria-label="callout 2">2</span> says that wafers with split TT yield 33.8 points more than the other wafers, and that the loss is mostly in hard bin 2. Each wafer counts as one value, so the figure is about wafers, not dies.
 
 ![The headline and the top item, numbered](images/03/top-item-group.png)
 
@@ -312,7 +312,7 @@ A badge on a row counts that wafer's findings. Click a row to open the wafer. A 
 
 # Which yield?
 
-The panel's **65.6% mean per-wafer yield** averages the 25 wafers' own yields, each wafer counting once. A pooled yield counts every die once, so big wafers weigh more. The label always says which. Check it before you compare the figure with one from somewhere else.
+The panel's **66.2% mean per-wafer yield** averages the 25 wafers' own yields, each wafer counting once. A pooled yield counts every die once, so big wafers weigh more. The label always says which. Check it before you compare the figure with one from somewhere else.
 
 ---
 
@@ -413,7 +413,7 @@ The Functional Tests table gives pass and fail counts and the pass rate for each
 
 # Check your results
 
-2. **TT**: its wafers yield 34.9 points more than the other wafers, mostly because fewer dies fail hard bin 3.
+2. **TT**: its wafers yield 33.8 points more than the other wafers, mostly because fewer dies fail hard bin 2.
 3. The **SS** wafers, such as W04: SS is the slow corner, so many of its dies fall below the `fmax_MHz` low limit (▽). The TT wafers have only a few marked dies.
 4. **8 of 25** wafers: the finding says so, and the map marks its dies on each of them.
 5. **W10 · FF** is lowest, at 23.5% yield. W11 · SS is next, at 33.5%.

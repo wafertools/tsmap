@@ -59,7 +59,7 @@ those were applied automatically along with the sample.
 
 Before looking at any single wafer, read the panel on the right. It reports:
 
-- **25 wafers**, **65.6 %** mean per-wafer yield, **5,525** dies analysed.
+- **25 wafers**, **66.2 %** mean per-wafer yield, **5,525** dies analysed.
 - A **Findings** section — 6 findings, 4 *Unusual* and 2 *Notable*.
 
 Among them: **"Spatial pattern: edge-local — seen on 8/25 wafers"**, and a weak test site
@@ -82,7 +82,7 @@ The order is now:
 |-------|-------|
 | W10 · FF | 23.5 % |
 | W11 · SS | 33.5 % |
-| W18 · SS | 35.3 % |
+| W18 · SS | 38.9 % |
 | W08 · SF | 40.3 % |
 | … | … |
 | W03 · TT | 91.0 % |

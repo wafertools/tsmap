@@ -69,7 +69,7 @@ export const scenario = {
       title: 'Sweep is a chart type too: choosing it shows the series form and the curve beside it',
       steps: [['click', `${DIALOG} label:text-is("Sweep")`], ['wait', 1200]],
       checks: [isVisible(`${DIALOG} label:text-is("Sweep")`, 'the Sweep type is offered')],
-      shots: [{ name: 'sweep-type', clip: { target: DIALOG, pad: 8 }, callouts: [[`${DIALOG} label:text-is("Sweep")`, { pad: 2 }]] }],
+      shots: [],
     },
     {
       id: '15c-json-tab',

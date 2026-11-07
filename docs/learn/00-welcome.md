@@ -77,7 +77,7 @@ After testing, every die is classed into a **bin** (a category), and the bins ar
 
 # Yield and reading the colours
 
-**Yield** is the share of dies in a pass bin: 65.6% for this lot, shown in the legend.
+**Yield** is the share of dies in a pass bin: 66.2% for this lot, shown in the legend.
 
 A map that is mostly green is a healthy wafer. The other colours show where the rest of the dies failed, and how.
 

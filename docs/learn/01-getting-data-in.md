@@ -137,19 +137,9 @@ The usual routine: search for a string like **EDGE**, **Select all** of what is 
 
 ---
 
-<!-- covers: tsmap guide › Wafer rename overlay -->
-
-# Naming the wafers
-
-When you load several files at once, tsmap suggests a label per wafer. A plain ID such as W01 gets its lot in front, so two lots' W01 stay separate, instead of being mistaken for one wafer. Edit any label, then **Continue →**
-
-![The wafer labels step for the two EDGE-LOT-01 files](images/01/wafer-labels.png)
-
----
-
 # One lot from separate files
 
-The two files of EDGE-LOT-01 hold one wafer each, and they load as one lot, `EDGE-LOT-01`. The six files used here are in the scan-folder zip on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
+The two files of EDGE-LOT-01 hold one wafer each, and they load as one lot, `EDGE-LOT-01`. Files that name the same lot open straight away, as long as no wafer appears in more than one of them. A lot tested in several sessions arrives like this, one file per session. The six files used here are in the scan-folder zip on the [sample files page](https://wafertools.github.io/tsmap/web/#try-it-with-sample-data).
 
 ![Two wafers of EDGE-LOT-01, loaded from two files](images/01/scanned-lot.png)
 
@@ -172,6 +162,16 @@ The two files of EDGE-LOT-01 hold one wafer each, and they load as one lot, `EDG
 Once the third file is added, its wafer joins the same gallery, Summary and yield.
 
 ![Three wafers of EDGE-LOT-01, the added one outlined](images/01/merged-lot.png)
+
+---
+
+<!-- covers: tsmap guide › Wafer rename overlay -->
+
+# Naming the wafers
+
+When the files come from different lots, tsmap suggests a label per wafer. A plain ID such as W01 gets its lot in front, so the W01 of EDGE-LOT-01 and the W01 of HY-LOT-04 stay separate, instead of being mistaken for one wafer. Edit any label, then **Continue →**
+
+![The wafer labels step for W01 of two lots](images/01/wafer-labels.png)
 
 ---
 
@@ -240,6 +240,8 @@ Every test you import costs memory, so a large lot asks you to choose before it 
 - The footer estimates memory: amber is slow, red asks first
 
 ---
+
+<!-- covers: Scan all * files -->
 
 # Many files, many tests
 

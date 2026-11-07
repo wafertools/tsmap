@@ -54,11 +54,11 @@ Read it from the top. **Worth a look** comes first when something stands out, th
 ---
 
 <!-- _class: split -->
-<!-- covers: Show on map -->
+<!-- covers: Show on map; Show * on map -->
 
 # Worth a look
 
-The same items as **What stands out** (lesson 03), each drawn as the chart that shows it. Each card starts with a line saying why it is shown. **Show on map** opens the map that shows that item. A lot with nothing to show has no Worth a look, and its Overview starts with the standing cards.
+The same items as **What stands out** (lesson 03), each drawn as the chart that shows it. Each card starts with a line saying why it is shown. **Show on map** opens the map that shows that item. On a card about groups of wafers that leads with a test, the button names that test, such as **Show fmax_MHz on map**. A lot with nothing to show has no Worth a look, and its Overview starts with the standing cards.
 
 ![A Worth a look card, with Show on map outlined](images/05/worth-a-look.png)
 
@@ -267,7 +267,7 @@ Charts are not dead ends. Click a mark to go deeper.
 
 ---
 
-<!-- covers: What divides yield; Show all N rows; Group by; chart › What divides yield; wmap guide › What divides yield -->
+<!-- covers: What divides yield; Show all N rows; * other measures; +* other measure* differ*; Group by; chart › What divides yield; wmap guide › What divides yield -->
 
 # What divides yield
 
@@ -337,7 +337,7 @@ The sample lot was tested in five sessions, so the menu also offers **Temperatur
 
 # Grouped by Split
 
-Every card now reports per split instead of per wafer. SS is lowest at 42.6%, TT highest at 86.6%, so the process corners account for the differences in yield. Click a split's bar to see its wafers; **Back** returns.
+Every card now reports per split instead of per wafer. SS is lowest at 43.6%, TT highest at 86.5%, so the process corners account for the differences in yield. Click a split's bar to see its wafers; **Back** returns.
 
 ![The Overview grouped by Split](images/05/grouped-overview.png)
 
@@ -394,7 +394,7 @@ Beside **Group by** and **Show**, **Columns** sets how many columns of cards eve
 # Check your results
 
 2. **`ioff_nA`** passes least often, at 91.8%. `vth_p_mV` is close behind at 91.9%.
-3. **SS** has the lowest yield, at 42.6%. TT is highest, at 86.6%.
+3. **SS** has the lowest yield, at 43.6%. TT is highest, at 86.5%.
 
 ---
 
