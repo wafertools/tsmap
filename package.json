@@ -68,10 +68,10 @@
     "lessons:check:overflow": "node scripts/check-lesson-overflow.mjs"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-dialog": "^2.8.3",
     "@tauri-apps/plugin-fs": "^2.7.1",
-    "@tauri-apps/plugin-opener": "^2.7.2",
+    "@tauri-apps/plugin-opener": "^2.7.3",
     "@wafertools/testdata-parser": "^0.16.4",
     "@wafertools/wafermap": "^0.40.1",
     "fflate": "^0.8.3"
@@ -79,15 +79,15 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@marp-team/marp-cli": "^4.5.1",
-    "@tauri-apps/cli": "^2.12.4",
-    "eslint": "^10.13.0",
-    "marked": "^18.1.2",
-    "playwright": "^1.64.1",
+    "@tauri-apps/cli": "^2.12.6",
+    "eslint": "^10.15.0",
+    "marked": "^18.2.1",
+    "playwright": "^1.65.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.1",
-    "vite": "^8.3.5",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
     "vite-plugin-pwa": "^2.0.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.1"
   },
   "overrides": {
     "@xmldom/xmldom": "^0.9.12",
